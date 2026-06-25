@@ -1,0 +1,126 @@
+import { useState } from 'react';
+import { Box, Button, Chip } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import { useNavigate } from 'react-router-dom';
+import { PageHeader } from '@/components/common/PageHeader';
+import { SearchBar } from '@/components/common/SearchBar';
+import { DataTable, type Column } from '@/components/tables/DataTable';
+import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
+import { formatDate, formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { PO_STATUS_LABELS } from '@/constants';
+import type { PurchaseOrder, PurchaseOrderStatus } from '@/types';
+import { useAuthStore } from '@/store';
+
+const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
+  draft: 'default',
+  ordered: 'warning',
+  partial: 'info',
+  received: 'success',
+  cancelled: 'error',
+};
+
+export function PurchaseOrdersPage() {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const canManage = canManagePurchaseOrders(user?.role);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+
+  const { data, isLoading } = usePurchaseOrders({ search, page: page + 1, pageSize: 10 });
+  const rows = data?.data ?? [];
+
+  const columns: Column<PurchaseOrder>[] = [
+    {
+      id: 'sn',
+      label: 'SN',
+      align: 'center',
+      minWidth: 48,
+      render: (row) => rows.findIndex((r) => r.id === row.id) + 1,
+    },
+    { id: 'orderNumber', label: 'PO Number', minWidth: 140, accessor: 'orderNumber' },
+    { id: 'supplier', label: 'Supplier', accessor: 'supplierName' },
+    {
+      id: 'status',
+      label: 'Status',
+      render: (row) => (
+        <Chip
+          label={PO_STATUS_LABELS[row.status] ?? row.status}
+          color={STATUS_COLORS[row.status]}
+          size="small"
+        />
+      ),
+    },
+    {
+      id: 'items',
+      label: 'Items',
+      align: 'right',
+      render: (row) => row.items.length,
+    },
+    {
+      id: 'total',
+      label: 'Total',
+      align: 'right',
+      render: (row) => formatCurrency(row.totalAmount),
+    },
+    {
+      id: 'orderedBy',
+      label: 'Ordered By',
+      render: (row) => row.orderedBy ?? '—',
+    },
+    {
+      id: 'delivery',
+      label: 'Expected Delivery',
+      render: (row) => row.expectedDelivery ? formatDate(row.expectedDelivery) : '—',
+    },
+    {
+      id: 'receivedDate',
+      label: 'Received Date',
+      render: (row) => row.receivedDate ? formatDate(row.receivedDate) : '—',
+    },
+    {
+      id: 'created',
+      label: 'Created',
+      render: (row) => formatDate(row.createdAt),
+    },
+  ];
+
+  return (
+    <Box>
+      <PageHeader
+        title="Purchase Orders"
+        subtitle={`${data?.total ?? 0} orders`}
+        action={
+          canManage ? (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/purchase-orders/new')}
+            >
+              Create Order
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <Box sx={{ mb: 3 }}>
+        <SearchBar
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(0); }}
+          placeholder="Search by PO number or supplier..."
+        />
+      </Box>
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={isLoading}
+        page={page}
+        pageSize={10}
+        total={data?.total}
+        onPageChange={setPage}
+        getRowId={(r) => r.id}
+        onRowClick={(r) => navigate(`/purchase-orders/${r.id}`)}
+      />
+    </Box>
+  );
+}

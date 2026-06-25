@@ -1,0 +1,35 @@
+services:
+  # MongoDB is running natively on port 27017.
+  # Start this service only if you do NOT have MongoDB installed locally:
+  #   docker compose --profile db up -d
+  mongodb:
+    image: mongo:7.0
+    container_name: komart_mongo
+    profiles: ["db"]
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Mongo Express GUI — connects to the native MongoDB on the host
+  mongo-express:
+    image: mongo-express:1.0
+    container_name: komart_mongo_express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://host.docker.internal:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mongo_data:
+    driver: local

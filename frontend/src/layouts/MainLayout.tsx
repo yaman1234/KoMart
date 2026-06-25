@@ -1,0 +1,47 @@
+import { Box, Container } from '@mui/material';
+import { Outlet, useLocation } from 'react-router-dom';
+import { Sidebar } from './Sidebar';
+import { TopBar } from './TopBar';
+
+interface MainLayoutProps {
+  title?: string;
+}
+
+export function MainLayout({ title }: MainLayoutProps) {
+  const { pathname } = useLocation();
+  const isPos = pathname === '/pos';
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Sidebar />
+      <Box
+        component="main"
+        sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+          width: 0,
+        }}
+      >
+        <TopBar title={title} />
+        <Container
+          maxWidth={isPos ? false : 'xl'}
+          disableGutters={isPos}
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            py: isPos ? 1.5 : 3,
+            ...(isPos
+              ? { pl: { xs: 1.5, sm: 2 }, pr: 0 }
+              : {}),
+          }}
+        >
+          <Outlet />
+        </Container>
+      </Box>
+    </Box>
+  );
+}
