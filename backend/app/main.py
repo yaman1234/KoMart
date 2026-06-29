@@ -52,14 +52,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 @app.middleware("http")
 async def ensure_db(request: Request, call_next):
@@ -74,6 +66,15 @@ async def ensure_db(request: Request, call_next):
         )
     return await call_next(request)
 
+
+# Added last so it wraps all responses (including 503/errors) with CORS headers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 API_PREFIX = "/api/v1"
 
