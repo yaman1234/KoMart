@@ -17,11 +17,25 @@ from app.models import (
     Category,
 )
 
+# Module-level flag — one Motor client per Lambda container (process)
+_initialized: bool = False
+_motor_client: AsyncIOMotorClient | None = None
+
 
 async def init_db() -> None:
-    client = AsyncIOMotorClient(settings.mongo_url)
+    """Initialize Beanie + Motor.  Safe to call multiple times — no-op after first call."""
+    global _initialized, _motor_client
+
+    if _initialized:
+        return
+
+    _motor_client = AsyncIOMotorClient(
+        settings.mongo_url,
+        serverSelectionTimeoutMS=8_000,  # fail fast rather than hang
+        connectTimeoutMS=8_000,
+    )
     await init_beanie(
-        database=client[settings.mongo_db_name],
+        database=_motor_client[settings.mongo_db_name],
         document_models=[
             User,
             Product,
@@ -37,3 +51,4 @@ async def init_db() -> None:
             Category,
         ],
     )
+    _initialized = True

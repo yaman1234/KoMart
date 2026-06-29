@@ -1,6 +1,9 @@
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
@@ -22,12 +25,23 @@ from app.routers import (
     categories,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-    if not settings.skip_stock_refresh_on_start:
-        await refresh_all_product_stocks()
+    """
+    Best-effort startup: try to connect to MongoDB.
+    If it fails (e.g. slow cold-start), the middleware below retries on
+    the first real request — so Vercel never crashes from a startup error.
+    """
+    try:
+        await init_db()
+        if not settings.skip_stock_refresh_on_start:
+            await refresh_all_product_stocks()
+        logger.info("Startup DB init succeeded.")
+    except Exception as exc:
+        logger.warning("Startup DB init failed — will retry on first request. %s", exc)
     yield
 
 
@@ -45,6 +59,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def ensure_db(request: Request, call_next):
+    """Lazy-init fallback: guarantees DB is ready before every request."""
+    try:
+        await init_db()
+    except Exception as exc:
+        logger.error("DB init failed on request %s: %s", request.url.path, exc)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Database unavailable. Please try again shortly."},
+        )
+    return await call_next(request)
+
 
 API_PREFIX = "/api/v1"
 
