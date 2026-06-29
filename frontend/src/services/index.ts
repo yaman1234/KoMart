@@ -23,12 +23,42 @@ import type {
   User,
   DateRange,
   StockAdjustment,
+  SalesSummary,
+  SalesByPaymentMethod,
+  SalesByCategory,
+  InventoryReportSummary,
+  ExpiringProductRow,
+  LowStockProductRow,
+  ProfitSummary,
+  MarginByCategory,
+  PurchasingBySupplier,
+  PurchaseOrdersSummary,
+  TopCustomer,
+  LoyaltySummary,
+  SalesByHour,
+  SalesByDayOfWeek,
+  SalesByCashier,
+  DeadStockProduct,
+  Expense,
+  ExpenseWritePayload,
+  ExpenseSummary,
+  Category,
+  UserListItem,
+  UserRole,
 } from '@/types';
-import type { mockSalesByCategory } from './mock/mockData';
-
-type SalesByCategory = typeof mockSalesByCategory;
 
 const useMock = () => mockApi.isMockEnabled;
+
+function withRange(range?: DateRange): Record<string, string> | undefined {
+  if (!range) return undefined;
+  return { startDate: range.startDate, endDate: range.endDate };
+}
+
+function ensureArray<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data;
+  if (data == null) return [];
+  return [data as T];
+}
 
 export const authService = {
   login: async (credentials: LoginCredentials) => {
@@ -56,9 +86,9 @@ export const dashboardService = {
     const { data } = await apiClient.get('/dashboard/revenue', { params: range });
     return data;
   },
-  getTopProducts: async (): Promise<TopProduct[]> => {
+  getTopProducts: async (range?: DateRange): Promise<TopProduct[]> => {
     if (useMock()) return mockApi.getTopProducts();
-    const { data } = await apiClient.get('/dashboard/top-products');
+    const { data } = await apiClient.get('/dashboard/top-products', { params: withRange(range) });
     return data;
   },
   getRecentTransactions: async (): Promise<Transaction[]> => {
@@ -66,9 +96,9 @@ export const dashboardService = {
     const { data } = await apiClient.get('/dashboard/recent-transactions');
     return data;
   },
-  getSalesByCategory: async (): Promise<SalesByCategory> => {
-    if (useMock()) return mockApi.getSalesByCategory();
-    const { data } = await apiClient.get('/dashboard/sales-by-category');
+  getSalesByCategory: async (range?: DateRange) => {
+    if (useMock()) return mockApi.getReportsSalesByCategory(range);
+    const { data } = await apiClient.get('/dashboard/sales-by-category', { params: withRange(range) });
     return data;
   },
 };
@@ -273,5 +303,213 @@ export const settingsService = {
     if (useMock()) return mockApi.getSettings();
     const { data } = await apiClient.get('/settings');
     return data;
+  },
+  update: async (payload: Partial<StoreSettings>): Promise<void> => {
+    await apiClient.patch('/settings', payload);
+  },
+};
+
+export const reportsService = {
+  getSalesSummary: async (range?: DateRange): Promise<SalesSummary> => {
+    if (useMock()) return mockApi.getSalesSummary(range);
+    const { data } = await apiClient.get('/reports/sales-summary', { params: withRange(range) });
+    return data;
+  },
+  getSalesByPaymentMethod: async (range?: DateRange): Promise<SalesByPaymentMethod[]> => {
+    if (useMock()) return mockApi.getSalesByPaymentMethod(range);
+    const { data } = await apiClient.get('/reports/sales-by-payment-method', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getRevenue: async (range?: DateRange): Promise<RevenueDataPoint[]> => {
+    if (useMock()) return mockApi.getReportsRevenue(range);
+    const { data } = await apiClient.get('/reports/revenue', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getTopProducts: async (range?: DateRange, limit = 10): Promise<TopProduct[]> => {
+    if (useMock()) return mockApi.getReportsTopProducts(range);
+    const { data } = await apiClient.get('/reports/top-products', { params: { ...withRange(range), limit } });
+    return ensureArray(data);
+  },
+  getSalesByCategory: async (range?: DateRange): Promise<SalesByCategory[]> => {
+    if (useMock()) return mockApi.getReportsSalesByCategory(range);
+    const { data } = await apiClient.get('/reports/sales-by-category', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getInventorySummary: async (): Promise<InventoryReportSummary> => {
+    if (useMock()) return mockApi.getInventoryReportSummary();
+    const { data } = await apiClient.get('/reports/inventory-summary');
+    return data;
+  },
+  getExpiringProducts: async (
+    page = 1,
+    pageSize = 25,
+    withinDays = 30,
+  ): Promise<PaginatedResponse<ExpiringProductRow>> => {
+    if (useMock()) return mockApi.getExpiringProducts();
+    const { data } = await apiClient.get('/reports/expiring-products', {
+      params: { page, pageSize, withinDays },
+    });
+    return data;
+  },
+  getLowStock: async (
+    page = 1,
+    pageSize = 25,
+    stockFilter: 'low' | 'out' | 'both' = 'both',
+  ): Promise<PaginatedResponse<LowStockProductRow>> => {
+    if (useMock()) return mockApi.getLowStockReport();
+    const { data } = await apiClient.get('/reports/low-stock', {
+      params: { page, pageSize, stockFilter },
+    });
+    return data;
+  },
+  getProfitSummary: async (range?: DateRange): Promise<ProfitSummary> => {
+    if (useMock()) return mockApi.getProfitSummary(range);
+    const { data } = await apiClient.get('/reports/profit-summary', { params: withRange(range) });
+    return data;
+  },
+  getMarginByCategory: async (range?: DateRange): Promise<MarginByCategory[]> => {
+    if (useMock()) return mockApi.getMarginByCategory(range);
+    const { data } = await apiClient.get('/reports/margin-by-category', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getPurchasingBySupplier: async (range?: DateRange): Promise<PurchasingBySupplier[]> => {
+    if (useMock()) return mockApi.getPurchasingBySupplier(range);
+    const { data } = await apiClient.get('/reports/purchasing-by-supplier', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getPurchaseOrdersSummary: async (range?: DateRange): Promise<PurchaseOrdersSummary> => {
+    if (useMock()) return mockApi.getPurchaseOrdersSummary(range);
+    const { data } = await apiClient.get('/reports/purchase-orders-summary', { params: withRange(range) });
+    return data;
+  },
+  getTopCustomers: async (range?: DateRange, limit = 10): Promise<TopCustomer[]> => {
+    if (useMock()) return mockApi.getTopCustomers(range);
+    const { data } = await apiClient.get('/reports/top-customers', { params: { ...withRange(range), limit } });
+    return ensureArray(data);
+  },
+  getLoyaltySummary: async (range?: DateRange): Promise<LoyaltySummary> => {
+    if (useMock()) return mockApi.getLoyaltySummary(range);
+    const { data } = await apiClient.get('/reports/loyalty-summary', { params: withRange(range) });
+    return data;
+  },
+  getSalesByHour: async (range?: DateRange): Promise<SalesByHour[]> => {
+    if (useMock()) return mockApi.getSalesByHour(range);
+    const { data } = await apiClient.get('/reports/sales-by-hour', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getSalesByDayOfWeek: async (range?: DateRange): Promise<SalesByDayOfWeek[]> => {
+    if (useMock()) return mockApi.getSalesByDayOfWeek(range);
+    const { data } = await apiClient.get('/reports/sales-by-day-of-week', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getSalesByCashier: async (range?: DateRange): Promise<SalesByCashier[]> => {
+    if (useMock()) return mockApi.getSalesByCashier(range);
+    const { data } = await apiClient.get('/reports/sales-by-cashier', { params: withRange(range) });
+    return ensureArray(data);
+  },
+  getDeadStock: async (days = 30): Promise<DeadStockProduct[]> => {
+    if (useMock()) return mockApi.getDeadStock();
+    const { data } = await apiClient.get('/reports/dead-stock', { params: { days } });
+    return ensureArray(data);
+  },
+  getExpenseSummary: async (range?: DateRange): Promise<ExpenseSummary> => {
+    if (useMock()) return mockApi.getExpenseSummary(range);
+    const { data } = await apiClient.get('/reports/expense-summary', { params: withRange(range) });
+    return data;
+  },
+};
+
+export const categoryService = {
+  getAll: async (includeInactive = false): Promise<Category[]> => {
+    const { data } = await apiClient.get('/categories', {
+      params: includeInactive ? { include_inactive: true } : undefined,
+    });
+    return (data as { id: string; name: string; description: string; is_active: boolean; created_at: string }[]).map((c) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      isActive: c.is_active,
+      createdAt: c.created_at,
+    }));
+  },
+  create: async (payload: { name: string; description?: string }): Promise<Category> => {
+    const { data } = await apiClient.post('/categories', payload);
+    const c = data as { id: string; name: string; description: string; is_active: boolean; created_at: string };
+    return { id: c.id, name: c.name, description: c.description, isActive: c.is_active, createdAt: c.created_at };
+  },
+  update: async (id: string, payload: { name?: string; description?: string; is_active?: boolean }): Promise<Category> => {
+    const { data } = await apiClient.patch(`/categories/${id}`, payload);
+    const c = data as { id: string; name: string; description: string; is_active: boolean; created_at: string };
+    return { id: c.id, name: c.name, description: c.description, isActive: c.is_active, createdAt: c.created_at };
+  },
+  remove: async (id: string): Promise<void> => {
+    await apiClient.delete(`/categories/${id}`);
+  },
+};
+
+type RawUser = { id: string; name: string; email: string; role: UserRole; is_active: boolean; created_at: string };
+const mapUser = (u: RawUser): UserListItem => ({
+  id: u.id,
+  name: u.name,
+  email: u.email,
+  role: u.role,
+  isActive: u.is_active,
+  createdAt: u.created_at,
+});
+
+export const usersService = {
+  getAll: async (): Promise<UserListItem[]> => {
+    const { data } = await apiClient.get('/users');
+    return (data as RawUser[]).map(mapUser);
+  },
+  getMe: async (): Promise<UserListItem> => {
+    const { data } = await apiClient.get('/users/me');
+    return mapUser(data as RawUser);
+  },
+  getById: async (id: string): Promise<UserListItem> => {
+    const { data } = await apiClient.get(`/users/${id}`);
+    return mapUser(data as RawUser);
+  },
+  create: async (payload: { name: string; email: string; password: string; role: UserRole }): Promise<UserListItem> => {
+    const { data } = await apiClient.post('/users', payload);
+    return mapUser(data as RawUser);
+  },
+  update: async (id: string, payload: { name?: string; email?: string; password?: string; role?: UserRole; is_active?: boolean }): Promise<UserListItem> => {
+    const { data } = await apiClient.patch(`/users/${id}`, payload);
+    return mapUser(data as RawUser);
+  },
+  deactivate: async (id: string): Promise<void> => {
+    await apiClient.delete(`/users/${id}`);
+  },
+  updateMe: async (payload: { name?: string; password?: string }): Promise<UserListItem> => {
+    const { data } = await apiClient.patch('/users/me', payload);
+    return mapUser(data as RawUser);
+  },
+};
+
+export const expenseService = {
+  getAll: async (params?: ListQueryParams): Promise<PaginatedResponse<Expense>> => {
+    if (useMock()) return mockApi.getExpenses(params);
+    const { data } = await apiClient.get('/expenses', { params });
+    return data;
+  },
+  getById: async (id: string): Promise<Expense> => {
+    if (useMock()) return mockApi.getExpense(id);
+    const { data } = await apiClient.get(`/expenses/${id}`);
+    return data;
+  },
+  create: async (payload: ExpenseWritePayload): Promise<Expense> => {
+    if (useMock()) return mockApi.createExpense(payload);
+    const { data } = await apiClient.post('/expenses', payload);
+    return data;
+  },
+  update: async (id: string, payload: Partial<ExpenseWritePayload>): Promise<Expense> => {
+    if (useMock()) return mockApi.updateExpense(id, payload);
+    const { data } = await apiClient.patch(`/expenses/${id}`, payload);
+    return data;
+  },
+  delete: async (id: string): Promise<void> => {
+    if (useMock()) return mockApi.deleteExpense(id);
+    await apiClient.delete(`/expenses/${id}`);
   },
 };

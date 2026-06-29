@@ -28,10 +28,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     return user
 
 
-async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+async def require_manager_or_above(current_user: User = Depends(get_current_user)) -> User:
+    """Allow admin and manager. Deny cashier."""
     if current_user.role not in (UserRole.admin, UserRole.manager):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
+            detail="Manager or admin access required",
         )
     return current_user
+
+
+async def require_admin_only(current_user: User = Depends(get_current_user)) -> User:
+    """Allow admin only. Deny manager and cashier."""
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
+
+
+# Kept for any legacy import compatibility — points to require_manager_or_above
+require_admin = require_manager_or_above

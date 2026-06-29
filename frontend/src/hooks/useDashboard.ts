@@ -22,9 +22,10 @@ export function useRevenueData() {
 }
 
 export function useTopProducts() {
+  const dateRange = useDashboardStore((s) => s.dateRange);
   return useQuery({
-    queryKey: [...QUERY_KEYS.dashboard, 'topProducts'],
-    queryFn: () => dashboardService.getTopProducts(),
+    queryKey: [...QUERY_KEYS.dashboard, 'topProducts', dateRange],
+    queryFn: () => dashboardService.getTopProducts(dateRange),
   });
 }
 

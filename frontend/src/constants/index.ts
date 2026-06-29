@@ -15,17 +15,18 @@ export const TAX_RATE = 13;
 export const LOYALTY_POINTS_PER_100 = 1;
 
 export const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/dashboard', icon: 'Dashboard' },
-  { label: 'POS', path: '/pos', icon: 'PointOfSale' },
-  { label: 'Sales', path: '/sales', icon: 'ReceiptLong' },
-  { label: 'Products', path: '/products', icon: 'Inventory2' },
-  { label: 'Inventory', path: '/inventory', icon: 'Warehouse' },
-  { label: 'Suppliers', path: '/suppliers', icon: 'LocalShipping' },
-  { label: 'Purchase Orders', path: '/purchase-orders', icon: 'Receipt' },
-  { label: 'Customers', path: '/customers', icon: 'People' },
-  { label: 'Reports', path: '/reports', icon: 'Assessment' },
-  { label: 'Notifications', path: '/notifications', icon: 'Notifications' },
-  { label: 'Settings', path: '/settings', icon: 'Settings' },
+  { label: 'Dashboard', path: '/dashboard', icon: 'Dashboard', roles: ['admin', 'manager', 'cashier'] },
+  { label: 'POS', path: '/pos', icon: 'PointOfSale', roles: ['admin', 'manager', 'cashier'] },
+  { label: 'Sales', path: '/sales', icon: 'ReceiptLong', roles: ['admin', 'manager', 'cashier'] },
+  { label: 'Products', path: '/products', icon: 'Inventory2', roles: ['admin', 'manager', 'cashier'] },
+  { label: 'Inventory', path: '/inventory', icon: 'Warehouse', roles: ['admin', 'manager'] },
+  { label: 'Suppliers', path: '/suppliers', icon: 'LocalShipping', roles: ['admin', 'manager'] },
+  { label: 'Purchase Orders', path: '/purchase-orders', icon: 'Receipt', roles: ['admin', 'manager'] },
+  { label: 'Expenses', path: '/expenses', icon: 'AccountBalance', roles: ['admin', 'manager'] },
+  { label: 'Customers', path: '/customers', icon: 'People', roles: ['admin', 'manager', 'cashier'] },
+  { label: 'Reports', path: '/reports', icon: 'Assessment', roles: ['admin', 'manager'] },
+  { label: 'Notifications', path: '/notifications', icon: 'Notifications', roles: ['admin', 'manager', 'cashier'] },
+  { label: 'Settings', path: '/settings', icon: 'Settings', roles: ['admin', 'manager'] },
 ] as const;
 
 export const UOM_OPTIONS = [
@@ -71,6 +72,18 @@ export const PAYMENT_METHODS = [
   { value: 'esewa', label: 'eSewa' },
   { value: 'khalti', label: 'Khalti' },
 ] as const;
+
+export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'setup_investment', label: 'Setup / Investment' },
+  { value: 'rent', label: 'Rent' },
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'salaries', label: 'Salaries' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'supplies', label: 'Supplies' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'other', label: 'Other' },
+];
 
 export const PO_STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -131,6 +144,11 @@ export const QUERY_KEYS = {
   customers: ['customers'] as const,
   customer: (id: string) => ['customers', id] as const,
   notifications: ['notifications'] as const,
+  expenses: ['expenses'] as const,
+  expense: (id: string) => ['expenses', id] as const,
   reports: (type: string) => ['reports', type] as const,
   settings: ['settings'] as const,
+  categories: ['categories'] as const,
+  users: ['users'] as const,
+  user: (id: string) => ['users', id] as const,
 };

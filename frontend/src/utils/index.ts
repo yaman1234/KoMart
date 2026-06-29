@@ -1,12 +1,42 @@
 import { CURRENCY_SYMBOL } from '@/constants';
 import type { UserRole } from '@/types';
 
+export const isAdmin = (role?: UserRole): boolean => role === 'admin';
+export const isAdminOrManager = (role?: UserRole): boolean => role === 'admin' || role === 'manager';
+export const isCashier = (role?: UserRole): boolean => role === 'cashier';
+
 export function canManageSuppliers(role?: UserRole): boolean {
-  return role === 'admin' || role === 'manager';
+  return isAdminOrManager(role);
 }
 
 export function canManagePurchaseOrders(role?: UserRole): boolean {
-  return role === 'admin';
+  return isAdminOrManager(role);
+}
+
+export function canViewAdminReports(role?: UserRole): boolean {
+  return isAdminOrManager(role);
+}
+
+export function downloadCsv(
+  filename: string,
+  headers: string[],
+  rows: (string | number)[][],
+): void {
+  const escape = (value: string | number) => {
+    const s = String(value);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+  const content = [headers.join(','), ...rows.map((row) => row.map(escape).join(','))].join('\n');
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function formatAmount(amount: number): string {

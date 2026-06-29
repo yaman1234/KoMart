@@ -78,11 +78,9 @@ export const useUIStore = create<UIState>()(
 interface DashboardState {
   layout: DashboardWidgetLayout[];
   dateRange: { startDate: string; endDate: string };
-  isEditing: boolean;
   setLayout: (layout: DashboardWidgetLayout[]) => void;
   resetLayout: () => void;
   setDateRange: (range: { startDate: string; endDate: string }) => void;
-  setIsEditing: (editing: boolean) => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -90,16 +88,14 @@ export const useDashboardStore = create<DashboardState>()(
     (set) => ({
       layout: DEFAULT_DASHBOARD_LAYOUT,
       dateRange: {
-        startDate: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+        startDate: new Date().toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
       },
-      isEditing: false,
       setLayout: (layout) => set({ layout }),
       resetLayout: () => set({ layout: DEFAULT_DASHBOARD_LAYOUT }),
       setDateRange: (dateRange) => set({ dateRange }),
-      setIsEditing: (isEditing) => set({ isEditing }),
     }),
-    { name: 'komart-dashboard' },
+    { name: 'komart-dashboard', version: 1, partialize: (state) => ({ layout: state.layout }) },
   ),
 );
 

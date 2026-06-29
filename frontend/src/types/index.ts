@@ -1,6 +1,23 @@
 export type ThemeMode = 'light' | 'dark';
 
-export type UserRole = 'admin' | 'manager' | 'cashier' | 'staff';
+export type UserRole = 'admin' | 'manager' | 'cashier';
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface UserListItem {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+}
 
 export interface User {
   id: string;
@@ -137,6 +154,7 @@ export interface PurchaseOrder {
 export interface PurchaseOrderReceiveItem {
   productId: string;
   receiveQuantity: number;
+  expiryDate: string;
 }
 
 export type MembershipTier = 'bronze' | 'silver' | 'gold' | 'platinum';
@@ -206,6 +224,8 @@ export interface DashboardStats {
   expiringProducts: number;
   inventoryValue: number;
   customerCount: number;
+  monthlyExpenses: number;
+  netRevenue: number;
 }
 
 export interface RevenueDataPoint {
@@ -265,6 +285,149 @@ export interface DateRange {
   endDate: string;
 }
 
+export interface SalesSummary {
+  totalRevenue: number;
+  transactionCount: number;
+  avgBasket: number;
+  totalUnitsSold: number;
+  totalDiscount: number;
+}
+
+export interface SalesByPaymentMethod {
+  paymentMethod: string;
+  revenue: number;
+  count: number;
+}
+
+export interface SalesByCategory {
+  category: string;
+  revenue: number;
+  count: number;
+}
+
+export interface InventoryCategoryBreakdown {
+  category: string;
+  skuCount: number;
+  totalStock: number;
+  stockValue: number;
+}
+
+export interface InventoryReportSummary {
+  totalSkus: number;
+  lowStock: number;
+  outOfStock: number;
+  expiring: number;
+  inventoryValue: number;
+  byCategory: InventoryCategoryBreakdown[];
+}
+
+export interface ExpiringProductRow {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  batchNumber: string;
+  quantity: number;
+  expiryDate: string;
+  daysUntilExpiry: number;
+}
+
+export interface LowStockProductRow {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  stock: number;
+  lowStockThreshold: number;
+  status: 'low' | 'out';
+}
+
+export interface ProfitDataPoint {
+  date: string;
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+}
+
+export interface ProfitSummary {
+  totalRevenue: number;
+  totalCogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  totalDiscount: number;
+  daily: ProfitDataPoint[];
+}
+
+export interface MarginByCategory {
+  category: string;
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+}
+
+export interface PurchasingBySupplier {
+  supplierId: string;
+  supplierName: string;
+  totalAmount: number;
+  orderCount: number;
+}
+
+export interface PurchaseOrderStatusCount {
+  status: string;
+  count: number;
+}
+
+export interface PurchaseOrdersSummary {
+  totalOrders: number;
+  totalAmount: number;
+  byStatus: PurchaseOrderStatusCount[];
+}
+
+export interface TopCustomer {
+  customerId: string;
+  customerName: string;
+  transactionCount: number;
+  totalSpent: number;
+}
+
+export interface LoyaltySummary {
+  pointsRedeemed: number;
+  activeMembers: number;
+  newCustomers: number;
+  totalMembers: number;
+}
+
+export interface SalesByHour {
+  hour: number;
+  label: string;
+  revenue: number;
+  transactionCount: number;
+}
+
+export interface SalesByDayOfWeek {
+  day: number;
+  label: string;
+  revenue: number;
+  transactionCount: number;
+}
+
+export interface SalesByCashier {
+  cashier: string;
+  revenue: number;
+  transactionCount: number;
+}
+
+export interface DeadStockProduct {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  stock: number;
+  stockValue: number;
+  daysWithoutSale: number;
+}
+
 export interface ListQueryParams {
   page?: number;
   pageSize?: number;
@@ -272,4 +435,49 @@ export interface ListQueryParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   [key: string]: string | number | undefined;
+}
+
+export type ExpenseCategory =
+  | 'setup_investment'
+  | 'rent'
+  | 'utilities'
+  | 'salaries'
+  | 'marketing'
+  | 'supplies'
+  | 'maintenance'
+  | 'equipment'
+  | 'other';
+
+export interface Expense {
+  id: string;
+  title: string;
+  description?: string;
+  amount: number;
+  category: ExpenseCategory;
+  date: string;
+  paidTo?: string;
+  paymentMethod?: string;
+  isSetupCost: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExpenseWritePayload = Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>;
+
+export interface ExpenseByCategory {
+  category: string;
+  amount: number;
+  count: number;
+}
+
+export interface ExpenseDataPoint {
+  date: string;
+  amount: number;
+}
+
+export interface ExpenseSummary {
+  totalExpenses: number;
+  setupInvestment: number;
+  byCategory: ExpenseByCategory[];
+  daily: ExpenseDataPoint[];
 }

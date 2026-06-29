@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from math import ceil
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
 from app.models.inventory import InventoryBatch
@@ -83,7 +83,7 @@ async def inventory_stats(_: User = Depends(get_current_user)):
 @router.get("", response_model=PaginatedResponse[InventoryItemResponse])
 async def list_inventory(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
+    page_size: int = Query(10, ge=1, le=500),
     search: str = Query(""),
     stock_filter: str = Query("all", alias="filter", pattern="^(all|low|out|expiring)$"),
     supplier_id: str = Query(""),
@@ -139,7 +139,7 @@ async def list_inventory(
 @router.post("/batches", response_model=BatchResponse, status_code=status.HTTP_201_CREATED)
 async def receive_batch(
     body: BatchCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_manager_or_above),
 ):
     """Receive a new stock batch (sets expiry date and quantity)."""
     batch = await receive_stock(
@@ -154,7 +154,7 @@ async def receive_batch(
 @router.post("/adjust", response_model=MessageResponse)
 async def adjust_stock_endpoint(
     body: StockAdjustmentCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_manager_or_above),
 ):
     new_stock = await adjust_stock(
         body.product_id,

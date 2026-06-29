@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { purchaseOrderService } from '@/services';
-import type { ListQueryParams, PurchaseOrder, PurchaseOrderStatus, PurchaseOrderReceiveItem, PurchaseOrderWritePayload } from '@/types';
+import type { ListQueryParams, PurchaseOrderStatus, PurchaseOrderReceiveItem, PurchaseOrderWritePayload } from '@/types';
 
 export function usePurchaseOrders(
   params?: ListQueryParams,

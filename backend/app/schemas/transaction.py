@@ -29,6 +29,7 @@ class TransactionResponse(BaseModel):
     total: float
     payment_method: PaymentMethod
     created_by: str
+    cashier_id: Optional[str] = None
     created_at: str
 
 

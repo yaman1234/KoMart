@@ -7,6 +7,8 @@ from app.models.customer import Customer
 from app.models.transaction import Transaction
 from app.models.notification import Notification
 from app.models.settings import StoreSettings
+from app.models.expense import Expense
+from app.models.category import Category
 
 __all__ = [
     "User",
@@ -19,4 +21,6 @@ __all__ = [
     "Transaction",
     "Notification",
     "StoreSettings",
+    "Expense",
+    "Category",
 ]

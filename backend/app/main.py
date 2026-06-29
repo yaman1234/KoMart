@@ -14,8 +14,12 @@ from app.routers import (
     customers,
     transactions,
     dashboard,
+    reports,
     notifications,
     settings as settings_router,
+    expenses,
+    users,
+    categories,
 )
 
 
@@ -51,8 +55,12 @@ app.include_router(purchase_orders.router, prefix=API_PREFIX)
 app.include_router(customers.router, prefix=API_PREFIX)
 app.include_router(transactions.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
+app.include_router(reports.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(settings_router.router, prefix=API_PREFIX)
+app.include_router(expenses.router, prefix=API_PREFIX)
+app.include_router(users.router, prefix=API_PREFIX)
+app.include_router(categories.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

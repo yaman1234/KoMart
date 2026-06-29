@@ -33,9 +33,11 @@ export function MainLayout({ title }: MainLayoutProps) {
             display: 'flex',
             flexDirection: 'column',
             minHeight: 0,
+            minWidth: 0,
+            overflow: 'hidden',
             py: isPos ? 1.5 : 3,
             ...(isPos
-              ? { pl: { xs: 1.5, sm: 2 }, pr: 0 }
+              ? { pl: { xs: 1.5, sm: 2 }, pr: 0, overflowX: 'hidden' }
               : {}),
           }}
         >

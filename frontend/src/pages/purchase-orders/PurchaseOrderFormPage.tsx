@@ -92,6 +92,8 @@ function emptyLine(id: number): LineItem {
   return { id, product: null, quantityInput: '1', unitCost: 0 };
 }
 
+const tomorrow = () => dayjs().add(1, 'day').startOf('day');
+
 export function PurchaseOrderFormPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -101,6 +103,7 @@ export function PurchaseOrderFormPage() {
   const nextLineId = useRef(0);
   const [supplierId, setSupplierId] = useState('');
   const [expectedDelivery, setExpectedDelivery] = useState('');
+  const [deliveryPickerOpen, setDeliveryPickerOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [lines, setLines] = useState<LineItem[]>(() => [emptyLine(0)]);
   const [error, setError] = useState('');
@@ -212,6 +215,16 @@ export function PurchaseOrderFormPage() {
       setError('Select a supplier');
       return;
     }
+    if (expectedDelivery) {
+      const delivery = dayjs(expectedDelivery).startOf('day');
+      if (!delivery.isAfter(dayjs().startOf('day'))) {
+        setError('Expected delivery must be after today');
+        return;
+      }
+    } else if (status === 'ordered') {
+      setError('Expected delivery date is required when placing an order');
+      return;
+    }
     const payload = buildPayload(status);
     if (payload.items.length === 0) {
       setError('Add at least one product line with valid quantity and unit cost');
@@ -292,9 +305,10 @@ export function PurchaseOrderFormPage() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Paper sx={{ px: 2, py: 1.5, mb: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>Order Summary</Typography>
-        <Grid container spacing={2} alignItems="flex-start">
+        <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               select
@@ -319,19 +333,26 @@ export function PurchaseOrderFormPage() {
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker
-                label="Expected Delivery"
-                value={expectedDelivery ? dayjs(expectedDelivery) : null}
-                onChange={(date) =>
-                  setExpectedDelivery(date ? date.format('YYYY-MM-DD') : '')
-                }
-                slotProps={{
-                  textField: { fullWidth: true, size: 'small' },
-                  openPickerButton: { 'aria-label': 'Open calendar' },
-                }}
-              />
-            </LocalizationProvider>
+            <DatePicker
+              label="Expected Delivery"
+              value={expectedDelivery ? dayjs(expectedDelivery) : null}
+              minDate={tomorrow()}
+              open={deliveryPickerOpen}
+              onOpen={() => setDeliveryPickerOpen(true)}
+              onClose={() => setDeliveryPickerOpen(false)}
+              onChange={(date) =>
+                setExpectedDelivery(date ? date.format('YYYY-MM-DD') : '')
+              }
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  size: 'small',
+                  required: true,
+                  onClick: () => setDeliveryPickerOpen(true),
+                },
+                openPickerButton: { 'aria-label': 'Open calendar' },
+              }}
+            />
           </Grid>
           {currentUser && (
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -365,6 +386,7 @@ export function PurchaseOrderFormPage() {
           </Grid>
         </Grid>
       </Paper>
+      </LocalizationProvider>
 
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
@@ -382,20 +404,33 @@ export function PurchaseOrderFormPage() {
         </Box>
         <Divider sx={{ mb: 2 }} />
 
-        <TableContainer>
-          <Table size="small">
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table
+            size="small"
+            sx={{
+              tableLayout: 'fixed',
+              minWidth: 640,
+              '& .MuiTableCell-root': { verticalAlign: 'middle', py: 1 },
+            }}
+          >
             <TableHead>
-              <TableRow>
-                <TableCell sx={{ minWidth: 280 }}>Product</TableCell>
-                <TableCell align="right" sx={{ width: 100 }}>Qty</TableCell>
-                <TableCell align="right" sx={{ width: 130 }}>Unit Cost (NPR)</TableCell>
-                <TableCell align="right" sx={{ width: 120 }}>Total</TableCell>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell align="center" sx={{ width: 48, fontWeight: 700 }}>SN</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Product</TableCell>
+                <TableCell align="right" sx={{ width: 88, fontWeight: 700 }}>Qty</TableCell>
+                <TableCell align="right" sx={{ width: 120, fontWeight: 700 }}>Unit Cost</TableCell>
+                <TableCell align="right" sx={{ width: 100, fontWeight: 700 }}>Total</TableCell>
                 <TableCell sx={{ width: 48 }} />
               </TableRow>
             </TableHead>
             <TableBody>
               {lines.map((line, i) => (
                 <TableRow key={line.id}>
+                  <TableCell align="center">
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                      {i + 1}
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Autocomplete
                       size="small"
@@ -448,7 +483,7 @@ export function PurchaseOrderFormPage() {
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {line.product
                         ? formatCurrency(parseQuantity(line.quantityInput) * line.unitCost)
                         : '—'}

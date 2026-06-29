@@ -13,6 +13,8 @@ from app.models import (
     Transaction,
     Notification,
     StoreSettings,
+    Expense,
+    Category,
 )
 
 
@@ -31,5 +33,7 @@ async def init_db() -> None:
             Transaction,
             Notification,
             StoreSettings,
+            Expense,
+            Category,
         ],
     )

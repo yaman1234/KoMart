@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
   Box,
   Grid,
@@ -6,16 +6,16 @@ import {
   Typography,
   TextField,
   InputAdornment,
-  Avatar,
   Card,
   CardActionArea,
   CardContent,
   IconButton,
   Divider,
   Button,
-  Chip,
-  Tabs,
-  Tab,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Badge,
   Table,
   TableBody,
@@ -23,7 +23,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Collapse,
   Tooltip,
   Dialog,
   DialogTitle,
@@ -41,34 +40,321 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import PaymentIcon from '@mui/icons-material/Payment';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useProducts } from '@/hooks/useProducts';
 import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
+import { useSuppliers } from '@/hooks/useSuppliers';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useCartStore, useAuthStore } from '@/store';
 import { transactionService } from '@/services';
 import { formatAmount, formatCurrency } from '@/utils';
 import { PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
 import { PaymentModal } from '@/components/pos/PaymentModal';
 import { CustomerPicker } from '@/components/pos/CustomerPicker';
+import { DRAWER_COLLAPSED } from '@/layouts/Sidebar';
 import type { Product, Transaction, PaymentMethod } from '@/types';
 
-// ── Quick-create customer form ────────────────────────────────────────────────
+const CART_EXPANDED_WIDTH = 'clamp(300px, 38vw, 540px)';
+
+const qtyBadgeSx = {
+  '& .MuiBadge-badge': {
+    fontWeight: 800,
+    fontSize: '0.8rem',
+    minWidth: 22,
+    height: 22,
+    px: 0.5,
+    bgcolor: 'error.main',
+    color: 'error.contrastText',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+    border: '2px solid',
+    borderColor: 'background.paper',
+  },
+} as const;
+
+const noNumberSpinnerSx = {
+  MozAppearance: 'textfield',
+  '& input[type=number]': { MozAppearance: 'textfield' },
+  '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+    WebkitAppearance: 'none',
+    margin: 0,
+  },
+} as const;
+
 interface CreateCustForm { name: string; phone: string; email: string }
 const EMPTY_FORM: CreateCustForm = { name: '', phone: '', email: '' };
 
+interface CollapsedCartRailProps {
+  totalUnits: number;
+  total: number;
+  hasItems: boolean;
+  onExpand: () => void;
+  onPay: () => void;
+}
+
+interface ProductCardProps {
+  product: Product;
+  qtyInCart: number;
+  onAdd: (product: Product) => void;
+}
+
+const ProductCard = memo(function ProductCard({ product, qtyInCart, onAdd }: ProductCardProps) {
+  const inCart = qtyInCart > 0;
+
+  return (
+    <Card
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        opacity: product.stock === 0 ? 0.45 : 1,
+        border: inCart ? 2 : 0,
+        borderColor: 'primary.main',
+      }}
+    >
+      <CardActionArea
+        onClick={() => onAdd(product)}
+        disabled={product.stock === 0}
+        sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
+      >
+        {/* Image section with qty overlay */}
+        <Box sx={{ position: 'relative', flexShrink: 0 }}>
+          {product.images[0] ? (
+            <Box
+              component="img"
+              src={product.images[0]}
+              alt={product.name}
+              sx={{
+                width: '100%',
+                height: 110,
+                objectFit: 'cover',
+                display: 'block',
+                bgcolor: 'action.hover',
+              }}
+            />
+          ) : (
+            <Box
+              sx={{
+                width: '100%',
+                height: 110,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'action.hover',
+                fontSize: '1.75rem',
+                fontWeight: 700,
+                color: 'text.disabled',
+                userSelect: 'none',
+              }}
+            >
+              {product.name[0].toUpperCase()}
+            </Box>
+          )}
+          {qtyInCart > 0 && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                minWidth: 22,
+                height: 22,
+                px: 0.5,
+                borderRadius: '11px',
+                bgcolor: 'error.main',
+                color: 'error.contrastText',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                lineHeight: 1,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+                border: '2px solid',
+                borderColor: 'background.paper',
+                zIndex: 1,
+              }}
+            >
+              {qtyInCart}
+            </Box>
+          )}
+        </Box>
+
+        {/* Info section */}
+        <CardContent sx={{ p: 1.25, pt: 1, flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 600,
+              lineHeight: 1.3,
+              fontSize: '0.75rem',
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 2,
+              overflow: 'hidden',
+            }}
+            title={product.name}
+          >
+            {product.name}
+          </Typography>
+          <Typography
+            variant="body2"
+            color="primary"
+            sx={{
+              fontWeight: 700,
+              fontSize: { xs: '0.7rem', sm: '0.8125rem' },
+              whiteSpace: 'nowrap',
+              lineHeight: 1.2,
+              mt: 'auto',
+            }}
+          >
+            {formatCurrency(product.sellingPrice)}
+          </Typography>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  );
+});
+
+interface CartQtyStepperProps {
+  quantity: number;
+  onDecrement: () => void;
+  onIncrement: () => void;
+}
+
+const CartQtyStepper = memo(function CartQtyStepper({
+  quantity,
+  onDecrement,
+  onIncrement,
+}: CartQtyStepperProps) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.25,
+        flexShrink: 0,
+        touchAction: 'manipulation',
+      }}
+    >
+      <IconButton
+        type="button"
+        size="small"
+        aria-label="Decrease quantity"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDecrement();
+        }}
+        sx={{ p: 0.35, width: 24, height: 24 }}
+      >
+        <RemoveIcon sx={{ fontSize: 13, pointerEvents: 'none' }} />
+      </IconButton>
+      <Typography
+        component="span"
+        variant="body2"
+        sx={{
+          minWidth: 24,
+          textAlign: 'center',
+          fontWeight: 800,
+          fontSize: '0.75rem',
+          fontVariantNumeric: 'tabular-nums',
+          userSelect: 'none',
+          lineHeight: 1.4,
+          px: 0.5,
+          py: 0.25,
+          borderRadius: 1,
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+        }}
+      >
+        {quantity}
+      </Typography>
+      <IconButton
+        type="button"
+        size="small"
+        aria-label="Increase quantity"
+        onClick={(e) => {
+          e.stopPropagation();
+          onIncrement();
+        }}
+        sx={{ p: 0.35, width: 24, height: 24 }}
+      >
+        <AddIcon sx={{ fontSize: 13, pointerEvents: 'none' }} />
+      </IconButton>
+    </Box>
+  );
+});
+
+function CollapsedCartRail({ totalUnits, total, hasItems, onExpand, onPay }: CollapsedCartRailProps) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        height: '100%',
+        py: 1,
+        gap: 1.5,
+      }}
+    >
+      <Tooltip title="Expand cart" placement="left">
+        <IconButton onClick={onExpand} size="small">
+          <ChevronLeftIcon />
+        </IconButton>
+      </Tooltip>
+
+      <Tooltip title="View cart" placement="left">
+        <IconButton onClick={onExpand} sx={{ my: 1 }}>
+          <Badge badgeContent={totalUnits} invisible={totalUnits === 0} sx={qtyBadgeSx}>
+            <ShoppingCartIcon />
+          </Badge>
+        </IconButton>
+      </Tooltip>
+
+      <Typography
+        variant="caption"
+        sx={{
+          writingMode: 'vertical-rl',
+          textOrientation: 'mixed',
+          transform: 'rotate(180deg)',
+          fontWeight: 700,
+          color: 'primary.main',
+          fontSize: '0.7rem',
+          letterSpacing: 0.5,
+          flex: 1,
+        }}
+      >
+        {formatCurrency(total)}
+      </Typography>
+
+      <Tooltip title={hasItems ? 'Pay' : 'Cart is empty'} placement="left">
+        <span>
+          <IconButton color="primary" disabled={!hasItems} onClick={onPay}>
+            <PaymentIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+    </Box>
+  );
+}
+
 export function POSPage() {
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
+  const [cartCollapsed, setCartCollapsed] = useState(isMobile);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [discountOpen, setDiscountOpen] = useState(false);
-  const [discountType, setDiscountType] = useState<'flat' | 'pct'>('flat');
+  const [discountType, setDiscountType] = useState<'flat' | 'pct' | null>(null);
   const [discountInput, setDiscountInput] = useState(0);
-  const [qtyErrors, setQtyErrors] = useState<Record<string, string>>({});
   const [tenderedAmount, setTenderedAmount] = useState<number | undefined>(undefined);
 
   // Quick-create customer dialog
@@ -94,34 +380,51 @@ export function POSPage() {
   const user = useAuthStore((s) => s.user);
   const createCustomerMutation = useCreateCustomer();
 
-  const { data: productsData } = useProducts({ search, pageSize: 50 });
+  const { data: productsData } = useProducts({ search, pageSize: 200 });
   const { data: paymentCustomer } = useCustomer(customerId ?? '');
+  const { data: suppliersData } = useSuppliers({ pageSize: 200 });
+  const suppliers = suppliersData?.data ?? [];
 
   const products = productsData?.data ?? [];
-  const allCategories = ['All', ...Array.from(new Set(PRODUCT_CATEGORIES))];
-  const displayedProducts = categoryFilter === 'All'
-    ? products
-    : products.filter((p) => p.category === categoryFilter);
+  const displayedProducts = products
+    .filter((p) => {
+      if (p.stock === 0) return false;
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (supplierFilter && p.supplierName !== supplierFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (priceSort === 'asc') return a.sellingPrice - b.sellingPrice;
+      if (priceSort === 'desc') return b.sellingPrice - a.sellingPrice;
+      return 0;
+    });
+
+  const cartQuantities = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of items) map.set(item.productId, item.quantity);
+    return map;
+  }, [items]);
 
   // ── Cart totals (prices are tax-inclusive — no separate tax line) ──────────
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const overallDiscount = discountType === 'pct'
-    ? Math.round(subtotal * discountInput / 100 * 100) / 100
-    : discountInput;
+  const overallDiscount = discountType === null
+    ? 0
+    : discountType === 'pct'
+      ? Math.round(subtotal * discountInput / 100 * 100) / 100
+      : discountInput;
   const totalDiscount = overallDiscount + loyaltyPointsRedeemed;
   const total = Math.max(0, subtotal - totalDiscount);
+  const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
+
+  const handleCollapsedPay = () => {
+    if (items.length === 0) return;
+    setCartCollapsed(false);
+    setPaymentOpen(true);
+  };
 
   // ── Stock helpers ─────────────────────────────────────────────────────────
-  const getStock = (productId: string) =>
-    products.find((p) => p.id === productId)?.stock ?? Infinity;
-
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = useCallback((product: Product) => {
     if (product.stock === 0) return;
-    const existing = items.find((i) => i.productId === product.id);
-    if (existing && existing.quantity >= product.stock) {
-      setQtyErrors((prev) => ({ ...prev, [product.id]: `Only ${product.stock} in stock` }));
-      return;
-    }
     addItem({
       productId: product.id,
       name: product.name,
@@ -131,20 +434,15 @@ export function POSPage() {
       quantity: 1,
       discount: 0,
     });
-    setQtyErrors((prev) => { const n = { ...prev }; delete n[product.id]; return n; });
-  };
+  }, [addItem]);
 
-  const handleQtyChange = (productId: string, newQty: number) => {
-    if (isNaN(newQty) || newQty < 1) { updateQuantity(productId, 0); return; }
-    const stock = getStock(productId);
-    if (newQty > stock) {
-      setQtyErrors((prev) => ({ ...prev, [productId]: `Max ${stock} in stock` }));
-      updateQuantity(productId, stock);
-    } else {
-      setQtyErrors((prev) => { const n = { ...prev }; delete n[productId]; return n; });
-      updateQuantity(productId, newQty);
+  const handleQtyChange = useCallback((productId: string, newQty: number) => {
+    if (isNaN(newQty) || newQty < 1) {
+      updateQuantity(productId, 0);
+      return;
     }
-  };
+    updateQuantity(productId, newQty);
+  }, [updateQuantity]);
 
   // ── Payment ────────────────────────────────────────────────────────────────
   const handlePayment = async (method: PaymentMethod, tendered?: number) => {
@@ -181,9 +479,7 @@ export function POSPage() {
     setPaymentOpen(false);
     setSearch('');
     setDiscountInput(0);
-    setDiscountType('flat');
-    setDiscountOpen(false);
-    setQtyErrors({});
+    setDiscountType(null);
     setTenderedAmount(undefined);
   };
 
@@ -253,70 +549,66 @@ export function POSPage() {
           />
         </Paper>
 
-        <Tabs
-          value={categoryFilter}
-          onChange={(_, v: string) => setCategoryFilter(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ mb: 2, bgcolor: 'background.paper', borderRadius: 2, px: 1 }}
-        >
-          {allCategories.map((cat) => (
-            <Tab key={cat} value={cat} label={cat} sx={{ minWidth: 80 }} />
-          ))}
-        </Tabs>
+        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Category</InputLabel>
+            <Select
+              value={categoryFilter}
+              label="Category"
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <MenuItem value="">All</MenuItem>
+              {PRODUCT_CATEGORIES.map((c) => (
+                <MenuItem key={c} value={c}>{c}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Supplier</InputLabel>
+            <Select
+              value={supplierFilter}
+              label="Supplier"
+              onChange={(e) => setSupplierFilter(e.target.value)}
+            >
+              <MenuItem value="">All</MenuItem>
+              {suppliers.map((s) => (
+                <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <ToggleButtonGroup
+            value={priceSort}
+            exclusive
+            size="small"
+            onChange={(_, v: 'asc' | 'desc' | null) => setPriceSort(v ?? '')}
+            sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5 } }}
+          >
+            <ToggleButton value="asc">
+              <ArrowUpwardIcon fontSize="small" sx={{ mr: 0.5 }} />
+              Price
+            </ToggleButton>
+            <ToggleButton value="desc">
+              <ArrowDownwardIcon fontSize="small" sx={{ mr: 0.5 }} />
+              Price
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
         <Box sx={{ flex: 1, overflow: 'auto' }}>
-          <Grid container spacing={1.5}>
-            {displayedProducts.map((product) => {
-              const inCart = items.find((i) => i.productId === product.id);
-              const atMax = !!inCart && inCart.quantity >= product.stock;
-              return (
-                <Grid key={product.id} size={{ xs: 6, sm: 4, md: 3, lg: 2, xl: 2 }}>
-                  <Tooltip title={qtyErrors[product.id] ?? ''} open={!!qtyErrors[product.id]}>
-                    <Card
-                      sx={{
-                        height: '100%',
-                        opacity: product.stock === 0 ? 0.45 : 1,
-                        border: inCart ? 2 : 0,
-                        borderColor: atMax ? 'warning.main' : 'primary.main',
-                      }}
-                    >
-                      <CardActionArea
-                        onClick={() => handleAddProduct(product)}
-                        disabled={product.stock === 0}
-                        sx={{ height: '100%' }}
-                      >
-                        <CardContent sx={{ p: 1.5 }}>
-                          <Avatar
-                            src={product.images[0]}
-                            variant="rounded"
-                            sx={{ width: '100%', height: 80, mb: 1, borderRadius: 1 }}
-                          >
-                            {product.name[0]}
-                          </Avatar>
-                          <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.3 }} noWrap>
-                            {product.name}
-                          </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-                            <Typography variant="body2" color="primary" sx={{ fontWeight: 700 }}>
-                              {formatCurrency(product.sellingPrice)}
-                            </Typography>
-                            <Chip
-                              label={product.stock === 0 ? 'Out' : product.stock}
-                              size="small"
-                              color={product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'default'}
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          </Box>
-                        </CardContent>
-                      </CardActionArea>
-                    </Card>
-                  </Tooltip>
-                </Grid>
-              );
-            })}
+          <Grid container spacing={1.5} columns={{ xs: 2, sm: 3, md: 5 }}>
+            {displayedProducts.map((product) => (
+              <Grid key={product.id} size={1}>
+                <ProductCard
+                  product={product}
+                  qtyInCart={cartQuantities.get(product.id) ?? 0}
+                  onAdd={handleAddProduct}
+                />
+              </Grid>
+            ))}
             {displayedProducts.length === 0 && (
-              <Grid size={12}>
+              <Grid size={{ xs: 2, sm: 3, md: 5 }}>
                 <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                   No products found
                 </Typography>
@@ -326,47 +618,90 @@ export function POSPage() {
         </Box>
       </Box>
 
-      {/* ── Right: Cart Panel (fixed width, flush to right edge) ── */}
+      {/* ── Right: Cart Panel (collapsible, flush to right edge) ── */}
       <Paper
         elevation={2}
-        sx={{
-          width: { xs: 440, sm: 500, md: 540 },
+        sx={(theme) => ({
+          width: cartCollapsed ? DRAWER_COLLAPSED : CART_EXPANDED_WIDTH,
           flexShrink: 0,
+          minWidth: 0,
+          boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
-          p: { xs: 1.5, sm: 2 },
+          p: cartCollapsed ? 0.5 : { xs: 1.5, sm: 2 },
           borderRadius: '12px 0 0 12px',
           borderRight: 0,
           alignSelf: 'stretch',
           minHeight: 0,
           maxHeight: '100%',
           overflow: 'hidden',
-        }}
+          transition: theme.transitions.create('width'),
+        })}
       >
-
+        {cartCollapsed ? (
+          <CollapsedCartRail
+            totalUnits={totalUnits}
+            total={total}
+            hasItems={items.length > 0}
+            onExpand={() => setCartCollapsed(false)}
+            onPay={handleCollapsedPay}
+          />
+        ) : (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
         <CustomerPicker
           customerId={customerId}
           onCustomerChange={setCustomer}
           onAddCustomer={() => { setCustForm(EMPTY_FORM); setCustFormError(''); setCreateOpen(true); }}
         />
 
-        <Divider sx={{ flexShrink: 0 }} />
+        <Divider sx={{ flexShrink: 0, my: 0 }} />
 
         {/* Cart header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1.25, flexShrink: 0 }}>
-          <Badge badgeContent={items.length} color="primary">
-            <ShoppingCartIcon />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            minHeight: 44,
+            py: 0.5,
+            flexShrink: 0,
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+            Cart
+          </Typography>
+          <Badge badgeContent={totalUnits} invisible={totalUnits === 0} sx={qtyBadgeSx}>
+            <ShoppingCartIcon fontSize="small" />
           </Badge>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, flex: 1 }}>Cart</Typography>
+          <Box sx={{ flex: 1 }} />
           {items.length > 0 && (
-            <Button size="small" color="error" onClick={() => { clearCart(); setDiscountInput(0); setQtyErrors({}); }}>
+            <Button
+              size="small"
+              color="error"
+              sx={{ minWidth: 0, px: 1 }}
+              onClick={() => { clearCart(); setDiscountInput(0); setDiscountType(null); }}
+            >
               Clear
             </Button>
           )}
+          <Tooltip title="Collapse cart">
+            <IconButton size="small" onClick={() => setCartCollapsed(true)} sx={{ flexShrink: 0 }}>
+              <ChevronRightIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
 
         {/* Cart items — scrollable middle section */}
-        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', mb: 1 }}>
+        <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto', mb: 0.5 }}>
           {items.length === 0 ? (
             <Box sx={{ py: 6, textAlign: 'center' }}>
               <ShoppingCartIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
@@ -375,117 +710,106 @@ export function POSPage() {
               </Typography>
             </Box>
           ) : (
-            <TableContainer>
+            <TableContainer sx={{ width: '100%' }}>
               <Table
                 size="small"
-                stickyHeader
-                sx={{ tableLayout: 'fixed', width: '100%' }}
+                sx={{
+                  tableLayout: 'fixed',
+                  width: '100%',
+                  '& .MuiTableCell-root': {
+                    verticalAlign: 'middle',
+                    py: 0.75,
+                    px: 0.5,
+                    borderColor: 'divider',
+                  },
+                }}
               >
                 <colgroup>
-                  <col />
-                  <col style={{ width: 96 }} />
-                  <col style={{ width: 58 }} />
-                  <col style={{ width: 62 }} />
-                  <col style={{ width: 32 }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: 'auto' }} />
+                  <col style={{ width: '26%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '9%' }} />
                 </colgroup>
                 <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700, pl: 0, pr: 0.5 }}>Item</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, whiteSpace: 'nowrap' }}>Qty</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, whiteSpace: 'nowrap' }}>Price</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, whiteSpace: 'nowrap' }}>Total</TableCell>
-                    <TableCell padding="none" />
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>SN</TableCell>
+                    <TableCell sx={{ fontWeight: 700, pl: 0, pr: 0.5, fontSize: '0.7rem' }}>Item</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Qty</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Price</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Total</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0, width: 32 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {items.map((item) => {
-                    const stock = getStock(item.productId);
-                    const err = qtyErrors[item.productId];
+                  {items.map((item, index) => {
                     return (
-                      <TableRow key={item.productId} sx={{ '&:last-child td': { border: 0 } }}>
-                        <TableCell sx={{ pl: 0, pr: 1, verticalAlign: 'top' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
-                            <Avatar
-                              src={item.image}
-                              variant="rounded"
-                              sx={{ width: 36, height: 36, flexShrink: 0, mt: 0.25 }}
-                            >
-                              {item.name[0]}
-                            </Avatar>
-                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 600,
-                                  fontSize: '0.8125rem',
-                                  lineHeight: 1.35,
-                                  whiteSpace: 'normal',
-                                  wordBreak: 'break-word',
-                                }}
-                              >
-                                {item.name}
-                              </Typography>
-                              {err && (
-                                <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.25 }}>
-                                  {err}
-                                </Typography>
-                              )}
-                            </Box>
-                          </Box>
-                        </TableCell>
-
-                        {/* Qty controls */}
+                      <TableRow key={item.productId} sx={{ '&:last-child td': { borderBottom: 0 } }}>
                         <TableCell align="center" sx={{ px: 0.25 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleQtyChange(item.productId, item.quantity - 1)}
-                              sx={{ p: 0.2 }}
-                            >
-                              <RemoveIcon sx={{ fontSize: 13 }} />
-                            </IconButton>
-                            <TextField
-                              value={item.quantity}
-                              onChange={(e) => handleQtyChange(item.productId, parseInt(e.target.value))}
-                              type="number"
-                              size="small"
-                              sx={{ width: 36 }}
-                              slotProps={{
-                                htmlInput: {
-                                  min: 1,
-                                  max: stock,
-                                  style: { textAlign: 'center', padding: '2px 2px', fontSize: '0.8rem' },
-                                },
-                              }}
-                            />
-                            <IconButton
-                              size="small"
-                              onClick={() => handleQtyChange(item.productId, item.quantity + 1)}
-                              disabled={item.quantity >= stock}
-                              sx={{ p: 0.2 }}
-                            >
-                              <AddIcon sx={{ fontSize: 13 }} />
-                            </IconButton>
-                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                            {index + 1}
+                          </Typography>
                         </TableCell>
 
-                        {/* Unit price */}
+                        <TableCell sx={{ pl: 0, pr: 0.5, minWidth: 0 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: '0.8125rem',
+                              lineHeight: 1.35,
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {item.name}
+                          </Typography>
+                        </TableCell>
+
+                        <TableCell align="center" sx={{ px: 0.25 }}>
+                          <CartQtyStepper
+                            quantity={item.quantity}
+                            onDecrement={() => handleQtyChange(item.productId, item.quantity - 1)}
+                            onIncrement={() => handleQtyChange(item.productId, item.quantity + 1)}
+                          />
+                        </TableCell>
+
                         <TableCell align="right" sx={{ px: 0.25 }}>
-                          <Typography variant="caption" noWrap sx={{ fontSize: '0.72rem' }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontVariantNumeric: 'tabular-nums',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {formatAmount(item.price)}
                           </Typography>
                         </TableCell>
 
-                        {/* Line total */}
                         <TableCell align="right" sx={{ px: 0.25 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.72rem' }} noWrap>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: '0.75rem',
+                              fontVariantNumeric: 'tabular-nums',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {formatAmount(item.price * item.quantity)}
                           </Typography>
                         </TableCell>
 
-                        {/* Delete */}
-                        <TableCell padding="none">
-                          <IconButton size="small" color="error" onClick={() => removeItem(item.productId)}>
+                        <TableCell align="center" sx={{ px: 0, width: 32 }}>
+                          <IconButton
+                            type="button"
+                            size="small"
+                            color="error"
+                            aria-label="Remove item"
+                            onClick={() => removeItem(item.productId)}
+                            sx={{ width: 24, height: 24, p: 0 }}
+                          >
                             <DeleteIcon sx={{ fontSize: 14 }} />
                           </IconButton>
                         </TableCell>
@@ -498,78 +822,97 @@ export function POSPage() {
           )}
         </Box>
 
-        {/* Footer: discount + totals + pay — always visible */}
-        <Box sx={{ flexShrink: 0 }}>
+        {/* Footer: totals + pay — always visible */}
+        <Box sx={{ flexShrink: 0, pt: 0.5, bgcolor: 'background.paper', boxShadow: '0 -2px 8px rgba(0,0,0,0.06)' }}>
         <Divider sx={{ mb: 1 }} />
 
-        {/* Collapsible Discount Section */}
-        <Box
-          sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', mb: 0.5, userSelect: 'none' }}
-          onClick={() => setDiscountOpen((v) => !v)}
-        >
-          <LocalOfferIcon fontSize="small" sx={{ mr: 0.75, color: 'text.secondary' }} />
-          <Typography variant="body2" sx={{ flex: 1, fontWeight: 600 }}>Discount</Typography>
-          {overallDiscount > 0 && (
-            <Chip
-              label={`-${formatAmount(overallDiscount)}`}
-              size="small"
-              color="success"
-              sx={{ mr: 1, height: 20, fontSize: '0.7rem' }}
-            />
-          )}
-          {discountOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </Box>
-        <Collapse in={discountOpen}>
-          <Box sx={{ display: 'flex', gap: 1, pb: 1.5, pt: 0.5, alignItems: 'flex-start' }}>
-            {/* NPR / % toggle */}
+        <Box sx={{ mb: 1.25 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 24, mb: 0.75 }}>
+            <Typography variant="body2" color="text.secondary">Subtotal</Typography>
+            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {formatAmount(subtotal)}
+            </Typography>
+          </Box>
+
+          {/* Discount: label + controls + amount (single row) */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              minHeight: 32,
+              mb: 0.75,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, flexShrink: 0 }}>
+              Discount
+            </Typography>
+            <LocalOfferIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
             <ToggleButtonGroup
               value={discountType}
               exclusive
               size="small"
-              onChange={(_, v: 'flat' | 'pct') => v && setDiscountType(v)}
-              sx={{ flexShrink: 0 }}
-            >
-              <ToggleButton value="flat" sx={{ px: 1.5, py: 0.75, fontSize: '0.75rem' }}>NPR</ToggleButton>
-              <ToggleButton value="pct"  sx={{ px: 1.5, py: 0.75, fontSize: '0.75rem' }}>%</ToggleButton>
-            </ToggleButtonGroup>
-
-            <TextField
-              label={discountType === 'pct' ? 'Discount (%)' : 'Discount (NPR)'}
-              type="number"
-              size="small"
-              fullWidth
-              value={discountInput || ''}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value) || 0;
-                const max = discountType === 'pct' ? 100 : subtotal;
-                setDiscountInput(Math.min(Math.max(0, v), max));
+              onChange={(_, v: 'flat' | 'pct' | null) => {
+                setDiscountType(v);
+                setDiscountInput(0);
               }}
-              slotProps={{ htmlInput: { min: 0, max: discountType === 'pct' ? 100 : subtotal, step: discountType === 'pct' ? 5 : 10 } }}
-              helperText={discountType === 'pct' && discountInput > 0
-                ? `= ${formatAmount(overallDiscount)}`
-                : 'Applied to entire bill'}
-            />
+              sx={{
+                flexShrink: 0,
+                '& .MuiToggleButton-root': { px: 1.25, py: 0.35, fontSize: '0.75rem', lineHeight: 1.3 },
+              }}
+            >
+              <ToggleButton value="flat">NPR</ToggleButton>
+              <ToggleButton value="pct">%</ToggleButton>
+            </ToggleButtonGroup>
+            {discountType !== null && (
+              <TextField
+                placeholder={discountType === 'pct' ? '%' : 'NPR'}
+                type="number"
+                size="small"
+                autoFocus
+                value={discountInput || ''}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value) || 0;
+                  const max = discountType === 'pct' ? 100 : subtotal;
+                  setDiscountInput(Math.min(Math.max(0, v), max));
+                }}
+                slotProps={{
+                  htmlInput: {
+                    min: 0,
+                    max: discountType === 'pct' ? 100 : subtotal,
+                    step: discountType === 'pct' ? 5 : 10,
+                  },
+                }}
+                sx={{
+                  width: 80,
+                  flexShrink: 0,
+                  ...noNumberSpinnerSx,
+                  '& .MuiInputBase-root': { height: 30 },
+                  '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'right' },
+                }}
+              />
+            )}
+            {totalDiscount > 0 && (
+              <Typography
+                variant="body2"
+                color="success.main"
+                sx={{
+                  ml: 'auto',
+                  flexShrink: 0,
+                  fontWeight: 600,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                - {formatAmount(totalDiscount)}
+              </Typography>
+            )}
           </Box>
-        </Collapse>
 
-        <Divider sx={{ mb: 1 }} />
-
-        {/* Totals */}
-        <Box sx={{ mb: 1.5 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="body2" color="text.secondary">Subtotal</Typography>
-            <Typography variant="body2">{formatAmount(subtotal)}</Typography>
-          </Box>
-          {totalDiscount > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="body2" color="success.main">Discount</Typography>
-              <Typography variant="body2" color="success.main">- {formatAmount(totalDiscount)}</Typography>
-            </Box>
-          )}
-          <Divider sx={{ my: 0.75 }} />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Total</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700 }} color="primary">
+          <Divider sx={{ mb: 0.75 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>Total</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} color="primary">
               {formatCurrency(total)}
             </Typography>
           </Box>
@@ -586,6 +929,8 @@ export function POSPage() {
           Pay {formatCurrency(total)}
         </Button>
         </Box>
+          </Box>
+        )}
       </Paper>
 
       {/* ── Payment modal (transitions to receipt on success) ─────────────── */}

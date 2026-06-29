@@ -10,6 +10,8 @@ class DashboardStats(BaseModel):
     expiring_products: int
     inventory_value: float
     customer_count: int
+    monthly_expenses: float
+    net_revenue: float
 
 
 class RevenueDataPoint(BaseModel):

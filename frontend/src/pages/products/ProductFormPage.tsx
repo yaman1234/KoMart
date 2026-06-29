@@ -26,6 +26,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProducts';
 import { useSuppliers } from '@/hooks/useSuppliers';
+import { useCategoryNames } from '@/hooks/useCategories';
 import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
 
@@ -72,6 +73,10 @@ export function ProductFormPage() {
   const { data: suppliersData } = useSuppliers({ pageSize: 100 });
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
+
+  // DB-backed categories; fall back to hardcoded list while loading
+  const dbCategories = useCategoryNames();
+  const categoryOptions = dbCategories.length > 0 ? dbCategories : [...PRODUCT_CATEGORIES];
 
   const suppliers = suppliersData?.data ?? [];
 
@@ -297,7 +302,7 @@ export function ProductFormPage() {
                       error={!!errors.category}
                       helperText={errors.category?.message}
                     >
-                      {PRODUCT_CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                      {categoryOptions.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </TextField>
                   )}
                 />

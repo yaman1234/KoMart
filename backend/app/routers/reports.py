@@ -1,0 +1,693 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
+from math import ceil
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.auth.dependencies import get_current_user, require_manager_or_above
+from app.models.customer import Customer
+from app.models.expense import Expense as ExpenseDoc
+from app.models.inventory import InventoryBatch
+from app.models.product import Product
+from app.models.purchase_order import POStatus, PurchaseOrder
+from app.models.transaction import Transaction
+from app.models.user import User
+from app.schemas.common import PaginatedResponse
+from app.schemas.dashboard import RevenueDataPoint, SalesByCategory, TopProduct
+from app.schemas.reports import (
+    DeadStockProduct,
+    ExpenseByCategory,
+    ExpenseDataPoint,
+    ExpenseSummary,
+    ExpiringProductRow,
+    InventoryCategoryBreakdown,
+    InventoryReportSummary,
+    LowStockProductRow,
+    LoyaltySummary,
+    MarginByCategory,
+    ProfitDataPoint,
+    ProfitSummary,
+    PurchaseOrderStatusCount,
+    PurchaseOrdersSummary,
+    PurchasingBySupplier,
+    SalesByCashier,
+    SalesByDayOfWeek,
+    SalesByHour,
+    SalesByPaymentMethod,
+    SalesSummary,
+    TopCustomer,
+)
+from app.services.reporting import (
+    build_product_cache,
+    collect_product_ids,
+    days_until,
+    fetch_transactions,
+    line_cogs,
+    line_revenue,
+    parse_date_range,
+)
+from app.services.stock import expiring_product_ids
+
+router = APIRouter(prefix="/reports", tags=["Reports"])
+
+DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+@router.get("/sales-summary", response_model=SalesSummary)
+async def sales_summary(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    total_revenue = sum(t.total for t in txns)
+    count = len(txns)
+    units = sum(item.quantity for t in txns for item in t.items)
+    discount = sum(t.discount for t in txns)
+    return SalesSummary(
+        total_revenue=round(total_revenue, 2),
+        transaction_count=count,
+        avg_basket=round(total_revenue / count, 2) if count else 0.0,
+        total_units_sold=units,
+        total_discount=round(discount, 2),
+    )
+
+
+@router.get("/sales-by-payment-method", response_model=list[SalesByPaymentMethod])
+async def sales_by_payment_method(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    stats: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "count": 0})
+    for txn in txns:
+        method = txn.payment_method.value
+        stats[method]["revenue"] += txn.total
+        stats[method]["count"] += 1
+    return [
+        SalesByPaymentMethod(
+            payment_method=method,
+            revenue=round(v["revenue"], 2),
+            count=v["count"],
+        )
+        for method, v in sorted(stats.items(), key=lambda x: x[1]["revenue"], reverse=True)
+    ]
+
+
+@router.get("/revenue", response_model=list[RevenueDataPoint])
+async def revenue_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    daily: dict[str, float] = {}
+    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    while current <= end:
+        daily[current.strftime("%Y-%m-%d")] = 0.0
+        current += timedelta(days=1)
+    for txn in txns:
+        day = txn.created_at.strftime("%Y-%m-%d")
+        if day in daily:
+            daily[day] += txn.total
+    return [RevenueDataPoint(date=d, revenue=round(v, 2)) for d, v in sorted(daily.items())]
+
+
+@router.get("/top-products", response_model=list[TopProduct])
+async def top_products_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    limit: int = Query(10, ge=1, le=50),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    product_stats: dict[str, dict] = {}
+    for txn in txns:
+        for item in txn.items:
+            pid = item.product_id
+            if pid not in product_stats:
+                product_stats[pid] = {"name": item.name, "qty": 0, "revenue": 0.0}
+            product_stats[pid]["qty"] += item.quantity
+            product_stats[pid]["revenue"] += line_revenue(item)
+    return sorted(
+        [
+            TopProduct(
+                product_id=pid,
+                name=v["name"],
+                quantity_sold=v["qty"],
+                revenue=round(v["revenue"], 2),
+            )
+            for pid, v in product_stats.items()
+        ],
+        key=lambda x: x.revenue,
+        reverse=True,
+    )[:limit]
+
+
+@router.get("/sales-by-category", response_model=list[SalesByCategory])
+async def sales_by_category_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    product_ids = collect_product_ids(txns)
+    product_cache = await build_product_cache(product_ids)
+    category_stats: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "count": 0})
+    for txn in txns:
+        for item in txn.items:
+            product = product_cache.get(item.product_id)
+            cat = product.category if product else "Other"
+            category_stats[cat]["revenue"] += line_revenue(item)
+            category_stats[cat]["count"] += item.quantity
+    return [
+        SalesByCategory(category=cat, revenue=round(v["revenue"], 2), count=v["count"])
+        for cat, v in category_stats.items()
+    ]
+
+
+@router.get("/inventory-summary", response_model=InventoryReportSummary)
+async def inventory_summary_report(_: User = Depends(require_manager_or_above)):
+    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    expiring_ids = await expiring_product_ids()
+    low_stock = 0
+    out_of_stock = 0
+    inventory_value = 0.0
+    by_category: dict[str, dict] = defaultdict(
+        lambda: {"sku_count": 0, "total_stock": 0, "stock_value": 0.0}
+    )
+    for product in products:
+        value = product.stock * product.cost_price
+        inventory_value += value
+        if product.stock == 0:
+            out_of_stock += 1
+        elif product.stock <= product.low_stock_threshold:
+            low_stock += 1
+        cat = product.category
+        by_category[cat]["sku_count"] += 1
+        by_category[cat]["total_stock"] += product.stock
+        by_category[cat]["stock_value"] += value
+    return InventoryReportSummary(
+        total_skus=len(products),
+        low_stock=low_stock,
+        out_of_stock=out_of_stock,
+        expiring=len(expiring_ids),
+        inventory_value=round(inventory_value, 2),
+        by_category=[
+            InventoryCategoryBreakdown(
+                category=cat,
+                sku_count=v["sku_count"],
+                total_stock=v["total_stock"],
+                stock_value=round(v["stock_value"], 2),
+            )
+            for cat, v in sorted(by_category.items(), key=lambda x: x[1]["stock_value"], reverse=True)
+        ],
+    )
+
+
+@router.get("/expiring-products", response_model=PaginatedResponse[ExpiringProductRow])
+async def expiring_products_report(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    within_days: int = Query(30, ge=1, le=365),
+    _: User = Depends(require_manager_or_above),
+):
+    today = date.today().isoformat()
+    cutoff = (date.today() + timedelta(days=within_days)).isoformat()
+    batches = await InventoryBatch.find(
+        InventoryBatch.quantity > 0,
+        {"expiry_date": {"$gte": today, "$lte": cutoff}},
+    ).to_list()
+    batches.sort(key=lambda b: b.expiry_date or "9999-12-31")
+
+    rows: list[ExpiringProductRow] = []
+    product_cache: dict[str, Product] = {}
+    for batch in batches:
+        if not batch.expiry_date:
+            continue
+        pid = batch.product_id
+        if pid not in product_cache:
+            product = await Product.get(pid)
+            if product:
+                product_cache[pid] = product
+        product = product_cache.get(pid)
+        if not product:
+            continue
+        rows.append(
+            ExpiringProductRow(
+                product_id=pid,
+                product_name=product.name,
+                sku=product.sku,
+                category=product.category,
+                batch_number=batch.batch_number,
+                quantity=batch.quantity,
+                expiry_date=batch.expiry_date,
+                days_until_expiry=days_until(batch.expiry_date),
+            )
+        )
+
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start : start + page_size]
+    return PaginatedResponse(
+        data=page_rows,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 1,
+    )
+
+
+@router.get("/low-stock", response_model=PaginatedResponse[LowStockProductRow])
+async def low_stock_report(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    stock_filter: str = Query("low", pattern="^(low|out|both)$"),
+    _: User = Depends(require_manager_or_above),
+):
+    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    rows: list[LowStockProductRow] = []
+    for product in products:
+        if product.stock == 0 and stock_filter in ("out", "both"):
+            rows.append(
+                LowStockProductRow(
+                    product_id=str(product.id),
+                    product_name=product.name,
+                    sku=product.sku,
+                    category=product.category,
+                    stock=product.stock,
+                    low_stock_threshold=product.low_stock_threshold,
+                    status="out",
+                )
+            )
+        elif (
+            0 < product.stock <= product.low_stock_threshold
+            and stock_filter in ("low", "both")
+        ):
+            rows.append(
+                LowStockProductRow(
+                    product_id=str(product.id),
+                    product_name=product.name,
+                    sku=product.sku,
+                    category=product.category,
+                    stock=product.stock,
+                    low_stock_threshold=product.low_stock_threshold,
+                    status="low",
+                )
+            )
+    rows.sort(key=lambda r: (r.status != "out", r.stock))
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start : start + page_size]
+    return PaginatedResponse(
+        data=page_rows,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 1,
+    )
+
+
+@router.get("/profit-summary", response_model=ProfitSummary)
+async def profit_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    product_cache = await build_product_cache(collect_product_ids(txns))
+
+    total_revenue = 0.0
+    total_cogs = 0.0
+    total_discount = sum(t.discount for t in txns)
+    daily: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "cogs": 0.0})
+
+    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    while current <= end:
+        daily[current.strftime("%Y-%m-%d")] = {"revenue": 0.0, "cogs": 0.0}
+        current += timedelta(days=1)
+
+    for txn in txns:
+        day = txn.created_at.strftime("%Y-%m-%d")
+        txn_cogs = sum(
+            line_cogs(item, product_cache.get(item.product_id)) for item in txn.items
+        )
+        rev = txn.total
+        total_revenue += rev
+        total_cogs += txn_cogs
+        if day in daily:
+            daily[day]["revenue"] += rev
+            daily[day]["cogs"] += txn_cogs
+
+    gross_profit = total_revenue - total_cogs
+    margin_pct = (gross_profit / total_revenue * 100) if total_revenue else 0.0
+    daily_series = [
+        ProfitDataPoint(
+            date=d,
+            revenue=round(v["revenue"], 2),
+            cogs=round(v["cogs"], 2),
+            gross_profit=round(v["revenue"] - v["cogs"], 2),
+        )
+        for d, v in sorted(daily.items())
+    ]
+    return ProfitSummary(
+        total_revenue=round(total_revenue, 2),
+        total_cogs=round(total_cogs, 2),
+        gross_profit=round(gross_profit, 2),
+        gross_margin_pct=round(margin_pct, 1),
+        total_discount=round(total_discount, 2),
+        daily=daily_series,
+    )
+
+
+@router.get("/margin-by-category", response_model=list[MarginByCategory])
+async def margin_by_category_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    product_cache = await build_product_cache(collect_product_ids(txns))
+    category_stats: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "cogs": 0.0})
+
+    for txn in txns:
+        txn_line_total = sum(line_revenue(item) for item in txn.items)
+        revenue_scale = (txn.total / txn_line_total) if txn_line_total else 1.0
+        for item in txn.items:
+            product = product_cache.get(item.product_id)
+            cat = product.category if product else "Other"
+            category_stats[cat]["revenue"] += line_revenue(item) * revenue_scale
+            category_stats[cat]["cogs"] += line_cogs(item, product)
+
+    result = []
+    for cat, v in category_stats.items():
+        profit = v["revenue"] - v["cogs"]
+        margin = (profit / v["revenue"] * 100) if v["revenue"] else 0.0
+        result.append(
+            MarginByCategory(
+                category=cat,
+                revenue=round(v["revenue"], 2),
+                cogs=round(v["cogs"], 2),
+                gross_profit=round(profit, 2),
+                gross_margin_pct=round(margin, 1),
+            )
+        )
+    return sorted(result, key=lambda x: x.revenue, reverse=True)
+
+
+@router.get("/purchasing-by-supplier", response_model=list[PurchasingBySupplier])
+async def purchasing_by_supplier_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    pos = await PurchaseOrder.find(
+        {
+            "created_at": {"$gte": start, "$lte": end},
+            "status": {"$nin": [POStatus.draft, POStatus.cancelled]},
+        }
+    ).to_list()
+    stats: dict[str, dict] = defaultdict(
+        lambda: {"supplier_name": "", "total": 0.0, "count": 0}
+    )
+    for po in pos:
+        stats[po.supplier_id]["supplier_name"] = po.supplier_name
+        stats[po.supplier_id]["total"] += po.total_amount
+        stats[po.supplier_id]["count"] += 1
+    return [
+        PurchasingBySupplier(
+            supplier_id=sid,
+            supplier_name=v["supplier_name"],
+            total_amount=round(v["total"], 2),
+            order_count=v["count"],
+        )
+        for sid, v in sorted(stats.items(), key=lambda x: x[1]["total"], reverse=True)
+    ]
+
+
+@router.get("/purchase-orders-summary", response_model=PurchaseOrdersSummary)
+async def purchase_orders_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    pos = await PurchaseOrder.find({"created_at": {"$gte": start, "$lte": end}}).to_list()
+    by_status: dict[str, int] = defaultdict(int)
+    total_amount = 0.0
+    for po in pos:
+        by_status[po.status.value] += 1
+        if po.status not in (POStatus.draft, POStatus.cancelled):
+            total_amount += po.total_amount
+    return PurchaseOrdersSummary(
+        total_orders=len(pos),
+        total_amount=round(total_amount, 2),
+        by_status=[
+            PurchaseOrderStatusCount(status=status, count=count)
+            for status, count in sorted(by_status.items())
+        ],
+    )
+
+
+@router.get("/top-customers", response_model=list[TopCustomer])
+async def top_customers_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    limit: int = Query(10, ge=1, le=50),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    stats: dict[str, dict] = defaultdict(
+        lambda: {"name": "", "count": 0, "spent": 0.0}
+    )
+    for txn in txns:
+        if not txn.customer_id:
+            continue
+        stats[txn.customer_id]["name"] = txn.customer_name or "Unknown"
+        stats[txn.customer_id]["count"] += 1
+        stats[txn.customer_id]["spent"] += txn.total
+    return sorted(
+        [
+            TopCustomer(
+                customer_id=cid,
+                customer_name=v["name"],
+                transaction_count=v["count"],
+                total_spent=round(v["spent"], 2),
+            )
+            for cid, v in stats.items()
+        ],
+        key=lambda x: x.total_spent,
+        reverse=True,
+    )[:limit]
+
+
+@router.get("/loyalty-summary", response_model=LoyaltySummary)
+async def loyalty_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    points_redeemed = sum(t.loyalty_points_redeemed for t in txns)
+    customer_ids_in_period = {t.customer_id for t in txns if t.customer_id}
+    new_customers = await Customer.find(
+        {"created_at": {"$gte": start, "$lte": end}}
+    ).count()
+    total_members = await Customer.count()
+    active_members = len(customer_ids_in_period)
+    return LoyaltySummary(
+        points_redeemed=points_redeemed,
+        active_members=active_members,
+        new_customers=new_customers,
+        total_members=total_members,
+    )
+
+
+@router.get("/sales-by-hour", response_model=list[SalesByHour])
+async def sales_by_hour_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    stats: dict[int, dict] = {h: {"revenue": 0.0, "count": 0} for h in range(24)}
+    for txn in txns:
+        hour = txn.created_at.hour
+        stats[hour]["revenue"] += txn.total
+        stats[hour]["count"] += 1
+    return [
+        SalesByHour(
+            hour=h,
+            label=f"{h:02d}:00",
+            revenue=round(stats[h]["revenue"], 2),
+            transaction_count=stats[h]["count"],
+        )
+        for h in range(24)
+    ]
+
+
+@router.get("/sales-by-day-of-week", response_model=list[SalesByDayOfWeek])
+async def sales_by_day_of_week_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    stats: dict[int, dict] = {d: {"revenue": 0.0, "count": 0} for d in range(7)}
+    for txn in txns:
+        day = txn.created_at.weekday()
+        stats[day]["revenue"] += txn.total
+        stats[day]["count"] += 1
+    return [
+        SalesByDayOfWeek(
+            day=d,
+            label=DAY_LABELS[d],
+            revenue=round(stats[d]["revenue"], 2),
+            transaction_count=stats[d]["count"],
+        )
+        for d in range(7)
+    ]
+
+
+@router.get("/sales-by-cashier", response_model=list[SalesByCashier])
+async def sales_by_cashier_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    current_user: User = Depends(require_manager_or_above),
+):
+    if current_user.role not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Access restricted to admin and manager")
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    stats: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "count": 0})
+    for txn in txns:
+        cashier = txn.created_by or "Unknown"
+        stats[cashier]["revenue"] += txn.total
+        stats[cashier]["count"] += 1
+    return [
+        SalesByCashier(
+            cashier=name,
+            revenue=round(v["revenue"], 2),
+            transaction_count=v["count"],
+        )
+        for name, v in sorted(stats.items(), key=lambda x: x[1]["revenue"], reverse=True)
+    ]
+
+
+@router.get("/dead-stock", response_model=list[DeadStockProduct])
+async def dead_stock_report(
+    days: int = Query(30, ge=1, le=365),
+    _: User = Depends(require_manager_or_above),
+):
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days)
+
+    # Find products not sold within the dead-stock window
+    recent_txns = await Transaction.find({"created_at": {"$gte": cutoff}}).to_list()
+    recently_sold: set[str] = {item.product_id for txn in recent_txns for item in txn.items}
+
+    products = await Product.find(
+        Product.is_active == True,  # noqa: E712
+        Product.stock > 0,
+    ).to_list()
+
+    dead_pids = [str(p.id) for p in products if str(p.id) not in recently_sold]
+    if not dead_pids:
+        return []
+
+    # Determine actual last sale date for dead products (search full history)
+    all_txns_for_dead = await Transaction.find({"created_at": {"$lt": cutoff}}).to_list()
+    last_sale: dict[str, datetime] = {}
+    for txn in all_txns_for_dead:
+        for item in txn.items:
+            if item.product_id in dead_pids:
+                if item.product_id not in last_sale or txn.created_at > last_sale[item.product_id]:
+                    last_sale[item.product_id] = txn.created_at
+
+    dead: list[DeadStockProduct] = []
+    for product in products:
+        pid = str(product.id)
+        if pid not in dead_pids:
+            continue
+        if pid in last_sale:
+            actual_days = (now - last_sale[pid]).days
+        else:
+            actual_days = days  # never sold; report at least the window
+        dead.append(
+            DeadStockProduct(
+                product_id=pid,
+                product_name=product.name,
+                sku=product.sku,
+                category=product.category,
+                stock=product.stock,
+                stock_value=round(product.stock * product.cost_price, 2),
+                days_without_sale=actual_days,
+            )
+        )
+    return sorted(dead, key=lambda x: x.stock_value, reverse=True)
+
+
+@router.get("/expense-summary", response_model=ExpenseSummary)
+async def expense_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    start, end = parse_date_range(start_date, end_date)
+    start_str = start.strftime("%Y-%m-%d")
+    end_str = end.strftime("%Y-%m-%d")
+
+    expenses = await ExpenseDoc.find(
+        {"date": {"$gte": start_str, "$lte": end_str}}
+    ).to_list()
+
+    total_expenses = 0.0
+    setup_investment = 0.0
+    category_stats: dict[str, dict] = defaultdict(lambda: {"amount": 0.0, "count": 0})
+    daily: dict[str, float] = {}
+
+    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    while current <= end:
+        daily[current.strftime("%Y-%m-%d")] = 0.0
+        current += timedelta(days=1)
+
+    for expense in expenses:
+        total_expenses += expense.amount
+        if expense.is_setup_cost:
+            setup_investment += expense.amount
+        category_stats[expense.category.value]["amount"] += expense.amount
+        category_stats[expense.category.value]["count"] += 1
+        if expense.date in daily:
+            daily[expense.date] += expense.amount
+
+    return ExpenseSummary(
+        total_expenses=round(total_expenses, 2),
+        setup_investment=round(setup_investment, 2),
+        by_category=[
+            ExpenseByCategory(
+                category=cat,
+                amount=round(v["amount"], 2),
+                count=v["count"],
+            )
+            for cat, v in sorted(category_stats.items(), key=lambda x: x[1]["amount"], reverse=True)
+        ],
+        daily=[
+            ExpenseDataPoint(date=d, amount=round(v, 2))
+            for d, v in sorted(daily.items())
+        ],
+    )

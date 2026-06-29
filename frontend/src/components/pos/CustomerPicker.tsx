@@ -6,6 +6,7 @@ import {
   Autocomplete,
   IconButton,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
@@ -84,10 +85,17 @@ export const CustomerPicker = memo(function CustomerPicker({
   ];
 
   return (
-    <Box sx={{ mb: 1.5, flexShrink: 0 }}>
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+    <Box sx={{ mb: 1, flexShrink: 0, pt: 0.25 }}>
+      <Typography
+        variant="caption"
+        component="label"
+        sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.5, lineHeight: 1.2 }}
+      >
+        Customer
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
         <Autocomplete
-          sx={{ flex: 1 }}
+          sx={{ flex: 1, minWidth: 0 }}
           size="small"
           options={options}
           loading={isFetching}
@@ -110,7 +118,6 @@ export const CustomerPicker = memo(function CustomerPicker({
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Customer"
               placeholder="Search name or phone (e.g. 984…)"
             />
           )}
@@ -125,8 +132,8 @@ export const CustomerPicker = memo(function CustomerPicker({
           }
         />
         <Tooltip title="Add new customer">
-          <IconButton onClick={onAddCustomer} sx={{ mt: 0.5 }}>
-            <PersonAddIcon />
+          <IconButton onClick={onAddCustomer} size="small" sx={{ flexShrink: 0 }}>
+            <PersonAddIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Box>

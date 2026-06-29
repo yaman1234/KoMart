@@ -6,7 +6,6 @@ import {
   Typography,
   Chip,
   Divider,
-  Avatar,
   CircularProgress,
   List,
   ListItem,
@@ -16,18 +15,28 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ImageIcon from '@mui/icons-material/Image';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct } from '@/hooks/useProducts';
-import { formatCurrency, formatDate } from '@/utils';
+import { useAuthStore } from '@/store';
+import { formatCurrency, formatDate, isAdminOrManager } from '@/utils';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: product, isLoading, isError } = useProduct(id ?? '');
+  const user = useAuthStore((s) => s.user);
+
+  const canSeeCostPrice = isAdminOrManager(user?.role);
+  const canEdit = isAdminOrManager(user?.role);
 
   if (isLoading) {
-    return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   if (isError || !product) {
@@ -35,9 +44,25 @@ export function ProductDetailPage() {
   }
 
   const stockStatus =
-    product.stock === 0 ? { label: 'Out of Stock', color: 'error' as const } :
-    product.stock <= product.lowStockThreshold ? { label: 'Low Stock', color: 'warning' as const } :
-    { label: 'In Stock', color: 'success' as const };
+    product.stock === 0
+      ? { label: 'Out of Stock', color: 'error' as const }
+      : product.stock <= product.lowStockThreshold
+        ? { label: 'Low Stock', color: 'warning' as const }
+        : { label: 'In Stock', color: 'success' as const };
+
+  const quickInfoItems = [
+    { label: 'SKU', value: product.sku },
+    { label: 'Barcode', value: product.barcode },
+    { label: 'Brand', value: product.brand },
+    { label: 'Category', value: product.category },
+    { label: 'Country', value: product.countryOfOrigin },
+    {
+      label: 'Supplier',
+      value: product.supplierName ?? '—',
+      href: product.supplierId ? `/suppliers/${product.supplierId}` : undefined,
+    },
+    { label: 'Added', value: formatDate(product.createdAt) },
+  ];
 
   return (
     <Box>
@@ -49,143 +74,160 @@ export function ProductDetailPage() {
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/products')}>
               Back
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={() => navigate(`/products/${product.id}/edit`)}
-            >
-              Edit
-            </Button>
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<EditIcon />}
+                onClick={() => navigate(`/products/${product.id}/edit`)}
+              >
+                Edit
+              </Button>
+            )}
           </Box>
         }
       />
 
-      <Grid container spacing={3}>
-        {/* Left column */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Paper sx={{ p: 3, mb: 3, textAlign: 'center' }}>
-            <Avatar
-              src={product.images[0]}
-              variant="rounded"
-              sx={{ width: 180, height: 180, mx: 'auto', mb: 2, fontSize: '4rem' }}
-            >
-              {product.name[0]}
-            </Avatar>
-            <Chip label={stockStatus.label} color={stockStatus.color} sx={{ mb: 1 }} />
-            <Typography variant="h5" sx={{ fontWeight: 700, mt: 1 }}>
-              {formatCurrency(product.sellingPrice)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Cost: {formatCurrency(product.costPrice)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Margin: {(((product.sellingPrice - product.costPrice) / product.sellingPrice) * 100).toFixed(1)}%
-            </Typography>
-          </Paper>
-
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Quick Info</Typography>
-            <Divider sx={{ mb: 2 }} />
-            {[
-              { label: 'SKU', value: product.sku },
-              { label: 'Barcode', value: product.barcode },
-              { label: 'Brand', value: product.brand },
-              { label: 'Category', value: product.category },
-              { label: 'Country', value: product.countryOfOrigin },
-              {
-                label: 'Supplier',
-                value: product.supplierName || '—',
-                href: product.supplierId ? `/suppliers/${product.supplierId}` : undefined,
-              },
-              { label: 'Added', value: formatDate(product.createdAt) },
-            ].map((item) => (
-              <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, gap: 2 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
-                  {item.label}
-                </Typography>
-                {item.href ? (
-                  <Link
-                    component={RouterLink}
-                    to={item.href}
-                    variant="body2"
-                    sx={{ fontWeight: 500, textAlign: 'right' }}
-                  >
-                    {item.value}
-                  </Link>
-                ) : (
-                  <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'right' }}>
-                    {item.value}
-                  </Typography>
-                )}
+      {/* ── Hero: Image + Quick Info ── */}
+      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+          {/* Product image */}
+          <Box
+            sx={{
+              width: { xs: '100%', md: 340 },
+              minHeight: { xs: 260, md: 340 },
+              flexShrink: 0,
+              position: 'relative',
+              bgcolor: 'action.hover',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {product.images[0] ? (
+              <Box
+                component="img"
+                src={product.images[0]}
+                alt={product.name}
+                sx={{
+                  width: '100%',
+                  height: { xs: 260, md: 340 },
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <Box sx={{ textAlign: 'center', color: 'text.disabled' }}>
+                <ImageIcon sx={{ fontSize: 64 }} />
+                <Typography variant="body2" sx={{ mt: 1 }}>No image</Typography>
               </Box>
-            ))}
-          </Paper>
-        </Grid>
+            )}
+          </Box>
 
-        {/* Right column */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Description</Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="body1" color="text.secondary">
-              {product.description || 'No description provided.'}
-            </Typography>
-          </Paper>
+          {/* Quick info panel */}
+          <Box sx={{ flex: 1, p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Price + status row */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Typography variant="h4" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                {formatCurrency(product.sellingPrice)}
+              </Typography>
+              <Chip label={stockStatus.label} color={stockStatus.color} sx={{ fontWeight: 600 }} />
+            </Box>
 
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Stock Information</Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Grid container spacing={2}>
-              {[
-                { label: 'Current Stock', value: product.stock, color: stockStatus.color },
-                { label: 'Low Stock Threshold', value: product.lowStockThreshold },
-                { label: 'Selling Price', value: formatCurrency(product.sellingPrice) },
-                { label: 'Cost Price', value: formatCurrency(product.costPrice) },
-              ].map((item) => (
-                <Grid key={item.label} size={{ xs: 6, sm: 3 }}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+            {canSeeCostPrice && (
+              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Cost Price
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {formatCurrency(product.costPrice)}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Margin
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'success.main' }}>
+                    {(((product.sellingPrice - product.costPrice) / product.sellingPrice) * 100).toFixed(1)}%
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+
+            <Divider />
+
+            {/* Key-value quick info */}
+            <Grid container spacing={0.5}>
+              {quickInfoItems.map((item) => (
+                <Grid key={item.label} size={{ xs: 12, sm: 6 }}>
+                  <Box sx={{ display: 'flex', gap: 1, py: 0.75 }}>
                     <Typography
-                      variant="h5"
-                      sx={{ fontWeight: 700 }}
-                      color={item.color ? `${item.color}.main` : 'text.primary'}
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ minWidth: 90, flexShrink: 0 }}
                     >
-                      {item.value}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
                       {item.label}
                     </Typography>
-                  </Paper>
+                    {item.href ? (
+                      <Link
+                        component={RouterLink}
+                        to={item.href}
+                        variant="body2"
+                        sx={{ fontWeight: 600 }}
+                      >
+                        {item.value}
+                      </Link>
+                    ) : (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {item.value ?? '—'}
+                      </Typography>
+                    )}
+                  </Box>
                 </Grid>
               ))}
             </Grid>
-          </Paper>
+          </Box>
+        </Box>
+      </Paper>
 
-          {(product.nutritionInfo || product.allergenInfo) && (
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Product Details</Typography>
-              <Divider sx={{ mb: 2 }} />
-              <List dense disablePadding>
-                {product.nutritionInfo && (
-                  <ListItem disableGutters>
-                    <ListItemText
-                      primary="Nutrition Information"
-                      secondary={product.nutritionInfo}
-                    />
-                  </ListItem>
-                )}
-                {product.allergenInfo && (
-                  <ListItem disableGutters>
-                    <ListItemText
-                      primary="Allergen Information"
-                      secondary={product.allergenInfo}
-                    />
-                  </ListItem>
-                )}
-              </List>
-            </Paper>
-          )}
-        </Grid>
-      </Grid>
+      {/* ── Description & Product Details ── */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Description & Details</Typography>
+        <Divider sx={{ mb: 2 }} />
+
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+          {product.description || 'No description provided.'}
+        </Typography>
+
+        {(product.nutritionInfo || product.allergenInfo) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <List dense disablePadding>
+              {product.nutritionInfo && (
+                <ListItem disableGutters>
+                  <ListItemText
+                    primary="Nutrition Information"
+                    secondary={product.nutritionInfo}
+                    slotProps={{ primary: { style: { fontWeight: 600 } } }}
+                  />
+                </ListItem>
+              )}
+              {product.allergenInfo && (
+                <ListItem disableGutters>
+                  <ListItemText
+                    primary="Allergen Information"
+                    secondary={product.allergenInfo}
+                    slotProps={{ primary: { style: { fontWeight: 600 } } }}
+                  />
+                </ListItem>
+              )}
+            </List>
+          </>
+        )}
+      </Paper>
     </Box>
   );
 }

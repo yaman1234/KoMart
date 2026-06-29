@@ -53,6 +53,7 @@ function expiryChipColor(date?: string): 'error' | 'warning' | 'default' {
 
 export function InventoryPage() {
   const currentUser = useAuthStore((s) => s.user);
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<StockFilter>('all');
   const [supplierId, setSupplierId] = useState('');
@@ -163,23 +164,27 @@ export function InventoryPage() {
       label: '',
       render: (row) => (
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            size="small"
-            variant="contained"
-            color="success"
-            startIcon={<AddBoxIcon />}
-            onClick={(e) => { e.stopPropagation(); openReceive(row); }}
-          >
-            Receive
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<TuneIcon />}
-            onClick={(e) => { e.stopPropagation(); openAdjust(row); }}
-          >
-            Adjust
-          </Button>
+          {canManage && (
+            <Button
+              size="small"
+              variant="contained"
+              color="success"
+              startIcon={<AddBoxIcon />}
+              onClick={(e) => { e.stopPropagation(); openReceive(row); }}
+            >
+              Receive
+            </Button>
+          )}
+          {canManage && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<TuneIcon />}
+              onClick={(e) => { e.stopPropagation(); openAdjust(row); }}
+            >
+              Adjust
+            </Button>
+          )}
         </Box>
       ),
     },

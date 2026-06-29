@@ -48,6 +48,7 @@ class PurchaseOrderStatusUpdate(BaseModel):
 class PurchaseOrderReceiveItem(BaseModel):
     product_id: str
     receive_quantity: int = Field(ge=1)
+    expiry_date: str
 
 
 class PurchaseOrderReceiveRequest(BaseModel):

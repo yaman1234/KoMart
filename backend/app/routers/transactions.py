@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.auth.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.transaction import Transaction, PaymentMethod
 from app.schemas.transaction import TransactionCreate, TransactionResponse
 from app.schemas.common import PaginatedResponse
@@ -16,14 +16,19 @@ router = APIRouter(prefix="/transactions", tags=["Transactions"])
 @router.get("", response_model=PaginatedResponse[TransactionResponse])
 async def list_transactions(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
+    page_size: int = Query(10, ge=1, le=500),
     search: str = Query(""),
     payment_method: Optional[PaymentMethod] = Query(None),
     start_date: str = Query(""),
     end_date: str = Query(""),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     filters: dict = {}
+
+    # Cashiers can only see their own transactions
+    if current_user.role == UserRole.cashier:
+        filters["cashier_id"] = str(current_user.id)
+
     if payment_method:
         filters["payment_method"] = payment_method
     if start_date:
@@ -58,13 +63,16 @@ async def list_transactions(
 
 
 @router.get("/{txn_id}", response_model=TransactionResponse)
-async def get_transaction(txn_id: str, _: User = Depends(get_current_user)):
+async def get_transaction(txn_id: str, current_user: User = Depends(get_current_user)):
     txn = await Transaction.get(txn_id)
     if not txn:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    # Cashiers can only view their own transactions
+    if current_user.role == UserRole.cashier and txn.cashier_id != str(current_user.id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Access denied")
     return _to_response(txn)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
-async def create_transaction(body: TransactionCreate, _: User = Depends(get_current_user)):
-    return await record_sale(body)
+async def create_transaction(body: TransactionCreate, current_user: User = Depends(get_current_user)):
+    return await record_sale(body, cashier_id=str(current_user.id))

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { productService } from '@/services';
 import type { ListQueryParams, Product } from '@/types';
@@ -54,5 +54,16 @@ export function useDeleteProduct() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
     },
+  });
+}
+
+export function useInfiniteProducts(params?: Omit<ListQueryParams, 'page'>) {
+  return useInfiniteQuery({
+    queryKey: [...QUERY_KEYS.products, 'infinite', params],
+    queryFn: ({ pageParam }) =>
+      productService.getAll({ ...params, page: pageParam as number, pageSize: 24 }),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      (last.page < last.totalPages ? last.page + 1 : undefined),
   });
 }

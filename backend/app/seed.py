@@ -1,10 +1,14 @@
 """
-Seed script — loads real KoMart product catalog from Excel + creates all reference data.
-Run: python -m app.seed
-     python -m app.seed --backfill-suppliers   # assign supplier_id on existing products
+Seed script — KoMart database utilities.
+
+Commands:
+  python -m app.seed --init          Create admin user + store settings + categories (idempotent)
+  python -m app.seed --full-seed     Wipe and repopulate with full demo data (dev only)
+  python -m app.seed --backfill-suppliers  Assign supplier_id on existing products without wiping data
 """
 import argparse
 import asyncio
+import os
 from datetime import datetime, timezone, timedelta
 
 from app.database import init_db
@@ -18,6 +22,8 @@ from app.models.customer import Customer, MembershipTier
 from app.models.transaction import Transaction
 from app.models.notification import Notification, NotificationType
 from app.models.settings import StoreSettings
+from app.models.expense import Expense, ExpenseCategory
+from app.models.category import Category
 from app.services.stock import refresh_all_product_stocks
 
 # ---------------------------------------------------------------------------
@@ -297,7 +303,80 @@ def _barcode(idx: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main seed
+# Initial categories (sourced from CATALOG unique categories)
+# ---------------------------------------------------------------------------
+INITIAL_CATEGORIES = [
+    "Instant Noodles",
+    "Snacks",
+    "Confectionery",
+    "Beverages",
+    "Sauces & Condiments",
+    "Canned Foods",
+    "Dry Goods",
+    "Health Foods",
+    "Rice & Grains",
+    "Kitchen Supplies",
+    "Personal Care",
+]
+
+
+# ---------------------------------------------------------------------------
+# Init mode — idempotent, creates admin + settings + categories only
+# ---------------------------------------------------------------------------
+async def init():
+    await init_db()
+    print("Connected to MongoDB.")
+
+    # Admin user
+    existing_users = await User.find().count()
+    if existing_users == 0:
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@komart.com")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "changeme123")
+        admin_name = os.environ.get("ADMIN_NAME", "Admin")
+        await User(
+            email=admin_email,
+            name=admin_name,
+            hashed_password=hash_password(admin_password),
+            role=UserRole.admin,
+        ).insert()
+        print(f"  Created admin user: {admin_email} (password: {admin_password})")
+    else:
+        print(f"  Skipped users — {existing_users} user(s) already exist.")
+
+    # Store settings
+    if not await StoreSettings.find_one():
+        await StoreSettings(
+            store_name="KoMart",
+            address="Thamel, Kathmandu, Nepal",
+            phone="+977-1-4123456",
+            email="info@komart.com",
+            currency="NPR",
+            tax_rate=13.0,
+            tax_inclusive=False,
+            loyalty_points_per_currency=100,
+        ).insert()
+        print("  Created default store settings.")
+    else:
+        print("  Skipped store settings — already exists.")
+
+    # Categories
+    existing_cats = await Category.find().count()
+    if existing_cats == 0:
+        for cat_name in INITIAL_CATEGORIES:
+            desc = DESC_TEMPLATES.get(cat_name, "")
+            await Category(name=cat_name, description=desc).insert()
+        print(f"  Created {len(INITIAL_CATEGORIES)} categories.")
+    else:
+        print(f"  Skipped categories — {existing_cats} category(ies) already exist.")
+
+    print()
+    print("Init complete! Run the app and log in:")
+    print("  Admin email : " + os.environ.get("ADMIN_EMAIL", "admin@komart.com"))
+    print("  API docs    : http://localhost:8000/docs")
+
+
+# ---------------------------------------------------------------------------
+# Full seed (dev only) — wipes and repopulates with demo data
 # ---------------------------------------------------------------------------
 async def seed():
     await init_db()
@@ -305,7 +384,7 @@ async def seed():
 
     # Clear all collections
     for model in [User, Product, InventoryBatch, StockAdjustment, Supplier, PurchaseOrder,
-                  Customer, Transaction, Notification, StoreSettings]:
+                  Customer, Transaction, Notification, StoreSettings, Expense, Category]:
         await model.find_all().delete()
     print("Cleared existing collections.")
 
@@ -482,6 +561,105 @@ async def seed():
 
     print("Created store settings.")
 
+    # ── Categories ────────────────────────────────────────────────────────
+    for cat_name in INITIAL_CATEGORIES:
+        desc = DESC_TEMPLATES.get(cat_name, "")
+        await Category(name=cat_name, description=desc).insert()
+    print(f"Created {len(INITIAL_CATEGORIES)} categories.")
+
+    # ── Expenses ──────────────────────────────────────────────────────────
+    expense_seeds = [
+        Expense(
+            title="Store Renovation & Setup",
+            description="Initial renovation of the store space including shelving, flooring and paint",
+            amount=250000,
+            category=ExpenseCategory.setup_investment,
+            date="2024-01-10",
+            paid_to="Kathmandu Interiors Pvt Ltd",
+            payment_method="cash",
+            is_setup_cost=True,
+        ),
+        Expense(
+            title="POS System & Hardware",
+            description="Touchscreen POS terminal, barcode scanners, receipt printer",
+            amount=85000,
+            category=ExpenseCategory.equipment,
+            date="2024-01-12",
+            paid_to="TechHub Nepal",
+            payment_method="card",
+            is_setup_cost=True,
+        ),
+        Expense(
+            title="Initial Inventory Purchase",
+            description="First batch of stock purchased from suppliers",
+            amount=320000,
+            category=ExpenseCategory.setup_investment,
+            date="2024-01-15",
+            paid_to="Various Suppliers",
+            payment_method="cash",
+            is_setup_cost=True,
+        ),
+        Expense(
+            title="Store Rent - January 2026",
+            amount=45000,
+            category=ExpenseCategory.rent,
+            date="2026-01-01",
+            paid_to="Thamel Property Management",
+            payment_method="esewa",
+            is_setup_cost=False,
+        ),
+        Expense(
+            title="Electricity Bill - January 2026",
+            amount=8500,
+            category=ExpenseCategory.utilities,
+            date="2026-01-20",
+            paid_to="Nepal Electricity Authority",
+            payment_method="khalti",
+            is_setup_cost=False,
+        ),
+        Expense(
+            title="Staff Salaries - January 2026",
+            amount=75000,
+            category=ExpenseCategory.salaries,
+            date="2026-01-31",
+            paid_to="Staff",
+            payment_method="cash",
+            is_setup_cost=False,
+        ),
+        Expense(
+            title="Social Media Marketing",
+            description="Facebook and Instagram ad campaigns for store promotion",
+            amount=12000,
+            category=ExpenseCategory.marketing,
+            date="2026-02-10",
+            paid_to="Digital Nepal Agency",
+            payment_method="card",
+            is_setup_cost=False,
+        ),
+        Expense(
+            title="Packaging & Carry Bags",
+            amount=6500,
+            category=ExpenseCategory.supplies,
+            date="2026-06-05",
+            paid_to="Packaging Solutions Nepal",
+            payment_method="cash",
+            is_setup_cost=False,
+        ),
+        Expense(
+            title="AC Maintenance",
+            description="Annual servicing and gas refill for store AC units",
+            amount=9000,
+            category=ExpenseCategory.maintenance,
+            date="2026-06-20",
+            paid_to="Cool Tech Services",
+            payment_method="cash",
+            is_setup_cost=False,
+        ),
+    ]
+    for exp in expense_seeds:
+        await exp.insert()
+    print(f"Created {len(expense_seeds)} expenses.")
+
     await refresh_all_product_stocks()
     print("Synced product stock cache (all products start at 0).")
     print()
@@ -493,6 +671,7 @@ async def seed():
     print("  Users              : 3  (admin / manager / cashier — password: 'password')")
     print("  Suppliers          : 4")
     print("  Customers          : 3")
+    print(f"  Expenses           : {await Expense.count()}")
     print("  Login URL          : http://localhost:8000/docs")
     print("  Admin email        : admin@komart.com")
 
@@ -529,15 +708,57 @@ async def backfill_product_suppliers():
     print(f"Backfill complete — updated {updated} product(s).")
 
 
+async def backfill_cashier_ids() -> None:
+    """Populate cashier_id on existing transactions using created_by (name → user ID)."""
+    await init_db()
+    users = await User.find_all().to_list()
+    name_to_id = {u.name: str(u.id) for u in users}
+
+    transactions = await Transaction.find(Transaction.cashier_id == None).to_list()  # noqa: E711
+    updated = 0
+    skipped = 0
+    for txn in transactions:
+        uid = name_to_id.get(txn.created_by)
+        if uid:
+            await txn.set({"cashier_id": uid})
+            updated += 1
+        else:
+            skipped += 1
+
+    print(f"Backfill complete — updated {updated} transaction(s), skipped {skipped} (no matching user).")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="KoMart database seed utilities")
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--init",
+        action="store_true",
+        help="Idempotent init: create admin user + store settings + categories (default)",
+    )
+    group.add_argument(
+        "--full-seed",
+        action="store_true",
+        help="[DEV ONLY] Wipe all data and repopulate with full demo data",
+    )
+    group.add_argument(
         "--backfill-suppliers",
         action="store_true",
         help="Assign supplier_id on existing products without wiping data",
     )
+    group.add_argument(
+        "--backfill-cashier-ids",
+        action="store_true",
+        help="Populate cashier_id on existing transactions from created_by email",
+    )
     args = parser.parse_args()
+
     if args.backfill_suppliers:
         asyncio.run(backfill_product_suppliers())
-    else:
+    elif args.backfill_cashier_ids:
+        asyncio.run(backfill_cashier_ids())
+    elif args.full_seed:
         asyncio.run(seed())
+    else:
+        # Default: --init (also runs when --init is explicitly passed)
+        asyncio.run(init())

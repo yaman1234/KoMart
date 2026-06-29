@@ -22,6 +22,25 @@ import type {
   User,
   DateRange,
   StockAdjustment,
+  SalesSummary,
+  SalesByPaymentMethod,
+  SalesByCategory,
+  InventoryReportSummary,
+  ExpiringProductRow,
+  LowStockProductRow,
+  Expense,
+  ExpenseWritePayload,
+  ExpenseSummary,
+  ProfitSummary,
+  MarginByCategory,
+  PurchasingBySupplier,
+  PurchaseOrdersSummary,
+  TopCustomer,
+  LoyaltySummary,
+  SalesByHour,
+  SalesByDayOfWeek,
+  SalesByCashier,
+  DeadStockProduct,
 } from '@/types';
 import {
   mockUser,
@@ -36,7 +55,12 @@ import {
   mockRevenueData,
   mockTopProducts,
   mockSalesByCategory,
+  mockSalesSummary,
+  mockSalesByPaymentMethod,
+  mockInventoryReportSummary,
+  mockProfitSummary,
   mockStoreSettings,
+  mockExpenses,
 } from './mockData';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -48,6 +72,7 @@ let suppliers = [...mockSuppliers];
 let purchaseOrders = [...mockPurchaseOrders];
 let customers = [...mockCustomers];
 let transactions = [...mockTransactions];
+let expenses = [...mockExpenses];
 const notifications = [...mockNotifications];
 
 function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> {
@@ -501,5 +526,237 @@ export const mockApi = {
   async getSettings(): Promise<StoreSettings> {
     await delay(300);
     return mockStoreSettings;
+  },
+
+  // ── Reports ───────────────────────────────────────────────────────────────
+  async getSalesSummary(_range?: DateRange): Promise<SalesSummary> {
+    await delay(300);
+    return mockSalesSummary;
+  },
+
+  async getSalesByPaymentMethod(_range?: DateRange): Promise<SalesByPaymentMethod[]> {
+    await delay(300);
+    return mockSalesByPaymentMethod;
+  },
+
+  async getReportsRevenue(_range?: DateRange): Promise<RevenueDataPoint[]> {
+    await delay(300);
+    return mockRevenueData;
+  },
+
+  async getReportsTopProducts(_range?: DateRange): Promise<TopProduct[]> {
+    await delay(300);
+    return mockTopProducts;
+  },
+
+  async getReportsSalesByCategory(_range?: DateRange): Promise<SalesByCategory[]> {
+    await delay(300);
+    return mockSalesByCategory;
+  },
+
+  async getInventoryReportSummary(): Promise<InventoryReportSummary> {
+    await delay(300);
+    return mockInventoryReportSummary;
+  },
+
+  async getExpiringProducts(): Promise<PaginatedResponse<ExpiringProductRow>> {
+    await delay(300);
+    const rows: ExpiringProductRow[] = mockInventory
+      .filter((i) => i.nearestExpiry)
+      .slice(0, 5)
+      .map((i) => ({
+        productId: i.id,
+        productName: i.name,
+        sku: i.sku,
+        category: i.category,
+        batchNumber: i.batches[0]?.batchNumber ?? 'B-001',
+        quantity: i.batches[0]?.quantity ?? i.stock,
+        expiryDate: i.nearestExpiry!,
+        daysUntilExpiry: 14,
+      }));
+    return { data: rows, total: rows.length, page: 1, pageSize: 25, totalPages: 1 };
+  },
+
+  async getLowStockReport(): Promise<PaginatedResponse<LowStockProductRow>> {
+    await delay(300);
+    const rows: LowStockProductRow[] = mockProducts
+      .filter((p) => p.stock === 0 || (p.stock > 0 && p.stock <= p.lowStockThreshold))
+      .slice(0, 10)
+      .map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        sku: p.sku,
+        category: p.category,
+        stock: p.stock,
+        lowStockThreshold: p.lowStockThreshold,
+        status: p.stock === 0 ? 'out' : 'low',
+      }));
+    return { data: rows, total: rows.length, page: 1, pageSize: 25, totalPages: 1 };
+  },
+
+  async getProfitSummary(_range?: DateRange): Promise<ProfitSummary> {
+    await delay(300);
+    return mockProfitSummary;
+  },
+
+  async getMarginByCategory(_range?: DateRange): Promise<MarginByCategory[]> {
+    await delay(300);
+    return mockSalesByCategory.map((c) => ({
+      category: c.category,
+      revenue: c.revenue,
+      cogs: Math.round(c.revenue * 0.6),
+      grossProfit: Math.round(c.revenue * 0.4),
+      grossMarginPct: 40,
+    }));
+  },
+
+  async getPurchasingBySupplier(_range?: DateRange): Promise<PurchasingBySupplier[]> {
+    await delay(300);
+    return mockSuppliers.slice(0, 4).map((s, i) => ({
+      supplierId: s.id,
+      supplierName: s.name,
+      totalAmount: 85000 - i * 12000,
+      orderCount: 5 - i,
+    }));
+  },
+
+  async getPurchaseOrdersSummary(_range?: DateRange): Promise<PurchaseOrdersSummary> {
+    await delay(300);
+    return {
+      totalOrders: mockPurchaseOrders.length,
+      totalAmount: mockPurchaseOrders.reduce((s, p) => s + p.totalAmount, 0),
+      byStatus: [
+        { status: 'ordered', count: 2 },
+        { status: 'partial', count: 1 },
+        { status: 'received', count: 3 },
+      ],
+    };
+  },
+
+  async getTopCustomers(_range?: DateRange): Promise<TopCustomer[]> {
+    await delay(300);
+    return mockCustomers.slice(0, 5).map((c) => ({
+      customerId: c.id,
+      customerName: c.name,
+      transactionCount: 12,
+      totalSpent: c.totalSpent,
+    }));
+  },
+
+  async getLoyaltySummary(_range?: DateRange): Promise<LoyaltySummary> {
+    await delay(300);
+    return {
+      pointsRedeemed: 450,
+      activeMembers: mockCustomers.filter((c) => c.loyaltyPoints > 0).length,
+      newCustomers: 8,
+      totalMembers: mockCustomers.length,
+    };
+  },
+
+  async getSalesByHour(_range?: DateRange): Promise<SalesByHour[]> {
+    await delay(300);
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      label: `${String(h).padStart(2, '0')}:00`,
+      revenue: h >= 10 && h <= 20 ? Math.floor(Math.random() * 8000) + 2000 : Math.floor(Math.random() * 1500),
+      transactionCount: h >= 10 && h <= 20 ? Math.floor(Math.random() * 30) + 5 : Math.floor(Math.random() * 5),
+    }));
+  },
+
+  async getSalesByDayOfWeek(_range?: DateRange): Promise<SalesByDayOfWeek[]> {
+    await delay(300);
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return labels.map((label, day) => ({
+      day,
+      label,
+      revenue: 40000 + day * 3000 + (day >= 5 ? 15000 : 0),
+      transactionCount: 120 + day * 8,
+    }));
+  },
+
+  async getSalesByCashier(_range?: DateRange): Promise<SalesByCashier[]> {
+    await delay(300);
+    return [
+      { cashier: 'Admin User', revenue: 185000, transactionCount: 680 },
+      { cashier: 'Cashier', revenue: 157500, transactionCount: 560 },
+    ];
+  },
+
+  async getDeadStock(): Promise<DeadStockProduct[]> {
+    await delay(300);
+    return mockProducts
+      .filter((p) => p.stock > 20)
+      .slice(0, 4)
+      .map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        sku: p.sku,
+        category: p.category,
+        stock: p.stock,
+        stockValue: p.stock * p.costPrice,
+        daysWithoutSale: 30,
+      }));
+  },
+
+  // ── Expenses ────────────────────────────────────────────────────────────────
+  async getExpenses(params?: ListQueryParams): Promise<PaginatedResponse<Expense>> {
+    await delay(250);
+    const result = paginate<Expense>(expenses, params ?? {});
+    return result;
+  },
+
+  async getExpense(id: string): Promise<Expense> {
+    await delay(200);
+    const expense = expenses.find((e) => e.id === id);
+    if (!expense) throw new Error(`Expense ${id} not found`);
+    return { ...expense };
+  },
+
+  async createExpense(data: ExpenseWritePayload): Promise<Expense> {
+    await delay(300);
+    const now = new Date().toISOString();
+    const created: Expense = {
+      ...data,
+      id: `exp-${generateId().slice(0, 8)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    expenses = [created, ...expenses];
+    return { ...created };
+  },
+
+  async updateExpense(id: string, data: Partial<ExpenseWritePayload>): Promise<Expense> {
+    await delay(300);
+    const idx = expenses.findIndex((e) => e.id === id);
+    if (idx === -1) throw new Error(`Expense ${id} not found`);
+    expenses[idx] = { ...expenses[idx], ...data, updatedAt: new Date().toISOString() };
+    return { ...expenses[idx] };
+  },
+
+  async deleteExpense(id: string): Promise<void> {
+    await delay(250);
+    expenses = expenses.filter((e) => e.id !== id);
+  },
+
+  async getExpenseSummary(_range?: DateRange): Promise<ExpenseSummary> {
+    await delay(300);
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const setupInvestment = expenses
+      .filter((e) => e.isSetupCost)
+      .reduce((sum, e) => sum + e.amount, 0);
+    const categoryMap: Record<string, { amount: number; count: number }> = {};
+    for (const e of expenses) {
+      if (!categoryMap[e.category]) categoryMap[e.category] = { amount: 0, count: 0 };
+      categoryMap[e.category].amount += e.amount;
+      categoryMap[e.category].count += 1;
+    }
+    return {
+      totalExpenses: Math.round(totalExpenses * 100) / 100,
+      setupInvestment: Math.round(setupInvestment * 100) / 100,
+      byCategory: Object.entries(categoryMap)
+        .map(([category, v]) => ({ category, amount: Math.round(v.amount * 100) / 100, count: v.count }))
+        .sort((a, b) => b.amount - a.amount),
+      daily: [],
+    };
   },
 };

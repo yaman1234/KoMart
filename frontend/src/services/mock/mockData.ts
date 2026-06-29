@@ -10,6 +10,7 @@ import type {
   RevenueDataPoint,
   TopProduct,
   StoreSettings,
+  Expense,
 } from '@/types';
 
 function supplierForCountry(country: string): { supplierId: string; supplierName: string } {
@@ -542,6 +543,8 @@ export const mockDashboardStats: DashboardStats = {
   expiringProducts: 3,
   inventoryValue: 485000,
   customerCount: mockCustomers.length,
+  monthlyExpenses: 45000,
+  netRevenue: 297500,
 };
 
 export const mockRevenueData: RevenueDataPoint[] = Array.from({ length: 30 }, (_, i) => ({
@@ -566,6 +569,48 @@ export const mockSalesByCategory = [
   { category: 'Rice & Grains', revenue: 28000, count: 35 },
 ];
 
+export const mockSalesSummary = {
+  totalRevenue: 342500,
+  transactionCount: 1240,
+  avgBasket: 276.21,
+  totalUnitsSold: 4850,
+  totalDiscount: 12400,
+};
+
+export const mockSalesByPaymentMethod = [
+  { paymentMethod: 'cash', revenue: 145000, count: 620 },
+  { paymentMethod: 'esewa', revenue: 98000, count: 340 },
+  { paymentMethod: 'khalti', revenue: 62000, count: 180 },
+  { paymentMethod: 'card', revenue: 37500, count: 100 },
+];
+
+export const mockInventoryReportSummary = {
+  totalSkus: mockProducts.length,
+  lowStock: mockProducts.filter((p) => p.stock > 0 && p.stock <= p.lowStockThreshold).length,
+  outOfStock: mockProducts.filter((p) => p.stock === 0).length,
+  expiring: 3,
+  inventoryValue: 485000,
+  byCategory: [
+    { category: 'Instant Noodles', skuCount: 18, totalStock: 420, stockValue: 125000 },
+    { category: 'Snacks', skuCount: 22, totalStock: 380, stockValue: 98000 },
+    { category: 'Beverages', skuCount: 15, totalStock: 290, stockValue: 87000 },
+  ],
+};
+
+export const mockProfitSummary = {
+  totalRevenue: 342500,
+  totalCogs: 205500,
+  grossProfit: 137000,
+  grossMarginPct: 40.0,
+  totalDiscount: 12400,
+  daily: mockRevenueData.map((d) => ({
+    date: d.date,
+    revenue: d.revenue,
+    cogs: Math.round(d.revenue * 0.6),
+    grossProfit: Math.round(d.revenue * 0.4),
+  })),
+};
+
 export const mockStoreSettings: StoreSettings = {
   storeName: 'KoMart',
   address: 'Thamel, Kathmandu, Nepal',
@@ -576,3 +621,131 @@ export const mockStoreSettings: StoreSettings = {
   taxInclusive: false,
   loyaltyPointsPerCurrency: 100,
 };
+
+export const mockExpenses: Expense[] = [
+  {
+    id: 'exp-1',
+    title: 'Store Renovation & Setup',
+    description: 'Initial renovation of the store space including shelving, flooring and paint',
+    amount: 250000,
+    category: 'setup_investment',
+    date: '2024-01-10',
+    paidTo: 'Kathmandu Interiors Pvt Ltd',
+    paymentMethod: 'cash',
+    isSetupCost: true,
+    createdAt: '2024-01-10T06:00:00Z',
+    updatedAt: '2024-01-10T06:00:00Z',
+  },
+  {
+    id: 'exp-2',
+    title: 'POS System & Hardware',
+    description: 'Touchscreen POS terminal, barcode scanners, receipt printer',
+    amount: 85000,
+    category: 'equipment',
+    date: '2024-01-12',
+    paidTo: 'TechHub Nepal',
+    paymentMethod: 'card',
+    isSetupCost: true,
+    createdAt: '2024-01-12T06:00:00Z',
+    updatedAt: '2024-01-12T06:00:00Z',
+  },
+  {
+    id: 'exp-3',
+    title: 'Initial Inventory Purchase',
+    description: 'First batch of stock purchased from suppliers',
+    amount: 320000,
+    category: 'setup_investment',
+    date: '2024-01-15',
+    paidTo: 'Various Suppliers',
+    paymentMethod: 'cash',
+    isSetupCost: true,
+    createdAt: '2024-01-15T06:00:00Z',
+    updatedAt: '2024-01-15T06:00:00Z',
+  },
+  {
+    id: 'exp-4',
+    title: 'Store Rent - January 2026',
+    amount: 45000,
+    category: 'rent',
+    date: '2026-01-01',
+    paidTo: 'Thamel Property Management',
+    paymentMethod: 'esewa',
+    isSetupCost: false,
+    createdAt: '2026-01-01T06:00:00Z',
+    updatedAt: '2026-01-01T06:00:00Z',
+  },
+  {
+    id: 'exp-5',
+    title: 'Electricity Bill - January 2026',
+    amount: 8500,
+    category: 'utilities',
+    date: '2026-01-20',
+    paidTo: 'Nepal Electricity Authority',
+    paymentMethod: 'khalti',
+    isSetupCost: false,
+    createdAt: '2026-01-20T06:00:00Z',
+    updatedAt: '2026-01-20T06:00:00Z',
+  },
+  {
+    id: 'exp-6',
+    title: 'Staff Salaries - January 2026',
+    amount: 75000,
+    category: 'salaries',
+    date: '2026-01-31',
+    paidTo: 'Staff',
+    paymentMethod: 'cash',
+    isSetupCost: false,
+    createdAt: '2026-01-31T06:00:00Z',
+    updatedAt: '2026-01-31T06:00:00Z',
+  },
+  {
+    id: 'exp-7',
+    title: 'Store Rent - February 2026',
+    amount: 45000,
+    category: 'rent',
+    date: '2026-02-01',
+    paidTo: 'Thamel Property Management',
+    paymentMethod: 'esewa',
+    isSetupCost: false,
+    createdAt: '2026-02-01T06:00:00Z',
+    updatedAt: '2026-02-01T06:00:00Z',
+  },
+  {
+    id: 'exp-8',
+    title: 'Social Media Marketing',
+    description: 'Facebook and Instagram ad campaigns for store promotion',
+    amount: 12000,
+    category: 'marketing',
+    date: '2026-02-10',
+    paidTo: 'Digital Nepal Agency',
+    paymentMethod: 'card',
+    isSetupCost: false,
+    createdAt: '2026-02-10T06:00:00Z',
+    updatedAt: '2026-02-10T06:00:00Z',
+  },
+  {
+    id: 'exp-9',
+    title: 'Packaging & Carry Bags',
+    amount: 6500,
+    category: 'supplies',
+    date: '2026-06-05',
+    paidTo: 'Packaging Solutions Nepal',
+    paymentMethod: 'cash',
+    isSetupCost: false,
+    createdAt: '2026-06-05T06:00:00Z',
+    updatedAt: '2026-06-05T06:00:00Z',
+  },
+  {
+    id: 'exp-10',
+    title: 'AC Maintenance',
+    description: 'Annual servicing and gas refill for store AC units',
+    amount: 9000,
+    category: 'maintenance',
+    date: '2026-06-20',
+    paidTo: 'Cool Tech Services',
+    paymentMethod: 'cash',
+    isSetupCost: false,
+    createdAt: '2026-06-20T06:00:00Z',
+    updatedAt: '2026-06-20T06:00:00Z',
+  },
+];

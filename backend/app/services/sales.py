@@ -47,11 +47,12 @@ def _to_response(txn: Transaction) -> TransactionResponse:
         total=txn.total,
         payment_method=txn.payment_method,
         created_by=txn.created_by,
+        cashier_id=txn.cashier_id,
         created_at=txn.created_at.isoformat(),
     )
 
 
-async def record_sale(body: TransactionCreate) -> TransactionResponse:
+async def record_sale(body: TransactionCreate, cashier_id: str | None = None) -> TransactionResponse:
     for item in body.items:
         await check_stock_available(item.product_id, item.quantity)
 
@@ -80,6 +81,7 @@ async def record_sale(body: TransactionCreate) -> TransactionResponse:
 
         txn = Transaction(
             transaction_number=txn_number,
+            cashier_id=cashier_id,
             **body.model_dump(),
         )
         await txn.insert()

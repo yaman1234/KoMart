@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from math import ceil
 
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.supplier import Supplier
 from app.schemas.supplier import SupplierCreate, SupplierUpdate, SupplierResponse
@@ -26,7 +26,7 @@ def _to_response(s: Supplier) -> SupplierResponse:
 @router.get("", response_model=PaginatedResponse[SupplierResponse])
 async def list_suppliers(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
+    page_size: int = Query(10, ge=1, le=500),
     search: str = Query(""),
     _: User = Depends(get_current_user),
 ):
@@ -46,7 +46,7 @@ async def list_suppliers(
 
 
 @router.post("", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)
-async def create_supplier(body: SupplierCreate, _: User = Depends(require_admin)):
+async def create_supplier(body: SupplierCreate, _: User = Depends(require_manager_or_above)):
     supplier = Supplier(**body.model_dump())
     await supplier.insert()
     return _to_response(supplier)
@@ -62,7 +62,7 @@ async def get_supplier(supplier_id: str, _: User = Depends(get_current_user)):
 
 @router.patch("/{supplier_id}", response_model=SupplierResponse)
 async def update_supplier(
-    supplier_id: str, body: SupplierUpdate, _: User = Depends(require_admin)
+    supplier_id: str, body: SupplierUpdate, _: User = Depends(require_manager_or_above)
 ):
     supplier = await Supplier.get(supplier_id)
     if not supplier:

@@ -56,12 +56,13 @@ const NEXT_STATUSES: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>>
 interface ReceiveSelection {
   selected: boolean;
   receiveQuantity: number;
+  expiryDate: string;
 }
 
 function SummaryField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.25 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
         {label}
       </Typography>
       {children}
@@ -86,12 +87,45 @@ export function PurchaseOrderDetailPage() {
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
 
   const getReceiveSelection = (productId: string, remaining: number): ReceiveSelection =>
-    receiveSelections[productId] ?? { selected: false, receiveQuantity: remaining || 1 };
+    receiveSelections[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
 
   const updateReceiveSelection = (productId: string, remaining: number, patch: Partial<ReceiveSelection>) => {
     setReceiveSelections((prev) => {
-      const base = prev[productId] ?? { selected: false, receiveQuantity: remaining || 1 };
+      const base = prev[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
       return { ...prev, [productId]: { ...base, ...patch } };
+    });
+  };
+
+  const receivableItems = useMemo(
+    () => (po ? po.items.filter((item) => item.quantity - item.receivedQuantity > 0) : []),
+    [po],
+  );
+
+  const selectAllState = useMemo(() => {
+    if (receivableItems.length === 0) return { checked: false, indeterminate: false };
+    const selectedCount = receivableItems.filter((item) => {
+      const remaining = item.quantity - item.receivedQuantity;
+      return getReceiveSelection(item.productId, remaining).selected;
+    }).length;
+    return {
+      checked: selectedCount === receivableItems.length,
+      indeterminate: selectedCount > 0 && selectedCount < receivableItems.length,
+    };
+  }, [receivableItems, receiveSelections]);
+
+  const handleSelectAll = (checked: boolean) => {
+    setReceiveSelections((prev) => {
+      const next = { ...prev };
+      for (const item of receivableItems) {
+        const remaining = item.quantity - item.receivedQuantity;
+        const base = next[item.productId] ?? { receiveQuantity: remaining, expiryDate: '', selected: false };
+        next[item.productId] = {
+          ...base,
+          selected: checked,
+          receiveQuantity: remaining || 1,
+        };
+      }
+      return next;
     });
   };
 
@@ -101,7 +135,7 @@ export function PurchaseOrderDetailPage() {
       .filter((item) => {
         const remaining = item.quantity - item.receivedQuantity;
         const sel = getReceiveSelection(item.productId, remaining);
-        return remaining > 0 && sel.selected && sel.receiveQuantity > 0;
+        return remaining > 0 && sel.selected && sel.receiveQuantity > 0 && !!sel.expiryDate;
       })
       .map((item) => ({
         productId: item.productId,
@@ -109,6 +143,7 @@ export function PurchaseOrderDetailPage() {
           getReceiveSelection(item.productId, item.quantity - item.receivedQuantity).receiveQuantity,
           item.quantity - item.receivedQuantity,
         ),
+        expiryDate: getReceiveSelection(item.productId, item.quantity - item.receivedQuantity).expiryDate,
       }));
   }, [po, receiveSelections]);
 
@@ -126,8 +161,18 @@ export function PurchaseOrderDetailPage() {
   };
 
   const handleReceive = async () => {
-    if (!po || itemsToReceive.length === 0) {
-      setReceiveError('Select at least one item with a receive quantity');
+    if (!po) return;
+    const selectedWithoutExpiry = po.items.filter((item) => {
+      const remaining = item.quantity - item.receivedQuantity;
+      const sel = getReceiveSelection(item.productId, remaining);
+      return remaining > 0 && sel.selected && !sel.expiryDate;
+    });
+    if (selectedWithoutExpiry.length > 0) {
+      setReceiveError('Expiry date is required for each selected item');
+      return;
+    }
+    if (itemsToReceive.length === 0) {
+      setReceiveError('Select at least one item with a receive quantity and expiry date');
       return;
     }
     setReceiveError('');
@@ -210,7 +255,20 @@ export function PurchaseOrderDetailPage() {
       <Paper sx={{ px: 2, py: 1.5, mb: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>Order Summary</Typography>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <SummaryField label="Supplier">
+              <Link
+                component={RouterLink}
+                to={`/suppliers/${po.supplierId}`}
+                variant="body2"
+                sx={{ fontWeight: 600 }}
+                title={po.supplierName}
+              >
+                {po.supplierName}
+              </Link>
+            </SummaryField>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3, md: 2 }}>
             <SummaryField label="Status">
               <Chip
                 label={PO_STATUS_LABELS[po.status]}
@@ -220,14 +278,21 @@ export function PurchaseOrderDetailPage() {
               />
             </SummaryField>
           </Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <Grid size={{ xs: 6, sm: 3, md: 2 }}>
             <SummaryField label="Total">
               <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
                 {formatCurrency(po.totalAmount)}
               </Typography>
             </SummaryField>
           </Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+            <SummaryField label="Expected Delivery">
+              <Typography variant="body2">
+                {po.expectedDelivery ? formatDate(po.expectedDelivery) : '—'}
+              </Typography>
+            </SummaryField>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3, md: 3 }}>
             <SummaryField label="Items">
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {po.items.length}
@@ -238,20 +303,6 @@ export function PurchaseOrderDetailPage() {
             </SummaryField>
           </Grid>
           <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-            <SummaryField label="Supplier">
-              <Link
-                component={RouterLink}
-                to={`/suppliers/${po.supplierId}`}
-                variant="body2"
-                sx={{ fontWeight: 600 }}
-                noWrap
-                title={po.supplierName}
-              >
-                {po.supplierName}
-              </Link>
-            </SummaryField>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
             <SummaryField label="Ordered By">
               <Typography variant="body2">{po.orderedBy ?? '—'}</Typography>
             </SummaryField>
@@ -259,13 +310,6 @@ export function PurchaseOrderDetailPage() {
           <Grid size={{ xs: 6, sm: 4, md: 2 }}>
             <SummaryField label="Received By">
               <Typography variant="body2">{po.receivedBy ?? '—'}</Typography>
-            </SummaryField>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-            <SummaryField label="Expected Delivery">
-              <Typography variant="body2">
-                {po.expectedDelivery ? formatDate(po.expectedDelivery) : '—'}
-              </Typography>
             </SummaryField>
           </Grid>
           <Grid size={{ xs: 6, sm: 4, md: 2 }}>
@@ -289,12 +333,12 @@ export function PurchaseOrderDetailPage() {
       </Paper>
 
       <Paper sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>Order Items</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
             {canReceive && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Select items to receive, enter quantities, then click Process Receipt to update inventory.
+              <Typography variant="caption" color="text.secondary">
+                Select lines, enter receive qty and expiry, then Process Receipt.
               </Typography>
             )}
           </Box>
@@ -304,23 +348,47 @@ export function PurchaseOrderDetailPage() {
         </Box>
         <Divider sx={{ mb: 2 }} />
 
-        <TableContainer>
-          <Table size="small">
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table
+            size="small"
+            sx={{
+              tableLayout: 'fixed',
+              minWidth: canReceive ? 960 : 720,
+              '& .MuiTableCell-root': { verticalAlign: 'middle', py: 1 },
+            }}
+          >
             <TableHead>
-              <TableRow>
-                {canReceive && <TableCell padding="checkbox" />}
-                <TableCell sx={{ minWidth: 200 }}>Product</TableCell>
-                <TableCell align="right">Ordered</TableCell>
-                <TableCell align="right">Received</TableCell>
-                {canReceive && <TableCell align="right" sx={{ width: 120 }}>Receive Qty</TableCell>}
-                <TableCell sx={{ minWidth: 140 }}>Progress</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Unit Cost</TableCell>
-                <TableCell align="right">Line Total</TableCell>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                {canReceive && (
+                  <TableCell padding="checkbox" sx={{ width: 42 }}>
+                    <Checkbox
+                      size="small"
+                      checked={selectAllState.checked}
+                      indeterminate={selectAllState.indeterminate}
+                      disabled={receivableItems.length === 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      slotProps={{ input: { 'aria-label': 'Select all receivable items' } }}
+                    />
+                  </TableCell>
+                )}
+                <TableCell align="center" sx={{ width: 40, fontWeight: 700 }}>SN</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Product</TableCell>
+                <TableCell align="right" sx={{ width: 72, fontWeight: 700 }}>Ordered</TableCell>
+                <TableCell align="right" sx={{ width: 72, fontWeight: 700 }}>Received</TableCell>
+                {canReceive && (
+                  <TableCell align="right" sx={{ width: 88, fontWeight: 700 }}>Receive</TableCell>
+                )}
+                {canReceive && (
+                  <TableCell sx={{ width: 148, fontWeight: 700 }}>Expiry</TableCell>
+                )}
+                <TableCell sx={{ width: 120, fontWeight: 700 }}>Progress</TableCell>
+                <TableCell sx={{ width: 88, fontWeight: 700 }}>Status</TableCell>
+                <TableCell align="right" sx={{ width: 88, fontWeight: 700 }}>Unit Cost</TableCell>
+                <TableCell align="right" sx={{ width: 96, fontWeight: 700 }}>Line Total</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {po.items.map((item) => {
+              {po.items.map((item, index) => {
                 const remaining = item.quantity - item.receivedQuantity;
                 const pct = item.quantity > 0 ? (item.receivedQuantity / item.quantity) * 100 : 0;
                 const receiveSel = getReceiveSelection(item.productId, remaining);
@@ -347,8 +415,15 @@ export function PurchaseOrderDetailPage() {
                         />
                       </TableCell>
                     )}
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.productName}</Typography>
+                    <TableCell align="center">
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                        {index + 1}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap title={item.productName}>
+                        {item.productName}
+                      </Typography>
                     </TableCell>
                     <TableCell align="right">{item.quantity}</TableCell>
                     <TableCell align="right">{item.receivedQuantity}</TableCell>
@@ -367,20 +442,40 @@ export function PurchaseOrderDetailPage() {
                               ),
                             })
                           }
-                          sx={{ width: 90 }}
+                          sx={{ width: 72 }}
                           slotProps={{ htmlInput: { min: 1, max: remaining } }}
                         />
                       </TableCell>
                     )}
+                    {canReceive && (
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          type="date"
+                          value={receiveSel.expiryDate}
+                          disabled={!receiveSel.selected || remaining <= 0}
+                          onChange={(e) =>
+                            updateReceiveSelection(item.productId, remaining, {
+                              expiryDate: e.target.value,
+                            })
+                          }
+                          error={receiveSel.selected && !receiveSel.expiryDate}
+                          sx={{ width: '100%' }}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                         <LinearProgress
                           variant="determinate"
                           value={pct}
-                          sx={{ flex: 1, height: 8, borderRadius: 1 }}
+                          sx={{ flex: 1, height: 6, borderRadius: 1 }}
                           color={pct === 100 ? 'success' : 'primary'}
                         />
-                        <Typography variant="caption" sx={{ minWidth: 32 }}>{pct.toFixed(0)}%</Typography>
+                        <Typography variant="caption" sx={{ minWidth: 28, textAlign: 'right' }}>
+                          {pct.toFixed(0)}%
+                        </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -390,8 +485,10 @@ export function PurchaseOrderDetailPage() {
                         color={LINE_STATUS_COLORS[lineStatus]}
                       />
                     </TableCell>
-                    <TableCell align="right">{formatCurrency(item.unitCost)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {formatCurrency(item.unitCost)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {formatCurrency(item.quantity * item.unitCost)}
                     </TableCell>
                   </TableRow>
@@ -403,7 +500,7 @@ export function PurchaseOrderDetailPage() {
 
         <Divider sx={{ mt: 2, mb: 1 }} />
         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             Order Total: {formatCurrency(po.totalAmount)}
           </Typography>
         </Box>

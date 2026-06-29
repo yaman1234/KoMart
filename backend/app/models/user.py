@@ -9,7 +9,6 @@ class UserRole(str, Enum):
     admin = "admin"
     manager = "manager"
     cashier = "cashier"
-    staff = "staff"
 
 
 class User(Document):

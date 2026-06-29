@@ -23,9 +23,11 @@ import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { NAV_ITEMS, APP_NAME } from '@/constants';
-import { useUIStore } from '@/store';
+import { useUIStore, useAuthStore } from '@/store';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import type { UserRole } from '@/types';
 
 const iconMap: Record<string, React.ReactNode> = {
   Dashboard: <DashboardIcon />,
@@ -39,6 +41,7 @@ const iconMap: Record<string, React.ReactNode> = {
   Assessment: <AssessmentIcon />,
   Notifications: <NotificationsIcon />,
   Settings: <SettingsIcon />,
+  AccountBalance: <AccountBalanceIcon />,
 };
 
 const DRAWER_WIDTH = 260;
@@ -49,6 +52,12 @@ export function Sidebar() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { sidebarOpen, sidebarCollapsed, setSidebarOpen } = useUIStore();
+  const user = useAuthStore((s) => s.user);
+  const userRole = (user?.role ?? 'cashier') as UserRole;
+
+  const visibleNavItems = NAV_ITEMS.filter((item) =>
+    (item.roles as readonly string[]).includes(userRole),
+  );
 
   const width = sidebarCollapsed && !isMobile ? DRAWER_COLLAPSED : DRAWER_WIDTH;
 
@@ -80,7 +89,7 @@ export function Sidebar() {
       </Toolbar>
       <Divider />
       <List sx={{ flex: 1, px: 1, py: 2 }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = location.pathname.startsWith(item.path);
           return (
             <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>

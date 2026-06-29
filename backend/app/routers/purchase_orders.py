@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from math import ceil
 from datetime import datetime, timezone, date
 
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
 from app.models.inventory import InventoryBatch
@@ -54,7 +54,7 @@ async def _next_po_number() -> str:
 @router.get("", response_model=PaginatedResponse[PurchaseOrderResponse])
 async def list_purchase_orders(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
+    page_size: int = Query(10, ge=1, le=500),
     search: str = Query(""),
     supplier_id: str = Query(""),
     _: User = Depends(get_current_user),
@@ -82,7 +82,7 @@ async def list_purchase_orders(
 @router.post("", response_model=PurchaseOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_purchase_order(
     body: PurchaseOrderCreate,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
     if body.status == POStatus.ordered:
@@ -107,7 +107,7 @@ async def get_purchase_order(po_id: str, _: User = Depends(get_current_user)):
 async def update_purchase_order(
     po_id: str,
     body: PurchaseOrderUpdate,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager_or_above),
 ):
     po = await PurchaseOrder.get(po_id)
     if not po:
@@ -138,7 +138,7 @@ async def update_purchase_order(
 async def update_status(
     po_id: str,
     body: PurchaseOrderStatusUpdate,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager_or_above),
 ):
     if body.status in (POStatus.partial, POStatus.received):
         raise HTTPException(
@@ -162,7 +162,7 @@ async def update_status(
 async def receive_items(
     po_id: str,
     body: PurchaseOrderReceiveRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager_or_above),
 ):
     po = await PurchaseOrder.get(po_id)
     if not po:
@@ -211,6 +211,7 @@ async def receive_items(
             item.product_id,
             f"PO-{po.order_number}-{batch_seq:03d}",
             delta,
+            expiry_date=receive.expiry_date,
             purchase_order_id=str(po.id),
         )
 

@@ -51,7 +51,7 @@ def _to_response(c: Customer) -> CustomerResponse:
 @router.get("", response_model=PaginatedResponse[CustomerResponse])
 async def list_customers(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
+    page_size: int = Query(10, ge=1, le=500),
     search: str = Query(""),
     _: User = Depends(get_current_user),
 ):
