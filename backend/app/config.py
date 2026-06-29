@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     cors_origins: str = "http://localhost:5173"
 
+    # Serverless: skip the full stock-sync on every cold start
+    skip_stock_refresh_on_start: bool = False
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",")]

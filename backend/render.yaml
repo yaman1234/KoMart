@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: komart-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: MONGO_DB_NAME
+        value: komart
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
+      - key: APP_ENV
+        value: production
+      - key: CORS_ORIGINS
+        sync: false
