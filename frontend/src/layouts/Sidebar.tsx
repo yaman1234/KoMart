@@ -6,7 +6,6 @@ import {
   ListItemIcon,
   ListItemText,
   Box,
-  Typography,
   Toolbar,
   Divider,
   useTheme,
@@ -24,7 +23,8 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import { NAV_ITEMS, APP_NAME } from '@/constants';
+import { NAV_ITEMS } from '@/constants';
+import { AppBrand } from '@/components/common/AppBrand';
 import { useUIStore, useAuthStore } from '@/store';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { UserRole } from '@/types';
@@ -63,29 +63,12 @@ export function Sidebar() {
 
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Toolbar sx={{ px: 2, gap: 1 }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 2,
-            bgcolor: 'primary.main',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'primary.contrastText',
-            fontWeight: 700,
-            fontSize: '1.1rem',
-            flexShrink: 0,
-          }}
-        >
-          K
-        </Box>
-        {(!sidebarCollapsed || isMobile) && (
-          <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>
-            {APP_NAME}
-          </Typography>
-        )}
+      <Toolbar sx={{ px: 2, minHeight: { xs: 64, sm: 64 } }}>
+        <AppBrand
+          logoSize={44}
+          showName={!sidebarCollapsed || isMobile}
+          direction="row"
+        />
       </Toolbar>
       <Divider />
       <List sx={{ flex: 1, px: 1, py: 2 }}>

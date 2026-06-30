@@ -58,7 +58,7 @@ interface UserFormState {
 const emptyForm: UserFormState = { name: '', email: '', password: '', role: 'cashier' };
 
 export function UsersTab() {
-  const { data: users = [], isLoading } = useUsers();
+  const { data: users = [], isLoading, isError, error: loadError } = useUsers();
   const createMutation = useCreateUser();
   const updateMutation = useUpdateUser();
   const deactivateMutation = useDeactivateUser();
@@ -133,6 +133,11 @@ export function UsersTab() {
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {getErrorMessage(loadError)}
+        </Alert>
+      )}
 
       <TableContainer component={Paper}>
         <Table>

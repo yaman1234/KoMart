@@ -424,66 +424,48 @@ export const categoryService = {
     const { data } = await apiClient.get('/categories', {
       params: includeInactive ? { include_inactive: true } : undefined,
     });
-    return (data as { id: string; name: string; description: string; is_active: boolean; created_at: string }[]).map((c) => ({
-      id: c.id,
-      name: c.name,
-      description: c.description,
-      isActive: c.is_active,
-      createdAt: c.created_at,
-    }));
+    return data as Category[];
   },
   create: async (payload: { name: string; description?: string }): Promise<Category> => {
     const { data } = await apiClient.post('/categories', payload);
-    const c = data as { id: string; name: string; description: string; is_active: boolean; created_at: string };
-    return { id: c.id, name: c.name, description: c.description, isActive: c.is_active, createdAt: c.created_at };
+    return data as Category;
   },
   update: async (id: string, payload: { name?: string; description?: string; is_active?: boolean }): Promise<Category> => {
     const { data } = await apiClient.patch(`/categories/${id}`, payload);
-    const c = data as { id: string; name: string; description: string; is_active: boolean; created_at: string };
-    return { id: c.id, name: c.name, description: c.description, isActive: c.is_active, createdAt: c.created_at };
+    return data as Category;
   },
   remove: async (id: string): Promise<void> => {
     await apiClient.delete(`/categories/${id}`);
   },
 };
 
-type RawUser = { id: string; name: string; email: string; role: UserRole; is_active: boolean; created_at: string };
-const mapUser = (u: RawUser): UserListItem => ({
-  id: u.id,
-  name: u.name,
-  email: u.email,
-  role: u.role,
-  isActive: u.is_active,
-  createdAt: u.created_at,
-});
-
 export const usersService = {
   getAll: async (): Promise<UserListItem[]> => {
     const { data } = await apiClient.get('/users');
-    return (data as RawUser[]).map(mapUser);
+    return data as UserListItem[];
   },
   getMe: async (): Promise<UserListItem> => {
     const { data } = await apiClient.get('/users/me');
-    return mapUser(data as RawUser);
+    return data as UserListItem;
   },
   getById: async (id: string): Promise<UserListItem> => {
     const { data } = await apiClient.get(`/users/${id}`);
-    return mapUser(data as RawUser);
+    return data as UserListItem;
   },
   create: async (payload: { name: string; email: string; password: string; role: UserRole }): Promise<UserListItem> => {
     const { data } = await apiClient.post('/users', payload);
-    return mapUser(data as RawUser);
+    return data as UserListItem;
   },
   update: async (id: string, payload: { name?: string; email?: string; password?: string; role?: UserRole; is_active?: boolean }): Promise<UserListItem> => {
     const { data } = await apiClient.patch(`/users/${id}`, payload);
-    return mapUser(data as RawUser);
+    return data as UserListItem;
   },
   deactivate: async (id: string): Promise<void> => {
     await apiClient.delete(`/users/${id}`);
   },
   updateMe: async (payload: { name?: string; password?: string }): Promise<UserListItem> => {
     const { data } = await apiClient.patch('/users/me', payload);
-    return mapUser(data as RawUser);
+    return data as UserListItem;
   },
 };
 

@@ -27,6 +27,11 @@ async def _authenticate(email: str, password: str) -> TokenResponse:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been deactivated. Contact an administrator.",
+        )
     token = create_access_token({"sub": str(user.id)})
     return TokenResponse(access_token=token, user=_user_response(user))
 

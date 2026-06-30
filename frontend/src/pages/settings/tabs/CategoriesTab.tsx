@@ -26,20 +26,14 @@ import EditIcon from '@mui/icons-material/Edit';
 import BlockIcon from '@mui/icons-material/Block';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CategoryIcon from '@mui/icons-material/LocalOffer';
-import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/hooks/useCategories';
-import { useAuthStore } from '@/store';
-import { isAdmin } from '@/utils';
+import { useCategories, useCreateCategory, useUpdateCategory } from '@/hooks/useCategories';
 import { getErrorMessage } from '@/services/apiClient';
 import type { Category } from '@/types';
 
 export function CategoriesTab() {
-  const user = useAuthStore((s) => s.user);
-  const canDelete = isAdmin(user?.role);
-
-  const { data: categories = [], isLoading } = useCategories(true);
+  const { data: categories = [], isLoading, isError, error: loadError } = useCategories(true);
   const createMutation = useCreateCategory();
   const updateMutation = useUpdateCategory();
-  const deleteMutation = useDeleteCategory();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Category | null>(null);
@@ -93,15 +87,6 @@ export function CategoriesTab() {
     }
   };
 
-  const handleDeactivate = async (id: string) => {
-    setError('');
-    try {
-      await deleteMutation.mutateAsync(id);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -119,6 +104,11 @@ export function CategoriesTab() {
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {getErrorMessage(loadError)}
+        </Alert>
+      )}
 
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
@@ -134,7 +124,16 @@ export function CategoriesTab() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {categories.map((cat) => (
+              {categories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} align="center">
+                    <Typography color="text.secondary" sx={{ py: 2 }}>
+                      No categories yet. Add one to use in product forms and filters.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+              categories.map((cat) => (
                 <TableRow key={cat.id} sx={{ opacity: cat.isActive ? 1 : 0.5 }}>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{cat.name}</Typography>
@@ -167,21 +166,11 @@ export function CategoriesTab() {
                           {cat.isActive ? <BlockIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
                         </IconButton>
                       </Tooltip>
-                      {canDelete && (
-                        <Tooltip title="Permanently deactivate (admin)">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDeactivate(cat.id)}
-                          >
-                            <BlockIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
                     </Box>
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
