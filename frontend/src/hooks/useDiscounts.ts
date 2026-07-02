@@ -1,0 +1,95 @@
+import { useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS, STALE_TIME } from '@/constants';
+import { discountService } from '@/services';
+import type { CartItem, DiscountRule, DiscountRuleType } from '@/types';
+
+export function useDiscountRules(activeOnly = true) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.discounts, { activeOnly }],
+    queryFn: () => discountService.getAll(activeOnly),
+    staleTime: STALE_TIME.standard,
+  });
+}
+
+export function useCreateDiscountRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      code?: string;
+      ruleType: DiscountRuleType;
+      value: number;
+      productId?: string;
+      category?: string;
+      minCartTotal?: number;
+      maxDiscount?: number;
+      priority?: number;
+    }) => discountService.create({
+      name: data.name,
+      code: data.code ?? '',
+      ruleType: data.ruleType,
+      value: data.value,
+      productId: data.productId ?? '',
+      category: data.category ?? '',
+      minCartTotal: data.minCartTotal ?? 0,
+      maxDiscount: data.maxDiscount ?? 0,
+      priority: data.priority ?? 0,
+      isActive: true,
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.discounts });
+    },
+  });
+}
+
+export function useUpdateDiscountRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<DiscountRule> & { id: string }) =>
+      discountService.update(id, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.discounts });
+    },
+  });
+}
+
+export function useDeleteDiscountRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => discountService.delete(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.discounts });
+    },
+  });
+}
+
+export function useEvaluateDiscounts(items: CartItem[], couponCode: string) {
+  const payloadKey = useMemo(
+    () => JSON.stringify({
+      items: items.map((i) => ({
+        productId: i.productId,
+        price: i.price,
+        quantity: i.quantity,
+        category: i.category ?? '',
+      })),
+      couponCode,
+    }),
+    [items, couponCode],
+  );
+
+  return useQuery({
+    queryKey: QUERY_KEYS.discountEvaluate(payloadKey),
+    queryFn: () => discountService.evaluate({
+      items: items.map((i) => ({
+        productId: i.productId,
+        price: i.price,
+        quantity: i.quantity,
+        category: i.category ?? '',
+      })),
+      couponCode,
+    }),
+    enabled: items.length > 0,
+    staleTime: STALE_TIME.realtime,
+  });
+}

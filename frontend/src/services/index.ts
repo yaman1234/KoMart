@@ -1,10 +1,12 @@
 import { apiClient } from './apiClient';
 import { mockApi } from './mock/mockApi';
+import { useAuthStore } from '@/store';
 import type {
   LoginCredentials,
   ListQueryParams,
   PaginatedResponse,
   Product,
+  ProductStatus,
   InventoryItem,
   InventoryStats,
   InventoryBatch,
@@ -15,7 +17,9 @@ import type {
   PurchaseOrderWritePayload,
   Customer,
   Transaction,
+  PaymentMethod,
   AppNotification,
+  NotificationType,
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
@@ -45,6 +49,13 @@ import type {
   Category,
   UserListItem,
   UserRole,
+  AuditLog,
+  AuditLogQueryParams,
+  InventoryMovement,
+  MovementSummary,
+  InventoryMovementQueryParams,
+  DiscountRule,
+  EvaluateDiscountResult,
 } from '@/types';
 
 const useMock = () => mockApi.isMockEnabled;
@@ -63,15 +74,34 @@ function ensureArray<T>(data: unknown): T[] {
 export const authService = {
   login: async (credentials: LoginCredentials) => {
     if (useMock()) return mockApi.login(credentials);
-    const { data } = await apiClient.post<{ user: User; accessToken: string }>(
-      '/auth/login',
-      credentials,
-    );
+    const { data } = await apiClient.post<{
+      user: User;
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }>('/auth/login', credentials);
     return data;
   },
-  forgotPassword: async (email: string) => {
-    if (useMock()) return mockApi.forgotPassword(email);
-    await apiClient.post('/auth/forgot-password', { email });
+  refresh: async (refreshToken: string) => {
+    const { data } = await apiClient.post<{
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+      user: User;
+    }>('/auth/refresh', { refreshToken });
+    return data;
+  },
+  logout: async (options?: { refreshToken?: string | null; allDevices?: boolean }) => {
+    if (useMock()) return;
+    const refreshToken = options?.refreshToken ?? useAuthStore.getState().refreshToken;
+    try {
+      await apiClient.post('/auth/logout', {
+        refreshToken: refreshToken ?? undefined,
+        allDevices: options?.allDevices ?? false,
+      });
+    } catch {
+      // Best-effort revoke; clear local session regardless
+    }
   },
 };
 
@@ -156,6 +186,13 @@ function buildInventoryParams(params?: InventoryQueryParams): Record<string, str
   return out;
 }
 
+export interface InventoryHistoryParams {
+  page?: number;
+  pageSize?: number;
+  productId?: string;
+  source?: '' | 'manual' | 'sale';
+}
+
 export const inventoryService = {
   getAll: async (params?: InventoryQueryParams): Promise<PaginatedResponse<InventoryItem>> => {
     const query = buildInventoryParams(params);
@@ -176,6 +213,23 @@ export const inventoryService = {
   adjustStock: async (adjustment: Omit<StockAdjustment, 'id' | 'createdAt'>): Promise<void> => {
     if (useMock()) return mockApi.adjustStock(adjustment);
     await apiClient.post('/inventory/adjust', adjustment);
+  },
+  getHistory: async (params?: InventoryHistoryParams) => {
+    if (useMock()) return mockApi.getInventoryHistory(params);
+    const { data } = await apiClient.get('/inventory/history', { params });
+    return data as PaginatedResponse<StockAdjustment>;
+  },
+  getItem: async (productId: string): Promise<InventoryItem> => {
+    const { data } = await apiClient.get(`/inventory/items/${productId}`);
+    return data as InventoryItem;
+  },
+  getMovements: async (params?: InventoryMovementQueryParams): Promise<PaginatedResponse<InventoryMovement>> => {
+    const { data } = await apiClient.get('/inventory/movements', { params });
+    return data as PaginatedResponse<InventoryMovement>;
+  },
+  getMovementSummary: async (params?: Omit<InventoryMovementQueryParams, 'page' | 'pageSize'>): Promise<MovementSummary> => {
+    const { data } = await apiClient.get('/inventory/movements/summary', { params });
+    return data as MovementSummary;
   },
 };
 
@@ -288,13 +342,48 @@ export const transactionService = {
     const { data } = await apiClient.post('/transactions', payload);
     return data;
   },
+  update: async (
+    id: string,
+    payload: {
+      customerId?: string | null;
+      customerName?: string;
+      paymentMethod?: PaymentMethod;
+      discount?: number;
+      loyaltyPointsRedeemed?: number;
+    },
+  ): Promise<Transaction> => {
+    const { data } = await apiClient.patch(`/transactions/${id}`, payload);
+    return data as Transaction;
+  },
 };
 
 export const notificationService = {
-  getAll: async (): Promise<AppNotification[]> => {
-    if (useMock()) return mockApi.getNotifications();
-    const { data } = await apiClient.get('/notifications');
+  getAll: async (params?: {
+    unreadOnly?: boolean;
+    type?: NotificationType;
+    sync?: boolean;
+  }): Promise<AppNotification[]> => {
+    if (useMock()) return mockApi.getNotifications(params);
+    const { data } = await apiClient.get('/notifications', {
+      params: {
+        unreadOnly: params?.unreadOnly || undefined,
+        type: params?.type,
+        sync: params?.sync,
+      },
+    });
     return data;
+  },
+  markRead: async (id: string): Promise<void> => {
+    if (useMock()) return mockApi.markNotificationRead(id);
+    await apiClient.patch(`/notifications/${id}/read`);
+  },
+  markAllRead: async (): Promise<void> => {
+    if (useMock()) return mockApi.markAllNotificationsRead();
+    await apiClient.patch('/notifications/read-all');
+  },
+  sync: async (): Promise<void> => {
+    if (useMock()) return mockApi.syncNotifications();
+    await apiClient.post('/notifications/sync');
   },
 };
 
@@ -355,10 +444,11 @@ export const reportsService = {
     page = 1,
     pageSize = 25,
     stockFilter: 'low' | 'out' | 'both' = 'both',
+    productStatus?: ProductStatus,
   ): Promise<PaginatedResponse<LowStockProductRow>> => {
     if (useMock()) return mockApi.getLowStockReport();
     const { data } = await apiClient.get('/reports/low-stock', {
-      params: { page, pageSize, stockFilter },
+      params: { page, pageSize, stockFilter, productStatus },
     });
     return data;
   },
@@ -407,9 +497,11 @@ export const reportsService = {
     const { data } = await apiClient.get('/reports/sales-by-cashier', { params: withRange(range) });
     return ensureArray(data);
   },
-  getDeadStock: async (days = 30): Promise<DeadStockProduct[]> => {
+  getDeadStock: async (days = 30, productStatus?: ProductStatus): Promise<DeadStockProduct[]> => {
     if (useMock()) return mockApi.getDeadStock();
-    const { data } = await apiClient.get('/reports/dead-stock', { params: { days } });
+    const { data } = await apiClient.get('/reports/dead-stock', {
+      params: { days, productStatus },
+    });
     return ensureArray(data);
   },
   getExpenseSummary: async (range?: DateRange): Promise<ExpenseSummary> => {
@@ -466,6 +558,42 @@ export const usersService = {
   updateMe: async (payload: { name?: string; password?: string }): Promise<UserListItem> => {
     const { data } = await apiClient.patch('/users/me', payload);
     return data as UserListItem;
+  },
+};
+
+export const discountService = {
+  getAll: async (activeOnly = true): Promise<DiscountRule[]> => {
+    const { data } = await apiClient.get('/discounts', { params: { activeOnly } });
+    return data as DiscountRule[];
+  },
+  create: async (payload: Omit<DiscountRule, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> & { isActive?: boolean }): Promise<DiscountRule> => {
+    const { data } = await apiClient.post('/discounts', payload);
+    return data as DiscountRule;
+  },
+  update: async (id: string, payload: Partial<DiscountRule>): Promise<DiscountRule> => {
+    const { data } = await apiClient.patch(`/discounts/${id}`, payload);
+    return data as DiscountRule;
+  },
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/discounts/${id}`);
+  },
+  evaluate: async (payload: {
+    items: Array<{ productId: string; price: number; quantity: number; category?: string }>;
+    couponCode?: string;
+  }): Promise<EvaluateDiscountResult> => {
+    const { data } = await apiClient.post('/discounts/evaluate', payload);
+    return data as EvaluateDiscountResult;
+  },
+};
+
+export const auditLogService = {
+  getAll: async (params?: AuditLogQueryParams): Promise<PaginatedResponse<AuditLog>> => {
+    const { data } = await apiClient.get('/audit-logs', { params });
+    return data as PaginatedResponse<AuditLog>;
+  },
+  getById: async (id: string): Promise<AuditLog> => {
+    const { data } = await apiClient.get(`/audit-logs/${id}`);
+    return data as AuditLog;
   },
 };
 

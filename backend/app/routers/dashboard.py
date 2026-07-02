@@ -3,15 +3,18 @@ from datetime import datetime, timezone, timedelta
 
 from app.auth.dependencies import get_current_user
 from app.models.user import User
-from app.models.product import Product
 from app.models.customer import Customer
 from app.models.transaction import Transaction
-from app.models.expense import Expense as ExpenseDoc
 from app.schemas.dashboard import DashboardStats, RevenueDataPoint, TopProduct, SalesByCategory
 from app.services.reporting import (
+    aggregate_expense_total_since,
+    aggregate_product_inventory_stats,
+    aggregate_sales_by_day,
+    aggregate_sales_total,
     build_product_cache,
     collect_product_ids,
     fetch_transactions,
+    fill_daily_revenue,
     line_revenue,
     parse_date_range,
 )
@@ -27,30 +30,24 @@ async def get_stats(_: User = Depends(get_current_user)):
     week_start = today_start - timedelta(days=7)
     month_start = today_start - timedelta(days=30)
 
-    all_products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
-    total_products = len(all_products)
-    low_stock = sum(1 for p in all_products if 0 < p.stock <= p.low_stock_threshold)
-    inventory_value = sum(p.stock * p.cost_price for p in all_products)
-    customer_count = await Customer.count()
+    product_stats = await aggregate_product_inventory_stats()
     expiring_ids = await expiring_product_ids()
+    customer_count = await Customer.count()
 
-    today_txns = await Transaction.find({"created_at": {"$gte": today_start}}).to_list()
-    week_txns = await Transaction.find({"created_at": {"$gte": week_start}}).to_list()
-    month_txns = await Transaction.find({"created_at": {"$gte": month_start}}).to_list()
-
-    monthly_sales = sum(t.total for t in month_txns)
+    today_sales = await aggregate_sales_total(today_start)
+    weekly_sales = await aggregate_sales_total(week_start)
+    monthly_sales = await aggregate_sales_total(month_start)
     month_start_str = month_start.strftime("%Y-%m-%d")
-    month_expenses = await ExpenseDoc.find({"date": {"$gte": month_start_str}}).to_list()
-    monthly_expenses = sum(e.amount for e in month_expenses)
+    monthly_expenses = await aggregate_expense_total_since(month_start_str)
 
     return DashboardStats(
-        today_sales=sum(t.total for t in today_txns),
-        weekly_sales=sum(t.total for t in week_txns),
-        monthly_sales=monthly_sales,
-        total_products=total_products,
-        low_stock_products=low_stock,
+        today_sales=round(today_sales, 2),
+        weekly_sales=round(weekly_sales, 2),
+        monthly_sales=round(monthly_sales, 2),
+        total_products=int(product_stats["total_products"]),
+        low_stock_products=int(product_stats["low_stock"]),
         expiring_products=len(expiring_ids),
-        inventory_value=inventory_value,
+        inventory_value=round(float(product_stats["inventory_value"]), 2),
         customer_count=customer_count,
         monthly_expenses=round(monthly_expenses, 2),
         net_revenue=round(monthly_sales - monthly_expenses, 2),
@@ -63,24 +60,12 @@ async def get_revenue(
     end_date: str = Query(""),
     _: User = Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc)
-    start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=30)
-    end = datetime.fromisoformat(end_date) if end_date else now
-
-    txns = await Transaction.find({"created_at": {"$gte": start, "$lte": end}}).to_list()
-
-    daily: dict[str, float] = {}
-    current = start
-    while current <= end:
-        daily[current.strftime("%Y-%m-%d")] = 0.0
-        current += timedelta(days=1)
-
-    for t in txns:
-        day = t.created_at.strftime("%Y-%m-%d")
-        if day in daily:
-            daily[day] += t.total
-
-    return [RevenueDataPoint(date=d, revenue=v) for d, v in sorted(daily.items())]
+    start, end = parse_date_range(start_date, end_date)
+    daily_totals = await aggregate_sales_by_day(start, end)
+    return [
+        RevenueDataPoint(date=day, revenue=round(revenue, 2))
+        for day, revenue in fill_daily_revenue(start, end, daily_totals)
+    ]
 
 
 @router.get("/top-products", response_model=list[TopProduct])

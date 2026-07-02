@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@/constants';
-import { inventoryService, type ReceiveBatchPayload, type InventoryQueryParams } from '@/services';
-import type { StockAdjustment } from '@/types';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { QUERY_KEYS, STALE_TIME } from '@/constants';
+import { inventoryService, type ReceiveBatchPayload, type InventoryQueryParams, type InventoryHistoryParams } from '@/services';
+import type { StockAdjustment, InventoryMovementQueryParams } from '@/types';
 
 function inventoryQueryKey(params?: InventoryQueryParams) {
   return [
@@ -19,6 +19,7 @@ export function useInventory(params?: InventoryQueryParams) {
   return useQuery({
     queryKey: inventoryQueryKey(params),
     queryFn: () => inventoryService.getAll(params),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -26,6 +27,7 @@ export function useInventoryStats() {
   return useQuery({
     queryKey: [...QUERY_KEYS.inventory, 'stats'],
     queryFn: () => inventoryService.getStats(),
+    staleTime: STALE_TIME.realtime,
   });
 }
 
@@ -33,9 +35,13 @@ export function useReceiveBatch() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: ReceiveBatchPayload) => inventoryService.receiveBatch(payload),
-    onSuccess: () => {
+    onSuccess: (_, payload) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.inventory, 'history'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movementSummary'] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryItem(payload.productId) });
     },
   });
 }
@@ -45,9 +51,61 @@ export function useAdjustStock() {
   return useMutation({
     mutationFn: (data: Omit<StockAdjustment, 'id' | 'createdAt'>) =>
       inventoryService.adjustStock(data),
-    onSuccess: () => {
+    onSuccess: (_, data) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.inventory, 'history'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movementSummary'] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryItem(data.productId) });
     },
+  });
+}
+
+function inventoryHistoryKey(params?: InventoryHistoryParams) {
+  return [
+    ...QUERY_KEYS.inventory,
+    'history',
+    params?.page ?? 1,
+    params?.pageSize ?? 25,
+    params?.productId ?? '',
+    params?.source ?? '',
+  ] as const;
+}
+
+export function useInventoryHistory(params?: InventoryHistoryParams) {
+  return useQuery({
+    queryKey: inventoryHistoryKey(params),
+    queryFn: () => inventoryService.getHistory(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useInventoryItem(productId: string) {
+  return useQuery({
+    queryKey: QUERY_KEYS.inventoryItem(productId),
+    queryFn: () => inventoryService.getItem(productId),
+    enabled: !!productId,
+  });
+}
+
+function movementFilterKey(params?: InventoryMovementQueryParams): string {
+  return JSON.stringify(params ?? {});
+}
+
+export function useInventoryMovements(params?: InventoryMovementQueryParams) {
+  return useQuery({
+    queryKey: QUERY_KEYS.inventoryMovements(movementFilterKey(params)),
+    queryFn: () => inventoryService.getMovements(params),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useMovementSummary(
+  params?: Omit<InventoryMovementQueryParams, 'page' | 'pageSize'>,
+) {
+  return useQuery({
+    queryKey: QUERY_KEYS.movementSummary(movementFilterKey(params)),
+    queryFn: () => inventoryService.getMovementSummary(params),
   });
 }

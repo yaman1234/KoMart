@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from math import ceil
 from datetime import datetime, timezone, date
 
@@ -22,6 +22,9 @@ from app.schemas.purchase_order import (
     item_to_response,
 )
 from app.schemas.common import PaginatedResponse
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit, po_snapshot
+from app.services.store_settings import get_store_settings
 
 router = APIRouter(prefix="/purchase-orders", tags=["Purchase Orders"])
 
@@ -45,8 +48,10 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
 
 
 async def _next_po_number() -> str:
+    settings = await get_store_settings()
+    prefix_base = (settings.purchase_order_prefix or "PO").strip().upper()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    prefix = f"PO-{today}-"
+    prefix = f"{prefix_base}-{today}-"
     count = await PurchaseOrder.find({"order_number": {"$regex": f"^{prefix}"}}).count()
     return f"{prefix}{str(count + 1).zfill(3)}"
 
@@ -82,6 +87,7 @@ async def list_purchase_orders(
 @router.post("", response_model=PurchaseOrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_purchase_order(
     body: PurchaseOrderCreate,
+    request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
@@ -92,6 +98,15 @@ async def create_purchase_order(
         **po_data,
     )
     await po.insert()
+    await log_audit(
+        module=AuditModule.purchase_orders,
+        action="create",
+        user=current_user,
+        request=request,
+        entity_type="purchase_order",
+        entity_id=str(po.id),
+        new=po_snapshot(po),
+    )
     return _to_response(po)
 
 
@@ -107,6 +122,7 @@ async def get_purchase_order(po_id: str, _: User = Depends(get_current_user)):
 async def update_purchase_order(
     po_id: str,
     body: PurchaseOrderUpdate,
+    request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
     po = await PurchaseOrder.get(po_id)
@@ -123,6 +139,7 @@ async def update_purchase_order(
             detail="Draft orders can only be saved as draft or placed as ordered",
         )
 
+    before = po_snapshot(po)
     updates: dict = {
         **body.model_dump(),
         "updated_at": datetime.now(timezone.utc),
@@ -131,13 +148,25 @@ async def update_purchase_order(
         updates["ordered_by"] = current_user.name
 
     await po.set(updates)
-    return _to_response(po)
+    refreshed = await PurchaseOrder.get(po_id)
+    await log_audit(
+        module=AuditModule.purchase_orders,
+        action="update",
+        user=current_user,
+        request=request,
+        entity_type="purchase_order",
+        entity_id=po_id,
+        previous=before,
+        new=po_snapshot(refreshed),  # type: ignore[arg-type]
+    )
+    return _to_response(refreshed)  # type: ignore[arg-type]
 
 
 @router.patch("/{po_id}/status", response_model=PurchaseOrderResponse)
 async def update_status(
     po_id: str,
     body: PurchaseOrderStatusUpdate,
+    request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
     if body.status in (POStatus.partial, POStatus.received):
@@ -150,18 +179,31 @@ async def update_status(
     if not po:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
 
+    before = po_snapshot(po)
     updates: dict = {"status": body.status, "updated_at": datetime.now(timezone.utc)}
     if body.status == POStatus.ordered and not po.ordered_by:
         updates["ordered_by"] = current_user.name
 
     await po.set(updates)
-    return _to_response(po)
+    refreshed = await PurchaseOrder.get(po_id)
+    await log_audit(
+        module=AuditModule.purchase_orders,
+        action="status_change",
+        user=current_user,
+        request=request,
+        entity_type="purchase_order",
+        entity_id=po_id,
+        previous=before,
+        new=po_snapshot(refreshed),  # type: ignore[arg-type]
+    )
+    return _to_response(refreshed)  # type: ignore[arg-type]
 
 
 @router.post("/{po_id}/receive", response_model=PurchaseOrderResponse)
 async def receive_items(
     po_id: str,
     body: PurchaseOrderReceiveRequest,
+    request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
     po = await PurchaseOrder.get(po_id)
@@ -177,6 +219,7 @@ async def receive_items(
     if not body.items:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No items to receive")
 
+    before = po_snapshot(po)
     item_map = {i.product_id: i for i in po.items}
     updated_items: list[PurchaseOrderItem] = list(po.items)
     now = datetime.now(timezone.utc)
@@ -213,6 +256,8 @@ async def receive_items(
             delta,
             expiry_date=receive.expiry_date,
             purchase_order_id=str(po.id),
+            unit_cost=item.unit_cost,
+            created_by=current_user.name,
         )
 
         updated_items[idx] = item.model_copy(
@@ -231,4 +276,15 @@ async def receive_items(
         "updated_at": now,
     })
 
-    return _to_response(po)
+    refreshed = await PurchaseOrder.get(po_id)
+    await log_audit(
+        module=AuditModule.purchase_orders,
+        action="receive",
+        user=current_user,
+        request=request,
+        entity_type="purchase_order",
+        entity_id=po_id,
+        previous=before,
+        new=po_snapshot(refreshed),  # type: ignore[arg-type]
+    )
+    return _to_response(refreshed)  # type: ignore[arg-type]

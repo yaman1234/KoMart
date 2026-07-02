@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     # JWT
     secret_key: str = "change-me-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
 
     # App
     app_env: str = "development"

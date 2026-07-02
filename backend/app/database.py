@@ -2,6 +2,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 
 from app.config import settings
+from app.models.product import ProductStatus
 from app.models import (
     User,
     Product,
@@ -15,27 +16,16 @@ from app.models import (
     StoreSettings,
     Expense,
     Category,
+    RefreshToken,
+    AuditLog,
+    DiscountRule,
 )
-
-# Module-level flag — one Motor client per Lambda container (process)
-_initialized: bool = False
-_motor_client: AsyncIOMotorClient | None = None
 
 
 async def init_db() -> None:
-    """Initialize Beanie + Motor.  Safe to call multiple times — no-op after first call."""
-    global _initialized, _motor_client
-
-    if _initialized:
-        return
-
-    _motor_client = AsyncIOMotorClient(
-        settings.mongo_url,
-        serverSelectionTimeoutMS=8_000,  # fail fast rather than hang
-        connectTimeoutMS=8_000,
-    )
+    client = AsyncIOMotorClient(settings.mongo_url)
     await init_beanie(
-        database=_motor_client[settings.mongo_db_name],
+        database=client[settings.mongo_db_name],
         document_models=[
             User,
             Product,
@@ -49,6 +39,13 @@ async def init_db() -> None:
             StoreSettings,
             Expense,
             Category,
+            RefreshToken,
+            AuditLog,
+            DiscountRule,
         ],
     )
-    _initialized = True
+    # Backfill legacy products created before status field existed.
+    await Product.get_motor_collection().update_many(
+        {"$or": [{"status": {"$exists": False}}, {"status": None}]},
+        {"$set": {"status": ProductStatus.active.value}},
+    )

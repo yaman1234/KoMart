@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+
+from app.models.product import ProductStatus
 
 
 class ProductCreate(BaseModel):
@@ -19,6 +21,23 @@ class ProductCreate(BaseModel):
     allergen_info: Optional[str] = None
     stock: int = Field(ge=0, default=0)
     low_stock_threshold: int = Field(ge=0, default=10)
+    status: ProductStatus = ProductStatus.active
+    tags: list[str] = Field(default_factory=list)
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, value: object) -> list[str]:
+        if not value:
+            return []
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in value if isinstance(value, list) else []:
+            tag = str(raw).strip()
+            key = tag.lower()
+            if tag and key not in seen:
+                seen.add(key)
+                out.append(tag)
+        return out
 
 
 class ProductUpdate(BaseModel):
@@ -35,6 +54,23 @@ class ProductUpdate(BaseModel):
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
     low_stock_threshold: Optional[int] = Field(default=None, ge=0)
+    status: Optional[ProductStatus] = None
+    tags: Optional[list[str]] = None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, value: object) -> list[str] | None:
+        if value is None:
+            return None
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in value if isinstance(value, list) else []:
+            tag = str(raw).strip()
+            key = tag.lower()
+            if tag and key not in seen:
+                seen.add(key)
+                out.append(tag)
+        return out
 
 
 class ProductResponse(BaseModel):
@@ -56,5 +92,7 @@ class ProductResponse(BaseModel):
     allergen_info: Optional[str]
     stock: int
     low_stock_threshold: int
+    status: ProductStatus
+    tags: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str

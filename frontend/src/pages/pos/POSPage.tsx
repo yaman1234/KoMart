@@ -31,6 +31,7 @@ import {
   Alert,
   ToggleButtonGroup,
   ToggleButton,
+  Chip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
@@ -48,15 +49,21 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useProducts } from '@/hooks/useProducts';
+import { useEvaluateDiscounts, useDiscountRules } from '@/hooks/useDiscounts';
 import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useCartStore, useAuthStore } from '@/store';
 import { transactionService } from '@/services';
+import { getErrorMessage } from '@/services/apiClient';
 import { formatAmount, formatCurrency } from '@/utils';
 import { PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
+import { useStoreSettings } from '@/hooks/useSettings';
+import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
+import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { PaymentModal } from '@/components/pos/PaymentModal';
 import { CustomerPicker } from '@/components/pos/CustomerPicker';
+import { ProductMetaChips } from '@/components/products/ProductMetaChips';
 import { DRAWER_COLLAPSED } from '@/layouts/Sidebar';
 import type { Product, Transaction, PaymentMethod } from '@/types';
 
@@ -100,11 +107,20 @@ interface CollapsedCartRailProps {
 interface ProductCardProps {
   product: Product;
   qtyInCart: number;
+  discountLabel?: string | null;
   onAdd: (product: Product) => void;
 }
 
-const ProductCard = memo(function ProductCard({ product, qtyInCart, onAdd }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd }: ProductCardProps) {
   const inCart = qtyInCart > 0;
+  const stockColor =
+    product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
+  const stockLabel =
+    product.stock === 0
+      ? 'Out'
+      : product.stock <= product.lowStockThreshold
+        ? `Low: ${product.stock}`
+        : String(product.stock);
 
   return (
     <Card
@@ -201,19 +217,39 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, onAdd }: Pro
           >
             {product.name}
           </Typography>
-          <Typography
-            variant="body2"
-            color="primary"
+          <ProductMetaChips
+            category={product.category}
+            tags={product.tags}
+            discountLabel={discountLabel}
+          />
+          <Box
             sx={{
-              fontWeight: 700,
-              fontSize: { xs: '0.7rem', sm: '0.8125rem' },
-              whiteSpace: 'nowrap',
-              lineHeight: 1.2,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 0.5,
               mt: 'auto',
             }}
           >
-            {formatCurrency(product.sellingPrice)}
-          </Typography>
+            <Typography
+              variant="body2"
+              color="primary"
+              sx={{
+                fontWeight: 700,
+                fontSize: { xs: '0.7rem', sm: '0.8125rem' },
+                whiteSpace: 'nowrap',
+                lineHeight: 1.2,
+              }}
+            >
+              {formatCurrency(product.sellingPrice)}
+            </Typography>
+            <Chip
+              label={stockLabel}
+              color={stockColor}
+              size="small"
+              sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, flexShrink: 0 }}
+            />
+          </Box>
         </CardContent>
       </CardActionArea>
     </Card>
@@ -353,6 +389,7 @@ export function POSPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [discountType, setDiscountType] = useState<'flat' | 'pct' | null>(null);
   const [discountInput, setDiscountInput] = useState(0);
   const [tenderedAmount, setTenderedAmount] = useState<number | undefined>(undefined);
@@ -378,14 +415,47 @@ export function POSPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [items, removeItem]);
   const user = useAuthStore((s) => s.user);
+  const { data: storeSettings } = useStoreSettings();
+  const receiptBranding = storeSettings ? receiptBrandingFromSettings(storeSettings) : undefined;
   const createCustomerMutation = useCreateCustomer();
 
-  const { data: productsData } = useProducts({ search, pageSize: 200 });
+  const { data: productsData } = useProducts({ search, pageSize: 200, sellableOnly: true });
+  const { data: discountRules = [] } = useDiscountRules(true);
   const { data: paymentCustomer } = useCustomer(customerId ?? '');
   const { data: suppliersData } = useSuppliers({ pageSize: 200 });
   const suppliers = suppliersData?.data ?? [];
 
   const products = productsData?.data ?? [];
+
+  const productDiscountMap = useMemo(
+    () => buildProductDiscountMap(products, discountRules),
+    [products, discountRules],
+  );
+
+  const productCategoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of products) map[p.id] = p.category;
+    return map;
+  }, [products]);
+
+  const cartItemsForDiscount = useMemo(
+    () => items.map((i) => ({
+      ...i,
+      category: i.category ?? productCategoryMap[i.productId] ?? '',
+    })),
+    [items, productCategoryMap],
+  );
+
+  const { data: discountEval } = useEvaluateDiscounts(cartItemsForDiscount, '');
+
+  const lineDiscountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const line of discountEval?.lineItems ?? []) {
+      map.set(line.productId, line.perUnitDiscount);
+    }
+    return map;
+  }, [discountEval]);
+
   const displayedProducts = products
     .filter((p) => {
       if (p.stock === 0) return false;
@@ -407,14 +477,58 @@ export function POSPage() {
 
   // ── Cart totals (prices are tax-inclusive — no separate tax line) ──────────
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const overallDiscount = discountType === null
+  const promotionLineDiscount = discountEval?.lineDiscountTotal ?? 0;
+  const promotionCartDiscount = discountEval?.cartDiscount ?? 0;
+  const netAfterPromo = Math.max(0, subtotal - promotionLineDiscount - promotionCartDiscount);
+  const manualDiscount = discountType === null
     ? 0
     : discountType === 'pct'
-      ? Math.round(subtotal * discountInput / 100 * 100) / 100
-      : discountInput;
-  const totalDiscount = overallDiscount + loyaltyPointsRedeemed;
+      ? Math.round(netAfterPromo * discountInput / 100 * 100) / 100
+      : Math.min(discountInput, netAfterPromo);
+  const totalDiscount = promotionLineDiscount + promotionCartDiscount + manualDiscount + loyaltyPointsRedeemed;
   const total = Math.max(0, subtotal - totalDiscount);
   const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
+
+  const paymentItems = useMemo(
+    () => items.map((item) => ({
+      ...item,
+      discount: lineDiscountMap.get(item.productId) ?? 0,
+    })),
+    [items, lineDiscountMap],
+  );
+
+  const paymentCustomerInfo = useMemo(() => {
+    if (!customerId || !paymentCustomer) {
+      return { name: 'Walk-In Customer', isWalkIn: true as const };
+    }
+    return {
+      name: paymentCustomer.name,
+      phone: paymentCustomer.phone,
+      email: paymentCustomer.email || undefined,
+      membershipTier: paymentCustomer.membershipTier,
+      loyaltyPoints: paymentCustomer.loyaltyPoints,
+      isWalkIn: false as const,
+    };
+  }, [customerId, paymentCustomer]);
+
+  const discountBreakdown = useMemo(
+    () => ({
+      promotionLineDiscount,
+      promotionCartDiscount,
+      manualDiscount,
+      loyaltyPointsRedeemed,
+      appliedPromotions: discountEval?.appliedPromotions ?? [],
+      totalDiscount,
+    }),
+    [
+      promotionLineDiscount,
+      promotionCartDiscount,
+      manualDiscount,
+      loyaltyPointsRedeemed,
+      discountEval?.appliedPromotions,
+      totalDiscount,
+    ],
+  );
 
   const handleCollapsedPay = () => {
     if (items.length === 0) return;
@@ -433,6 +547,7 @@ export function POSPage() {
       price: product.sellingPrice,
       quantity: 1,
       discount: 0,
+      category: product.category,
     });
   }, [addItem]);
 
@@ -447,15 +562,22 @@ export function POSPage() {
   // ── Payment ────────────────────────────────────────────────────────────────
   const handlePayment = async (method: PaymentMethod, tendered?: number) => {
     if (items.length === 0) return;
+    setPaymentError('');
     setTenderedAmount(tendered);
     setProcessing(true);
     try {
       const txn = await transactionService.create({
         customerId: customerId ?? undefined,
         customerName: paymentCustomer?.name ?? 'Walk-In',
-        items,
+        items: items.map((item) => ({
+          ...item,
+          discount: lineDiscountMap.get(item.productId) ?? 0,
+        })),
         subtotal,
-        discount: totalDiscount,
+        promotionDiscount: discountEval?.promotionDiscountTotal ?? 0,
+        manualDiscount,
+        appliedPromotions: discountEval?.appliedPromotions ?? [],
+        discount: promotionCartDiscount + manualDiscount + loyaltyPointsRedeemed,
         tax: 0,
         loyaltyPointsRedeemed,
         total,
@@ -468,6 +590,8 @@ export function POSPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
+    } catch (err) {
+      setPaymentError(getErrorMessage(err));
     } finally {
       setProcessing(false);
     }
@@ -603,6 +727,7 @@ export function POSPage() {
                 <ProductCard
                   product={product}
                   qtyInCart={cartQuantities.get(product.id) ?? 0}
+                  discountLabel={productDiscountMap.get(product.id)}
                   onAdd={handleAddProduct}
                 />
               </Grid>
@@ -834,6 +959,19 @@ export function POSPage() {
             </Typography>
           </Box>
 
+          {(discountEval?.appliedPromotions.length ?? 0) > 0 && (
+            <Box sx={{ mb: 0.75 }}>
+              {discountEval?.appliedPromotions.map((promo) => (
+                <Box key={promo.ruleId} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
+                  <Typography variant="caption" color="success.main">{promo.name}</Typography>
+                  <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                    - {formatAmount(promo.amount)}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+
           {/* Discount: label + controls + amount (single row) */}
           <Box
             sx={{
@@ -874,13 +1012,13 @@ export function POSPage() {
                 value={discountInput || ''}
                 onChange={(e) => {
                   const v = parseFloat(e.target.value) || 0;
-                  const max = discountType === 'pct' ? 100 : subtotal;
+                  const max = discountType === 'pct' ? 100 : netAfterPromo;
                   setDiscountInput(Math.min(Math.max(0, v), max));
                 }}
                 slotProps={{
                   htmlInput: {
                     min: 0,
-                    max: discountType === 'pct' ? 100 : subtotal,
+                    max: discountType === 'pct' ? 100 : netAfterPromo,
                     step: discountType === 'pct' ? 5 : 10,
                   },
                 }}
@@ -936,11 +1074,17 @@ export function POSPage() {
       {/* ── Payment modal (transitions to receipt on success) ─────────────── */}
       <PaymentModal
         open={paymentOpen}
-        items={items}
-        summary={{ subtotal, discount: totalDiscount, total }}
+        items={paymentItems}
+        summary={{ subtotal, total }}
+        customer={paymentCustomerInfo}
+        discountBreakdown={discountBreakdown}
         loading={processing}
+        error={paymentError}
         transaction={receipt}
         tenderedAmount={tenderedAmount}
+        defaultPaymentMethod={storeSettings?.defaultPaymentMethod}
+        autoPrint={storeSettings?.autoPrint}
+        receiptBranding={receiptBranding}
         onConfirm={handlePayment}
         onClose={() => {
           if (!receipt) setPaymentOpen(false);

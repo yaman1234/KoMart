@@ -1,5 +1,5 @@
 import { CURRENCY_SYMBOL } from '@/constants';
-import type { UserRole } from '@/types';
+import type { ProductStatus, UserRole } from '@/types';
 
 export const isAdmin = (role?: UserRole): boolean => role === 'admin';
 export const isAdminOrManager = (role?: UserRole): boolean => role === 'admin' || role === 'manager';
@@ -108,4 +108,32 @@ export function delay(ms: number): Promise<void> {
 
 export function generateId(): string {
   return crypto.randomUUID();
+}
+
+export function productStatusOf(status?: ProductStatus): ProductStatus {
+  return status ?? 'active';
+}
+
+export function productStatusLabel(status?: ProductStatus): string {
+  switch (productStatusOf(status)) {
+    case 'seasonal':
+      return 'Seasonal';
+    case 'discontinued':
+      return 'Discontinued';
+    default:
+      return 'Active';
+  }
+}
+
+export function productStatusColor(
+  status?: ProductStatus,
+): 'success' | 'warning' | 'default' {
+  switch (productStatusOf(status)) {
+    case 'seasonal':
+      return 'warning';
+    case 'discontinued':
+      return 'default';
+    default:
+      return 'success';
+  }
 }

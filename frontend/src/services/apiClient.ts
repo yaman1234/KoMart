@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '@/constants';
 import { useAuthStore } from '@/store';
+import { useLoadingStore } from '@/store/loading';
 
 // ── Key-case converters ───────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ export function decamelizeKeys(obj: unknown): unknown {
   return convertKeys(obj, toSnake);
 }
 
-// ── Axios instance ────────────────────────────────────────────────────────────
+// ── Axios instances ───────────────────────────────────────────────────────────
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -40,32 +41,120 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
-// Request: attach JWT + convert outgoing camelCase → snake_case
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = useAuthStore.getState().accessToken;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  if (config.params) {
-    config.params = decamelizeKeys(config.params);
-  }
-  if (config.data && typeof config.data === 'object') {
-    config.data = decamelizeKeys(config.data);
-  }
-  return config;
+/** Bare client for token refresh — avoids interceptor recursion */
+const refreshClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 30000,
 });
 
-// Response: convert incoming snake_case → camelCase; handle 401
+type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+
+let isRefreshing = false;
+let refreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+function processRefreshQueue(error: unknown, token: string | null = null) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else if (token) resolve(token);
+  });
+  refreshQueue = [];
+}
+
+function isAuthUrl(url?: string): boolean {
+  if (!url) return false;
+  return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout');
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = useAuthStore.getState().refreshToken;
+  if (!refreshToken) {
+    throw new Error('No refresh token');
+  }
+
+  const { data } = await refreshClient.post('/auth/refresh', {
+    refresh_token: refreshToken,
+  });
+
+  const normalized = camelizeKeys(data) as {
+    accessToken: string;
+    refreshToken: string;
+    user?: unknown;
+  };
+
+  useAuthStore.getState().setTokens(normalized.accessToken, normalized.refreshToken);
+  return normalized.accessToken;
+}
+
+// Request: attach JWT + convert outgoing camelCase → snake_case
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    useLoadingStore.getState().start();
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (config.params) {
+      config.params = decamelizeKeys(config.params);
+    }
+    if (config.data && typeof config.data === 'object') {
+      config.data = decamelizeKeys(config.data);
+    }
+    return config;
+  },
+  (error) => {
+    useLoadingStore.getState().stop();
+    return Promise.reject(error);
+  },
+);
+
+// Response: convert incoming snake_case → camelCase; refresh on 401
 apiClient.interceptors.response.use(
   (response) => {
+    useLoadingStore.getState().stop();
     response.data = camelizeKeys(response.data);
     return response;
   },
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
+  async (error: AxiosError) => {
+    useLoadingStore.getState().stop();
+
+    const original = error.config as RetryConfig | undefined;
+    const status = error.response?.status;
+
+    if (status !== 401 || !original || original._retry || isAuthUrl(original.url)) {
+      if (status === 401 && isAuthUrl(original?.url)) {
+        useAuthStore.getState().logout();
+      }
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    if (isRefreshing) {
+      return new Promise<string>((resolve, reject) => {
+        refreshQueue.push({ resolve, reject });
+      }).then((token) => {
+        original.headers.Authorization = `Bearer ${token}`;
+        return apiClient(original);
+      });
+    }
+
+    original._retry = true;
+    isRefreshing = true;
+
+    try {
+      const newToken = await refreshAccessToken();
+      processRefreshQueue(null, newToken);
+      original.headers.Authorization = `Bearer ${newToken}`;
+      return apiClient(original);
+    } catch (refreshError) {
+      processRefreshQueue(refreshError, null);
+      useAuthStore.getState().logout();
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
   },
 );
 

@@ -17,6 +17,8 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  TextField,
+  MenuItem,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import {
@@ -43,10 +45,13 @@ import {
   formatCurrency,
   formatDate,
   canViewAdminReports,
+  productStatusColor,
+  productStatusLabel,
 } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
 import { reportsService } from '@/services';
-import { PAYMENT_METHODS, PO_STATUS_LABELS } from '@/constants';
+import { PAYMENT_METHODS, PO_STATUS_LABELS, PRODUCT_STATUS_OPTIONS } from '@/constants';
+import type { ProductStatus } from '@/types';
 import {
   useSalesSummary,
   useSalesByPaymentMethod,
@@ -68,6 +73,7 @@ import {
   useDeadStock,
   useExpenseSummary,
 } from '@/hooks/useReports';
+import { useStoreSettings } from '@/hooks/useSettings';
 
 type ReportTab = 'sales' | 'inventory' | 'financial' | 'purchasing' | 'customers';
 
@@ -79,10 +85,13 @@ function paymentLabel(method: string): string {
 
 export function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>('sales');
+  const [inventoryStatusFilter, setInventoryStatusFilter] = useState<'' | ProductStatus>('');
   const [exporting, setExporting] = useState(false);
   const { dateRange, setDateRange } = useDashboardStore();
   const user = useAuthStore((s) => s.user);
   const canViewCashier = canViewAdminReports(user?.role);
+  const { data: storeSettings } = useStoreSettings();
+  const expiryWarningDays = storeSettings?.expiryWarningDays ?? 30;
 
   const salesTab = tab === 'sales';
   const inventoryTab = tab === 'inventory';
@@ -96,8 +105,8 @@ export function ReportsPage() {
   const topProductsQuery = useReportsTopProducts(salesTab);
   const salesByCategoryQuery = useReportsSalesByCategory(salesTab);
   const inventorySummaryQuery = useInventoryReportSummary(inventoryTab);
-  const expiringQuery = useExpiringProducts(inventoryTab);
-  const lowStockQuery = useLowStockReport(inventoryTab);
+  const expiringQuery = useExpiringProducts(inventoryTab, expiryWarningDays);
+  const lowStockQuery = useLowStockReport(inventoryTab, inventoryStatusFilter);
   const profitQuery = useProfitSummary(financialTab);
   const marginQuery = useMarginByCategory(financialTab);
   const expenseSummaryQuery = useExpenseSummary(financialTab);
@@ -715,6 +724,22 @@ export function ReportsPage() {
       {/* ── Inventory Tab ── */}
       {tab === 'inventory' && (
         <Box>
+          <Box sx={{ mb: 2, maxWidth: 220 }}>
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="Product Status"
+              value={inventoryStatusFilter}
+              onChange={(e) => setInventoryStatusFilter(e.target.value as '' | ProductStatus)}
+            >
+              <MenuItem value="">All Statuses</MenuItem>
+              {PRODUCT_STATUS_OPTIONS.map((s) => (
+                <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+              ))}
+            </TextField>
+          </Box>
+
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard title="Total SKUs" value={inventorySummary?.totalSkus ?? '—'} />
@@ -775,7 +800,8 @@ export function ReportsPage() {
                       <TableCell>Product</TableCell>
                       <TableCell>Category</TableCell>
                       <TableCell align="right">Stock</TableCell>
-                      <TableCell>Status</TableCell>
+                      <TableCell>Stock Level</TableCell>
+                      <TableCell>Product Status</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -789,6 +815,14 @@ export function ReportsPage() {
                             label={row.status === 'out' ? 'Out of stock' : 'Low stock'}
                             color={row.status === 'out' ? 'error' : 'warning'}
                             size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={productStatusLabel(row.productStatus)}
+                            color={productStatusColor(row.productStatus)}
+                            size="small"
+                            variant="outlined"
                           />
                         </TableCell>
                       </TableRow>

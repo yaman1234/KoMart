@@ -65,4 +65,5 @@ class PurchaseOrder(Document):
         indexes = [
             IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
             IndexModel([("supplier_id", ASCENDING), ("created_at", DESCENDING)]),
+            IndexModel([("order_number", ASCENDING)]),
         ]

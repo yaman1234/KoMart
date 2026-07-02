@@ -3,6 +3,7 @@ from pydantic import Field
 from typing import Optional
 from enum import Enum
 from datetime import datetime, timezone
+from pymongo import IndexModel, ASCENDING, DESCENDING
 
 
 class MembershipTier(str, Enum):
@@ -24,3 +25,6 @@ class Customer(Document):
 
     class Settings:
         name = "customers"
+        indexes = [
+            IndexModel([("created_at", DESCENDING)]),
+        ]

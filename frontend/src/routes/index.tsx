@@ -3,13 +3,13 @@ import { MainLayout } from '@/layouts/MainLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { ProtectedRoute, GuestRoute, RoleGuard } from '@/routes/guards';
 import { LoginPage } from '@/pages/auth/LoginPage';
-import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { POSPage } from '@/pages/pos/POSPage';
 import { ProductsPage } from '@/pages/products/ProductsPage';
 import { ProductFormPage } from '@/pages/products/ProductFormPage';
 import { ProductDetailPage } from '@/pages/products/ProductDetailPage';
 import { InventoryPage } from '@/pages/inventory/InventoryPage';
+import { InventoryDetailPage } from '@/pages/inventory/InventoryDetailPage';
 import { PurchaseOrdersPage } from '@/pages/purchase-orders/PurchaseOrdersPage';
 import { PurchaseOrderFormPage } from '@/pages/purchase-orders/PurchaseOrderFormPage';
 import { PurchaseOrderDetailPage } from '@/pages/purchase-orders/PurchaseOrderDetailPage';
@@ -24,7 +24,7 @@ import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { ExpensesPage } from '@/pages/expenses/ExpensesPage';
 import { ExpenseFormPage } from '@/pages/expenses/ExpenseFormPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
-import { PlaceholderPage } from '@/pages/PlaceholderPage';
+import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 
 export const router = createBrowserRouter([
   {
@@ -38,7 +38,6 @@ export const router = createBrowserRouter([
         element: <AuthLayout />,
         children: [
           { path: '/login', element: <LoginPage /> },
-          { path: '/forgot-password', element: <ForgotPasswordPage /> },
         ],
       },
     ],
@@ -58,7 +57,7 @@ export const router = createBrowserRouter([
           { path: '/products/:id', element: <ProductDetailPage /> },
           { path: '/customers', element: <CustomersPage /> },
           { path: '/customers/:id', element: <CustomerDetailPage /> },
-          { path: '/notifications', element: <PlaceholderPage title="Notifications" subtitle="Alerts and system notifications" /> },
+          { path: '/notifications', element: <NotificationsPage /> },
 
           // Manager + Admin only routes
           {
@@ -67,6 +66,7 @@ export const router = createBrowserRouter([
               { path: '/products/new', element: <ProductFormPage /> },
               { path: '/products/:id/edit', element: <ProductFormPage /> },
               { path: '/inventory', element: <InventoryPage /> },
+              { path: '/inventory/:productId', element: <InventoryDetailPage /> },
               { path: '/suppliers', element: <SuppliersPage /> },
               { path: '/suppliers/new', element: <SupplierFormPage /> },
               { path: '/suppliers/:id/edit', element: <SupplierFormPage /> },

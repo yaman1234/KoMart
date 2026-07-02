@@ -1,13 +1,15 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from datetime import datetime, timezone
 from math import ceil
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
-from app.models.product import Product
+from app.models.product import Product, ProductStatus, product_is_sellable
 from app.models.supplier import Supplier
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.schemas.common import PaginatedResponse
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit, product_snapshot
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -39,6 +41,8 @@ def _to_response(p: Product) -> ProductResponse:
         allergen_info=p.allergen_info,
         stock=p.stock,
         low_stock_threshold=p.low_stock_threshold,
+        status=p.status if hasattr(p, "status") and p.status else ProductStatus.active,
+        tags=p.tags if hasattr(p, "tags") and p.tags else [],
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat(),
     )
@@ -51,9 +55,16 @@ async def list_products(
     search: str = Query(""),
     category: str = Query(""),
     supplier_id: str = Query(""),
+    status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
+    sellable_only: bool = Query(False),
     _: User = Depends(get_current_user),
 ):
     query = Product.find(Product.is_active == True)  # noqa: E712
+    if sellable_only:
+        # Exclude discontinued only — legacy documents without `status` default to active in the model.
+        query = query.find(Product.status != ProductStatus.discontinued)
+    elif status:
+        query = query.find(Product.status == ProductStatus(status))
     if search:
         query = query.find({"$or": [
             {"name": {"$regex": search, "$options": "i"}},
@@ -78,7 +89,11 @@ async def list_products(
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-async def create_product(body: ProductCreate, _: User = Depends(require_manager_or_above)):
+async def create_product(
+    body: ProductCreate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
     if await Product.find_one(Product.sku == body.sku):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="SKU already exists")
     supplier = await _resolve_supplier(body.supplier_id)
@@ -90,6 +105,15 @@ async def create_product(body: ProductCreate, _: User = Depends(require_manager_
         stock=0,
     )
     await product.insert()
+    await log_audit(
+        module=AuditModule.products,
+        action="create",
+        user=current_user,
+        request=request,
+        entity_type="product",
+        entity_id=str(product.id),
+        new=product_snapshot(product),
+    )
     return _to_response(product)
 
 
@@ -103,11 +127,15 @@ async def get_product(product_id: str, _: User = Depends(get_current_user)):
 
 @router.patch("/{product_id}", response_model=ProductResponse)
 async def update_product(
-    product_id: str, body: ProductUpdate, _: User = Depends(require_manager_or_above)
+    product_id: str,
+    body: ProductUpdate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
 ):
     product = await Product.get(product_id)
     if not product:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+    before = product_snapshot(product)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if "supplier_id" in update_data:
         supplier = await _resolve_supplier(update_data["supplier_id"])
@@ -115,12 +143,61 @@ async def update_product(
     update_data["updated_at"] = datetime.now(timezone.utc)
     await product.set(update_data)
     refreshed = await Product.get(product_id)
+    after = product_snapshot(refreshed)  # type: ignore[arg-type]
+
+    price_changed = (
+        before.get("cost_price") != after.get("cost_price")
+        or before.get("selling_price") != after.get("selling_price")
+    )
+    if price_changed:
+        await log_audit(
+            module=AuditModule.products,
+            action="price_change",
+            user=current_user,
+            request=request,
+            entity_type="product",
+            entity_id=product_id,
+            previous={
+                "cost_price": before.get("cost_price"),
+                "selling_price": before.get("selling_price"),
+            },
+            new={
+                "cost_price": after.get("cost_price"),
+                "selling_price": after.get("selling_price"),
+            },
+        )
+
+    await log_audit(
+        module=AuditModule.products,
+        action="update",
+        user=current_user,
+        request=request,
+        entity_type="product",
+        entity_id=product_id,
+        previous=before,
+        new=after,
+    )
     return _to_response(refreshed)  # type: ignore[arg-type]
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(product_id: str, _: User = Depends(require_manager_or_above)):
+async def delete_product(
+    product_id: str,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
     product = await Product.get(product_id)
     if not product:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+    before = product_snapshot(product)
     await product.set({"is_active": False})
+    await log_audit(
+        module=AuditModule.products,
+        action="delete",
+        user=current_user,
+        request=request,
+        entity_type="product",
+        entity_id=product_id,
+        previous=before,
+        new={"is_active": False},
+    )

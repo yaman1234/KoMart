@@ -1,0 +1,294 @@
+import { useState } from 'react';
+import {
+  Box,
+  Button,
+  Grid,
+  Paper,
+  Tab,
+  Tabs,
+  Typography,
+  Alert,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import AddBoxIcon from '@mui/icons-material/AddBox';
+import TuneIcon from '@mui/icons-material/Tune';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { PageHeader } from '@/components/common/PageHeader';
+import { StatCard } from '@/components/common/StatCard';
+import { DataTable, type Column } from '@/components/tables/DataTable';
+import {
+  useInventoryItem,
+  useAdjustStock,
+  useReceiveBatch,
+} from '@/hooks/useInventory';
+import { MovementLedgerTab } from './MovementLedgerTab';
+import { useAuthStore } from '@/store';
+import { formatCurrency, formatDate } from '@/utils';
+import type { InventoryBatch, StockAdjustmentType } from '@/types';
+
+const ADJUSTMENT_TYPES: { value: StockAdjustmentType; label: string }[] = [
+  { value: 'adjustment', label: 'Stock Adjustment' },
+  { value: 'damaged', label: 'Damaged / Expired' },
+  { value: 'correction', label: 'Manual Correction' },
+];
+
+type DetailTab = 'batches' | 'ledger';
+
+export function InventoryDetailPage() {
+  const { productId } = useParams<{ productId: string }>();
+  const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
+  const [tab, setTab] = useState<DetailTab>('batches');
+
+  const { data: item, isLoading, isError } = useInventoryItem(productId ?? '');
+
+  const adjustMutation = useAdjustStock();
+  const receiveMutation = useReceiveBatch();
+
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [rcvBatch, setRcvBatch] = useState('');
+  const [rcvQty, setRcvQty] = useState('');
+  const [rcvExpiry, setRcvExpiry] = useState('');
+  const [rcvError, setRcvError] = useState('');
+
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjBatchId, setAdjBatchId] = useState('');
+  const [adjQty, setAdjQty] = useState('');
+  const [adjType, setAdjType] = useState<StockAdjustmentType>('adjustment');
+  const [adjReason, setAdjReason] = useState('');
+  const [adjError, setAdjError] = useState('');
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (isError || !item) {
+    return <Alert severity="error">Inventory item not found.</Alert>;
+  }
+
+  const activeBatches = item.batches.filter((b) => b.quantity > 0);
+  const stockColor =
+    item.stock === 0 ? 'error' : item.stock <= item.lowStockThreshold ? 'warning' : 'success';
+
+  const batchColumns: Column<InventoryBatch>[] = [
+    { id: 'batch', label: 'Batch No.', accessor: 'batchNumber' },
+    { id: 'qty', label: 'Quantity', align: 'right', accessor: 'quantity' },
+    {
+      id: 'expiry',
+      label: 'Expiry',
+      render: (row) => (row.expiryDate ? formatDate(row.expiryDate) : '—'),
+    },
+    {
+      id: 'received',
+      label: 'Received',
+      render: (row) => formatDate(row.receivedAt),
+    },
+  ];
+
+  const openReceive = () => {
+    setRcvBatch(`BATCH-${Date.now()}`);
+    setRcvQty('');
+    setRcvExpiry('');
+    setRcvError('');
+    setReceiveOpen(true);
+  };
+
+  const handleReceive = () => {
+    const qty = parseInt(rcvQty, 10);
+    if (isNaN(qty) || qty < 1) { setRcvError('Enter a quantity ≥ 1'); return; }
+    if (!rcvBatch.trim()) { setRcvError('Batch number is required'); return; }
+    receiveMutation.mutate(
+      {
+        productId: item.id,
+        batchNumber: rcvBatch,
+        quantity: qty,
+        expiryDate: rcvExpiry || undefined,
+      },
+      { onSuccess: () => setReceiveOpen(false) },
+    );
+  };
+
+  const openAdjust = () => {
+    const firstBatch = activeBatches[0];
+    setAdjBatchId(firstBatch?.id ?? '');
+    setAdjQty('');
+    setAdjType('adjustment');
+    setAdjReason('');
+    setAdjError('');
+    setAdjustOpen(true);
+  };
+
+  const handleAdjust = () => {
+    const qty = parseInt(adjQty, 10);
+    if (isNaN(qty) || qty === 0) { setAdjError('Enter a non-zero quantity'); return; }
+    if (!adjReason.trim()) { setAdjError('Reason is required'); return; }
+    adjustMutation.mutate(
+      {
+        productId: item.id,
+        batchId: adjBatchId || undefined,
+        type: adjType,
+        quantity: qty,
+        reason: adjReason,
+        createdBy: currentUser?.name ?? 'User',
+      },
+      { onSuccess: () => setAdjustOpen(false) },
+    );
+  };
+
+  return (
+    <Box>
+      <PageHeader
+        title={item.name}
+        subtitle={`${item.sku} · ${item.category}`}
+        breadcrumbs={[
+          { label: 'Inventory', path: '/inventory' },
+          { label: item.name },
+        ]}
+        action={
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              component={RouterLink}
+              to={`/products/${item.id}`}
+              variant="outlined"
+              startIcon={<OpenInNewIcon />}
+            >
+              Product
+            </Button>
+            {canManage && (
+              <Button variant="contained" color="success" startIcon={<AddBoxIcon />} onClick={openReceive}>
+                Receive
+              </Button>
+            )}
+            {canManage && (
+              <Button variant="outlined" startIcon={<TuneIcon />} onClick={openAdjust}>
+                Adjust
+              </Button>
+            )}
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/inventory')}>
+              Back
+            </Button>
+          </Box>
+        }
+      />
+
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <StatCard
+            title="Current Stock"
+            value={item.stock}
+            color={stockColor === 'success' ? undefined : `${stockColor}.main`}
+            subtitle={item.stock === 0 ? 'Out of stock' : item.stock <= item.lowStockThreshold ? 'Low stock' : undefined}
+          />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <StatCard title="Active Batches" value={item.batchCount ?? activeBatches.length} />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <StatCard
+            title="Stock Value"
+            value={formatCurrency(item.stock * item.costPrice)}
+          />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <StatCard
+            title="Nearest Expiry"
+            value={item.nearestExpiry ? formatDate(item.nearestExpiry) : '—'}
+          />
+        </Grid>
+      </Grid>
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="body2" color="text.secondary">Supplier</Typography>
+            <Typography>{item.supplierName || '—'}</Typography>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="body2" color="text.secondary">Low Stock Threshold</Typography>
+            <Typography>{item.lowStockThreshold}</Typography>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="body2" color="text.secondary">Cost / Sell Price</Typography>
+            <Typography>
+              {formatCurrency(item.costPrice)} / {formatCurrency(item.sellingPrice)}
+            </Typography>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Tabs value={tab} onChange={(_, v: DetailTab) => setTab(v)} sx={{ mb: 2 }}>
+        <Tab value="batches" label={`Batches (${item.batches.length})`} />
+        <Tab value="ledger" label="Movement Ledger" />
+      </Tabs>
+
+      {tab === 'batches' && (
+        <DataTable
+          columns={batchColumns}
+          rows={item.batches}
+          getRowId={(r) => r.id}
+          emptyMessage="No batches recorded"
+        />
+      )}
+
+      {tab === 'ledger' && productId && (
+        <MovementLedgerTab productId={productId} hideProductColumn />
+      )}
+
+      <Dialog open={receiveOpen} onClose={() => setReceiveOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Receive Stock — {item.name}</DialogTitle>
+        <DialogContent>
+          {rcvError && <Alert severity="error" sx={{ mb: 2 }}>{rcvError}</Alert>}
+          <TextField label="Batch Number" value={rcvBatch} onChange={(e) => setRcvBatch(e.target.value)} fullWidth margin="normal" required />
+          <TextField label="Quantity" value={rcvQty} onChange={(e) => setRcvQty(e.target.value)} type="number" fullWidth margin="normal" required slotProps={{ htmlInput: { min: 1 } }} />
+          <TextField label="Expiry Date" value={rcvExpiry} onChange={(e) => setRcvExpiry(e.target.value)} type="date" fullWidth margin="normal" slotProps={{ inputLabel: { shrink: true } }} />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setReceiveOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="success" onClick={handleReceive} loading={receiveMutation.isPending}>
+            Confirm Receipt
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={adjustOpen} onClose={() => setAdjustOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Adjust Stock — {item.name}</DialogTitle>
+        <DialogContent>
+          {adjError && <Alert severity="error" sx={{ mb: 2 }}>{adjError}</Alert>}
+          <TextField select label="Type" value={adjType} onChange={(e) => setAdjType(e.target.value as StockAdjustmentType)} fullWidth margin="normal">
+            {ADJUSTMENT_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+          </TextField>
+          {activeBatches.length > 0 && (
+            <TextField select label="Batch (optional)" value={adjBatchId} onChange={(e) => setAdjBatchId(e.target.value)} fullWidth margin="normal">
+              <MenuItem value="">Auto (FEFO)</MenuItem>
+              {activeBatches.map((b) => (
+                <MenuItem key={b.id} value={b.id}>{b.batchNumber} ({b.quantity} units)</MenuItem>
+              ))}
+            </TextField>
+          )}
+          <TextField label="Quantity (negative to reduce)" value={adjQty} onChange={(e) => setAdjQty(e.target.value)} type="number" fullWidth margin="normal" />
+          <TextField label="Reason" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} fullWidth margin="normal" multiline rows={2} />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAdjustOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleAdjust} loading={adjustMutation.isPending}>
+            Apply Adjustment
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}

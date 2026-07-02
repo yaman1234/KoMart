@@ -3,23 +3,28 @@ import { Box, Tab, Tabs, Alert } from '@mui/material';
 import StoreIcon from '@mui/icons-material/Store';
 import PeopleIcon from '@mui/icons-material/People';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import HistoryIcon from '@mui/icons-material/History';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useAuthStore } from '@/store';
-import { isAdmin } from '@/utils';
+import { isAdmin, isAdminOrManager } from '@/utils';
 import { StoreInfoTab } from './tabs/StoreInfoTab';
 import { UsersTab } from './tabs/UsersTab';
 import { CategoriesTab } from './tabs/CategoriesTab';
+import { AuditLogsTab } from './tabs/AuditLogsTab';
+import { DiscountsTab } from './tabs/DiscountsTab';
 
-type TabKey = 'store' | 'users' | 'categories';
+type TabKey = 'store' | 'users' | 'categories' | 'discounts' | 'audit';
 
-const TAB_ORDER: TabKey[] = ['store', 'users', 'categories'];
+const TAB_ORDER: TabKey[] = ['store', 'users', 'categories', 'discounts', 'audit'];
 
 export function SettingsPage() {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const adminOnly = isAdmin(user?.role);
+  const managerAccess = isAdminOrManager(user?.role);
 
   const initialTab = (tab as TabKey) ?? 'store';
   const [activeTab, setActiveTab] = useState<TabKey>(
@@ -39,7 +44,7 @@ export function SettingsPage() {
 
   return (
     <Box>
-      <PageHeader title="Settings" subtitle="Store configuration, users, and categories" />
+      <PageHeader title="Settings" subtitle="Store configuration, users, categories, discounts, and audit logs" />
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={handleTabChange}>
@@ -63,6 +68,22 @@ export function SettingsPage() {
             icon={<LocalOfferIcon />}
             iconPosition="start"
           />
+          {managerAccess && (
+            <Tab
+              value="discounts"
+              label="Discounts"
+              icon={<LocalOfferOutlinedIcon />}
+              iconPosition="start"
+            />
+          )}
+          {managerAccess && (
+            <Tab
+              value="audit"
+              label="Audit Logs"
+              icon={<HistoryIcon />}
+              iconPosition="start"
+            />
+          )}
         </Tabs>
       </Box>
 
@@ -75,6 +96,20 @@ export function SettingsPage() {
         )
       )}
       {activeTab === 'categories' && <CategoriesTab />}
+      {activeTab === 'discounts' && (
+        managerAccess ? (
+          <DiscountsTab />
+        ) : (
+          <Alert severity="error">Manager or admin access required to manage discounts.</Alert>
+        )
+      )}
+      {activeTab === 'audit' && (
+        managerAccess ? (
+          <AuditLogsTab />
+        ) : (
+          <Alert severity="error">Manager or admin access required to view audit logs.</Alert>
+        )
+      )}
     </Box>
   );
 }

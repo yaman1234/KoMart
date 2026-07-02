@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -27,21 +27,25 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
+import { ProductMetaChips } from '@/components/products/ProductMetaChips';
 import { useProducts, useInfiniteProducts } from '@/hooks/useProducts';
+import { useDiscountRules } from '@/hooks/useDiscounts';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { formatCurrency, isAdminOrManager } from '@/utils';
-import { PRODUCT_CATEGORIES } from '@/constants';
+import { formatCurrency, isAdminOrManager, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
+import { buildProductDiscountMap } from '@/utils/discountDisplay';
+import { PRODUCT_CATEGORIES, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useAuthStore } from '@/store';
-import type { Product } from '@/types';
+import type { Product, ProductStatus } from '@/types';
 
 // ── Grid card ──────────────────────────────────────────────────────────────────
 interface ProductGridCardProps {
   product: Product;
+  discountLabel?: string | null;
   onClick: () => void;
 }
 
-const ProductGridCard = memo(function ProductGridCard({ product, onClick }: ProductGridCardProps) {
+const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, onClick }: ProductGridCardProps) {
   const stockColor =
     product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
   const stockLabel =
@@ -93,12 +97,19 @@ const ProductGridCard = memo(function ProductGridCard({ product, onClick }: Prod
           >
             {product.name}
           </Typography>
-          {product.category && (
+          <Box sx={{ mb: 0.75 }}>
+            <ProductMetaChips
+              category={product.category}
+              tags={product.tags}
+              discountLabel={discountLabel}
+            />
+          </Box>
+          {productStatusOf(product.status) !== 'active' && (
             <Chip
-              label={product.category}
+              label={productStatusLabel(product.status)}
               size="small"
-              variant="outlined"
-              sx={{ mb: 0.75, height: 20, fontSize: '0.65rem' }}
+              color={productStatusColor(product.status)}
+              sx={{ mb: 0.75, ml: product.category ? 0.5 : 0, height: 20, fontSize: '0.65rem' }}
             />
           )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
@@ -131,6 +142,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
+  const [statusFilter, setStatusFilter] = useState<'' | ProductStatus>('');
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(24);
@@ -140,6 +152,7 @@ export function ProductsPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const { data: suppliersData } = useSuppliers({ pageSize: 200 });
+  const { data: discountRules = [] } = useDiscountRules(true);
   const suppliers = suppliersData?.data ?? [];
 
   // Shared query params (no page — used for infinite + list)
@@ -147,6 +160,7 @@ export function ProductsPage() {
     search: search || undefined,
     category: category || undefined,
     supplierId: supplierId || undefined,
+    status: statusFilter || undefined,
     sortBy: priceSort ? 'sellingPrice' : undefined,
     sortOrder: (priceSort || undefined) as 'asc' | 'desc' | undefined,
   };
@@ -178,6 +192,14 @@ export function ProductsPage() {
 
   // ── List products (paged, server-side stock filter not available so skip) ────
   const listProducts = pagedData?.data ?? [];
+
+  const discountMap = useMemo(
+    () => buildProductDiscountMap(
+      viewMode === 'grid' ? filteredGridProducts : listProducts,
+      discountRules,
+    ),
+    [viewMode, filteredGridProducts, listProducts, discountRules],
+  );
 
   // ── IntersectionObserver sentinel ───────────────────────────────────────────
   useEffect(() => {
@@ -218,6 +240,43 @@ export function ProductsPage() {
     { id: 'name', label: 'Product Name', minWidth: 180, accessor: 'name' },
     { id: 'sku', label: 'SKU', minWidth: 130, accessor: 'sku' },
     { id: 'category', label: 'Category', accessor: 'category' },
+    {
+      id: 'tags',
+      label: 'Tags',
+      minWidth: 140,
+      render: (row) => (
+        row.tags && row.tags.length > 0 ? (
+          <ProductMetaChips tags={row.tags} showCategory={false} maxTags={2} />
+        ) : (
+          '—'
+        )
+      ),
+    },
+    {
+      id: 'discount',
+      label: 'Discount',
+      minWidth: 120,
+      render: (row) => {
+        const label = discountMap.get(row.id);
+        return label ? (
+          <Chip label={label} size="small" color="success" sx={{ height: 22, fontSize: '0.7rem' }} />
+        ) : (
+          '—'
+        );
+      },
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      render: (row) => (
+        <Chip
+          label={productStatusLabel(row.status)}
+          size="small"
+          color={productStatusColor(row.status)}
+          variant={productStatusOf(row.status) === 'active' ? 'outlined' : 'filled'}
+        />
+      ),
+    },
     { id: 'brand', label: 'Brand', accessor: 'brand' },
     {
       id: 'supplier',
@@ -314,6 +373,21 @@ export function ProductsPage() {
           </Select>
         </FormControl>
 
+        {/* Product status */}
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Status</InputLabel>
+          <Select
+            label="Status"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value as '' | ProductStatus); resetFilters(); }}
+          >
+            <MenuItem value="">All Statuses</MenuItem>
+            {PRODUCT_STATUS_OPTIONS.map((s) => (
+              <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         {/* Stock status quick filter */}
         <ToggleButtonGroup
           value={stockFilter}
@@ -385,6 +459,7 @@ export function ProductsPage() {
                 <Grid key={product.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                   <ProductGridCard
                     product={product}
+                    discountLabel={discountMap.get(product.id)}
                     onClick={() => navigate(`/products/${product.id}`)}
                   />
                 </Grid>

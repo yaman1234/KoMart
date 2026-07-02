@@ -20,7 +20,7 @@ import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatDate, isAdminOrManager } from '@/utils';
+import { formatCurrency, formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
@@ -134,6 +134,12 @@ export function ProductDetailPage() {
                 {formatCurrency(product.sellingPrice)}
               </Typography>
               <Chip label={stockStatus.label} color={stockStatus.color} sx={{ fontWeight: 600 }} />
+              <Chip
+                label={productStatusLabel(product.status)}
+                color={productStatusColor(product.status)}
+                variant="outlined"
+                sx={{ fontWeight: 600 }}
+              />
             </Box>
 
             {canSeeCostPrice && (

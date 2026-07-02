@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from math import ceil
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User, UserRole
 from app.models.transaction import Transaction, PaymentMethod
-from app.schemas.transaction import TransactionCreate, TransactionResponse
+from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionUpdate
 from app.schemas.common import PaginatedResponse
-from app.services.sales import record_sale, _to_response
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit, sale_snapshot
+from app.services.sales import record_sale, update_transaction, _to_response
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
@@ -74,5 +76,45 @@ async def get_transaction(txn_id: str, current_user: User = Depends(get_current_
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
-async def create_transaction(body: TransactionCreate, current_user: User = Depends(get_current_user)):
-    return await record_sale(body, cashier_id=str(current_user.id))
+async def create_transaction(
+    body: TransactionCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    result = await record_sale(body, cashier_id=str(current_user.id))
+    await log_audit(
+        module=AuditModule.sales,
+        action="create",
+        user=current_user,
+        request=request,
+        entity_type="transaction",
+        entity_id=result.id,
+        new=sale_snapshot(result),
+    )
+    return result
+
+
+@router.patch("/{txn_id}", response_model=TransactionResponse)
+async def patch_transaction(
+    txn_id: str,
+    body: TransactionUpdate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    txn = await Transaction.get(txn_id)
+    if not txn:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    before = sale_snapshot(_to_response(txn))
+    result = await update_transaction(txn_id, body)
+    await log_audit(
+        module=AuditModule.sales,
+        action="update",
+        user=current_user,
+        request=request,
+        entity_type="transaction",
+        entity_id=txn_id,
+        previous=before,
+        new=sale_snapshot(result),
+    )
+    return result

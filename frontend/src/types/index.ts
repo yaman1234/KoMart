@@ -38,6 +38,52 @@ export interface LoginCredentials {
   password: string;
 }
 
+export type ProductStatus = 'active' | 'discontinued' | 'seasonal';
+
+export type DiscountRuleType =
+  | 'product_percent'
+  | 'product_flat'
+  | 'category_percent'
+  | 'category_flat'
+  | 'cart_percent'
+  | 'cart_flat';
+
+export interface DiscountRule {
+  id: string;
+  name: string;
+  code: string;
+  ruleType: DiscountRuleType;
+  value: number;
+  productId: string;
+  category: string;
+  minCartTotal: number;
+  maxDiscount: number;
+  startsAt?: string;
+  endsAt?: string;
+  isActive: boolean;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppliedPromotion {
+  ruleId: string;
+  name: string;
+  amount: number;
+}
+
+export interface EvaluateDiscountResult {
+  lineItems: Array<{
+    productId: string;
+    perUnitDiscount: number;
+    lineDiscount: number;
+  }>;
+  lineDiscountTotal: number;
+  cartDiscount: number;
+  promotionDiscountTotal: number;
+  appliedPromotions: AppliedPromotion[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -57,6 +103,8 @@ export interface Product {
   allergenInfo?: string;
   stock: number;
   lowStockThreshold: number;
+  status?: ProductStatus;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +114,7 @@ export interface InventoryBatch {
   productId: string;
   batchNumber: string;
   quantity: number;
+  unitCost?: number;
   expiryDate?: string;
   purchaseOrderId?: string;
   receivedAt: string;
@@ -85,17 +134,75 @@ export interface InventoryStats {
   inventoryValue: number;
 }
 
-export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale';
+export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive';
 
 export interface StockAdjustment {
   id: string;
   productId: string;
+  productName?: string;
   batchId?: string;
+  transactionId?: string;
   type: StockAdjustmentType;
   quantity: number;
+  stockBefore?: number;
+  stockAfter?: number;
+  source?: 'manual' | 'sale';
   reason: string;
   createdBy: string;
   createdAt: string;
+}
+
+export type MovementDirection = 'in' | 'out';
+
+export type MovementReferenceType =
+  | 'sale'
+  | 'receive'
+  | 'purchase_order'
+  | 'adjustment'
+  | 'damaged'
+  | 'correction';
+
+export interface InventoryMovement {
+  id: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  batchId?: string;
+  transactionId?: string;
+  referenceType: MovementReferenceType | string;
+  referenceId: string;
+  referenceLabel: string;
+  transactionNumber?: string;
+  type: StockAdjustmentType;
+  direction: MovementDirection;
+  movementLabel: string;
+  quantity: number;
+  stockBefore: number;
+  stockAfter: number;
+  unitCost?: number;
+  extendedCost?: number;
+  unitSellingPrice?: number;
+  extendedRevenue?: number;
+  reason: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface MovementSummary {
+  movementCount: number;
+  totalIn: number;
+  totalOut: number;
+}
+
+export interface InventoryMovementQueryParams {
+  page?: number;
+  pageSize?: number;
+  productId?: string;
+  search?: string;
+  direction?: '' | 'in' | 'out';
+  movementType?: '' | MovementReferenceType;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Supplier {
@@ -181,6 +288,10 @@ export interface CartItem {
   price: number;
   quantity: number;
   discount: number;
+  category?: string;
+  listPrice?: number;
+  unitCost?: number;
+  batchAllocations?: Array<{ batchId: string; quantity: number; unitCost: number }>;
 }
 
 export interface Transaction {
@@ -191,9 +302,14 @@ export interface Transaction {
   items: CartItem[];
   subtotal: number;
   discount: number;
+  promotionDiscount?: number;
+  manualDiscount?: number;
+  appliedPromotions?: AppliedPromotion[];
+  couponCode?: string;
   tax: number;
   loyaltyPointsRedeemed: number;
   total: number;
+  totalCost?: number;
   paymentMethod: PaymentMethod;
   createdAt: string;
   createdBy: string;
@@ -245,10 +361,34 @@ export interface StoreSettings {
   address: string;
   phone: string;
   email: string;
+  logoUrl: string;
+  pan: string;
+  vatNumber: string;
   currency: string;
   taxRate: number;
   taxInclusive: boolean;
+  receiptHeader: string;
+  receiptFooter: string;
+  autoPrint: boolean;
+  defaultPaymentMethod: PaymentMethod;
+  defaultLowStockThreshold: number;
+  expiryWarningDays: number;
+  autoSku: boolean;
+  barcodeFormat: string;
   loyaltyPointsPerCurrency: number;
+  loyaltyRedeemRate: number;
+  transactionPrefix: string;
+  purchaseOrderPrefix: string;
+  dateFormat: string;
+  timeFormat: '12h' | '24h';
+}
+
+export interface ReceiptBranding {
+  storeName: string;
+  address?: string;
+  phone?: string;
+  receiptHeader?: string;
+  receiptFooter?: string;
 }
 
 export interface UserPreferences {
@@ -340,6 +480,7 @@ export interface LowStockProductRow {
   stock: number;
   lowStockThreshold: number;
   status: 'low' | 'out';
+  productStatus?: ProductStatus;
 }
 
 export interface ProfitDataPoint {
@@ -426,6 +567,7 @@ export interface DeadStockProduct {
   stock: number;
   stockValue: number;
   daysWithoutSale: number;
+  productStatus?: ProductStatus;
 }
 
 export interface ListQueryParams {
@@ -434,7 +576,7 @@ export interface ListQueryParams {
   search?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  [key: string]: string | number | undefined;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export type ExpenseCategory =
@@ -480,4 +622,44 @@ export interface ExpenseSummary {
   setupInvestment: number;
   byCategory: ExpenseByCategory[];
   daily: ExpenseDataPoint[];
+}
+
+export type AuditModule =
+  | 'auth'
+  | 'products'
+  | 'inventory'
+  | 'sales'
+  | 'purchase_orders'
+  | 'settings'
+  | 'users';
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  module: AuditModule;
+  action: string;
+  entityType: string;
+  entityId: string;
+  previousValue: Record<string, unknown>;
+  newValue: Record<string, unknown>;
+  ipAddress: string;
+  userAgent: string;
+  browser: string;
+  device: string;
+  requestId: string;
+  createdAt: string;
+}
+
+export interface AuditLogQueryParams {
+  page?: number;
+  pageSize?: number;
+  module?: string;
+  action?: string;
+  userId?: string;
+  entityType?: string;
+  entityId?: string;
+  startDate?: string;
+  endDate?: string;
 }

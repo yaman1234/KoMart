@@ -13,6 +13,12 @@ class PaymentMethod(str, Enum):
     khalti = "khalti"
 
 
+class BatchAllocation(BaseModel):
+    batch_id: str
+    quantity: int
+    unit_cost: float = 0.0
+
+
 class TransactionItem(BaseModel):
     product_id: str
     name: str
@@ -20,6 +26,16 @@ class TransactionItem(BaseModel):
     price: float
     quantity: int
     discount: float = 0.0
+    list_price: float = 0.0
+    unit_cost: float = 0.0
+    category: str = ""
+    batch_allocations: list[BatchAllocation] = Field(default_factory=list)
+
+
+class AppliedPromotion(BaseModel):
+    rule_id: str
+    name: str
+    amount: float
 
 
 class Transaction(Document):
@@ -29,9 +45,14 @@ class Transaction(Document):
     items: list[TransactionItem] = Field(default_factory=list)
     subtotal: float
     discount: float = 0.0
+    promotion_discount: float = 0.0
+    manual_discount: float = 0.0
+    applied_promotions: list[AppliedPromotion] = Field(default_factory=list)
+    coupon_code: str = ""
     tax: float
     loyalty_points_redeemed: int = 0
     total: float
+    total_cost: float = 0.0
     payment_method: PaymentMethod
     created_by: str
     cashier_id: Optional[str] = None
@@ -43,4 +64,5 @@ class Transaction(Document):
             IndexModel([("customer_id", ASCENDING), ("created_at", DESCENDING)]),
             IndexModel([("created_at", DESCENDING)]),
             IndexModel([("payment_method", ASCENDING), ("created_at", DESCENDING)]),
+            IndexModel([("cashier_id", ASCENDING), ("created_at", DESCENDING)]),
         ]

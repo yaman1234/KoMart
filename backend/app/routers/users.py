@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import List
 
 from app.auth.dependencies import get_current_user, require_admin_only
 from app.auth.jwt import hash_password
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserUpdate, UserMeUpdate, UserListItem
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit, user_snapshot
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -45,7 +47,11 @@ async def list_users(_: User = Depends(require_admin_only)):
 
 
 @router.post("", response_model=UserListItem, status_code=status.HTTP_201_CREATED)
-async def create_user(body: UserCreate, _: User = Depends(require_admin_only)):
+async def create_user(
+    body: UserCreate,
+    request: Request,
+    admin: User = Depends(require_admin_only),
+):
     if await User.find_one(User.email == body.email):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered")
     user = User(
@@ -55,6 +61,15 @@ async def create_user(body: UserCreate, _: User = Depends(require_admin_only)):
         role=body.role,
     )
     await user.insert()
+    await log_audit(
+        module=AuditModule.users,
+        action="create",
+        user=admin,
+        request=request,
+        entity_type="user",
+        entity_id=str(user.id),
+        new=user_snapshot(user),
+    )
     return _to_list_item(user)
 
 
@@ -67,18 +82,23 @@ async def get_user(user_id: str, _: User = Depends(require_admin_only)):
 
 
 @router.patch("/{user_id}", response_model=UserListItem)
-async def update_user(user_id: str, body: UserUpdate, admin: User = Depends(require_admin_only)):
+async def update_user(
+    user_id: str,
+    body: UserUpdate,
+    request: Request,
+    admin: User = Depends(require_admin_only),
+):
     user = await User.get(user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Prevent admin from demoting or deactivating themselves
     if str(user.id) == str(admin.id):
         if body.role is not None and body.role != UserRole.admin:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
         if body.is_active is False:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate yourself")
 
+    before = user_snapshot(user)
     update_data: dict = {}
     if body.name is not None:
         update_data["name"] = body.name
@@ -95,15 +115,42 @@ async def update_user(user_id: str, body: UserUpdate, admin: User = Depends(requ
 
     if update_data:
         await user.set(update_data)
+        refreshed = await User.get(user_id)
+        after = user_snapshot(refreshed)  # type: ignore[arg-type]
+        await log_audit(
+            module=AuditModule.users,
+            action="update",
+            user=admin,
+            request=request,
+            entity_type="user",
+            entity_id=user_id,
+            previous=before,
+            new=after,
+        )
     refreshed = await User.get(user_id)
     return _to_list_item(refreshed)  # type: ignore[arg-type]
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def deactivate_user(user_id: str, admin: User = Depends(require_admin_only)):
+async def deactivate_user(
+    user_id: str,
+    request: Request,
+    admin: User = Depends(require_admin_only),
+):
     user = await User.get(user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
     if str(user.id) == str(admin.id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate yourself")
+    before = user_snapshot(user)
     await user.set({"is_active": False})
+    await log_audit(
+        module=AuditModule.users,
+        action="deactivate",
+        user=admin,
+        request=request,
+        entity_type="user",
+        entity_id=user_id,
+        previous=before,
+        new={"is_active": False},
+    )
