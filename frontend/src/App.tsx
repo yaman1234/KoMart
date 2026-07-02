@@ -5,6 +5,7 @@ import { queryClient } from '@/hooks/queryClient';
 import { useThemeStore } from '@/store';
 import { createAppTheme } from '@/theme';
 import { router } from '@/routes';
+import { GlobalLoader } from '@/components/common/GlobalLoader';
 
 export function App() {
   const mode = useThemeStore((s) => s.mode);
@@ -14,6 +15,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <GlobalLoader />
         <RouterProvider router={router} />
       </ThemeProvider>
     </QueryClientProvider>

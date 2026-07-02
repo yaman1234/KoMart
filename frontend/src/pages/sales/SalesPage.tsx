@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, MenuItem, TextField } from '@mui/material';
+import { Box, MenuItem, TextField, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
@@ -40,6 +40,19 @@ export function SalesPage() {
       label: 'Total',
       align: 'right',
       render: (r) => formatCurrency(r.total),
+    },
+    {
+      id: 'discount',
+      label: 'Discount',
+      align: 'right',
+      render: (r) => {
+        const saved = (r.subtotal ?? 0) - (r.total ?? 0) + (r.tax ?? 0);
+        return saved > 0 ? (
+          <Typography component="span" variant="body2" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            − {formatCurrency(saved)}
+          </Typography>
+        ) : '—';
+      },
     },
     {
       id: 'payment',

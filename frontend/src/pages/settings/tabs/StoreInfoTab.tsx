@@ -11,65 +11,92 @@ import {
   Switch,
   FormControlLabel,
   CircularProgress,
+  MenuItem,
+  Divider,
 } from '@mui/material';
 import StoreIcon from '@mui/icons-material/Store';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { settingsService } from '@/services';
+import { useStoreSettings } from '@/hooks/useSettings';
 import { useAuthStore } from '@/store';
 import { isAdmin } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
+import type { PaymentMethod, StoreSettings } from '@/types';
+
+const NUMERIC_KEYS = new Set([
+  'taxRate',
+  'loyaltyPointsPerCurrency',
+  'loyaltyRedeemRate',
+  'defaultLowStockThreshold',
+  'expiryWarningDays',
+]);
+
+const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'esewa', label: 'eSewa' },
+  { value: 'khalti', label: 'Khalti' },
+];
+
+function emptyForm(): StoreSettings {
+  return {
+    storeName: '',
+    address: '',
+    phone: '',
+    email: '',
+    logoUrl: '',
+    pan: '',
+    vatNumber: '',
+    currency: 'NPR',
+    taxRate: 13,
+    taxInclusive: false,
+    receiptHeader: '',
+    receiptFooter: '',
+    autoPrint: false,
+    defaultPaymentMethod: 'cash',
+    defaultLowStockThreshold: 10,
+    expiryWarningDays: 30,
+    autoSku: false,
+    barcodeFormat: 'any',
+    loyaltyPointsPerCurrency: 100,
+    loyaltyRedeemRate: 1,
+    transactionPrefix: 'TXN',
+    purchaseOrderPrefix: 'PO',
+    dateFormat: 'en-US',
+    timeFormat: '12h',
+  };
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <Grid size={12}>
+      <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mt: 1 }}>
+        {children}
+      </Typography>
+      <Divider sx={{ mb: 0.5 }} />
+    </Grid>
+  );
+}
 
 export function StoreInfoTab() {
   const user = useAuthStore((s) => s.user);
   const canEdit = isAdmin(user?.role);
   const queryClient = useQueryClient();
+  const { data: settings, isLoading } = useStoreSettings();
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.settings,
-    queryFn: settingsService.get,
-  });
-
-  const [form, setForm] = useState({
-    storeName: '',
-    address: '',
-    phone: '',
-    email: '',
-    currency: 'NPR',
-    taxRate: 13,
-    taxInclusive: false,
-    loyaltyPointsPerCurrency: 100,
-  });
+  const [form, setForm] = useState<StoreSettings>(emptyForm);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (settings) {
-      setForm({
-        storeName: settings.storeName ?? '',
-        address: settings.address ?? '',
-        phone: settings.phone ?? '',
-        email: settings.email ?? '',
-        currency: settings.currency ?? 'NPR',
-        taxRate: settings.taxRate ?? 13,
-        taxInclusive: settings.taxInclusive ?? false,
-        loyaltyPointsPerCurrency: settings.loyaltyPointsPerCurrency ?? 100,
-      });
+      setForm({ ...emptyForm(), ...settings });
     }
   }, [settings]);
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      settingsService.update({
-        storeName: form.storeName,
-        address: form.address,
-        phone: form.phone,
-        email: form.email,
-        currency: form.currency,
-        taxRate: form.taxRate,
-        taxInclusive: form.taxInclusive,
-        loyaltyPointsPerCurrency: form.loyaltyPointsPerCurrency,
-      }),
+    mutationFn: () => settingsService.update(form),
     onSuccess: () => {
       setSuccess(true);
       setError('');
@@ -81,20 +108,28 @@ export function StoreInfoTab() {
     },
   });
 
-  const change = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked :
-      (key === 'taxRate' || key === 'loyaltyPointsPerCurrency') ? Number(e.target.value) :
-      e.target.value;
+  const change = (key: keyof StoreSettings) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.type === 'checkbox'
+      ? e.target.checked
+      : NUMERIC_KEYS.has(key)
+        ? Number(e.target.value)
+        : e.target.value;
     setForm((f) => ({ ...f, [key]: value }));
   };
 
-  if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
         <StoreIcon color="primary" />
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>Store Information</Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>Store Settings</Typography>
       </Box>
 
       {!canEdit && (
@@ -107,61 +142,33 @@ export function StoreInfoTab() {
 
       <Paper sx={{ p: 3 }}>
         <Grid container spacing={2.5}>
-          <Grid size={12}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>Basic Info</Typography>
+          <SectionTitle>Store &amp; Legal</SectionTitle>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField label="Store Name" value={form.storeName} onChange={change('storeName')} fullWidth disabled={!canEdit} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              label="Store Name"
-              value={form.storeName}
-              onChange={change('storeName')}
-              fullWidth
-              disabled={!canEdit}
-            />
+            <TextField label="Email" type="email" value={form.email} onChange={change('email')} fullWidth disabled={!canEdit} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              label="Email"
-              type="email"
-              value={form.email}
-              onChange={change('email')}
-              fullWidth
-              disabled={!canEdit}
-            />
+            <TextField label="Phone" value={form.phone} onChange={change('phone')} fullWidth disabled={!canEdit} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              label="Phone"
-              value={form.phone}
-              onChange={change('phone')}
-              fullWidth
-              disabled={!canEdit}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              label="Currency"
-              value={form.currency}
-              onChange={change('currency')}
-              fullWidth
-              disabled={!canEdit}
-            />
+            <TextField label="Currency" value={form.currency} onChange={change('currency')} fullWidth disabled={!canEdit} />
           </Grid>
           <Grid size={12}>
-            <TextField
-              label="Address"
-              value={form.address}
-              onChange={change('address')}
-              fullWidth
-              multiline
-              rows={2}
-              disabled={!canEdit}
-            />
+            <TextField label="Address" value={form.address} onChange={change('address')} fullWidth multiline rows={2} disabled={!canEdit} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField label="Logo URL" value={form.logoUrl} onChange={change('logoUrl')} fullWidth disabled={!canEdit} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 3 }}>
+            <TextField label="PAN" value={form.pan} onChange={change('pan')} fullWidth disabled={!canEdit} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 3 }}>
+            <TextField label="VAT Number" value={form.vatNumber} onChange={change('vatNumber')} fullWidth disabled={!canEdit} />
           </Grid>
 
-          <Grid size={12}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mt: 1 }}>Tax & Loyalty</Typography>
-          </Grid>
+          <SectionTitle>Tax &amp; Loyalty</SectionTitle>
           <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               label="Tax Rate (%)"
@@ -175,7 +182,7 @@ export function StoreInfoTab() {
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <TextField
-              label="Loyalty Points per 100 Currency"
+              label="Points per 100 Currency"
               type="number"
               value={form.loyaltyPointsPerCurrency}
               onChange={change('loyaltyPointsPerCurrency')}
@@ -183,17 +190,160 @@ export function StoreInfoTab() {
               disabled={!canEdit}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', alignItems: 'center' }}>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Redeem Rate (points = 1 NPR)"
+              type="number"
+              value={form.loyaltyRedeemRate}
+              onChange={change('loyaltyRedeemRate')}
+              fullWidth
+              disabled={!canEdit}
+            />
+          </Grid>
+          <Grid size={12}>
             <FormControlLabel
-              control={
-                <Switch
-                  checked={form.taxInclusive}
-                  onChange={change('taxInclusive')}
-                  disabled={!canEdit}
-                />
-              }
+              control={<Switch checked={form.taxInclusive} onChange={change('taxInclusive')} disabled={!canEdit} />}
               label="Tax Inclusive Pricing"
             />
+          </Grid>
+
+          <SectionTitle>POS &amp; Receipts</SectionTitle>
+          <Grid size={12}>
+            <TextField
+              label="Receipt Header"
+              value={form.receiptHeader}
+              onChange={change('receiptHeader')}
+              fullWidth
+              multiline
+              rows={2}
+              disabled={!canEdit}
+              helperText="Optional lines shown below store name on receipts"
+            />
+          </Grid>
+          <Grid size={12}>
+            <TextField
+              label="Receipt Footer"
+              value={form.receiptFooter}
+              onChange={change('receiptFooter')}
+              fullWidth
+              multiline
+              rows={2}
+              disabled={!canEdit}
+              helperText="Replaces default thank-you message when set"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              select
+              label="Default Payment Method"
+              value={form.defaultPaymentMethod}
+              onChange={change('defaultPaymentMethod')}
+              fullWidth
+              disabled={!canEdit}
+            >
+              {PAYMENT_METHODS.map((m) => (
+                <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', alignItems: 'center' }}>
+            <FormControlLabel
+              control={<Switch checked={form.autoPrint} onChange={change('autoPrint')} disabled={!canEdit} />}
+              label="Auto-print receipt after payment"
+            />
+          </Grid>
+
+          <SectionTitle>Inventory Defaults</SectionTitle>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Default Low-Stock Threshold"
+              type="number"
+              value={form.defaultLowStockThreshold}
+              onChange={change('defaultLowStockThreshold')}
+              fullWidth
+              disabled={!canEdit}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Expiry Warning (days)"
+              type="number"
+              value={form.expiryWarningDays}
+              onChange={change('expiryWarningDays')}
+              fullWidth
+              disabled={!canEdit}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              select
+              label="Barcode Format"
+              value={form.barcodeFormat}
+              onChange={change('barcodeFormat')}
+              fullWidth
+              disabled={!canEdit}
+            >
+              <MenuItem value="any">Any</MenuItem>
+              <MenuItem value="ean13">EAN-13</MenuItem>
+              <MenuItem value="code128">Code 128</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={12}>
+            <FormControlLabel
+              control={<Switch checked={form.autoSku} onChange={change('autoSku')} disabled={!canEdit} />}
+              label="Auto-generate SKU when brand and category are set (new products)"
+            />
+          </Grid>
+
+          <SectionTitle>Business</SectionTitle>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Transaction Number Prefix"
+              value={form.transactionPrefix}
+              onChange={change('transactionPrefix')}
+              fullWidth
+              disabled={!canEdit}
+              helperText="e.g. TXN → TXN-2026-06-29-001"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Purchase Order Prefix"
+              value={form.purchaseOrderPrefix}
+              onChange={change('purchaseOrderPrefix')}
+              fullWidth
+              disabled={!canEdit}
+              helperText="e.g. PO → PO-2026-06-29-001"
+            />
+          </Grid>
+
+          <SectionTitle>Appearance</SectionTitle>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              select
+              label="Date Format Locale"
+              value={form.dateFormat}
+              onChange={change('dateFormat')}
+              fullWidth
+              disabled={!canEdit}
+            >
+              <MenuItem value="en-US">en-US (MM/DD/YYYY)</MenuItem>
+              <MenuItem value="en-GB">en-GB (DD/MM/YYYY)</MenuItem>
+              <MenuItem value="ne-NP">ne-NP</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              select
+              label="Time Format"
+              value={form.timeFormat}
+              onChange={change('timeFormat')}
+              fullWidth
+              disabled={!canEdit}
+            >
+              <MenuItem value="12h">12-hour</MenuItem>
+              <MenuItem value="24h">24-hour</MenuItem>
+            </TextField>
           </Grid>
 
           {canEdit && (

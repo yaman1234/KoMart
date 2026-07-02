@@ -19,7 +19,8 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, useThemeStore, useUIStore } from '@/store';
-import { useNotifications } from '@/hooks/useDashboard';
+import { authService } from '@/services';
+import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
 import { NotificationPanel } from '@/components/common/NotificationPanel';
 import { getInitials } from '@/utils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
@@ -42,11 +43,14 @@ export function TopBar({ title }: TopBarProps) {
     setNotificationPanelOpen,
   } = useUIStore();
   const { data: notifications = [] } = useNotifications();
+  const markReadMutation = useMarkNotificationRead();
+  const markAllMutation = useMarkAllNotificationsRead();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await authService.logout();
     logout();
     navigate('/login');
   };
@@ -130,6 +134,9 @@ export function TopBar({ title }: TopBarProps) {
         open={notificationPanelOpen}
         onClose={() => setNotificationPanelOpen(false)}
         notifications={notifications}
+        onMarkRead={(id) => markReadMutation.mutate(id)}
+        onMarkAllRead={() => markAllMutation.mutate()}
+        markingAll={markAllMutation.isPending}
         onNavigate={(link) => {
           setNotificationPanelOpen(false);
           navigate(link);

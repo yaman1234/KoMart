@@ -52,6 +52,7 @@ class LowStockProductRow(BaseModel):
     stock: int
     low_stock_threshold: int
     status: str
+    product_status: str = "active"
 
 
 class ProfitDataPoint(BaseModel):
@@ -138,6 +139,7 @@ class DeadStockProduct(BaseModel):
     stock: int
     stock_value: float
     days_without_sale: int
+    product_status: str = "active"
 
 
 class ExpenseByCategory(BaseModel):

@@ -24,6 +24,8 @@ from app.models.notification import Notification, NotificationType
 from app.models.settings import StoreSettings
 from app.models.expense import Expense, ExpenseCategory
 from app.models.category import Category
+from app.models.refresh_token import RefreshToken
+from app.models.audit_log import AuditLog
 from app.services.stock import refresh_all_product_stocks
 
 # ---------------------------------------------------------------------------
@@ -384,7 +386,8 @@ async def seed():
 
     # Clear all collections
     for model in [User, Product, InventoryBatch, StockAdjustment, Supplier, PurchaseOrder,
-                  Customer, Transaction, Notification, StoreSettings, Expense, Category]:
+                  Customer, Transaction, Notification, StoreSettings, Expense, Category,
+                  RefreshToken, AuditLog]:
         await model.find_all().delete()
     print("Cleared existing collections.")
 

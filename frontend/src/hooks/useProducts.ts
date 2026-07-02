@@ -1,5 +1,5 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@/constants';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { productService } from '@/services';
 import type { ListQueryParams, Product } from '@/types';
 
@@ -11,6 +11,8 @@ export function useProducts(
     queryKey: [...QUERY_KEYS.products, params],
     queryFn: () => productService.getAll(params),
     enabled: options?.enabled ?? true,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_TIME.standard,
   });
 }
 

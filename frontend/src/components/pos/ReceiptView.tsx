@@ -1,101 +1,36 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
+import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
-import type { Transaction } from '@/types';
+import type { ReceiptBranding, Transaction } from '@/types';
 
-export function printReceipt(html: string) {
-  const win = window.open('', '_blank', 'width=400,height=700');
-  if (!win) return;
-  win.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Receipt</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 80mm; padding: 4mm; }
-    .center { text-align: center; }
-    .right  { text-align: right; }
-    .bold   { font-weight: bold; }
-    .lg     { font-size: 16px; }
-    .xl     { font-size: 20px; }
-    .sep    { border-top: 1px dashed #000; margin: 5px 0; }
-    .row    { display: flex; justify-content: space-between; margin: 1px 0; }
-    table   { width: 100%; border-collapse: collapse; margin: 4px 0; }
-    th, td  { padding: 2px 2px; vertical-align: top; font-size: 11px; }
-    th      { font-weight: bold; border-bottom: 1px solid #000; }
-    .name   { width: 45%; }
-    .qty    { width: 10%; text-align: center; }
-    .rate   { width: 20%; text-align: right; }
-    .amt    { width: 25%; text-align: right; }
-    @media print { body { width: 80mm; } @page { margin: 0; } }
-  </style>
-</head>
-<body>${html}</body>
-</html>`);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 400);
-}
-
-export function buildReceiptHtml(txn: Transaction, tendered?: number): string {
-  const change = tendered !== undefined ? tendered - txn.total : undefined;
-
-  const itemRows = txn.items.map((item) => `
-    <tr>
-      <td class="name">${item.name}</td>
-      <td class="qty">${item.quantity}</td>
-      <td class="rate">${item.price.toFixed(2)}</td>
-      <td class="amt">${(item.price * item.quantity).toFixed(2)}</td>
-    </tr>`).join('');
-
-  const customerLabel = txn.customerName && txn.customerName !== 'Walk-In'
-    ? txn.customerName
-    : 'Walk-In';
-
-  return `
-    <div class="center xl bold">${APP_NAME}</div>
-    <div class="center">Korean &amp; Asian Snacks</div>
-    <div class="center">Thamel, Kathmandu</div>
-    <div class="sep"></div>
-    <div class="row"><span>Date:</span><span>${formatDateTime(txn.createdAt)}</span></div>
-    <div class="row"><span>Bill No:</span><span class="bold">${txn.transactionNumber}</span></div>
-    <div class="row"><span>Customer:</span><span>${customerLabel}</span></div>
-    <div class="row"><span>Cashier:</span><span>${txn.createdBy}</span></div>
-    <div class="sep"></div>
-    <table>
-      <thead><tr>
-        <th class="name">Item</th>
-        <th class="qty">Qty</th>
-        <th class="rate">Rate</th>
-        <th class="amt">Amount</th>
-      </tr></thead>
-      <tbody>${itemRows}</tbody>
-    </table>
-    <div class="sep"></div>
-    <div class="row"><span>Subtotal</span><span>${txn.subtotal.toFixed(2)}</span></div>
-    ${txn.discount > 0 ? `<div class="row"><span>Discount</span><span>- ${txn.discount.toFixed(2)}</span></div>` : ''}
-    <div class="sep"></div>
-    <div class="row bold lg"><span>TOTAL</span><span>Rs. ${txn.total.toFixed(2)}</span></div>
-    <div class="sep"></div>
-    <div class="row"><span>Payment</span><span class="bold">${txn.paymentMethod.toUpperCase()}</span></div>
-    ${tendered !== undefined ? `<div class="row"><span>Tendered</span><span>${tendered.toFixed(2)}</span></div>` : ''}
-    ${change !== undefined && change >= 0 ? `<div class="row bold"><span>Change</span><span>${change.toFixed(2)}</span></div>` : ''}
-    <div class="sep"></div>
-    <div class="center" style="margin-top:8px">Thank you for shopping at ${APP_NAME}!</div>
-    <div class="center">Please come again</div>
-    <div style="margin-top:16px"></div>`;
-}
+export {
+  buildReceiptHtml,
+  buildPrintDocument,
+  printReceipt,
+  printTransactionReceipt,
+  downloadReceiptPdf,
+  downloadReceiptHtml,
+  escapeHtml,
+  receiptBrandingFromSettings,
+} from '@/utils/receiptPrint';
+export type { PrintResult, PrintMethod } from '@/utils/receiptPrint';
 
 interface ReceiptViewProps {
   transaction: Transaction;
   tenderedAmount?: number;
+  branding?: ReceiptBranding;
 }
 
-export function ReceiptView({ transaction: txn, tenderedAmount }: ReceiptViewProps) {
+export function ReceiptView({ transaction: txn, tenderedAmount, branding }: ReceiptViewProps) {
   const cash = tenderedAmount;
   const cashChg = cash !== undefined ? cash - txn.total : undefined;
+  const storeName = branding?.storeName || APP_NAME;
+  const headerLines = branding?.receiptHeader?.split('\n').filter(Boolean) ?? [];
+  const footerLines = branding?.receiptFooter?.split('\n').filter(Boolean) ?? [];
+  const discountBreakdown = getTransactionDiscountBreakdown(txn);
+  const discountLines = getTransactionDiscountLines(txn);
 
   return (
     <Box
@@ -113,10 +48,17 @@ export function ReceiptView({ transaction: txn, tenderedAmount }: ReceiptViewPro
     >
       <Box sx={{ textAlign: 'center', mb: 1 }}>
         <Typography sx={{ fontWeight: 700, fontSize: '1.15rem', fontFamily: 'inherit', letterSpacing: 1 }}>
-          {APP_NAME}
+          {storeName}
         </Typography>
-        <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit' }}>Korean &amp; Asian Snacks</Typography>
-        <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit' }}>Thamel, Kathmandu</Typography>
+        {headerLines.map((line) => (
+          <Typography key={line} sx={{ fontSize: '0.7rem', fontFamily: 'inherit' }}>{line}</Typography>
+        ))}
+        {branding?.address && (
+          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit' }}>{branding.address}</Typography>
+        )}
+        {branding?.phone && (
+          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit' }}>{branding.phone}</Typography>
+        )}
       </Box>
 
       <RDivider />
@@ -137,14 +79,14 @@ export function ReceiptView({ transaction: txn, tenderedAmount }: ReceiptViewPro
           alignItems: 'start',
         }}
       >
-        {(['Item', 'Qty', 'Rate', 'Amount'] as const).map((h) => (
+        {(['Item', 'Qty', 'Rate', 'Amount'] as const).map((h, i) => (
           <Typography
             key={h}
             sx={{
               fontWeight: 700,
               fontSize: '0.68rem',
               fontFamily: 'inherit',
-              textAlign: h === 'Item' ? 'left' : 'right',
+              textAlign: i === 0 ? 'left' : 'right',
               pb: 0.25,
               borderBottom: '1px solid #aaa',
             }}
@@ -173,7 +115,12 @@ export function ReceiptView({ transaction: txn, tenderedAmount }: ReceiptViewPro
 
       <RDivider />
       <RRow label="Subtotal" value={formatAmount(txn.subtotal)} />
-      {txn.discount > 0 && <RRow label="Discount" value={`- ${formatAmount(txn.discount)}`} />}
+      {discountLines.map((line) => (
+        <RRow key={line.label} label={line.label} value={`- ${formatAmount(line.amount)}`} discount />
+      ))}
+      {discountBreakdown.hasDiscounts && (
+        <RRow label="Total savings" value={`- ${formatAmount(discountBreakdown.totalDiscount)}`} bold discount />
+      )}
       <RDivider />
       <RRow label="TOTAL" value={formatCurrency(txn.total)} bold large />
       <RDivider />
@@ -181,12 +128,22 @@ export function ReceiptView({ transaction: txn, tenderedAmount }: ReceiptViewPro
       {cash !== undefined && <RRow label="Tendered" value={formatAmount(cash)} />}
       {cashChg !== undefined && cashChg >= 0 && <RRow label="Change" value={formatAmount(cashChg)} bold />}
       <RDivider />
-      <Typography sx={{ textAlign: 'center', fontSize: '0.7rem', fontFamily: 'inherit', mt: 0.5 }}>
-        Thank you for shopping at {APP_NAME}!
-      </Typography>
-      <Typography sx={{ textAlign: 'center', fontSize: '0.7rem', fontFamily: 'inherit' }}>
-        Please come again
-      </Typography>
+      {footerLines.length > 0 ? (
+        footerLines.map((line) => (
+          <Typography key={line} sx={{ textAlign: 'center', fontSize: '0.7rem', fontFamily: 'inherit', mt: 0.5 }}>
+            {line}
+          </Typography>
+        ))
+      ) : (
+        <>
+          <Typography sx={{ textAlign: 'center', fontSize: '0.7rem', fontFamily: 'inherit', mt: 0.5 }}>
+            Thank you for shopping at {storeName}!
+          </Typography>
+          <Typography sx={{ textAlign: 'center', fontSize: '0.7rem', fontFamily: 'inherit' }}>
+            Please come again
+          </Typography>
+        </>
+      )}
     </Box>
   );
 }
@@ -200,19 +157,36 @@ function RRow({
   value,
   bold,
   large,
+  discount,
 }: {
   label: string;
   value: string;
   bold?: boolean;
   large?: boolean;
+  discount?: boolean;
 }) {
   const sz = large ? '0.9rem' : '0.72rem';
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-      <Typography sx={{ fontWeight: bold ? 700 : 400, fontSize: sz, fontFamily: 'inherit' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+      <Typography
+        sx={{
+          fontWeight: bold ? 700 : 400,
+          fontSize: sz,
+          fontFamily: 'inherit',
+          color: discount ? '#2e7d32' : 'inherit',
+        }}
+      >
         {label}
       </Typography>
-      <Typography sx={{ fontWeight: bold ? 700 : 400, fontSize: sz, fontFamily: 'inherit' }}>
+      <Typography
+        sx={{
+          fontWeight: bold ? 700 : 400,
+          fontSize: sz,
+          fontFamily: 'inherit',
+          color: discount ? '#2e7d32' : 'inherit',
+          textAlign: 'right',
+        }}
+      >
         {value}
       </Typography>
     </Box>

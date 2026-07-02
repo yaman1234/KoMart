@@ -10,7 +10,7 @@ from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.customer import Customer
 from app.models.expense import Expense as ExpenseDoc
 from app.models.inventory import InventoryBatch
-from app.models.product import Product
+from app.models.product import Product, ProductStatus
 from app.models.purchase_order import POStatus, PurchaseOrder
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -40,10 +40,16 @@ from app.schemas.reports import (
     TopCustomer,
 )
 from app.services.reporting import (
+    aggregate_inventory_by_category,
+    aggregate_last_sale_before,
+    aggregate_product_inventory_stats,
+    aggregate_sales_by_day,
+    aggregate_sold_product_ids,
     build_product_cache,
     collect_product_ids,
     days_until,
     fetch_transactions,
+    fill_daily_revenue,
     line_cogs,
     line_revenue,
     parse_date_range,
@@ -106,17 +112,11 @@ async def revenue_report(
     _: User = Depends(require_manager_or_above),
 ):
     start, end = parse_date_range(start_date, end_date)
-    txns = await fetch_transactions(start, end)
-    daily: dict[str, float] = {}
-    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    while current <= end:
-        daily[current.strftime("%Y-%m-%d")] = 0.0
-        current += timedelta(days=1)
-    for txn in txns:
-        day = txn.created_at.strftime("%Y-%m-%d")
-        if day in daily:
-            daily[day] += txn.total
-    return [RevenueDataPoint(date=d, revenue=round(v, 2)) for d, v in sorted(daily.items())]
+    daily_totals = await aggregate_sales_by_day(start, end)
+    return [
+        RevenueDataPoint(date=day, revenue=round(revenue, 2))
+        for day, revenue in fill_daily_revenue(start, end, daily_totals)
+    ]
 
 
 @router.get("/top-products", response_model=list[TopProduct])
@@ -176,39 +176,24 @@ async def sales_by_category_report(
 
 @router.get("/inventory-summary", response_model=InventoryReportSummary)
 async def inventory_summary_report(_: User = Depends(require_manager_or_above)):
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    stats = await aggregate_product_inventory_stats()
     expiring_ids = await expiring_product_ids()
-    low_stock = 0
-    out_of_stock = 0
-    inventory_value = 0.0
-    by_category: dict[str, dict] = defaultdict(
-        lambda: {"sku_count": 0, "total_stock": 0, "stock_value": 0.0}
-    )
-    for product in products:
-        value = product.stock * product.cost_price
-        inventory_value += value
-        if product.stock == 0:
-            out_of_stock += 1
-        elif product.stock <= product.low_stock_threshold:
-            low_stock += 1
-        cat = product.category
-        by_category[cat]["sku_count"] += 1
-        by_category[cat]["total_stock"] += product.stock
-        by_category[cat]["stock_value"] += value
+    category_rows = await aggregate_inventory_by_category()
+
     return InventoryReportSummary(
-        total_skus=len(products),
-        low_stock=low_stock,
-        out_of_stock=out_of_stock,
+        total_skus=int(stats["total_products"]),
+        low_stock=int(stats["low_stock"]),
+        out_of_stock=int(stats["out_of_stock"]),
         expiring=len(expiring_ids),
-        inventory_value=round(inventory_value, 2),
+        inventory_value=round(float(stats["inventory_value"]), 2),
         by_category=[
             InventoryCategoryBreakdown(
-                category=cat,
-                sku_count=v["sku_count"],
-                total_stock=v["total_stock"],
-                stock_value=round(v["stock_value"], 2),
+                category=row["_id"] or "Other",
+                sku_count=int(row["sku_count"]),
+                total_stock=int(row["total_stock"]),
+                stock_value=round(float(row["stock_value"]), 2),
             )
-            for cat, v in sorted(by_category.items(), key=lambda x: x[1]["stock_value"], reverse=True)
+            for row in category_rows
         ],
     )
 
@@ -222,28 +207,29 @@ async def expiring_products_report(
 ):
     today = date.today().isoformat()
     cutoff = (date.today() + timedelta(days=within_days)).isoformat()
-    batches = await InventoryBatch.find(
+    batch_query = InventoryBatch.find(
         InventoryBatch.quantity > 0,
         {"expiry_date": {"$gte": today, "$lte": cutoff}},
-    ).to_list()
-    batches.sort(key=lambda b: b.expiry_date or "9999-12-31")
+    )
+    total = await batch_query.count()
+    batches = (
+        await batch_query.sort("+expiry_date")
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list()
+    )
 
+    product_cache = await build_product_cache({batch.product_id for batch in batches})
     rows: list[ExpiringProductRow] = []
-    product_cache: dict[str, Product] = {}
     for batch in batches:
         if not batch.expiry_date:
             continue
-        pid = batch.product_id
-        if pid not in product_cache:
-            product = await Product.get(pid)
-            if product:
-                product_cache[pid] = product
-        product = product_cache.get(pid)
+        product = product_cache.get(batch.product_id)
         if not product:
             continue
         rows.append(
             ExpiringProductRow(
-                product_id=pid,
+                product_id=batch.product_id,
                 product_name=product.name,
                 sku=product.sku,
                 category=product.category,
@@ -254,11 +240,8 @@ async def expiring_products_report(
             )
         )
 
-    total = len(rows)
-    start = (page - 1) * page_size
-    page_rows = rows[start : start + page_size]
     return PaginatedResponse(
-        data=page_rows,
+        data=rows,
         total=total,
         page=page,
         page_size=page_size,
@@ -271,44 +254,53 @@ async def low_stock_report(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     stock_filter: str = Query("low", pattern="^(low|out|both)$"),
+    product_status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     _: User = Depends(require_manager_or_above),
 ):
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    low_expr = {
+        "$and": [
+            {"$gt": ["$stock", 0]},
+            {"$lte": ["$stock", "$low_stock_threshold"]},
+        ],
+    }
+    if stock_filter == "out":
+        query = Product.find(Product.is_active == True, Product.stock == 0)  # noqa: E712
+    elif stock_filter == "low":
+        query = Product.find(Product.is_active == True, {"$expr": low_expr})  # noqa: E712
+    else:
+        query = Product.find(
+            Product.is_active == True,  # noqa: E712
+            {"$or": [{"stock": 0}, {"$expr": low_expr}]},
+        )
+
+    if product_status:
+        query = query.find(Product.status == ProductStatus(product_status))
+
+    total = await query.count()
+    products = (
+        await query.sort("+stock")
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list()
+    )
     rows: list[LowStockProductRow] = []
     for product in products:
-        if product.stock == 0 and stock_filter in ("out", "both"):
-            rows.append(
-                LowStockProductRow(
-                    product_id=str(product.id),
-                    product_name=product.name,
-                    sku=product.sku,
-                    category=product.category,
-                    stock=product.stock,
-                    low_stock_threshold=product.low_stock_threshold,
-                    status="out",
-                )
+        stock_status = "out" if product.stock == 0 else "low"
+        prod_status = product.status.value if hasattr(product, "status") and product.status else "active"
+        rows.append(
+            LowStockProductRow(
+                product_id=str(product.id),
+                product_name=product.name,
+                sku=product.sku,
+                category=product.category,
+                stock=product.stock,
+                low_stock_threshold=product.low_stock_threshold,
+                status=stock_status,
+                product_status=prod_status,
             )
-        elif (
-            0 < product.stock <= product.low_stock_threshold
-            and stock_filter in ("low", "both")
-        ):
-            rows.append(
-                LowStockProductRow(
-                    product_id=str(product.id),
-                    product_name=product.name,
-                    sku=product.sku,
-                    category=product.category,
-                    stock=product.stock,
-                    low_stock_threshold=product.low_stock_threshold,
-                    status="low",
-                )
-            )
-    rows.sort(key=lambda r: (r.status != "out", r.stock))
-    total = len(rows)
-    start = (page - 1) * page_size
-    page_rows = rows[start : start + page_size]
+        )
     return PaginatedResponse(
-        data=page_rows,
+        data=rows,
         total=total,
         page=page,
         page_size=page_size,
@@ -592,32 +584,27 @@ async def sales_by_cashier_report(
 @router.get("/dead-stock", response_model=list[DeadStockProduct])
 async def dead_stock_report(
     days: int = Query(30, ge=1, le=365),
+    product_status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     _: User = Depends(require_manager_or_above),
 ):
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=days)
 
-    # Find products not sold within the dead-stock window
-    recent_txns = await Transaction.find({"created_at": {"$gte": cutoff}}).to_list()
-    recently_sold: set[str] = {item.product_id for txn in recent_txns for item in txn.items}
+    recently_sold = await aggregate_sold_product_ids(cutoff)
 
     products = await Product.find(
         Product.is_active == True,  # noqa: E712
         Product.stock > 0,
     ).to_list()
 
+    if product_status:
+        products = [p for p in products if p.status.value == product_status]
+
     dead_pids = [str(p.id) for p in products if str(p.id) not in recently_sold]
     if not dead_pids:
         return []
 
-    # Determine actual last sale date for dead products (search full history)
-    all_txns_for_dead = await Transaction.find({"created_at": {"$lt": cutoff}}).to_list()
-    last_sale: dict[str, datetime] = {}
-    for txn in all_txns_for_dead:
-        for item in txn.items:
-            if item.product_id in dead_pids:
-                if item.product_id not in last_sale or txn.created_at > last_sale[item.product_id]:
-                    last_sale[item.product_id] = txn.created_at
+    last_sale = await aggregate_last_sale_before(dead_pids, cutoff)
 
     dead: list[DeadStockProduct] = []
     for product in products:
@@ -627,7 +614,7 @@ async def dead_stock_report(
         if pid in last_sale:
             actual_days = (now - last_sale[pid]).days
         else:
-            actual_days = days  # never sold; report at least the window
+            actual_days = days
         dead.append(
             DeadStockProduct(
                 product_id=pid,
@@ -637,6 +624,7 @@ async def dead_stock_report(
                 stock=product.stock,
                 stock_value=round(product.stock * product.cost_price, 2),
                 days_without_sale=actual_days,
+                product_status=product.status.value if hasattr(product, "status") and product.status else "active",
             )
         )
     return sorted(dead, key=lambda x: x.stock_value, reverse=True)

@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   TextField,
   Button,
-  Link,
   Alert,
   InputAdornment,
   IconButton,
@@ -44,7 +43,7 @@ export function LoginPage() {
     setError('');
     try {
       const result = await authService.login(data);
-      login(result.user, result.accessToken);
+      login(result.user, result.accessToken, result.refreshToken);
       navigate('/dashboard');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -91,12 +90,6 @@ export function LoginPage() {
           },
         }}
       />
-
-      <Box sx={{ textAlign: 'right', mt: 1 }}>
-        <Link component={RouterLink} to="/forgot-password" variant="body2">
-          Forgot password?
-        </Link>
-      </Box>
 
       <Button
         type="submit"

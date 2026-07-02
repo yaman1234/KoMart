@@ -2,6 +2,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 
 from app.config import settings
+from app.models.product import ProductStatus
 from app.models import (
     User,
     Product,
@@ -15,6 +16,9 @@ from app.models import (
     StoreSettings,
     Expense,
     Category,
+    RefreshToken,
+    AuditLog,
+    DiscountRule,
 )
 
 
@@ -35,5 +39,13 @@ async def init_db() -> None:
             StoreSettings,
             Expense,
             Category,
+            RefreshToken,
+            AuditLog,
+            DiscountRule,
         ],
+    )
+    # Backfill legacy products created before status field existed.
+    await Product.get_motor_collection().update_many(
+        {"$or": [{"status": {"$exists": False}}, {"status": None}]},
+        {"$set": {"status": ProductStatus.active.value}},
     )

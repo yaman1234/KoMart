@@ -1,27 +1,69 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from math import ceil
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
-from app.models.inventory import InventoryBatch
+from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
 from app.schemas.inventory import (
     BatchCreate,
     StockAdjustmentCreate,
+    StockAdjustmentResponse,
     InventoryItemResponse,
     InventoryStatsResponse,
+    InventoryMovementResponse,
+    MovementSummaryResponse,
     BatchResponse,
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.services.stock import (
     adjust_stock,
     expiring_product_ids,
+    get_batches_for_products,
     get_sorted_batches,
     nearest_expiry,
     receive_stock,
 )
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit
+from app.services.reporting import aggregate_product_inventory_stats
+from app.services.inventory_movements import (
+    aggregate_movement_summary,
+    build_movement_row,
+    load_batch_po_map,
+    load_sku_cache,
+    load_txn_numbers,
+    parse_movement_date_filters,
+    product_ids_for_search,
+)
 
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
+
+
+def _adjustment_source(adj_type: AdjustmentType) -> str:
+    return "sale" if adj_type == AdjustmentType.sale else "manual"
+
+
+def _adjustment_response(adj: StockAdjustment) -> StockAdjustmentResponse:
+    return StockAdjustmentResponse(
+        id=str(adj.id),
+        product_id=adj.product_id,
+        product_name=adj.product_name,
+        batch_id=adj.batch_id,
+        transaction_id=adj.transaction_id,
+        type=adj.type,
+        quantity=adj.quantity,
+        stock_before=adj.stock_before,
+        stock_after=adj.stock_after,
+        unit_cost=adj.unit_cost,
+        extended_cost=adj.extended_cost,
+        unit_selling_price=adj.unit_selling_price,
+        extended_revenue=adj.extended_revenue,
+        source=_adjustment_source(adj.type),
+        reason=adj.reason,
+        created_by=adj.created_by,
+        created_at=adj.created_at.isoformat(),
+    )
 
 
 def _batch_response(batch: InventoryBatch) -> BatchResponse:
@@ -30,6 +72,7 @@ def _batch_response(batch: InventoryBatch) -> BatchResponse:
         product_id=batch.product_id,
         batch_number=batch.batch_number,
         quantity=batch.quantity,
+        unit_cost=getattr(batch, "unit_cost", 0.0) or 0.0,
         expiry_date=batch.expiry_date,
         purchase_order_id=batch.purchase_order_id,
         received_at=batch.received_at.isoformat(),
@@ -58,25 +101,15 @@ def _item_response(product: Product, batches: list[InventoryBatch]) -> Inventory
 
 @router.get("/stats", response_model=InventoryStatsResponse)
 async def inventory_stats(_: User = Depends(get_current_user)):
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    stats = await aggregate_product_inventory_stats()
     expiring_ids = await expiring_product_ids()
 
-    low_stock = 0
-    out_of_stock = 0
-    inventory_value = 0.0
-    for product in products:
-        inventory_value += product.stock * product.cost_price
-        if product.stock == 0:
-            out_of_stock += 1
-        elif product.stock <= product.low_stock_threshold:
-            low_stock += 1
-
     return InventoryStatsResponse(
-        total_skus=len(products),
-        low_stock=low_stock,
-        out_of_stock=out_of_stock,
+        total_skus=int(stats["total_products"]),
+        low_stock=int(stats["low_stock"]),
+        out_of_stock=int(stats["out_of_stock"]),
         expiring=len(expiring_ids),
-        inventory_value=round(inventory_value, 2),
+        inventory_value=round(float(stats["inventory_value"]), 2),
     )
 
 
@@ -122,10 +155,12 @@ async def list_inventory(
     total = await query.count()
     products = await query.sort("name").skip((page - 1) * page_size).limit(page_size).to_list()
 
-    items = []
-    for product in products:
-        batches = await get_sorted_batches(str(product.id))
-        items.append(_item_response(product, batches))
+    product_ids = [str(product.id) for product in products]
+    batches_by_product = await get_batches_for_products(product_ids)
+    items = [
+        _item_response(product, batches_by_product.get(str(product.id), []))
+        for product in products
+    ]
 
     return PaginatedResponse(
         data=items,
@@ -136,26 +171,235 @@ async def list_inventory(
     )
 
 
+@router.get("/items/{product_id}", response_model=InventoryItemResponse)
+async def get_inventory_item(
+    product_id: str,
+    _: User = Depends(get_current_user),
+):
+    product = await Product.get(product_id)
+    if not product or not product.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+    batches = await get_sorted_batches(product_id)
+    return _item_response(product, batches)
+
+
 @router.post("/batches", response_model=BatchResponse, status_code=status.HTTP_201_CREATED)
 async def receive_batch(
     body: BatchCreate,
+    request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
     """Receive a new stock batch (sets expiry date and quantity)."""
+    product = await Product.get(body.product_id)
+    stock_before = product.stock if product else 0
+
     batch = await receive_stock(
         body.product_id,
         body.batch_number,
         body.quantity,
         expiry_date=body.expiry_date,
+        created_by=current_user.name,
+    )
+
+    refreshed = await Product.get(body.product_id)
+    await log_audit(
+        module=AuditModule.inventory,
+        action="receive",
+        user=current_user,
+        request=request,
+        entity_type="product",
+        entity_id=body.product_id,
+        previous={"stock": stock_before},
+        new={
+            "stock": refreshed.stock if refreshed else stock_before + body.quantity,
+            "batch_number": body.batch_number,
+            "quantity": body.quantity,
+            "batch_id": str(batch.id),
+        },
     )
     return _batch_response(batch)
+
+
+@router.get("/history", response_model=PaginatedResponse[StockAdjustmentResponse])
+async def inventory_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    product_id: str = Query(""),
+    source: str = Query("", pattern="^(|manual|sale)$"),
+    _: User = Depends(require_manager_or_above),
+):
+    """Paginated audit log of all inventory quantity changes."""
+    query = StockAdjustment.find()
+    if product_id:
+        query = query.find(StockAdjustment.product_id == product_id)
+    if source == "sale":
+        query = query.find(StockAdjustment.type == AdjustmentType.sale)
+    elif source == "manual":
+        query = query.find(StockAdjustment.type != AdjustmentType.sale)
+
+    total = await query.count()
+    rows = (
+        await query.sort("-created_at")
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list()
+    )
+
+    return PaginatedResponse(
+        data=[_adjustment_response(row) for row in rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 1,
+    )
+
+
+def _build_movement_filters(
+    *,
+    product_id: str,
+    search: str,
+    direction: str,
+    movement_type: str,
+    start_date: str,
+    end_date: str,
+) -> dict:
+    filters: dict = {}
+    if product_id:
+        filters["product_id"] = product_id
+    if direction == "in":
+        filters["quantity"] = {"$gt": 0}
+    elif direction == "out":
+        filters["quantity"] = {"$lt": 0}
+    if movement_type:
+        if movement_type == "purchase_order":
+            filters["reference_type"] = "purchase_order"
+        elif movement_type == "sale":
+            filters["type"] = AdjustmentType.sale
+        else:
+            try:
+                filters["type"] = AdjustmentType(movement_type)
+            except ValueError:
+                pass
+    date_filters = parse_movement_date_filters(start_date, end_date)
+    if date_filters:
+        filters["created_at"] = date_filters
+    return filters
+
+
+async def _query_movements(
+    filters: dict,
+    search: str,
+    page: int,
+    page_size: int,
+) -> tuple[list[InventoryMovementResponse], int]:
+    query = StockAdjustment.find()
+    if filters:
+        query = query.find(filters)
+
+    if search.strip():
+        product_ids = await product_ids_for_search(search)
+        if product_ids is not None:
+            if not product_ids:
+                return [], 0
+            query = query.find({"product_id": {"$in": product_ids}})
+
+    total = await query.count()
+    rows = (
+        await query.sort("-created_at")
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list()
+    )
+
+    batch_ids = {r.batch_id for r in rows if r.batch_id}
+    txn_ids = {r.transaction_id for r in rows if r.transaction_id}
+    txn_ids.update({r.reference_id for r in rows if r.reference_type == "sale" and r.reference_id})
+    product_ids_set = {r.product_id for r in rows if not r.product_sku}
+
+    batch_po_map = await load_batch_po_map(batch_ids)
+    txn_numbers = await load_txn_numbers(txn_ids)
+    sku_cache = await load_sku_cache(product_ids_set)
+
+    data = [
+        InventoryMovementResponse(**await build_movement_row(
+            row,
+            txn_numbers=txn_numbers,
+            batch_po_map=batch_po_map,
+            sku_cache=sku_cache,
+        ))
+        for row in rows
+    ]
+    return data, total
+
+
+@router.get("/movements", response_model=PaginatedResponse[InventoryMovementResponse])
+async def list_movements(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    product_id: str = Query(""),
+    search: str = Query(""),
+    direction: str = Query("", pattern="^(|in|out)$"),
+    movement_type: str = Query("", pattern="^(|sale|receive|purchase_order|adjustment|damaged|correction)$"),
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    """Unified inventory movement ledger (all stock in/out events)."""
+    filters = _build_movement_filters(
+        product_id=product_id,
+        search=search,
+        direction=direction,
+        movement_type=movement_type,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    data, total = await _query_movements(filters, search, page, page_size)
+    return PaginatedResponse(
+        data=data,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 1,
+    )
+
+
+@router.get("/movements/summary", response_model=MovementSummaryResponse)
+async def movement_summary(
+    product_id: str = Query(""),
+    search: str = Query(""),
+    direction: str = Query("", pattern="^(|in|out)$"),
+    movement_type: str = Query("", pattern="^(|sale|receive|purchase_order|adjustment|damaged|correction)$"),
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    filters = _build_movement_filters(
+        product_id=product_id,
+        search=search,
+        direction=direction,
+        movement_type=movement_type,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if search.strip():
+        product_ids = await product_ids_for_search(search)
+        if product_ids is not None:
+            if not product_ids:
+                return MovementSummaryResponse(movement_count=0, total_in=0, total_out=0)
+            filters = {**filters, "product_id": {"$in": product_ids}}
+    summary = await aggregate_movement_summary(filters)
+    return MovementSummaryResponse(**summary)  # type: ignore[arg-type]
 
 
 @router.post("/adjust", response_model=MessageResponse)
 async def adjust_stock_endpoint(
     body: StockAdjustmentCreate,
+    request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
+    product = await Product.get(body.product_id)
+    stock_before = product.stock if product else 0
+
     new_stock = await adjust_stock(
         body.product_id,
         body.quantity,
@@ -163,5 +407,21 @@ async def adjust_stock_endpoint(
         body.reason,
         current_user.name,
         batch_id=body.batch_id,
+    )
+
+    await log_audit(
+        module=AuditModule.inventory,
+        action="adjust",
+        user=current_user,
+        request=request,
+        entity_type="product",
+        entity_id=body.product_id,
+        previous={"stock": stock_before, "type": body.type.value},
+        new={
+            "stock": new_stock,
+            "quantity_change": body.quantity,
+            "type": body.type.value,
+            "reason": body.reason,
+        },
     )
     return MessageResponse(message=f"Stock adjusted. New stock: {new_stock}")

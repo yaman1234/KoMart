@@ -7,10 +7,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class ForgotPasswordRequest(BaseModel):
-    email: str
-
-
 class UserResponse(BaseModel):
     id: str
     email: str
@@ -22,7 +18,19 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
     user: UserResponse
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str | None = None
+    all_devices: bool = False
 
 
 class TokenData(BaseModel):

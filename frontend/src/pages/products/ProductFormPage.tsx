@@ -12,6 +12,7 @@ import {
   Avatar,
   IconButton,
   Tooltip,
+  Autocomplete,
 } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -25,9 +26,10 @@ import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProducts';
+import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
-import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS } from '@/constants';
+import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
@@ -57,6 +59,8 @@ const schema = z.object({
   costPrice:       z.number().min(0, 'Must be ≥ 0'),
   sellingPrice:    z.number().min(0.01, 'Must be > 0'),
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
+  status:            z.enum(['active', 'discontinued', 'seasonal']),
+  tags:              z.array(z.string().min(1)),
   nutritionInfo:   z.string(),
   allergenInfo:    z.string(),
 });
@@ -70,6 +74,7 @@ export function ProductFormPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: product, isLoading: productLoading } = useProduct(id ?? '');
+  const { data: storeSettings } = useStoreSettings();
   const { data: suppliersData } = useSuppliers({ pageSize: 100 });
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
@@ -97,6 +102,8 @@ export function ProductFormPage() {
       costPrice: 0,
       sellingPrice: 0,
       lowStockThreshold: 10,
+      status: 'active',
+      tags: [],
       nutritionInfo: '',
       allergenInfo: '',
     },
@@ -118,11 +125,28 @@ export function ProductFormPage() {
         costPrice:        product.costPrice,
         sellingPrice:     product.sellingPrice,
         lowStockThreshold: product.lowStockThreshold,
+        status:            product.status ?? 'active',
+        tags:              product.tags ?? [],
         nutritionInfo:    product.nutritionInfo ?? '',
         allergenInfo:     product.allergenInfo ?? '',
       });
     }
   }, [product, reset]);
+
+  useEffect(() => {
+    if (!isEditing && storeSettings?.defaultLowStockThreshold != null) {
+      setValue('lowStockThreshold', storeSettings.defaultLowStockThreshold);
+    }
+  }, [isEditing, storeSettings, setValue]);
+
+  const brand = watch('brand');
+  const category = watch('category');
+
+  useEffect(() => {
+    if (!isEditing && storeSettings?.autoSku && brand && category) {
+      setValue('sku', generateSku(brand, category), { shouldValidate: true });
+    }
+  }, [isEditing, storeSettings?.autoSku, brand, category, setValue]);
 
   // ── Auto SKU ──────────────────────────────────────────────────────────────
   const handleGenerateSku = useCallback(() => {
@@ -308,6 +332,35 @@ export function ProductFormPage() {
                 />
               </Grid>
 
+              <Grid size={{ xs: 12 }}>
+                <Controller
+                  name="tags"
+                  control={control}
+                  render={({ field }) => (
+                    <Autocomplete
+                      multiple
+                      freeSolo
+                      options={[]}
+                      value={field.value}
+                      onChange={(_, value) => {
+                        const normalized = value
+                          .map((tag) => tag.trim())
+                          .filter(Boolean);
+                        field.onChange([...new Set(normalized)]);
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Tags"
+                          placeholder="Type and press Enter"
+                          helperText="Labels like organic, imported, bestseller"
+                        />
+                      )}
+                    />
+                  )}
+                />
+              </Grid>
+
               <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="supplierId"
@@ -474,7 +527,7 @@ export function ProductFormPage() {
           </Paper>
 
           {/* Stock settings (threshold only — actual stock is managed via Inventory) */}
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: 3, mb: 3 }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>Stock Settings</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Stock is managed from the Inventory page.
@@ -488,6 +541,24 @@ export function ProductFormPage() {
               error={!!errors.lowStockThreshold}
               helperText={errors.lowStockThreshold?.message ?? 'Alert triggers when stock falls below this'}
               slotProps={{ htmlInput: { min: 0 } }}
+              sx={{ mb: 2 }}
+            />
+            <Controller
+              name="status"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  select
+                  label="Product Status"
+                  fullWidth
+                  helperText="Discontinued items are hidden from POS"
+                >
+                  {PRODUCT_STATUS_OPTIONS.map((s) => (
+                    <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                  ))}
+                </TextField>
+              )}
             />
           </Paper>
         </Grid>

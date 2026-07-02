@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from pydantic import ConfigDict
-from typing import Optional
+from typing import Optional, Literal
 
 from app.auth.dependencies import get_current_user, require_admin_only
 from app.models.user import User
 from app.models.settings import StoreSettings
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit, settings_snapshot
+from app.services.store_settings import get_store_settings, settings_to_api
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -17,37 +20,61 @@ class SettingsUpdate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    logo_url: Optional[str] = Field(None, alias="logoUrl")
+    pan: Optional[str] = None
+    vat_number: Optional[str] = Field(None, alias="vatNumber")
     currency: Optional[str] = None
     tax_rate: Optional[float] = Field(None, alias="taxRate")
     tax_inclusive: Optional[bool] = Field(None, alias="taxInclusive")
+    receipt_header: Optional[str] = Field(None, alias="receiptHeader")
+    receipt_footer: Optional[str] = Field(None, alias="receiptFooter")
+    auto_print: Optional[bool] = Field(None, alias="autoPrint")
+    default_payment_method: Optional[str] = Field(None, alias="defaultPaymentMethod")
+    default_low_stock_threshold: Optional[int] = Field(None, alias="defaultLowStockThreshold")
+    expiry_warning_days: Optional[int] = Field(None, alias="expiryWarningDays")
+    auto_sku: Optional[bool] = Field(None, alias="autoSku")
+    barcode_format: Optional[str] = Field(None, alias="barcodeFormat")
     loyalty_points_per_currency: Optional[int] = Field(None, alias="loyaltyPointsPerCurrency")
+    loyalty_redeem_rate: Optional[int] = Field(None, alias="loyaltyRedeemRate")
+    transaction_prefix: Optional[str] = Field(None, alias="transactionPrefix")
+    purchase_order_prefix: Optional[str] = Field(None, alias="purchaseOrderPrefix")
+    date_format: Optional[str] = Field(None, alias="dateFormat")
+    time_format: Optional[Literal["12h", "24h"]] = Field(None, alias="timeFormat")
 
 
 @router.get("")
 async def get_settings(_: User = Depends(get_current_user)):
-    settings = await StoreSettings.find_one()
-    if not settings:
-        settings = StoreSettings()
-        await settings.insert()
-    return {
-        "storeName": settings.store_name,
-        "address": settings.address,
-        "phone": settings.phone,
-        "email": settings.email,
-        "currency": settings.currency,
-        "taxRate": settings.tax_rate,
-        "taxInclusive": settings.tax_inclusive,
-        "loyaltyPointsPerCurrency": settings.loyalty_points_per_currency,
-    }
+    settings = await get_store_settings()
+    return settings_to_api(settings)
 
 
 @router.patch("")
-async def update_settings(body: SettingsUpdate, _: User = Depends(require_admin_only)):
-    settings = await StoreSettings.find_one()
-    if not settings:
-        settings = StoreSettings()
-        await settings.insert()
-    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+async def update_settings(
+    body: SettingsUpdate,
+    request: Request,
+    current_user: User = Depends(require_admin_only),
+):
+    settings = await get_store_settings()
+    before = settings_snapshot(settings)
+    update_data = body.model_dump(exclude_unset=True)
+    if "transaction_prefix" in update_data and update_data["transaction_prefix"]:
+        update_data["transaction_prefix"] = update_data["transaction_prefix"].strip().upper()
+    if "purchase_order_prefix" in update_data and update_data["purchase_order_prefix"]:
+        update_data["purchase_order_prefix"] = update_data["purchase_order_prefix"].strip().upper()
+    if "default_payment_method" in update_data and update_data["default_payment_method"]:
+        update_data["default_payment_method"] = update_data["default_payment_method"].strip().lower()
     if update_data:
         await settings.set(update_data)
+        refreshed = await StoreSettings.find_one()
+        after = settings_snapshot(refreshed) if refreshed else before
+        await log_audit(
+            module=AuditModule.settings,
+            action="update",
+            user=current_user,
+            request=request,
+            entity_type="store_settings",
+            entity_id=str(settings.id),
+            previous=before,
+            new=after,
+        )
     return {"message": "Settings updated"}

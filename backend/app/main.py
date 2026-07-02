@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from uuid import uuid4
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -20,6 +22,8 @@ from app.routers import (
     expenses,
     users,
     categories,
+    audit_logs,
+    discounts,
 )
 
 
@@ -45,6 +49,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def attach_request_id(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or str(uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 API_PREFIX = "/api/v1"
 
 app.include_router(auth.router, prefix=API_PREFIX)
@@ -61,6 +75,8 @@ app.include_router(settings_router.router, prefix=API_PREFIX)
 app.include_router(expenses.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(categories.router, prefix=API_PREFIX)
+app.include_router(audit_logs.router, prefix=API_PREFIX)
+app.include_router(discounts.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

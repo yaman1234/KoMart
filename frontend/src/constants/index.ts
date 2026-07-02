@@ -4,6 +4,14 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 export const DEFAULT_PAGE_SIZE = 10;
 
+/** React Query stale-time tiers (milliseconds). */
+export const STALE_TIME = {
+  realtime: 30_000,
+  standard: 120_000,
+  reports: 300_000,
+  static: 600_000,
+} as const;
+
 export const PAGE_SIZES = [10, 25, 50, 100];
 
 export const CURRENCY = 'NPR';
@@ -55,6 +63,21 @@ export const PRODUCT_CATEGORIES = [
   'Health & Wellness',
 ] as const;
 
+export const PRODUCT_STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'seasonal', label: 'Seasonal' },
+  { value: 'discontinued', label: 'Discontinued' },
+] as const;
+
+export const DISCOUNT_RULE_TYPES = [
+  { value: 'product_percent', label: 'Product — % off' },
+  { value: 'product_flat', label: 'Product — flat off' },
+  { value: 'category_percent', label: 'Category — % off' },
+  { value: 'category_flat', label: 'Category — flat off' },
+  { value: 'cart_percent', label: 'Cart — % off' },
+  { value: 'cart_flat', label: 'Cart — flat off' },
+] as const;
+
 export const COUNTRIES = [
   'South Korea',
   'Japan',
@@ -97,6 +120,16 @@ export const PO_LINE_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   partial: 'Partially Received',
   received: 'Received',
+};
+
+export const AUDIT_MODULE_LABELS: Record<string, string> = {
+  auth: 'Authentication',
+  products: 'Products',
+  inventory: 'Inventory',
+  sales: 'Sales',
+  purchase_orders: 'Purchase Orders',
+  settings: 'Settings',
+  users: 'Users',
 };
 
 export const MEMBERSHIP_TIER_LABELS: Record<string, string> = {
@@ -151,4 +184,11 @@ export const QUERY_KEYS = {
   categories: ['categories'] as const,
   users: ['users'] as const,
   user: (id: string) => ['users', id] as const,
+  auditLogs: (filters?: string) => ['auditLogs', filters] as const,
+  auditLog: (id: string) => ['auditLogs', id] as const,
+  inventoryItem: (id: string) => ['inventory', 'item', id] as const,
+  inventoryMovements: (filters?: string) => ['inventory', 'movements', filters] as const,
+  movementSummary: (filters?: string) => ['inventory', 'movementSummary', filters] as const,
+  discounts: ['discounts'] as const,
+  discountEvaluate: (payload?: string) => ['discounts', 'evaluate', payload] as const,
 };

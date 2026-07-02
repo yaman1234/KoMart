@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -14,11 +15,9 @@ import {
   MenuItem,
   Typography,
   Alert,
-  IconButton,
 } from '@mui/material';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddBoxIcon from '@mui/icons-material/AddBox';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { StatCard } from '@/components/common/StatCard';
@@ -30,8 +29,10 @@ import { useAuthStore } from '@/store';
 import { PRODUCT_CATEGORIES } from '@/constants';
 import type { InventoryItem, StockAdjustmentType } from '@/types';
 import type { InventoryQueryParams } from '@/services';
+import { MovementLedgerTab } from './MovementLedgerTab';
 
 type StockFilter = 'all' | 'low' | 'out' | 'expiring';
+type PageView = 'stock' | 'ledger';
 
 const ADJUSTMENT_TYPES: { value: StockAdjustmentType; label: string }[] = [
   { value: 'adjustment', label: 'Stock Adjustment' },
@@ -52,6 +53,7 @@ function expiryChipColor(date?: string): 'error' | 'warning' | 'default' {
 }
 
 export function InventoryPage() {
+  const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.user);
   const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
   const [search, setSearch] = useState('');
@@ -60,7 +62,7 @@ export function InventoryPage() {
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const [expandedItem, setExpandedItem] = useState<InventoryItem | null>(null);
+  const [pageView, setPageView] = useState<PageView>('stock');
 
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [adjBatchId, setAdjBatchId] = useState('');
@@ -95,21 +97,6 @@ export function InventoryPage() {
   const items = data?.data ?? [];
 
   const columns: Column<InventoryItem>[] = [
-    {
-      id: 'expand',
-      label: '',
-      render: (row) => (
-        <IconButton
-          size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpandedItem(row);
-          }}
-        >
-          <ExpandMoreIcon fontSize="small" />
-        </IconButton>
-      ),
-    },
     { id: 'name', label: 'Product', minWidth: 180, accessor: 'name' },
     { id: 'sku', label: 'SKU', minWidth: 120, accessor: 'sku' },
     { id: 'category', label: 'Category', accessor: 'category' },
@@ -266,6 +253,17 @@ export function InventoryPage() {
         </Grid>
       </Grid>
 
+      <Tabs
+        value={pageView}
+        onChange={(_, v: PageView) => setPageView(v)}
+        sx={{ mb: 2 }}
+      >
+        <Tab value="stock" label="Stock Levels" />
+        <Tab value="ledger" label="Movement Ledger" />
+      </Tabs>
+
+      {pageView === 'stock' && (
+      <>
       <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <Box sx={{ flex: 1, minWidth: 200 }}>
           <SearchBar
@@ -321,49 +319,13 @@ export function InventoryPage() {
         total={data?.total}
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+        onRowClick={(row) => navigate(`/inventory/${row.id}`)}
         getRowId={(r) => r.id}
       />
+      </>
+      )}
 
-      <Dialog open={!!expandedItem} onClose={() => setExpandedItem(null)} maxWidth="md" fullWidth>
-        <DialogTitle>Batches — {expandedItem?.name}</DialogTitle>
-        <DialogContent>
-          {!expandedItem?.batches.length && (
-            <Typography color="text.secondary">No batches recorded.</Typography>
-          )}
-          {expandedItem && expandedItem.batches.length > 0 && (
-            <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', mt: 1 }}>
-              <Box component="thead">
-                <Box component="tr" sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                  {['Batch No.', 'Qty', 'Expiry', 'Received'].map((h) => (
-                    <Box component="th" key={h} sx={{ textAlign: 'left', py: 1, pr: 2, fontWeight: 600 }}>
-                      {h}
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-              <Box component="tbody">
-                {expandedItem.batches.map((batch) => (
-                  <Box
-                    component="tr"
-                    key={batch.id}
-                    sx={{ borderBottom: 1, borderColor: 'divider', opacity: batch.quantity === 0 ? 0.5 : 1 }}
-                  >
-                    <Box component="td" sx={{ py: 1, pr: 2 }}>{batch.batchNumber}</Box>
-                    <Box component="td" sx={{ py: 1, pr: 2 }}>{batch.quantity}</Box>
-                    <Box component="td" sx={{ py: 1, pr: 2 }}>
-                      {batch.expiryDate ? formatDate(batch.expiryDate) : '—'}
-                    </Box>
-                    <Box component="td" sx={{ py: 1 }}>{formatDate(batch.receivedAt)}</Box>
-                  </Box>
-                ))}
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setExpandedItem(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      {pageView === 'ledger' && <MovementLedgerTab />}
 
       <Dialog open={!!receiveTarget} onClose={() => setReceiveTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>

@@ -131,16 +131,22 @@ function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> 
 export const mockApi = {
   isMockEnabled: USE_MOCK,
 
-  async login(credentials: LoginCredentials): Promise<{ user: User; accessToken: string }> {
+  async login(credentials: LoginCredentials): Promise<{
+    user: User;
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  }> {
     await delay(600);
     if (credentials.email === 'admin@komart.com' && credentials.password === 'password') {
-      return { user: mockUser, accessToken: 'mock-jwt-token' };
+      return {
+        user: mockUser,
+        accessToken: 'mock-jwt-token',
+        refreshToken: 'mock-refresh-token',
+        expiresIn: 900,
+      };
     }
     throw new Error('Invalid email or password');
-  },
-
-  async forgotPassword(_email: string): Promise<void> {
-    await delay(600);
   },
 
   async getDashboardStats(_range?: DateRange): Promise<DashboardStats> {
@@ -190,6 +196,7 @@ export const mockApi = {
       : undefined;
     const product: Product = {
       ...data,
+      status: data.status ?? 'active',
       supplierName: supplier?.name ?? data.supplierName ?? '',
       id: `prod-${generateId().slice(0, 8)}`,
       createdAt: new Date().toISOString(),
@@ -257,6 +264,11 @@ export const mockApi = {
         stock: Math.max(0, inventory[invIdx].stock + adjustment.quantity),
       };
     }
+  },
+
+  async getInventoryHistory(params?: import('@/services').InventoryHistoryParams): Promise<PaginatedResponse<StockAdjustment>> {
+    await delay(400);
+    return { data: [], total: 0, page: params?.page ?? 1, pageSize: params?.pageSize ?? 25, totalPages: 1 };
   },
 
   // ── Suppliers ─────────────────────────────────────────────────────────────
@@ -518,9 +530,33 @@ export const mockApi = {
   },
 
   // ── Notifications ─────────────────────────────────────────────────────────
-  async getNotifications(): Promise<AppNotification[]> {
+  async getNotifications(params?: {
+    unreadOnly?: boolean;
+    type?: import('@/types').NotificationType;
+    sync?: boolean;
+  }): Promise<AppNotification[]> {
     await delay(300);
-    return notifications;
+    let list = [...notifications];
+    if (params?.unreadOnly) list = list.filter((n) => !n.read);
+    if (params?.type) list = list.filter((n) => n.type === params.type);
+    return list;
+  },
+
+  async markNotificationRead(id: string): Promise<void> {
+    await delay(150);
+    const idx = notifications.findIndex((n) => n.id === id);
+    if (idx >= 0) notifications[idx] = { ...notifications[idx], read: true };
+  },
+
+  async markAllNotificationsRead(): Promise<void> {
+    await delay(150);
+    for (let i = 0; i < notifications.length; i++) {
+      notifications[i] = { ...notifications[i], read: true };
+    }
+  },
+
+  async syncNotifications(): Promise<void> {
+    await delay(200);
   },
 
   async getSettings(): Promise<StoreSettings> {

@@ -24,8 +24,10 @@ export const useThemeStore = create<ThemeState>()(
 interface AuthState {
   user: User | null;
   accessToken: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
-  login: (user: User, accessToken: string) => void;
+  login: (user: User, accessToken: string, refreshToken: string) => void;
+  setTokens: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
 }
 
@@ -34,13 +36,29 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       accessToken: null,
+      refreshToken: null,
       isAuthenticated: false,
-      login: (user, accessToken) =>
-        set({ user, accessToken, isAuthenticated: true }),
+      login: (user, accessToken, refreshToken) =>
+        set({ user, accessToken, refreshToken, isAuthenticated: true }),
+      setTokens: (accessToken, refreshToken) =>
+        set({ accessToken, refreshToken, isAuthenticated: true }),
       logout: () =>
-        set({ user: null, accessToken: null, isAuthenticated: false }),
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+        }),
     }),
-    { name: 'komart-auth' },
+    {
+      name: 'komart-auth',
+      partialize: (state) => ({
+        user: state.user,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    },
   ),
 );
 

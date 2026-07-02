@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@/constants';
+import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { categoryService } from '@/services';
 import type { Category } from '@/types';
 
@@ -7,6 +7,7 @@ export function useCategories(includeInactive = false) {
   return useQuery({
     queryKey: [...QUERY_KEYS.categories, includeInactive],
     queryFn: () => categoryService.getAll(includeInactive),
+    staleTime: STALE_TIME.static,
   });
 }
 
