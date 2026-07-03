@@ -30,7 +30,7 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS } from '@/constants';
-import { getErrorMessage } from '@/services/apiClient';
+import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
 function generateSku(brand: string, category: string): string {
@@ -182,13 +182,15 @@ export function ProductFormPage() {
       };
       if (isEditing && id) {
         await updateMutation.mutateAsync({ id, data: payload });
+        showSuccess('Product updated.');
         navigate(`/products/${id}`);
       } else {
         const created = await createMutation.mutateAsync(payload);
+        showSuccess('Product created.');
         navigate(`/products/${created.id}`);
       }
     } catch (err) {
-      console.error(getErrorMessage(err));
+      showApiError(err, isEditing ? 'Product could not be saved.' : 'Product could not be created.');
     }
   };
 

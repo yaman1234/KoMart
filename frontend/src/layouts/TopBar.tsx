@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, useThemeStore, useUIStore } from '@/store';
 import { authService } from '@/services';
+import { showSuccess } from '@/utils/toast';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
 import { NotificationPanel } from '@/components/common/NotificationPanel';
 import { getInitials } from '@/utils';
@@ -52,6 +53,7 @@ export function TopBar({ title }: TopBarProps) {
   const handleLogout = async () => {
     await authService.logout();
     logout();
+    showSuccess('Logged out successfully.');
     navigate('/login');
   };
 

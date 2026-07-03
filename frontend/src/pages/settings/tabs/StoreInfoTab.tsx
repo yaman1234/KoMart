@@ -22,6 +22,7 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { useAuthStore } from '@/store';
 import { isAdmin } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import type { PaymentMethod, StoreSettings } from '@/types';
 
 const NUMERIC_KEYS = new Set([
@@ -86,7 +87,6 @@ export function StoreInfoTab() {
   const { data: settings, isLoading } = useStoreSettings();
 
   const [form, setForm] = useState<StoreSettings>(emptyForm);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -98,10 +98,9 @@ export function StoreInfoTab() {
   const updateMutation = useMutation({
     mutationFn: () => settingsService.update(form),
     onSuccess: () => {
-      setSuccess(true);
       setError('');
+      showSuccess('Settings saved.');
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-      setTimeout(() => setSuccess(false), 3000);
     },
     onError: (err) => {
       setError(getErrorMessage(err));
@@ -137,7 +136,6 @@ export function StoreInfoTab() {
           You are viewing store settings in read-only mode. Only admins can modify these settings.
         </Alert>
       )}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>Settings saved successfully.</Alert>}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ p: 3 }}>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ThemeMode, User, DashboardWidgetLayout } from '@/types';
 import { DEFAULT_DASHBOARD_LAYOUT } from '@/constants';
+import { isMockEnabled, isMockSession } from '@/config/mock';
 
 interface ThemeState {
   mode: ThemeMode;
@@ -58,6 +59,20 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (
+          state?.isAuthenticated &&
+          !isMockEnabled() &&
+          isMockSession(state.accessToken, state.refreshToken)
+        ) {
+          useAuthStore.setState({
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            isAuthenticated: false,
+          });
+        }
+      },
     },
   ),
 );

@@ -49,6 +49,7 @@ import {
   productStatusLabel,
 } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
+import { showApiError, showSuccess } from '@/utils/toast';
 import { reportsService } from '@/services';
 import { PAYMENT_METHODS, PO_STATUS_LABELS, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import type { ProductStatus } from '@/types';
@@ -450,6 +451,9 @@ export function ReportsPage() {
       XLSX.utils.book_append_sheet(wb, makeSheet(custAoA, [35, 14, 14, 18]),          'Customers');
 
       XLSX.writeFile(wb, `komart-report-${range.startDate}-to-${range.endDate}.xlsx`);
+      showSuccess('Report exported.');
+    } catch (err) {
+      showApiError(err, 'Export failed.');
     } finally {
       setExporting(false);
     }

@@ -23,6 +23,7 @@ import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers';
 import { formatDate, formatCurrency } from '@/utils';
 import { MEMBERSHIP_TIER_LABELS } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import type { Customer, MembershipTier } from '@/types';
 
 const TIER_COLORS: Record<MembershipTier, 'default' | 'warning' | 'info' | 'primary'> = {
@@ -99,6 +100,7 @@ export function CustomersPage() {
         email: values.email ?? '',
         birthday: values.birthday || undefined,
       });
+      showSuccess('Customer created.');
       setAddOpen(false);
       reset();
     } catch (err) {

@@ -30,14 +30,14 @@ Open [http://localhost:5173](http://localhost:5173)
 
 ## Environment
 
-Copy `.env` and adjust as needed:
+Copy `.env.example` to `.env` and adjust as needed:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_API_BASE_URL` | `/api/v1` | FastAPI backend base URL |
-| `VITE_USE_MOCK` | `true` | Use mock API layer when `true` |
+| `VITE_USE_MOCK` | `false` | Use mock API layer when `true` (offline dev only) |
 
-Set `VITE_USE_MOCK=false` to connect to a running FastAPI backend. Vite proxies `/api` to `http://localhost:8000`.
+Set `VITE_USE_MOCK=true` for UI-only development. For a real backend, use `VITE_USE_MOCK=false` and run FastAPI on port 8000. Vite proxies `/api` to `http://localhost:8000`.
 
 ## Project Structure
 

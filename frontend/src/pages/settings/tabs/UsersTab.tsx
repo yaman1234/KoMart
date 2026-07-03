@@ -32,6 +32,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useUsers, useCreateUser, useUpdateUser, useDeactivateUser } from '@/hooks/useUsers';
 import { formatDate } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import type { UserRole, UserListItem } from '@/types';
 
 const ROLE_COLORS: Record<UserRole, 'error' | 'warning' | 'default'> = {
@@ -82,6 +83,7 @@ export function UsersTab() {
     setError('');
     try {
       await createMutation.mutateAsync(form);
+      showSuccess('User created.');
       setAddOpen(false);
       setForm(emptyForm);
     } catch (err) {
@@ -100,6 +102,7 @@ export function UsersTab() {
         is_active: editForm.is_active,
         ...(editForm.password ? { password: editForm.password } : {}),
       });
+      showSuccess(editForm.password ? 'Password changed.' : 'User updated.');
       setEditTarget(null);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -110,6 +113,7 @@ export function UsersTab() {
     if (!deactivateId) return;
     try {
       await deactivateMutation.mutateAsync(deactivateId);
+      showSuccess('User deactivated.');
       setDeactivateId(null);
     } catch (err) {
       setError(getErrorMessage(err));

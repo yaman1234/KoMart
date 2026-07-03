@@ -29,6 +29,7 @@ import { useAuthStore } from '@/store';
 import { PRODUCT_CATEGORIES } from '@/constants';
 import type { InventoryItem, StockAdjustmentType } from '@/types';
 import type { InventoryQueryParams } from '@/services';
+import { showApiError, showSuccess } from '@/utils/toast';
 import { MovementLedgerTab } from './MovementLedgerTab';
 
 type StockFilter = 'all' | 'low' | 'out' | 'expiring';
@@ -197,7 +198,13 @@ export function InventoryPage() {
         quantity: qty,
         expiryDate: rcvExpiry || undefined,
       },
-      { onSuccess: () => setReceiveTarget(null) },
+      {
+        onSuccess: () => {
+          showSuccess('Inventory received.');
+          setReceiveTarget(null);
+        },
+        onError: (err) => showApiError(err, 'Inventory receive failed.'),
+      },
     );
   };
 
@@ -225,7 +232,13 @@ export function InventoryPage() {
         reason: adjReason,
         createdBy: currentUser?.name ?? 'User',
       },
-      { onSuccess: () => setAdjustTarget(null) },
+      {
+        onSuccess: () => {
+          showSuccess('Inventory adjusted.');
+          setAdjustTarget(null);
+        },
+        onError: (err) => showApiError(err, 'Inventory update failed.'),
+      },
     );
   };
 

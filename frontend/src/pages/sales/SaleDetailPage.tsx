@@ -23,6 +23,7 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { useAuthStore } from '@/store';
 import { isAdminOrManager } from '@/utils';
+import { showSuccess } from '@/utils/toast';
 
 export function SaleDetailPage() {
   const navigate = useNavigate();
@@ -91,6 +92,7 @@ export function SaleDetailPage() {
         saving={updateMutation.isPending}
         onSave={async (payload) => {
           await updateMutation.mutateAsync({ id: txn.id, ...payload });
+          showSuccess('Sale updated.');
         }}
       />
 

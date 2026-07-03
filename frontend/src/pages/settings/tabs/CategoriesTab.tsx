@@ -28,6 +28,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CategoryIcon from '@mui/icons-material/LocalOffer';
 import { useCategories, useCreateCategory, useUpdateCategory } from '@/hooks/useCategories';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import type { Category } from '@/types';
 
 export function CategoriesTab() {
@@ -55,6 +56,7 @@ export function CategoriesTab() {
     setError('');
     try {
       await createMutation.mutateAsync({ name: newName.trim(), description: newDesc.trim() });
+      showSuccess('Category created.');
       setAddOpen(false);
       setNewName('');
       setNewDesc('');
@@ -72,6 +74,7 @@ export function CategoriesTab() {
         name: editName.trim(),
         description: editDesc.trim(),
       });
+      showSuccess('Category updated.');
       setEditTarget(null);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -82,11 +85,25 @@ export function CategoriesTab() {
     setError('');
     try {
       await updateMutation.mutateAsync({ id: cat.id, is_active: !cat.isActive });
+      showSuccess(cat.isActive ? 'Category deactivated.' : 'Category activated.');
     } catch (err) {
       setError(getErrorMessage(err));
     }
   };
 
+<<<<<<< HEAD
+=======
+  const handleDeactivate = async (id: string) => {
+    setError('');
+    try {
+      await deleteMutation.mutateAsync(id);
+      showSuccess('Category deleted.');
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+>>>>>>> dev
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>

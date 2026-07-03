@@ -41,7 +41,16 @@ import type {
   SalesByDayOfWeek,
   SalesByCashier,
   DeadStockProduct,
+  DiscountRule,
+  EvaluateDiscountResult,
+  AuditLog,
+  AuditLogQueryParams,
 } from '@/types';
+import {
+  isMockEnabled,
+  MOCK_ACCESS_TOKEN,
+  MOCK_REFRESH_TOKEN,
+} from '@/config/mock';
 import {
   mockUser,
   mockProducts,
@@ -62,8 +71,6 @@ import {
   mockStoreSettings,
   mockExpenses,
 } from './mockData';
-
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
 // Mutable in-memory store
 let products = [...mockProducts];
@@ -129,7 +136,7 @@ function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> 
 }
 
 export const mockApi = {
-  isMockEnabled: USE_MOCK,
+  isMockEnabled: isMockEnabled(),
 
   async login(credentials: LoginCredentials): Promise<{
     user: User;
@@ -141,12 +148,27 @@ export const mockApi = {
     if (credentials.email === 'admin@komart.com' && credentials.password === 'password') {
       return {
         user: mockUser,
-        accessToken: 'mock-jwt-token',
-        refreshToken: 'mock-refresh-token',
+        accessToken: MOCK_ACCESS_TOKEN,
+        refreshToken: MOCK_REFRESH_TOKEN,
         expiresIn: 900,
       };
     }
     throw new Error('Invalid email or password');
+  },
+
+  async refresh(_refreshToken: string): Promise<{
+    user: User;
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  }> {
+    await delay(200);
+    return {
+      user: mockUser,
+      accessToken: MOCK_ACCESS_TOKEN,
+      refreshToken: MOCK_REFRESH_TOKEN,
+      expiresIn: 900,
+    };
   },
 
   async getDashboardStats(_range?: DateRange): Promise<DashboardStats> {
@@ -794,5 +816,82 @@ export const mockApi = {
         .sort((a, b) => b.amount - a.amount),
       daily: [],
     };
+  },
+
+  // ── Discounts ─────────────────────────────────────────────────────────────
+  async getDiscounts(_activeOnly = true): Promise<DiscountRule[]> {
+    await delay(200);
+    return [];
+  },
+
+  async createDiscount(
+    data: Omit<DiscountRule, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> & { isActive?: boolean },
+  ): Promise<DiscountRule> {
+    await delay(300);
+    const now = new Date().toISOString();
+    return {
+      ...data,
+      id: `disc-${generateId().slice(0, 8)}`,
+      isActive: data.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+  },
+
+  async updateDiscount(id: string, data: Partial<DiscountRule>): Promise<DiscountRule> {
+    await delay(300);
+    const now = new Date().toISOString();
+    return {
+      id,
+      name: data.name ?? 'Mock discount',
+      code: data.code ?? '',
+      ruleType: data.ruleType ?? 'cart_percent',
+      value: data.value ?? 0,
+      productId: data.productId ?? '',
+      category: data.category ?? '',
+      minCartTotal: data.minCartTotal ?? 0,
+      maxDiscount: data.maxDiscount ?? 0,
+      startsAt: data.startsAt,
+      endsAt: data.endsAt,
+      isActive: data.isActive ?? true,
+      priority: data.priority ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+  },
+
+  async deleteDiscount(_id: string): Promise<void> {
+    await delay(200);
+  },
+
+  async evaluateDiscount(payload: {
+    items: Array<{ productId: string; price: number; quantity: number; category?: string }>;
+    couponCode?: string;
+  }): Promise<EvaluateDiscountResult> {
+    await delay(150);
+    return {
+      lineItems: payload.items.map((item) => ({
+        productId: item.productId,
+        perUnitDiscount: 0,
+        lineDiscount: 0,
+      })),
+      lineDiscountTotal: 0,
+      cartDiscount: 0,
+      promotionDiscountTotal: 0,
+      appliedPromotions: [],
+    };
+  },
+
+  // ── Audit logs ──────────────────────────────────────────────────────────────
+  async getAuditLogs(params?: AuditLogQueryParams): Promise<PaginatedResponse<AuditLog>> {
+    await delay(250);
+    const page = params?.page ?? 1;
+    const pageSize = params?.pageSize ?? 25;
+    return { data: [], total: 0, page, pageSize, totalPages: 0 };
+  },
+
+  async getAuditLog(id: string): Promise<AuditLog> {
+    await delay(200);
+    throw new Error(`Audit log ${id} not found`);
   },
 };

@@ -16,6 +16,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { authService } from '@/services';
 import { useAuthStore } from '@/store';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 
 const loginSchema = z.object({
   email: z.email('Enter a valid email'),
@@ -44,6 +45,7 @@ export function LoginPage() {
     try {
       const result = await authService.login(data);
       login(result.user, result.accessToken, result.refreshToken);
+      showSuccess('Logged in successfully.');
       navigate('/dashboard');
     } catch (err) {
       setError(getErrorMessage(err));

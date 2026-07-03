@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useCreateExpense, useUpdateExpense, useExpense } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, CURRENCY_SYMBOL } from '@/constants';
+import { showApiError, showSuccess } from '@/utils/toast';
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -96,10 +97,22 @@ export function ExpenseFormPage() {
     if (isEdit && id) {
       updateMutation.mutate(
         { id, data: payload },
-        { onSuccess: () => navigate('/expenses') },
+        {
+          onSuccess: () => {
+            showSuccess('Expense updated.');
+            navigate('/expenses');
+          },
+          onError: (err) => showApiError(err, 'Expense could not be saved.'),
+        },
       );
     } else {
-      createMutation.mutate(payload, { onSuccess: () => navigate('/expenses') });
+      createMutation.mutate(payload, {
+        onSuccess: () => {
+          showSuccess('Expense created.');
+          navigate('/expenses');
+        },
+        onError: (err) => showApiError(err, 'Expense could not be created.'),
+      });
     }
   };
 
