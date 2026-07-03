@@ -91,19 +91,6 @@ export function CategoriesTab() {
     }
   };
 
-<<<<<<< HEAD
-=======
-  const handleDeactivate = async (id: string) => {
-    setError('');
-    try {
-      await deleteMutation.mutateAsync(id);
-      showSuccess('Category deleted.');
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
->>>>>>> dev
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
