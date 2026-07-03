@@ -56,6 +56,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useCartStore, useAuthStore } from '@/store';
 import { transactionService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import { formatAmount, formatCurrency } from '@/utils';
 import { PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
 import { useStoreSettings } from '@/hooks/useSettings';
@@ -586,6 +587,7 @@ export function POSPage() {
       });
       // Keep modal open — PaymentModal switches to receipt view
       setReceipt(txn);
+      showSuccess('Sale completed successfully.');
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
@@ -618,11 +620,12 @@ export function POSPage() {
         email: custForm.email.trim(),
       });
       setCustomer(created.id);
+      showSuccess('Customer created.');
       setCreateOpen(false);
       setCustForm(EMPTY_FORM);
       setCustFormError('');
-    } catch {
-      setCustFormError('Failed to create customer. Try again.');
+    } catch (err) {
+      setCustFormError(getErrorMessage(err));
     }
   };
 

@@ -2,6 +2,13 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '@/constants';
 import { useAuthStore } from '@/store';
 import { useLoadingStore } from '@/store/loading';
+import {
+  isMockEnabled,
+  isMockRefreshToken,
+  isMockSession,
+} from '@/config/mock';
+import { mockApi } from '@/services/mock/mockApi';
+import { showError } from '@/utils/toast';
 
 // ── Key-case converters ───────────────────────────────────────────────────────
 
@@ -69,10 +76,36 @@ function isAuthUrl(url?: string): boolean {
   return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout');
 }
 
+function shouldAttachAuthHeader(url?: string): boolean {
+  if (!url) return true;
+  return !url.includes('/auth/login') && !url.includes('/auth/refresh');
+}
+
+let sessionExpiredNotified = false;
+
+function notifySessionExpired() {
+  if (sessionExpiredNotified) return;
+  sessionExpiredNotified = true;
+  showError('Your session has expired. Please login again.', { dedupeKey: 'session-expired' });
+  window.setTimeout(() => {
+    sessionExpiredNotified = false;
+  }, 5000);
+}
+
 async function refreshAccessToken(): Promise<string> {
   const refreshToken = useAuthStore.getState().refreshToken;
   if (!refreshToken) {
     throw new Error('No refresh token');
+  }
+
+  if (isMockEnabled()) {
+    const result = await mockApi.refresh(refreshToken);
+    useAuthStore.getState().setTokens(result.accessToken, result.refreshToken);
+    return result.accessToken;
+  }
+
+  if (isMockRefreshToken(refreshToken)) {
+    throw new Error('Stale mock session — please sign in again');
   }
 
   const { data } = await refreshClient.post('/auth/refresh', {
@@ -94,7 +127,7 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     useLoadingStore.getState().start();
     const token = useAuthStore.getState().accessToken;
-    if (token) {
+    if (token && shouldAttachAuthHeader(config.url)) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     if (config.params) {
@@ -131,6 +164,13 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const { refreshToken } = useAuthStore.getState();
+    if (!isMockEnabled() && isMockSession(useAuthStore.getState().accessToken, refreshToken)) {
+      notifySessionExpired();
+      useAuthStore.getState().logout();
+      return Promise.reject(error);
+    }
+
     if (isRefreshing) {
       return new Promise<string>((resolve, reject) => {
         refreshQueue.push({ resolve, reject });
@@ -150,6 +190,7 @@ apiClient.interceptors.response.use(
       return apiClient(original);
     } catch (refreshError) {
       processRefreshQueue(refreshError, null);
+      notifySessionExpired();
       useAuthStore.getState().logout();
       return Promise.reject(refreshError);
     } finally {
@@ -162,21 +203,48 @@ apiClient.interceptors.response.use(
 
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as {
+    if (!error.response) {
+      if (error.code === 'ECONNABORTED') return 'Request timed out. Please try again.';
+      return 'Network error. Check your connection and try again.';
+    }
+
+    const data = error.response.data as {
       message?: string;
       detail?: string | Array<{ msg?: string; loc?: unknown[] }>;
     };
+
     if (typeof data?.detail === 'string') return data.detail;
     if (Array.isArray(data?.detail)) {
       return data.detail
         .map((e) => e.msg ?? JSON.stringify(e))
         .join('; ');
     }
-    if (error.response?.status === 403) {
-      return data?.message ?? 'You do not have permission to perform this action';
+
+    const status = error.response.status;
+    if (status === 403) {
+      return data?.message ?? 'Permission denied.';
     }
+    if (status === 401) {
+      return data?.message ?? 'Your session has expired. Please login again.';
+    }
+    if (status === 404) {
+      return data?.message ?? 'Resource not found.';
+    }
+    if (status === 409) {
+      return data?.message ?? 'This action conflicts with existing data.';
+    }
+    if (status === 422) {
+      return data?.message ?? 'Invalid input. Please check your entries.';
+    }
+    if (status === 400) {
+      return data?.message ?? 'Invalid request.';
+    }
+    if (status >= 500) {
+      return 'Server unavailable. Please try again later.';
+    }
+
     return data?.message ?? error.message;
   }
   if (error instanceof Error) return error.message;
-  return 'An unexpected error occurred';
+  return 'An unexpected error occurred.';
 }

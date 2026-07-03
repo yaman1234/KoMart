@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Alert, ButtonGroup } from '@mui/material';
+import { Box, Button, ButtonGroup } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -9,6 +9,7 @@ import {
   downloadReceiptPdf,
   downloadReceiptHtml,
 } from '@/utils/receiptPrint';
+import { showApiError, showError, showInfo, showSuccess } from '@/utils/toast';
 
 interface ReceiptActionsProps {
   transaction: Transaction;
@@ -28,42 +29,38 @@ export function ReceiptActions({
   showReprintLabel = false,
 }: ReceiptActionsProps) {
   const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<{ severity: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const handlePrint = () => {
     setBusy(true);
-    setFeedback(null);
     const result = printTransactionReceipt(transaction, tenderedAmount, branding);
     if (!result.ok) {
-      setFeedback({
-        severity: 'error',
-        text: result.message ?? 'Print blocked. Allow pop-ups or use Download PDF.',
-      });
+      showError(result.message ?? 'Print blocked. Allow pop-ups or use Download PDF.');
     } else {
-      setFeedback({
-        severity: 'info',
-        text: result.method === 'iframe'
-          ? 'Print dialog opened (embedded mode).'
+      showInfo(
+        result.method === 'iframe'
+          ? 'Print dialog opened.'
           : 'Print dialog opened.',
-      });
+      );
     }
     setBusy(false);
   };
 
   const handlePdf = () => {
-    setFeedback(null);
     try {
       downloadReceiptPdf(transaction, tenderedAmount, branding);
-      setFeedback({ severity: 'success', text: 'PDF downloaded.' });
-    } catch {
-      setFeedback({ severity: 'error', text: 'Failed to generate PDF.' });
+      showSuccess('PDF downloaded.');
+    } catch (err) {
+      showApiError(err, 'Failed to generate PDF.');
     }
   };
 
   const handleHtml = () => {
-    setFeedback(null);
-    downloadReceiptHtml(transaction, tenderedAmount, branding);
-    setFeedback({ severity: 'success', text: 'HTML receipt downloaded.' });
+    try {
+      downloadReceiptHtml(transaction, tenderedAmount, branding);
+      showSuccess('HTML receipt downloaded.');
+    } catch (err) {
+      showApiError(err, 'Failed to download receipt.');
+    }
   };
 
   const printLabel = showReprintLabel ? 'Reprint' : 'Print';
@@ -71,11 +68,6 @@ export function ReceiptActions({
   if (compact) {
     return (
       <Box sx={{ width: '100%' }}>
-        {feedback && (
-          <Alert severity={feedback.severity} sx={{ mb: 1 }} onClose={() => setFeedback(null)}>
-            {feedback.text}
-          </Alert>
-        )}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button
             variant="outlined"
@@ -100,23 +92,16 @@ export function ReceiptActions({
   }
 
   return (
-    <Box>
-      {feedback && (
-        <Alert severity={feedback.severity} sx={{ mb: 1 }} onClose={() => setFeedback(null)}>
-          {feedback.text}
-        </Alert>
-      )}
-      <ButtonGroup variant="outlined" size="small">
-        <Button startIcon={<PrintIcon />} onClick={handlePrint} disabled={busy}>
-          {printLabel}
-        </Button>
-        <Button startIcon={<PictureAsPdfIcon />} onClick={handlePdf}>
-          Download PDF
-        </Button>
-        <Button startIcon={<DownloadIcon />} onClick={handleHtml}>
-          Download HTML
-        </Button>
-      </ButtonGroup>
-    </Box>
+    <ButtonGroup variant="outlined" size="small">
+      <Button startIcon={<PrintIcon />} onClick={handlePrint} disabled={busy}>
+        {printLabel}
+      </Button>
+      <Button startIcon={<PictureAsPdfIcon />} onClick={handlePdf}>
+        Download PDF
+      </Button>
+      <Button startIcon={<DownloadIcon />} onClick={handleHtml}>
+        Download HTML
+      </Button>
+    </ButtonGroup>
   );
 }

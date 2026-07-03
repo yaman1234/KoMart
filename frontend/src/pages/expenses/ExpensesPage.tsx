@@ -27,6 +27,7 @@ import { StatCard } from '@/components/common/StatCard';
 import { useExpenses, useDeleteExpense } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES } from '@/constants';
 import { formatCurrency, formatDate, isAdminOrManager } from '@/utils';
+import { showApiError, showSuccess } from '@/utils/toast';
 import { useAuthStore } from '@/store';
 import type { Expense } from '@/types';
 
@@ -251,7 +252,13 @@ export function ExpensesPage() {
         loading={deleteMutation.isPending}
         onConfirm={() => {
           if (deleteId) {
-            deleteMutation.mutate(deleteId, { onSuccess: () => setDeleteId(null) });
+            deleteMutation.mutate(deleteId, {
+              onSuccess: () => {
+                showSuccess('Expense deleted.');
+                setDeleteId(null);
+              },
+              onError: (err) => showApiError(err, 'Expense could not be deleted.'),
+            });
           }
         }}
         onCancel={() => setDeleteId(null)}

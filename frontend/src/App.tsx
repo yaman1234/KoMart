@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store';
 import { createAppTheme } from '@/theme';
 import { router } from '@/routes';
 import { GlobalLoader } from '@/components/common/GlobalLoader';
+import { ToastProvider } from '@/components/common/ToastProvider';
 
 export function App() {
   const mode = useThemeStore((s) => s.mode);
@@ -16,6 +17,7 @@ export function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <GlobalLoader />
+        <ToastProvider />
         <RouterProvider router={router} />
       </ThemeProvider>
     </QueryClientProvider>

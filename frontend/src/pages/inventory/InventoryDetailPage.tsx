@@ -32,6 +32,7 @@ import {
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate } from '@/utils';
+import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch, StockAdjustmentType } from '@/types';
 
 const ADJUSTMENT_TYPES: { value: StockAdjustmentType; label: string }[] = [
@@ -118,7 +119,13 @@ export function InventoryDetailPage() {
         quantity: qty,
         expiryDate: rcvExpiry || undefined,
       },
-      { onSuccess: () => setReceiveOpen(false) },
+      {
+        onSuccess: () => {
+          showSuccess('Inventory received.');
+          setReceiveOpen(false);
+        },
+        onError: (err) => showApiError(err, 'Inventory receive failed.'),
+      },
     );
   };
 
@@ -145,7 +152,13 @@ export function InventoryDetailPage() {
         reason: adjReason,
         createdBy: currentUser?.name ?? 'User',
       },
-      { onSuccess: () => setAdjustOpen(false) },
+      {
+        onSuccess: () => {
+          showSuccess('Inventory adjusted.');
+          setAdjustOpen(false);
+        },
+        onError: (err) => showApiError(err, 'Inventory update failed.'),
+      },
     );
   };
 

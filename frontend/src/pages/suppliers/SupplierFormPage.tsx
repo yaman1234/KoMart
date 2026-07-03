@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { useSupplier, useCreateSupplier, useUpdateSupplier } from '@/hooks/useSuppliers';
 import { COUNTRIES } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -81,12 +82,14 @@ export function SupplierFormPage() {
           id,
           data: { ...values, email: values.email || undefined },
         });
+        showSuccess('Supplier updated.');
         navigate(`/suppliers/${id}`);
       } else {
         const created = await createMutation.mutateAsync({
           ...values,
           email: values.email || undefined,
         });
+        showSuccess('Supplier created.');
         navigate(`/suppliers/${created.id}`);
       }
     } catch (err) {

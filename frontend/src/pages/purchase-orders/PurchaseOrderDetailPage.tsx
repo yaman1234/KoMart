@@ -33,6 +33,7 @@ import {
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, formatDate, canManagePurchaseOrders } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import { PO_STATUS_LABELS, PO_LINE_STATUS_LABELS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type { PurchaseOrderLineStatus, PurchaseOrderStatus } from '@/types';
@@ -153,6 +154,7 @@ export function PurchaseOrderDetailPage() {
     setStatusValue(status);
     try {
       await statusMutation.mutateAsync({ id: po.id, status });
+      showSuccess('Purchase Order updated.');
       setStatusValue('');
     } catch (err) {
       setStatusError(getErrorMessage(err));
@@ -178,6 +180,7 @@ export function PurchaseOrderDetailPage() {
     setReceiveError('');
     try {
       await receiveMutation.mutateAsync({ id: po.id, items: itemsToReceive });
+      showSuccess('Purchase Order received.');
       setReceiveSelections({});
     } catch (err) {
       setReceiveError(getErrorMessage(err));

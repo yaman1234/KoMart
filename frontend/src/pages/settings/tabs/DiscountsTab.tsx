@@ -33,6 +33,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { DISCOUNT_RULE_TYPES } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import type { DiscountRule, DiscountRuleType } from '@/types';
 
 const EMPTY_FORM = {
@@ -118,8 +119,10 @@ export function DiscountsTab() {
     try {
       if (editTarget) {
         await updateMutation.mutateAsync({ id: editTarget.id, ...form });
+        showSuccess('Discount rule updated.');
       } else {
         await createMutation.mutateAsync(form);
+        showSuccess('Discount rule created.');
       }
       setDialogOpen(false);
     } catch (err) {
@@ -130,6 +133,7 @@ export function DiscountsTab() {
   const handleDeactivate = async (rule: DiscountRule) => {
     try {
       await deleteMutation.mutateAsync(rule.id);
+      showSuccess('Discount rule deactivated.');
     } catch (err) {
       setError(getErrorMessage(err));
     }

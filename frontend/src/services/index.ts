@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import { mockApi } from './mock/mockApi';
+import { isMockEnabled } from '@/config/mock';
 import { useAuthStore } from '@/store';
 import type {
   LoginCredentials,
@@ -58,7 +59,7 @@ import type {
   EvaluateDiscountResult,
 } from '@/types';
 
-const useMock = () => mockApi.isMockEnabled;
+const useMock = () => isMockEnabled();
 
 function withRange(range?: DateRange): Record<string, string> | undefined {
   if (!range) return undefined;
@@ -83,6 +84,7 @@ export const authService = {
     return data;
   },
   refresh: async (refreshToken: string) => {
+    if (useMock()) return mockApi.refresh(refreshToken);
     const { data } = await apiClient.post<{
       accessToken: string;
       refreshToken: string;
@@ -581,24 +583,29 @@ export const usersService = {
 
 export const discountService = {
   getAll: async (activeOnly = true): Promise<DiscountRule[]> => {
+    if (useMock()) return mockApi.getDiscounts(activeOnly);
     const { data } = await apiClient.get('/discounts', { params: { activeOnly } });
     return data as DiscountRule[];
   },
   create: async (payload: Omit<DiscountRule, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> & { isActive?: boolean }): Promise<DiscountRule> => {
+    if (useMock()) return mockApi.createDiscount(payload);
     const { data } = await apiClient.post('/discounts', payload);
     return data as DiscountRule;
   },
   update: async (id: string, payload: Partial<DiscountRule>): Promise<DiscountRule> => {
+    if (useMock()) return mockApi.updateDiscount(id, payload);
     const { data } = await apiClient.patch(`/discounts/${id}`, payload);
     return data as DiscountRule;
   },
   delete: async (id: string): Promise<void> => {
+    if (useMock()) return mockApi.deleteDiscount(id);
     await apiClient.delete(`/discounts/${id}`);
   },
   evaluate: async (payload: {
     items: Array<{ productId: string; price: number; quantity: number; category?: string }>;
     couponCode?: string;
   }): Promise<EvaluateDiscountResult> => {
+    if (useMock()) return mockApi.evaluateDiscount(payload);
     const { data } = await apiClient.post('/discounts/evaluate', payload);
     return data as EvaluateDiscountResult;
   },
@@ -606,10 +613,12 @@ export const discountService = {
 
 export const auditLogService = {
   getAll: async (params?: AuditLogQueryParams): Promise<PaginatedResponse<AuditLog>> => {
+    if (useMock()) return mockApi.getAuditLogs(params);
     const { data } = await apiClient.get('/audit-logs', { params });
     return data as PaginatedResponse<AuditLog>;
   },
   getById: async (id: string): Promise<AuditLog> => {
+    if (useMock()) return mockApi.getAuditLog(id);
     const { data } = await apiClient.get(`/audit-logs/${id}`);
     return data as AuditLog;
   },

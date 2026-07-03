@@ -38,6 +38,7 @@ import {
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
+import { showSuccess } from '@/utils/toast';
 import { useAuthStore } from '@/store';
 import type { Product, PurchaseOrderItem } from '@/types';
 
@@ -233,9 +234,11 @@ export function PurchaseOrderFormPage() {
     try {
       if (isEdit && id) {
         const po = await updateMutation.mutateAsync({ id, data: payload });
+        showSuccess('Purchase Order updated.');
         navigate(`/purchase-orders/${po.id}`);
       } else {
         const po = await createMutation.mutateAsync(payload);
+        showSuccess('Purchase Order created.');
         navigate(`/purchase-orders/${po.id}`);
       }
     } catch (err) {
