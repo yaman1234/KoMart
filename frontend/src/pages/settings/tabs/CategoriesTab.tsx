@@ -84,7 +84,7 @@ export function CategoriesTab() {
   const handleToggleActive = async (cat: Category) => {
     setError('');
     try {
-      await updateMutation.mutateAsync({ id: cat.id, is_active: !cat.isActive });
+      await updateMutation.mutateAsync({ id: cat.id, isActive: !cat.isActive });
       showSuccess(cat.isActive ? 'Category deactivated.' : 'Category activated.');
     } catch (err) {
       setError(getErrorMessage(err));

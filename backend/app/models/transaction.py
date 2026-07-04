@@ -23,9 +23,9 @@ class TransactionItem(BaseModel):
     product_id: str
     name: str
     sku: str
-    price: float
-    quantity: int
-    discount: float = 0.0
+    price: float = Field(ge=0)
+    quantity: int = Field(ge=1)
+    discount: float = Field(default=0.0, ge=0)
     list_price: float = 0.0
     unit_cost: float = 0.0
     category: str = ""
@@ -43,20 +43,21 @@ class Transaction(Document):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
     items: list[TransactionItem] = Field(default_factory=list)
-    subtotal: float
-    discount: float = 0.0
-    promotion_discount: float = 0.0
-    manual_discount: float = 0.0
+    subtotal: float = Field(ge=0)
+    discount: float = Field(default=0.0, ge=0)
+    promotion_discount: float = Field(default=0.0, ge=0)
+    manual_discount: float = Field(default=0.0, ge=0)
     applied_promotions: list[AppliedPromotion] = Field(default_factory=list)
     coupon_code: str = ""
-    tax: float
-    loyalty_points_redeemed: int = 0
-    total: float
-    total_cost: float = 0.0
+    tax: float = Field(ge=0)
+    loyalty_points_redeemed: int = Field(default=0, ge=0)
+    total: float = Field(ge=0)
+    total_cost: float = Field(default=0.0, ge=0)
     payment_method: PaymentMethod
     created_by: str
     cashier_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
         name = "transactions"

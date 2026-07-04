@@ -1,8 +1,11 @@
-import { apiClient } from './apiClient';
+import { apiClient, publicClient } from './apiClient';
 import { mockApi } from './mock/mockApi';
 import { isMockEnabled } from '@/config/mock';
 import { useAuthStore } from '@/store';
 import type {
+  CatalogProduct,
+  CatalogStoreInfo,
+  CatalogOffer,
   LoginCredentials,
   ListQueryParams,
   PaginatedResponse,
@@ -71,6 +74,29 @@ function ensureArray<T>(data: unknown): T[] {
   if (data == null) return [];
   return [data as T];
 }
+
+export const catalogService = {
+  getAll: async (params?: ListQueryParams): Promise<PaginatedResponse<CatalogProduct>> => {
+    const { data } = await publicClient.get('/catalog', { params });
+    return data;
+  },
+  getById: async (id: string): Promise<CatalogProduct> => {
+    const { data } = await publicClient.get(`/catalog/${id}`);
+    return data;
+  },
+  getStoreInfo: async (): Promise<CatalogStoreInfo> => {
+    const { data } = await publicClient.get('/catalog/store-info');
+    return data;
+  },
+  getOffers: async (): Promise<CatalogOffer[]> => {
+    const { data } = await publicClient.get('/catalog/offers');
+    return data;
+  },
+  getTags: async (): Promise<string[]> => {
+    const { data } = await publicClient.get('/catalog/tags');
+    return data;
+  },
+};
 
 export const authService = {
   login: async (credentials: LoginCredentials) => {
@@ -354,6 +380,7 @@ export const transactionService = {
       loyaltyPointsRedeemed?: number;
     },
   ): Promise<Transaction> => {
+    if (useMock()) return mockApi.updateTransaction(id, payload);
     const { data } = await apiClient.patch(`/transactions/${id}`, payload);
     return data as Transaction;
   },
@@ -396,6 +423,7 @@ export const settingsService = {
     return data;
   },
   update: async (payload: Partial<StoreSettings>): Promise<void> => {
+    if (useMock()) return;
     await apiClient.patch('/settings', payload);
   },
 };
@@ -524,7 +552,7 @@ export const categoryService = {
     const { data } = await apiClient.post('/categories', payload);
     return data as Category;
   },
-  update: async (id: string, payload: { name?: string; description?: string; is_active?: boolean }): Promise<Category> => {
+  update: async (id: string, payload: { name?: string; description?: string; isActive?: boolean }): Promise<Category> => {
     const { data } = await apiClient.patch(`/categories/${id}`, payload);
     return data as Category;
   },
@@ -550,7 +578,7 @@ export const usersService = {
     const { data } = await apiClient.post('/users', payload);
     return data as UserListItem;
   },
-  update: async (id: string, payload: { name?: string; email?: string; password?: string; role?: UserRole; is_active?: boolean }): Promise<UserListItem> => {
+  update: async (id: string, payload: { name?: string; email?: string; password?: string; role?: UserRole; isActive?: boolean }): Promise<UserListItem> => {
     const { data } = await apiClient.patch(`/users/${id}`, payload);
     return data as UserListItem;
   },

@@ -78,7 +78,7 @@ const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, 
               color: 'text.disabled',
             }}
           >
-            {product.name[0].toUpperCase()}
+            {(product.name[0] ?? '?').toUpperCase()}
           </Box>
         )}
         <CardContent sx={{ pb: 1 }}>

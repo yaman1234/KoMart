@@ -12,7 +12,7 @@ class DiscountRuleCreate(BaseModel):
     code: str = ""
     rule_type: DiscountRuleType
     value: float = Field(ge=0)
-    product_id: str = ""
+    product_ids: list[str] = Field(default_factory=list)
     category: str = ""
     min_cart_total: float = Field(default=0, ge=0)
     max_discount: float = Field(default=0, ge=0)
@@ -27,7 +27,7 @@ class DiscountRuleUpdate(BaseModel):
     code: Optional[str] = None
     rule_type: Optional[DiscountRuleType] = None
     value: Optional[float] = Field(default=None, ge=0)
-    product_id: Optional[str] = None
+    product_ids: Optional[list[str]] = None
     category: Optional[str] = None
     min_cart_total: Optional[float] = Field(default=None, ge=0)
     max_discount: Optional[float] = Field(default=None, ge=0)
@@ -43,7 +43,7 @@ class DiscountRuleResponse(BaseModel):
     code: str
     rule_type: DiscountRuleType
     value: float
-    product_id: str
+    product_ids: list[str]
     category: str
     min_cart_total: float
     max_discount: float

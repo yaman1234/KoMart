@@ -15,6 +15,10 @@ class AuditModule(str, Enum):
     purchase_orders = "purchase_orders"
     settings = "settings"
     users = "users"
+    expenses = "expenses"
+    customers = "customers"
+    categories = "categories"
+    discounts = "discounts"
 
 
 class AuditLog(Document):

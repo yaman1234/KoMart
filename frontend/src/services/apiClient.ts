@@ -48,6 +48,23 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
+/** Public client for unauthenticated endpoints (catalog) */
+export const publicClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 30000,
+});
+
+publicClient.interceptors.request.use((config) => {
+  if (config.params) config.params = decamelizeKeys(config.params);
+  return config;
+});
+
+publicClient.interceptors.response.use((response) => {
+  response.data = camelizeKeys(response.data);
+  return response;
+});
+
 /** Bare client for token refresh — avoids interceptor recursion */
 const refreshClient = axios.create({
   baseURL: API_BASE_URL,

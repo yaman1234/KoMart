@@ -22,10 +22,29 @@ from app.models import (
 )
 
 
+async def _drop_conflicting_indexes(db) -> None:
+    """Drop old indexes whose options changed (e.g. non-unique → unique)."""
+    migrations = [
+        ("users", "email_1"),
+        ("purchase_orders", "order_number_1"),
+        ("discount_rules", "code_1"),
+        ("refresh_tokens", "expires_at_1"),
+    ]
+    for collection_name, index_name in migrations:
+        try:
+            await db[collection_name].drop_index(index_name)
+        except Exception:
+            pass  # index doesn't exist or already dropped
+
+
 async def init_db() -> None:
     client = AsyncIOMotorClient(settings.mongo_url)
+    db = client[settings.mongo_db_name]
+
+    await _drop_conflicting_indexes(db)
+
     await init_beanie(
-        database=client[settings.mongo_db_name],
+        database=db,
         document_models=[
             User,
             Product,

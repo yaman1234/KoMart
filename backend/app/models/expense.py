@@ -1,5 +1,7 @@
+import re
+
 from beanie import Document
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing import Optional
 from datetime import datetime, timezone
 from enum import Enum
@@ -18,6 +20,9 @@ class ExpenseCategory(str, Enum):
     other            = "other"
 
 
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 class Expense(Document):
     title:          str
     description:    Optional[str] = None
@@ -26,6 +31,13 @@ class Expense(Document):
     date:           str  # ISO date "YYYY-MM-DD"
     paid_to:        Optional[str] = None
     payment_method: Optional[str] = None
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date_format(cls, v: str) -> str:
+        if not _ISO_DATE_RE.match(v):
+            raise ValueError("date must be in YYYY-MM-DD format")
+        return v
     is_setup_cost:  bool = False
     created_at:     datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at:     datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

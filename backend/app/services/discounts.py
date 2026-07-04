@@ -73,7 +73,7 @@ def _cart_discount_amount(rule: DiscountRule, cart_base: float) -> float:
 
 def _matches_line(rule: DiscountRule, item: EvaluateCartItem) -> bool:
     if rule.rule_type in (DiscountRuleType.product_percent, DiscountRuleType.product_flat):
-        return bool(rule.product_id) and rule.product_id == item.product_id
+        return bool(rule.product_ids) and item.product_id in rule.product_ids
     if rule.rule_type in (DiscountRuleType.category_percent, DiscountRuleType.category_flat):
         return bool(rule.category) and rule.category == item.category
     return False

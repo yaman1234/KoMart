@@ -20,7 +20,7 @@ export function useCreateDiscountRule() {
       code?: string;
       ruleType: DiscountRuleType;
       value: number;
-      productId?: string;
+      productIds?: string[];
       category?: string;
       minCartTotal?: number;
       maxDiscount?: number;
@@ -30,7 +30,7 @@ export function useCreateDiscountRule() {
       code: data.code ?? '',
       ruleType: data.ruleType,
       value: data.value,
-      productId: data.productId ?? '',
+      productIds: data.productIds ?? [],
       category: data.category ?? '',
       minCartTotal: data.minCartTotal ?? 0,
       maxDiscount: data.maxDiscount ?? 0,

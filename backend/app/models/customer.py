@@ -18,10 +18,11 @@ class Customer(Document):
     phone: Indexed(str)  # type: ignore[valid-type]
     email: str = ""
     birthday: Optional[str] = None
-    loyalty_points: int = 0
+    loyalty_points: int = Field(default=0, ge=0)
     membership_tier: MembershipTier = MembershipTier.bronze
-    total_spent: float = 0.0
+    total_spent: float = Field(default=0.0, ge=0)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
         name = "customers"

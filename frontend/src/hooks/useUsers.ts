@@ -32,7 +32,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; name?: string; email?: string; password?: string; role?: UserRole; is_active?: boolean }) =>
+    mutationFn: ({ id, ...payload }: { id: string; name?: string; email?: string; password?: string; role?: UserRole; isActive?: boolean }) =>
       usersService.update(id, payload),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });

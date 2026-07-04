@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -34,14 +35,14 @@ import { useCategoryNames } from '@/hooks/useCategories';
 import { DISCOUNT_RULE_TYPES } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
-import type { DiscountRule, DiscountRuleType } from '@/types';
+import type { DiscountRule, DiscountRuleType, Product } from '@/types';
 
 const EMPTY_FORM = {
   name: '',
   code: '',
   ruleType: 'category_percent' as DiscountRuleType,
   value: 10,
-  productId: '',
+  productIds: [] as string[],
   category: '',
   minCartTotal: 0,
   maxDiscount: 0,
@@ -52,8 +53,13 @@ function ruleTypeLabel(type: DiscountRuleType): string {
   return DISCOUNT_RULE_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
-function ruleScopeLabel(rule: DiscountRule): string {
-  if (rule.ruleType.startsWith('product_')) return rule.productId ? `Product` : '—';
+function ruleScopeLabel(rule: DiscountRule, productMap: Map<string, string>): string {
+  if (rule.ruleType.startsWith('product_')) {
+    const count = rule.productIds.length;
+    if (count === 0) return '—';
+    if (count === 1) return productMap.get(rule.productIds[0]) ?? '1 product';
+    return `${count} products`;
+  }
   if (rule.ruleType.startsWith('category_')) return rule.category || '—';
   return 'Entire cart';
 }
@@ -67,6 +73,12 @@ export function DiscountsTab() {
   const { data: productsData } = useProducts({ pageSize: 200 });
   const categories = useCategoryNames();
   const products = productsData?.data ?? [];
+
+  const productMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of products) map.set(p.id, p.name);
+    return map;
+  }, [products]);
 
   const createMutation = useCreateDiscountRule();
   const updateMutation = useUpdateDiscountRule();
@@ -86,6 +98,11 @@ export function DiscountsTab() {
     [rules],
   );
 
+  const selectedProducts = useMemo(
+    () => products.filter((p) => form.productIds.includes(p.id)),
+    [products, form.productIds],
+  );
+
   const openCreate = () => {
     setEditTarget(null);
     setForm(EMPTY_FORM);
@@ -100,7 +117,7 @@ export function DiscountsTab() {
       code: rule.code,
       ruleType: rule.ruleType,
       value: rule.value,
-      productId: rule.productId,
+      productIds: rule.productIds,
       category: rule.category,
       minCartTotal: rule.minCartTotal,
       maxDiscount: rule.maxDiscount,
@@ -194,7 +211,17 @@ export function DiscountsTab() {
                     )}
                   </TableCell>
                   <TableCell>{ruleTypeLabel(rule.ruleType)}</TableCell>
-                  <TableCell>{ruleScopeLabel(rule)}</TableCell>
+                  <TableCell>
+                    <Tooltip
+                      title={
+                        rule.ruleType.startsWith('product_') && rule.productIds.length > 1
+                          ? rule.productIds.map((id) => productMap.get(id) ?? id).join(', ')
+                          : ''
+                      }
+                    >
+                      <span>{ruleScopeLabel(rule, productMap)}</span>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell>{ruleValueLabel(rule)}</TableCell>
                   <TableCell>{rule.code || 'Auto'}</TableCell>
                   <TableCell align="right">
@@ -252,18 +279,21 @@ export function DiscountsTab() {
             </Select>
           </FormControl>
           {needsProduct && (
-            <FormControl fullWidth>
-              <InputLabel>Product</InputLabel>
-              <Select
-                label="Product"
-                value={form.productId}
-                onChange={(e) => setForm((f) => ({ ...f, productId: e.target.value }))}
-              >
-                {products.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete<Product, true>
+              multiple
+              options={products}
+              getOptionLabel={(option) => option.name}
+              value={selectedProducts}
+              onChange={(_e, newValue) => setForm((f) => ({ ...f, productIds: newValue.map((p) => p.id) }))}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              renderInput={(params) => <TextField {...params} label="Products" placeholder="Search products…" />}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => {
+                  const { key, ...tagProps } = getTagProps({ index });
+                  return <Chip key={key} label={option.name} size="small" {...tagProps} />;
+                })
+              }
+            />
           )}
           {needsCategory && (
             <FormControl fullWidth>

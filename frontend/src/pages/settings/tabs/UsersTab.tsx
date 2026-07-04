@@ -67,15 +67,15 @@ export function UsersTab() {
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<UserListItem | null>(null);
   const [form, setForm] = useState<UserFormState>(emptyForm);
-  const [editForm, setEditForm] = useState<{ name: string; role: UserRole; is_active: boolean; password: string }>({
-    name: '', role: 'cashier', is_active: true, password: '',
+  const [editForm, setEditForm] = useState<{ name: string; role: UserRole; isActive: boolean; password: string }>({
+    name: '', role: 'cashier', isActive: true, password: '',
   });
   const [error, setError] = useState('');
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
 
   const openEdit = (user: UserListItem) => {
     setEditTarget(user);
-    setEditForm({ name: user.name, role: user.role, is_active: user.isActive, password: '' });
+    setEditForm({ name: user.name, role: user.role, isActive: user.isActive, password: '' });
     setError('');
   };
 
@@ -99,7 +99,7 @@ export function UsersTab() {
         id: editTarget.id,
         name: editForm.name,
         role: editForm.role,
-        is_active: editForm.is_active,
+        isActive: editForm.isActive,
         ...(editForm.password ? { password: editForm.password } : {}),
       });
       showSuccess(editForm.password ? 'Password changed.' : 'User updated.');
@@ -320,8 +320,8 @@ export function UsersTab() {
                 <InputLabel>Status</InputLabel>
                 <Select
                   label="Status"
-                  value={editForm.is_active ? 'active' : 'inactive'}
-                  onChange={(e) => setEditForm((f) => ({ ...f, is_active: e.target.value === 'active' }))}
+                  value={editForm.isActive ? 'active' : 'inactive'}
+                  onChange={(e) => setEditForm((f) => ({ ...f, isActive: e.target.value === 'active' }))}
                 >
                   <MenuItem value="active">Active</MenuItem>
                   <MenuItem value="inactive">Inactive</MenuItem>

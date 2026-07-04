@@ -1,8 +1,11 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
+import { CatalogLayout } from '@/layouts/CatalogLayout';
 import { ProtectedRoute, GuestRoute, RoleGuard } from '@/routes/guards';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { CatalogPage } from '@/pages/catalog/CatalogPage';
+import { CatalogDetailPage } from '@/pages/catalog/CatalogDetailPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { POSPage } from '@/pages/pos/POSPage';
 import { ProductsPage } from '@/pages/products/ProductsPage';
@@ -27,9 +30,13 @@ import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 
 export const router = createBrowserRouter([
+  // Public catalog routes (no auth)
   {
-    path: '/',
-    element: <Navigate to="/dashboard" replace />,
+    element: <CatalogLayout />,
+    children: [
+      { path: '/', element: <CatalogPage /> },
+      { path: '/catalog/:id', element: <CatalogDetailPage /> },
+    ],
   },
   {
     element: <GuestRoute />,
@@ -54,12 +61,11 @@ export const router = createBrowserRouter([
           { path: '/sales', element: <SalesPage /> },
           { path: '/sales/:id', element: <SaleDetailPage /> },
           { path: '/products', element: <ProductsPage /> },
-          { path: '/products/:id', element: <ProductDetailPage /> },
           { path: '/customers', element: <CustomersPage /> },
           { path: '/customers/:id', element: <CustomerDetailPage /> },
           { path: '/notifications', element: <NotificationsPage /> },
 
-          // Manager + Admin only routes
+          // Manager + Admin only routes (placed before /:id catch-all)
           {
             element: <RoleGuard allow={['admin', 'manager']} />,
             children: [
@@ -83,12 +89,15 @@ export const router = createBrowserRouter([
               { path: '/settings/:tab', element: <SettingsPage /> },
             ],
           },
+
+          // Product detail after /products/new to avoid /:id catching "new"
+          { path: '/products/:id', element: <ProductDetailPage /> },
         ],
       },
     ],
   },
   {
     path: '*',
-    element: <Navigate to="/dashboard" replace />,
+    element: <Navigate to="/" replace />,
   },
 ]);

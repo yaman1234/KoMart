@@ -17,6 +17,7 @@ import { authService } from '@/services';
 import { useAuthStore } from '@/store';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
+import { isMockEnabled } from '@/config/mock';
 
 const loginSchema = z.object({
   email: z.email('Enter a valid email'),
@@ -37,7 +38,9 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: 'admin@komart.com', password: 'password' },
+    defaultValues: isMockEnabled()
+      ? { email: 'admin@komart.com', password: 'password' }
+      : { email: '', password: '' },
   });
 
   const onSubmit = async (data: LoginForm) => {

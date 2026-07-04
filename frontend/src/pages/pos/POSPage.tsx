@@ -169,7 +169,7 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
                 userSelect: 'none',
               }}
             >
-              {product.name[0].toUpperCase()}
+              {(product.name[0] ?? '?').toUpperCase()}
             </Box>
           )}
           {qtyInCart > 0 && (
@@ -538,8 +538,15 @@ export function POSPage() {
   };
 
   // ── Stock helpers ─────────────────────────────────────────────────────────
+  const getProductStock = useCallback((productId: string): number => {
+    const p = products.find((prod) => prod.id === productId);
+    return p?.stock ?? 0;
+  }, [products]);
+
   const handleAddProduct = useCallback((product: Product) => {
     if (product.stock === 0) return;
+    const currentQty = items.find((i) => i.productId === product.id)?.quantity ?? 0;
+    if (currentQty >= product.stock) return;
     addItem({
       productId: product.id,
       name: product.name,
@@ -550,15 +557,17 @@ export function POSPage() {
       discount: 0,
       category: product.category,
     });
-  }, [addItem]);
+  }, [addItem, items, products]);
 
   const handleQtyChange = useCallback((productId: string, newQty: number) => {
     if (isNaN(newQty) || newQty < 1) {
       updateQuantity(productId, 0);
       return;
     }
+    const stock = getProductStock(productId);
+    if (stock > 0 && newQty > stock) return;
     updateQuantity(productId, newQty);
-  }, [updateQuantity]);
+  }, [updateQuantity, getProductStock]);
 
   // ── Payment ────────────────────────────────────────────────────────────────
   const handlePayment = async (method: PaymentMethod, tendered?: number) => {
