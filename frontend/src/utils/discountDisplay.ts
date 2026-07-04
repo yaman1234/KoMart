@@ -24,7 +24,7 @@ function ruleMatchesProduct(
   product: Pick<Product, 'id' | 'category'>,
 ): boolean {
   if (rule.ruleType.startsWith('product_')) {
-    return Boolean(rule.productId) && rule.productId === product.id;
+    return rule.productIds.length > 0 && rule.productIds.includes(product.id);
   }
   if (rule.ruleType.startsWith('category_')) {
     return Boolean(rule.category) && rule.category === product.category;

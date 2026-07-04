@@ -30,12 +30,12 @@ class Product(Document):
     supplier_name: str
     description: str = ""
     uom: str = "pcs"            # Unit of Measure: pcs, pack, box, kg, g, ml, L …
-    cost_price: float
-    selling_price: float
+    cost_price: float = Field(ge=0)
+    selling_price: float = Field(ge=0)
     images: list[str] = Field(default_factory=list)
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
-    stock: int = 0
+    stock: int = Field(default=0, ge=0)
     low_stock_threshold: int = 10
     status: ProductStatus = ProductStatus.active
     tags: list[str] = Field(default_factory=list)
@@ -51,4 +51,5 @@ class Product(Document):
             IndexModel([("is_active", ASCENDING), ("stock", ASCENDING)]),
             IndexModel([("is_active", ASCENDING), ("category", ASCENDING)]),
             IndexModel([("is_active", ASCENDING), ("status", ASCENDING), ("name", ASCENDING)]),
+            IndexModel([("tags", ASCENDING)]),
         ]

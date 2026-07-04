@@ -26,5 +26,5 @@ class RefreshToken(Document):
             IndexModel([("token_hash", ASCENDING)], unique=True),
             IndexModel([("user_id", ASCENDING), ("created_at", ASCENDING)]),
             IndexModel([("family_id", ASCENDING)]),
-            IndexModel([("expires_at", ASCENDING)]),
+            IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=0),
         ]

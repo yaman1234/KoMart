@@ -54,7 +54,7 @@ export interface DiscountRule {
   code: string;
   ruleType: DiscountRuleType;
   value: number;
-  productId: string;
+  productIds: string[];
   category: string;
   minCartTotal: number;
   maxDiscount: number;
@@ -82,6 +82,45 @@ export interface EvaluateDiscountResult {
   cartDiscount: number;
   promotionDiscountTotal: number;
   appliedPromotions: AppliedPromotion[];
+}
+
+export interface CatalogStoreInfo {
+  storeName: string;
+  address: string;
+  phone: string;
+  email: string;
+  logoUrl: string;
+}
+
+export interface CatalogOffer {
+  id: string;
+  name: string;
+  ruleType: DiscountRuleType;
+  value: number;
+  productIds: string[];
+  category: string;
+  code?: string;
+  startsAt?: string;
+  endsAt?: string;
+}
+
+export interface CatalogProduct {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string;
+  brand: string;
+  countryOfOrigin: string;
+  category: string;
+  description: string;
+  uom: string;
+  sellingPrice: number;
+  images: string[];
+  nutritionInfo?: string;
+  allergenInfo?: string;
+  status?: ProductStatus;
+  tags?: string[];
+  inStock?: boolean;
 }
 
 export interface Product {

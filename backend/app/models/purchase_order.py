@@ -23,9 +23,9 @@ class LineStatus(str, Enum):
 class PurchaseOrderItem(BaseModel):
     product_id: str
     product_name: str
-    quantity: int
-    unit_cost: float
-    received_quantity: int = 0
+    quantity: int = Field(ge=1)
+    unit_cost: float = Field(ge=0)
+    received_quantity: int = Field(default=0, ge=0)
 
 
 def line_status(item: PurchaseOrderItem) -> LineStatus:
@@ -52,7 +52,7 @@ class PurchaseOrder(Document):
     supplier_name: str
     status: POStatus = POStatus.draft
     items: list[PurchaseOrderItem] = Field(default_factory=list)
-    total_amount: float
+    total_amount: float = Field(ge=0)
     expected_delivery: Optional[str] = None
     ordered_by: Optional[str] = None
     received_by: Optional[str] = None
@@ -65,5 +65,5 @@ class PurchaseOrder(Document):
         indexes = [
             IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
             IndexModel([("supplier_id", ASCENDING), ("created_at", DESCENDING)]),
-            IndexModel([("order_number", ASCENDING)]),
+            IndexModel([("order_number", ASCENDING)], unique=True),
         ]

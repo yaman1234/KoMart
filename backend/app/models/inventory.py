@@ -17,8 +17,8 @@ class AdjustmentType(str, Enum):
 class InventoryBatch(Document):
     product_id: str
     batch_number: str
-    quantity: int
-    unit_cost: float = 0.0
+    quantity: int = Field(ge=0)
+    unit_cost: float = Field(default=0.0, ge=0)
     expiry_date: Optional[str] = None
     purchase_order_id: Optional[str] = None
     received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

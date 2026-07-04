@@ -9,6 +9,7 @@ from app.database import init_db
 from app.services.stock import refresh_all_product_stocks
 from app.routers import (
     auth,
+    catalog,
     products,
     inventory,
     suppliers,
@@ -62,6 +63,7 @@ async def attach_request_id(request: Request, call_next):
 API_PREFIX = "/api/v1"
 
 app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(catalog.router, prefix=API_PREFIX)
 app.include_router(products.router, prefix=API_PREFIX)
 app.include_router(inventory.router, prefix=API_PREFIX)
 app.include_router(suppliers.router, prefix=API_PREFIX)

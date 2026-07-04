@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from collections import defaultdict
 
+from bson import ObjectId as BsonObjectId
 from fastapi import HTTPException, status
 
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
@@ -113,7 +114,11 @@ async def deduct_stock_fefo(product_id: str, quantity: int) -> list[BatchDeducti
         if remaining <= 0:
             break
         deduct = min(batch.quantity, remaining)
-        await batch.set({"quantity": batch.quantity - deduct})
+        col = InventoryBatch.get_motor_collection()
+        await col.update_one(
+            {"_id": batch.id, "quantity": {"$gte": deduct}},
+            {"$inc": {"quantity": -deduct}},
+        )
         deductions.append(BatchDeduction(
             product_id=product_id,
             batch_id=str(batch.id),
@@ -130,10 +135,12 @@ async def restock_from_deductions(deductions: list[BatchDeduction]) -> None:
     """Restore quantities deducted during a failed sale."""
     touched_products: set[str] = set()
     for d in deductions:
-        batch = await InventoryBatch.get(d.batch_id)
-        if batch:
-            await batch.set({"quantity": batch.quantity + d.quantity})
-            touched_products.add(d.product_id)
+        col = InventoryBatch.get_motor_collection()
+        await col.update_one(
+            {"_id": BsonObjectId(d.batch_id)},
+            {"$inc": {"quantity": d.quantity}},
+        )
+        touched_products.add(d.product_id)
 
     for product_id in touched_products:
         product = await Product.get(product_id)
@@ -309,8 +316,15 @@ async def adjust_stock(
         batch = await InventoryBatch.get(batch_id)
         if not batch or batch.product_id != product_id:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Batch not found")
-        new_qty = max(0, batch.quantity + quantity)
-        await batch.set({"quantity": new_qty})
+        if quantity < 0 and batch.quantity + quantity < 0:
+            new_qty = 0
+        else:
+            new_qty = batch.quantity + quantity
+        col = InventoryBatch.get_motor_collection()
+        await col.update_one(
+            {"_id": batch.id},
+            {"$set": {"quantity": max(0, new_qty)}},
+        )
         await refresh_product_stock(product)
     elif quantity < 0:
         await deduct_stock_fefo(product_id, abs(quantity))

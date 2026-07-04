@@ -189,6 +189,11 @@ export const QUERY_KEYS = {
   inventoryItem: (id: string) => ['inventory', 'item', id] as const,
   inventoryMovements: (filters?: string) => ['inventory', 'movements', filters] as const,
   movementSummary: (filters?: string) => ['inventory', 'movementSummary', filters] as const,
+  catalog: ['catalog'] as const,
+  catalogProduct: (id: string) => ['catalog', id] as const,
+  storeInfo: ['catalog', 'store-info'] as const,
+  catalogOffers: ['catalog', 'offers'] as const,
+  catalogTags: ['catalog', 'tags'] as const,
   discounts: ['discounts'] as const,
   discountEvaluate: (payload?: string) => ['discounts', 'evaluate', payload] as const,
 };

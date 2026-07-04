@@ -24,7 +24,7 @@ def _to_response(rule: DiscountRule) -> DiscountRuleResponse:
         code=rule.code,
         rule_type=rule.rule_type,
         value=rule.value,
-        product_id=rule.product_id,
+        product_ids=rule.product_ids,
         category=rule.category,
         min_cart_total=rule.min_cart_total,
         max_discount=rule.max_discount,
@@ -40,13 +40,13 @@ def _to_response(rule: DiscountRule) -> DiscountRuleResponse:
 def _validate_rule_payload(
     rule_type: DiscountRuleType,
     *,
-    product_id: str,
+    product_ids: list[str],
     category: str,
     value: float,
 ) -> None:
     if rule_type in (DiscountRuleType.product_percent, DiscountRuleType.product_flat):
-        if not product_id:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="product_id is required for product discounts")
+        if not product_ids:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="At least one product is required for product discounts")
     if rule_type in (DiscountRuleType.category_percent, DiscountRuleType.category_flat):
         if not category:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="category is required for category discounts")
@@ -82,7 +82,7 @@ async def create_discount_rule(
 ):
     _validate_rule_payload(
         body.rule_type,
-        product_id=body.product_id,
+        product_ids=body.product_ids,
         category=body.category,
         value=body.value,
     )
@@ -115,12 +115,12 @@ async def update_discount_rule(
                 raise HTTPException(status.HTTP_409_CONFLICT, detail="Coupon code already exists")
         data["code"] = code
     merged_type = data.get("rule_type", rule.rule_type)
-    merged_product = data.get("product_id", rule.product_id)
+    merged_products = data.get("product_ids", rule.product_ids)
     merged_category = data.get("category", rule.category)
     merged_value = data.get("value", rule.value)
     _validate_rule_payload(
         merged_type,
-        product_id=merged_product,
+        product_ids=merged_products,
         category=merged_category,
         value=merged_value,
     )

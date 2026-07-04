@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from beanie import Document
-from pydantic import Field
+from pydantic import Field, model_validator
 from pymongo import ASCENDING, IndexModel
 
 
@@ -21,7 +21,7 @@ class DiscountRule(Document):
     code: str = ""
     rule_type: DiscountRuleType
     value: float = Field(ge=0)
-    product_id: str = ""
+    product_ids: list[str] = Field(default_factory=list)
     category: str = ""
     min_cart_total: float = Field(default=0, ge=0)
     max_discount: float = Field(default=0, ge=0)
@@ -32,11 +32,25 @@ class DiscountRule(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_product_id(cls, data: Any) -> Any:
+        """Convert legacy single product_id to product_ids list."""
+        if isinstance(data, dict):
+            old = data.pop("product_id", None)
+            if old and "product_ids" not in data:
+                data["product_ids"] = [old] if old else []
+        return data
+
     class Settings:
         name = "discount_rules"
         indexes = [
             IndexModel([("is_active", ASCENDING), ("priority", ASCENDING)]),
-            IndexModel([("code", ASCENDING)]),
-            IndexModel([("rule_type", ASCENDING), ("product_id", ASCENDING)]),
+            IndexModel(
+                [("code", ASCENDING)],
+                unique=True,
+                partialFilterExpression={"code": {"$gt": ""}},
+            ),
+            IndexModel([("rule_type", ASCENDING), ("product_ids", ASCENDING)]),
             IndexModel([("rule_type", ASCENDING), ("category", ASCENDING)]),
         ]
