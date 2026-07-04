@@ -7,11 +7,11 @@ from app.models.product import ProductStatus, SellMode
 class ProductCreate(BaseModel):
     name: str
     sku: str
-    barcode: str
+    barcode: str = ""
     brand: str
     country_of_origin: str
     category: str
-    supplier_id: str
+    supplier_id: str = ""
     description: str = ""
     buy_uom: str = "pcs"
     uom: str = "pcs"
@@ -49,6 +49,7 @@ class ProductUpdate(BaseModel):
     country_of_origin: Optional[str] = None
     category: Optional[str] = None
     supplier_id: Optional[str] = None
+    barcode: Optional[str] = None
     description: Optional[str] = None
     buy_uom: Optional[str] = None
     uom: Optional[str] = None

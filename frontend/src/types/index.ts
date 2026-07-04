@@ -10,6 +10,15 @@ export interface Category {
   createdAt: string;
 }
 
+export interface Uom {
+  id: string;
+  code: string;
+  label: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface UserListItem {
   id: string;
   name: string;

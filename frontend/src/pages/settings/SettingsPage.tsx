@@ -4,6 +4,7 @@ import StoreIcon from '@mui/icons-material/Store';
 import PeopleIcon from '@mui/icons-material/People';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import StraightenIcon from '@mui/icons-material/Straighten';
 import HistoryIcon from '@mui/icons-material/History';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -12,12 +13,13 @@ import { isAdmin, isAdminOrManager } from '@/utils';
 import { StoreInfoTab } from './tabs/StoreInfoTab';
 import { UsersTab } from './tabs/UsersTab';
 import { CategoriesTab } from './tabs/CategoriesTab';
+import { UomsTab } from './tabs/UomsTab';
 import { AuditLogsTab } from './tabs/AuditLogsTab';
 import { DiscountsTab } from './tabs/DiscountsTab';
 
-type TabKey = 'store' | 'users' | 'categories' | 'discounts' | 'audit';
+type TabKey = 'store' | 'users' | 'categories' | 'uoms' | 'discounts' | 'audit';
 
-const TAB_ORDER: TabKey[] = ['store', 'users', 'categories', 'discounts', 'audit'];
+const TAB_ORDER: TabKey[] = ['store', 'users', 'categories', 'uoms', 'discounts', 'audit'];
 
 export function SettingsPage() {
   const { tab } = useParams<{ tab?: string }>();
@@ -44,7 +46,7 @@ export function SettingsPage() {
 
   return (
     <Box>
-      <PageHeader title="Settings" subtitle="Store configuration, users, categories, discounts, and audit logs" />
+      <PageHeader title="Settings" subtitle="Store configuration, users, categories, UOM, discounts, and audit logs" />
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={handleTabChange}>
@@ -66,6 +68,12 @@ export function SettingsPage() {
             value="categories"
             label="Categories"
             icon={<LocalOfferIcon />}
+            iconPosition="start"
+          />
+          <Tab
+            value="uoms"
+            label="UOM"
+            icon={<StraightenIcon />}
             iconPosition="start"
           />
           {managerAccess && (
@@ -96,6 +104,7 @@ export function SettingsPage() {
         )
       )}
       {activeTab === 'categories' && <CategoriesTab />}
+      {activeTab === 'uoms' && <UomsTab />}
       {activeTab === 'discounts' && (
         managerAccess ? (
           <DiscountsTab />

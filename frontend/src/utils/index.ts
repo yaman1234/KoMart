@@ -50,8 +50,9 @@ export function formatCurrency(amount: number): string {
   return `${CURRENCY_SYMBOL} ${formatAmount(amount)}`;
 }
 
-export function uomLabel(value: string): string {
-  return UOM_OPTIONS.find((o) => o.value === value)?.label ?? value;
+export function uomLabel(value: string, options?: ReadonlyArray<{ value: string; label: string }>): string {
+  const list = options ?? UOM_OPTIONS;
+  return list.find((o) => o.value === value)?.label ?? value;
 }
 
 export function formatPricePerUom(price: number, uom: string): string {

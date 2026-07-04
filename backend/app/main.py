@@ -23,6 +23,7 @@ from app.routers import (
     expenses,
     users,
     categories,
+    uoms,
     audit_logs,
     discounts,
 )
@@ -77,6 +78,7 @@ app.include_router(settings_router.router, prefix=API_PREFIX)
 app.include_router(expenses.router, prefix=API_PREFIX)
 app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(categories.router, prefix=API_PREFIX)
+app.include_router(uoms.router, prefix=API_PREFIX)
 app.include_router(audit_logs.router, prefix=API_PREFIX)
 app.include_router(discounts.router, prefix=API_PREFIX)
 

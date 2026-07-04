@@ -28,12 +28,12 @@ def product_is_sellable(product: "Product") -> bool:
 class Product(Document):
     name: str
     sku: Indexed(str, unique=True)  # type: ignore[valid-type]
-    barcode: Indexed(str)           # type: ignore[valid-type]
+    barcode: str = ""
     brand: str
     country_of_origin: str
     category: Indexed(str)          # type: ignore[valid-type]
-    supplier_id: str
-    supplier_name: str
+    supplier_id: str = ""
+    supplier_name: str = ""
     description: str = ""
     buy_uom: str = "pcs"          # how purchased from supplier
     uom: str = "pcs"              # sell UOM: pcs, pack, box, kg, g, ml, L …

@@ -99,12 +99,15 @@ async def create_product(
 ):
     if await Product.find_one(Product.sku == body.sku):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="SKU already exists")
-    supplier = await _resolve_supplier(body.supplier_id)
+    supplier_name = ""
+    if body.supplier_id:
+        supplier = await _resolve_supplier(body.supplier_id)
+        supplier_name = supplier.name
     data = body.model_dump()
     data.pop("stock", None)
     product = Product(
         **data,
-        supplier_name=supplier.name,
+        supplier_name=supplier_name,
         stock=0,
     )
     await product.insert()
@@ -141,8 +144,12 @@ async def update_product(
     before = product_snapshot(product)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if "supplier_id" in update_data:
-        supplier = await _resolve_supplier(update_data["supplier_id"])
-        update_data["supplier_name"] = supplier.name
+        sid = update_data["supplier_id"]
+        if sid:
+            supplier = await _resolve_supplier(sid)
+            update_data["supplier_name"] = supplier.name
+        else:
+            update_data["supplier_name"] = ""
     update_data["updated_at"] = datetime.now(timezone.utc)
     await product.set(update_data)
     refreshed = await Product.get(product_id)
