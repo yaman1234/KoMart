@@ -55,6 +55,7 @@ from app.services.reporting import (
     parse_date_range,
 )
 from app.services.stock import expiring_product_ids
+from app.services.expense_helpers import is_setup_investment
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -656,7 +657,7 @@ async def expense_summary_report(
 
     for expense in expenses:
         total_expenses += expense.amount
-        if expense.is_setup_cost:
+        if is_setup_investment(expense):
             setup_investment += expense.amount
         category_stats[expense.category.value]["amount"] += expense.amount
         category_stats[expense.category.value]["count"] += 1

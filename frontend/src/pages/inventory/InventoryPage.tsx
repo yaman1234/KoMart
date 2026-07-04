@@ -25,6 +25,7 @@ import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useInventory, useInventoryStats, useAdjustStock, useReceiveBatch } from '@/hooks/useInventory';
 import { useSuppliers } from '@/hooks/useSuppliers';
+import { useUomOptions } from '@/hooks/useUoms';
 import { formatDate, formatCurrency, uomLabel } from '@/utils';
 import { useAuthStore } from '@/store';
 import { PRODUCT_CATEGORIES, DROPDOWN_PAGE_SIZE } from '@/constants';
@@ -80,6 +81,7 @@ export function InventoryPage() {
   const [rcvCostPrice, setRcvCostPrice] = useState('');
   const [rcvSellingPrice, setRcvSellingPrice] = useState('');
   const [rcvSupplierId, setRcvSupplierId] = useState('');
+  const [rcvUom, setRcvUom] = useState('pcs');
   const [rcvError, setRcvError] = useState('');
 
   const inventoryParams: InventoryQueryParams = {
@@ -98,6 +100,7 @@ export function InventoryPage() {
   const receiveMutation = useReceiveBatch();
 
   const suppliers = suppliersData?.data ?? [];
+  const uomOptions = useUomOptions();
 
   const items = data?.data ?? [];
 
@@ -190,6 +193,7 @@ export function InventoryPage() {
     setRcvCostPrice(String(item.costPrice));
     setRcvSellingPrice(String(item.sellingPrice));
     setRcvSupplierId(item.supplierId);
+    setRcvUom(item.uom ?? 'pcs');
     setRcvError('');
   };
 
@@ -415,18 +419,18 @@ export function InventoryPage() {
               required
               fullWidth
               slotProps={{ htmlInput: { min: 1 } }}
-              helperText="Quantity is in sell units"
+              helperText={`Quantity in ${uomLabel(rcvUom, uomOptions)}`}
             />
             <TextField
               label="UOM"
-              value={receiveTarget?.uom ?? 'pcs'}
+              value={rcvUom}
               select
+              onChange={(e) => { setRcvUom(e.target.value); setRcvError(''); }}
               sx={{ minWidth: 140, flexShrink: 0 }}
-              slotProps={{ input: { readOnly: true } }}
             >
-              <MenuItem value={receiveTarget?.uom ?? 'pcs'}>
-                {uomLabel(receiveTarget?.uom ?? 'pcs')}
-              </MenuItem>
+              {uomOptions.map((u) => (
+                <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+              ))}
             </TextField>
           </Box>
           <TextField

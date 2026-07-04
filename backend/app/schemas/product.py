@@ -7,18 +7,18 @@ from app.models.product import ProductStatus, SellMode
 class ProductCreate(BaseModel):
     name: str
     sku: str
-    barcode: str
-    brand: str
-    country_of_origin: str
-    category: str
-    supplier_id: str
+    barcode: str = ""
+    brand: str = ""
+    country_of_origin: str = ""
+    category: str = ""
+    supplier_id: str = ""
     description: str = ""
     buy_uom: str = "pcs"
     uom: str = "pcs"
     units_per_buy_uom: int = Field(default=1, ge=1)
     sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
-    selling_price: float = Field(gt=0)
+    selling_price: float = Field(ge=0)
     images: list[str] = Field(default_factory=list)
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
@@ -49,13 +49,14 @@ class ProductUpdate(BaseModel):
     country_of_origin: Optional[str] = None
     category: Optional[str] = None
     supplier_id: Optional[str] = None
+    barcode: Optional[str] = None
     description: Optional[str] = None
     buy_uom: Optional[str] = None
     uom: Optional[str] = None
     units_per_buy_uom: Optional[int] = Field(default=None, ge=1)
     sell_mode: Optional[SellMode] = None
     cost_price: Optional[float] = Field(default=None, ge=0)
-    selling_price: Optional[float] = Field(default=None, gt=0)
+    selling_price: Optional[float] = Field(default=None, ge=0)
     images: Optional[list[str]] = None
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None

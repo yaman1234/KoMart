@@ -31,6 +31,7 @@ import type {
   Expense,
   ExpenseWritePayload,
   ExpenseSummary,
+  ExpenseStats,
   ProfitSummary,
   MarginByCategory,
   PurchasingBySupplier,
@@ -80,6 +81,10 @@ let purchaseOrders = [...mockPurchaseOrders];
 let customers = [...mockCustomers];
 let transactions = [...mockTransactions];
 let expenses = [...mockExpenses];
+
+function isSetupInvestmentExpense(e: Expense): boolean {
+  return e.isSetupCost || e.category === 'setup_investment';
+}
 const notifications = [...mockNotifications];
 
 function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> {
@@ -771,6 +776,26 @@ export const mockApi = {
     return result;
   },
 
+  async getExpenseStats(): Promise<ExpenseStats> {
+    await delay(200);
+    const now = new Date();
+    const thisMonthTotal = expenses
+      .filter((e) => {
+        const d = new Date(e.date);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const setupInvestment = expenses
+      .filter(isSetupInvestmentExpense)
+      .reduce((sum, e) => sum + e.amount, 0);
+    return {
+      totalExpenses: Math.round(totalExpenses * 100) / 100,
+      thisMonth: Math.round(thisMonthTotal * 100) / 100,
+      setupInvestment: Math.round(setupInvestment * 100) / 100,
+    };
+  },
+
   async getExpense(id: string): Promise<Expense> {
     await delay(200);
     const expense = expenses.find((e) => e.id === id);
@@ -808,7 +833,7 @@ export const mockApi = {
     await delay(300);
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
     const setupInvestment = expenses
-      .filter((e) => e.isSetupCost)
+      .filter(isSetupInvestmentExpense)
       .reduce((sum, e) => sum + e.amount, 0);
     const categoryMap: Record<string, { amount: number; count: number }> = {};
     for (const e of expenses) {

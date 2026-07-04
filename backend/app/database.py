@@ -16,6 +16,7 @@ from app.models import (
     StoreSettings,
     Expense,
     Category,
+    Uom,
     RefreshToken,
     AuditLog,
     DiscountRule,
@@ -58,6 +59,7 @@ async def init_db() -> None:
             StoreSettings,
             Expense,
             Category,
+            Uom,
             RefreshToken,
             AuditLog,
             DiscountRule,
@@ -77,3 +79,27 @@ async def init_db() -> None:
             "sell_mode": "unit",
         }}],
     )
+    await _seed_default_uoms()
+
+
+DEFAULT_UOMS: list[tuple[str, str]] = [
+    ("pcs", "Pieces (pcs)"),
+    ("pack", "Pack"),
+    ("box", "Box"),
+    ("bag", "Bag"),
+    ("bottle", "Bottle"),
+    ("can", "Can"),
+    ("cup", "Cup"),
+    ("dozen", "Dozen"),
+    ("kg", "Kilogram (kg)"),
+    ("g", "Gram (g)"),
+    ("L", "Liter (L)"),
+    ("ml", "Milliliter (ml)"),
+]
+
+
+async def _seed_default_uoms() -> None:
+    if await Uom.count() > 0:
+        return
+    for code, label in DEFAULT_UOMS:
+        await Uom(code=code, label=label).insert()

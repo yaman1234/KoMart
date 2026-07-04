@@ -50,7 +50,9 @@ import type {
   Expense,
   ExpenseWritePayload,
   ExpenseSummary,
+  ExpenseStats,
   Category,
+  Uom,
   UserListItem,
   UserRole,
   AuditLog,
@@ -570,6 +572,29 @@ export const categoryService = {
   },
 };
 
+export const uomService = {
+  getAll: async (includeInactive = false): Promise<Uom[]> => {
+    const { data } = await apiClient.get('/uoms', {
+      params: includeInactive ? { include_inactive: true } : undefined,
+    });
+    return data as Uom[];
+  },
+  create: async (payload: { code: string; label: string; description?: string }): Promise<Uom> => {
+    const { data } = await apiClient.post('/uoms', payload);
+    return data as Uom;
+  },
+  update: async (
+    id: string,
+    payload: { code?: string; label?: string; description?: string; isActive?: boolean },
+  ): Promise<Uom> => {
+    const { data } = await apiClient.patch(`/uoms/${id}`, payload);
+    return data as Uom;
+  },
+  remove: async (id: string): Promise<void> => {
+    await apiClient.delete(`/uoms/${id}`);
+  },
+};
+
 export const usersService = {
   getAll: async (): Promise<UserListItem[]> => {
     const { data } = await apiClient.get('/users');
@@ -648,6 +673,11 @@ export const expenseService = {
     if (useMock()) return mockApi.getExpenses(params);
     const { data } = await apiClient.get('/expenses', { params });
     return data;
+  },
+  getStats: async (): Promise<ExpenseStats> => {
+    if (useMock()) return mockApi.getExpenseStats();
+    const { data } = await apiClient.get('/expenses/summary');
+    return data as ExpenseStats;
   },
   getById: async (id: string): Promise<Expense> => {
     if (useMock()) return mockApi.getExpense(id);

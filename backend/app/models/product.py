@@ -25,15 +25,20 @@ def product_is_sellable(product: "Product") -> bool:
     return product.is_active and product.status in SELLABLE_PRODUCT_STATUSES
 
 
+def product_is_billable(product: "Product") -> bool:
+    """Sellable in POS — requires a positive selling price."""
+    return product_is_sellable(product) and product.selling_price > 0
+
+
 class Product(Document):
     name: str
     sku: Indexed(str, unique=True)  # type: ignore[valid-type]
-    barcode: Indexed(str)           # type: ignore[valid-type]
-    brand: str
-    country_of_origin: str
-    category: Indexed(str)          # type: ignore[valid-type]
-    supplier_id: str
-    supplier_name: str
+    barcode: str = ""
+    brand: str = ""
+    country_of_origin: str = ""
+    category: Indexed(str) = ""     # type: ignore[valid-type]
+    supplier_id: str = ""
+    supplier_name: str = ""
     description: str = ""
     buy_uom: str = "pcs"          # how purchased from supplier
     uom: str = "pcs"              # sell UOM: pcs, pack, box, kg, g, ml, L …

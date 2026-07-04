@@ -7,10 +7,12 @@ import {
   Divider,
   Grid,
   IconButton,
+  Stack,
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ImageIcon from '@mui/icons-material/Image';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { useAuthStore } from '@/store';
 import {
@@ -27,14 +29,21 @@ interface ProductQuickViewDialogProps {
   product: Product | null;
   open: boolean;
   onClose: () => void;
+  discountLabel?: string | null;
 }
 
-export function ProductQuickViewDialog({ product, open, onClose }: ProductQuickViewDialogProps) {
+export function ProductQuickViewDialog({
+  product,
+  open,
+  onClose,
+  discountLabel,
+}: ProductQuickViewDialogProps) {
   const user = useAuthStore((s) => s.user);
   const canSeeCostPrice = isAdminOrManager(user?.role);
 
   if (!product) return null;
 
+  const tags = product.tags ?? [];
   const stockStatus =
     product.stock === 0
       ? { label: 'Out of Stock', color: 'error' as const }
@@ -53,8 +62,16 @@ export function ProductQuickViewDialog({ product, open, onClose }: ProductQuickV
   ];
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, pr: 1 }}>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 1,
+          pr: 1,
+        }}
+      >
         <Typography variant="h6" component="span" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
           {product.name}
         </Typography>
@@ -62,126 +79,171 @@ export function ProductQuickViewDialog({ product, open, onClose }: ProductQuickV
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
-        {product.images[0] ? (
-          <Box
-            component="img"
-            src={product.images[0]}
-            alt={product.name}
+
+      <DialogContent dividers sx={{ p: 0 }}>
+        <Grid container sx={{ minHeight: { xs: 'auto', sm: 320 } }}>
+          {/* Left — product image */}
+          <Grid
+            size={{ xs: 12, sm: 5 }}
             sx={{
-              width: '100%',
-              maxHeight: 200,
-              objectFit: 'cover',
-              borderRadius: 1,
-              mb: 2,
               bgcolor: 'action.hover',
-            }}
-          />
-        ) : (
-          <Box
-            sx={{
-              height: 120,
+              borderRight: { sm: 1 },
+              borderColor: 'divider',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              bgcolor: 'action.hover',
-              borderRadius: 1,
-              mb: 2,
-              color: 'text.disabled',
+              p: { xs: 2, sm: 3 },
+              minHeight: { xs: 200, sm: 320 },
             }}
           >
-            <ImageIcon sx={{ fontSize: 48 }} />
-          </Box>
-        )}
+            {product.images[0] ? (
+              <Box
+                component="img"
+                src={product.images[0]}
+                alt={product.name}
+                sx={{
+                  width: '100%',
+                  maxHeight: { xs: 220, sm: 360 },
+                  objectFit: 'contain',
+                  borderRadius: 1,
+                }}
+              />
+            ) : (
+              <Box
+                sx={{
+                  width: '100%',
+                  height: { xs: 160, sm: 280 },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'text.disabled',
+                  gap: 1,
+                }}
+              >
+                <ImageIcon sx={{ fontSize: 64 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No image
+                </Typography>
+              </Box>
+            )}
+          </Grid>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 2 }}>
-          <PriceWithUom
-            price={product.sellingPrice}
-            uom={product.uom ?? 'pcs'}
-            priceSx={{ fontSize: '1.25rem' }}
-          />
-          <Chip label={stockStatus.label} color={stockStatus.color} size="small" sx={{ fontWeight: 600 }} />
-          {productStatusOf(product.status) !== 'active' && (
-            <Chip
-              label={productStatusLabel(product.status)}
-              color={productStatusColor(product.status)}
-              size="small"
-              variant="outlined"
-            />
-          )}
-        </Box>
+          {/* Right — product details */}
+          <Grid size={{ xs: 12, sm: 7 }} sx={{ p: { xs: 2, sm: 3 } }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 2 }}>
+              <PriceWithUom
+                price={product.sellingPrice}
+                uom={product.uom ?? 'pcs'}
+                priceSx={{ fontSize: '1.25rem' }}
+              />
+              <Chip label={stockStatus.label} color={stockStatus.color} size="small" sx={{ fontWeight: 600 }} />
+              {productStatusOf(product.status) !== 'active' && (
+                <Chip
+                  label={productStatusLabel(product.status)}
+                  color={productStatusColor(product.status)}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+            </Box>
 
-        {canSeeCostPrice && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Cost Price
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {formatCurrency(product.costPrice)} / {product.uom ?? 'pcs'}
-            </Typography>
-          </Box>
-        )}
+            {canSeeCostPrice && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Cost Price
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatCurrency(product.costPrice)} / {product.uom ?? 'pcs'}
+                </Typography>
+              </Box>
+            )}
 
-        {(product.tags ?? []).length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
-            {(product.tags ?? []).map((tag) => (
-              <Chip key={tag} label={tag} size="small" color="info" variant="outlined" />
-            ))}
-          </Box>
-        )}
+            {(discountLabel || tags.length > 0) && (
+              <Stack spacing={1.5} sx={{ mb: 2 }}>
+                {discountLabel && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                      Discount
+                    </Typography>
+                    <Chip
+                      icon={<LocalOfferIcon sx={{ fontSize: '0.875rem !important' }} />}
+                      label={discountLabel}
+                      size="small"
+                      color="success"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Box>
+                )}
+                {tags.length > 0 && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                      Tags
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {tags.map((tag) => (
+                        <Chip key={tag} label={tag} size="small" color="info" variant="outlined" />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </Stack>
+            )}
 
-        <Divider sx={{ mb: 2 }} />
+            <Divider sx={{ mb: 2 }} />
 
-        <Grid container spacing={1}>
-          {infoRows.map((row) => (
-            <Grid key={row.label} size={{ xs: 12, sm: 6 }}>
-              <Typography variant="caption" color="text.secondary" display="block">
-                {row.label}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {row.value || '—'}
-              </Typography>
+            <Grid container spacing={1.5}>
+              {infoRows.map((row) => (
+                <Grid key={row.label} size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {row.label}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {row.value || '—'}
+                  </Typography>
+                </Grid>
+              ))}
             </Grid>
-          ))}
+
+            {product.description && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  Description
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {product.description}
+                </Typography>
+              </>
+            )}
+
+            {(product.nutritionInfo || product.allergenInfo) && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                {product.nutritionInfo && (
+                  <Box sx={{ mb: 1.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
+                      Nutrition
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {product.nutritionInfo}
+                    </Typography>
+                  </Box>
+                )}
+                {product.allergenInfo && (
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
+                      Allergens
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {product.allergenInfo}
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
+          </Grid>
         </Grid>
-
-        {product.description && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-              Description
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {product.description}
-            </Typography>
-          </>
-        )}
-
-        {(product.nutritionInfo || product.allergenInfo) && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            {product.nutritionInfo && (
-              <Box sx={{ mb: 1.5 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
-                  Nutrition
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {product.nutritionInfo}
-                </Typography>
-              </Box>
-            )}
-            {product.allergenInfo && (
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
-                  Allergens
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {product.allergenInfo}
-                </Typography>
-              </Box>
-            )}
-          </>
-        )}
       </DialogContent>
     </Dialog>
   );

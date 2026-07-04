@@ -24,7 +24,7 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { StatCard } from '@/components/common/StatCard';
-import { useExpenses, useDeleteExpense, useExpensePageStats } from '@/hooks/useExpenses';
+import { useExpenses, useExpenseStats, useDeleteExpense } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES } from '@/constants';
 import { formatCurrency, formatDate, isAdminOrManager } from '@/utils';
 import { showApiError, showSuccess } from '@/utils/toast';
@@ -57,16 +57,19 @@ export function ExpensesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useExpenses({ search, page: page + 1, pageSize });
+  const listParams = {
+    search: search || undefined,
+    category: category || undefined,
+    page: page + 1,
+    pageSize,
+  };
+
+  const { data, isLoading } = useExpenses(listParams);
+  const { data: stats, isLoading: statsLoading } = useExpenseStats();
   const deleteMutation = useDeleteExpense();
   const { totalAll, setupTotal, thisMonthTotal } = useExpensePageStats();
 
-  const allExpenses = data?.data ?? [];
-
-  // Apply client-side category filter (search is server-side via mock paginate)
-  const filtered = category
-    ? allExpenses.filter((e) => e.category === category)
-    : allExpenses;
+  const rows = data?.data ?? [];
 
   const columns: Column<Expense>[] = [
     {
@@ -173,21 +176,22 @@ export function ExpensesPage() {
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
         <StatCard
           title="Total Expenses"
-          value={formatCurrency(totalAll)}
+          value={statsLoading ? '—' : formatCurrency(stats?.totalExpenses ?? 0)}
           icon={<TrendingUpIcon />}
           color="error.main"
         />
         <StatCard
           title="This Month"
-          value={formatCurrency(thisMonthTotal)}
+          value={statsLoading ? '—' : formatCurrency(stats?.thisMonth ?? 0)}
           icon={<CalendarTodayIcon />}
           color="warning.main"
         />
         <StatCard
           title="Setup / Investment"
-          value={formatCurrency(setupTotal)}
+          value={statsLoading ? '—' : formatCurrency(stats?.setupInvestment ?? 0)}
           icon={<BusinessCenterIcon />}
           color="secondary.main"
+          subtitle="Setup flag or Setup / Investment category"
         />
       </Box>
 
@@ -220,11 +224,11 @@ export function ExpensesPage() {
       {/* ── Table ── */}
       <DataTable
         columns={columns}
-        rows={filtered}
+        rows={rows}
         loading={isLoading}
         page={page}
         pageSize={pageSize}
-        total={category ? filtered.length : (data?.total ?? 0)}
+        total={data?.total ?? 0}
         onPageChange={setPage}
         onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
         getRowId={(r) => r.id}

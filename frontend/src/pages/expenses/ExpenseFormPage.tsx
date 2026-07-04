@@ -52,6 +52,8 @@ export function ExpenseFormPage() {
     handleSubmit,
     control,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -82,6 +84,13 @@ export function ExpenseFormPage() {
     }
   }, [existing, reset]);
 
+  const category = watch('category');
+  useEffect(() => {
+    if (category === 'setup_investment') {
+      setValue('isSetupCost', true);
+    }
+  }, [category, setValue]);
+
   const onSubmit = (values: FormValues) => {
     const payload = {
       title: values.title,
@@ -90,7 +99,7 @@ export function ExpenseFormPage() {
       date: values.date,
       paidTo: values.paidTo || undefined,
       paymentMethod: values.paymentMethod || undefined,
-      isSetupCost: values.isSetupCost,
+      isSetupCost: values.isSetupCost || values.category === 'setup_investment',
       description: values.description || undefined,
     };
 

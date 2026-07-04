@@ -131,6 +131,7 @@ const POS_IMAGE_CHIP_SX = {
 
 const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd, onViewDetails }: ProductCardProps) {
   const inCart = qtyInCart > 0;
+  const notBillable = product.sellingPrice <= 0;
   const stockColor =
     product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
   const stockLabel =
@@ -141,6 +142,7 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
         : String(product.stock);
   const visibleTags = (product.tags ?? []).slice(0, 2);
   const hiddenTagCount = Math.max(0, (product.tags ?? []).length - visibleTags.length);
+  const cardDisabled = product.stock === 0 || notBillable;
 
   return (
     <Card
@@ -148,14 +150,14 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        opacity: product.stock === 0 ? 0.45 : 1,
+        opacity: cardDisabled ? 0.45 : 1,
         border: inCart ? 2 : 0,
         borderColor: 'primary.main',
       }}
     >
       <CardActionArea
         onClick={() => onAdd(product)}
-        disabled={product.stock === 0}
+        disabled={cardDisabled}
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
       >
         {/* Image section with qty overlay */}
@@ -566,7 +568,17 @@ export function POSPage() {
   }, [discountEval]);
 
   const displayedProducts = products
+<<<<<<< HEAD
     .filter((p) => p.stock > 0)
+=======
+    .filter((p) => {
+      if (p.stock === 0) return false;
+      if (p.sellingPrice <= 0) return false;
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (supplierFilter && p.supplierName !== supplierFilter) return false;
+      return true;
+    })
+>>>>>>> dev
     .sort((a, b) => {
       if (priceSort === 'asc') return a.sellingPrice - b.sellingPrice;
       if (priceSort === 'desc') return b.sellingPrice - a.sellingPrice;
@@ -646,7 +658,7 @@ export function POSPage() {
   }, []);
 
   const handleAddProduct = useCallback((product: Product) => {
-    if (product.stock === 0) return;
+    if (product.stock === 0 || product.sellingPrice <= 0) return;
     const currentQty = items.find((i) => i.productId === product.id)?.quantity ?? 0;
     if (currentQty >= product.stock) return;
     addItem({
@@ -1269,6 +1281,7 @@ export function POSPage() {
         product={detailProduct}
         open={!!detailProduct}
         onClose={() => setDetailProduct(null)}
+        discountLabel={detailProduct ? productDiscountMap.get(detailProduct.id) : null}
       />
     </Box>
   );

@@ -37,3 +37,9 @@ class ExpenseResponse(BaseModel):
     is_setup_cost:  bool
     created_at:     str
     updated_at:     str
+
+
+class ExpenseStatsResponse(BaseModel):
+    total_expenses: float
+    this_month: float
+    setup_investment: float

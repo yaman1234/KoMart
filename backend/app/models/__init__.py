@@ -9,6 +9,7 @@ from app.models.notification import Notification
 from app.models.settings import StoreSettings
 from app.models.expense import Expense
 from app.models.category import Category
+from app.models.uom import Uom
 from app.models.refresh_token import RefreshToken
 from app.models.audit_log import AuditLog
 from app.models.discount_rule import DiscountRule
@@ -26,6 +27,7 @@ __all__ = [
     "StoreSettings",
     "Expense",
     "Category",
+    "Uom",
     "RefreshToken",
     "AuditLog",
     "DiscountRule",

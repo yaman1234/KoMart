@@ -30,9 +30,14 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS, DROPDOWN_PAGE_SIZE } from '@/constants';
 =======
 import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
+>>>>>>> dev
+=======
+import { useUomOptions } from '@/hooks/useUoms';
+import { PRODUCT_CATEGORIES, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
 >>>>>>> dev
 import { showApiError, showSuccess } from '@/utils/toast';
 
@@ -52,11 +57,11 @@ function generateSku(brand: string, category: string): string {
 const schema = z.object({
   name:            z.string().min(1, 'Name is required'),
   sku:             z.string().min(1, 'SKU is required'),
-  barcode:         z.string().min(1, 'Barcode is required'),
-  brand:           z.string().min(1, 'Brand is required'),
-  countryOfOrigin: z.string().min(1, 'Country is required'),
-  category:        z.string().min(1, 'Category is required'),
-  supplierId:      z.string().min(1, 'Supplier is required'),
+  barcode:         z.string(),
+  brand:           z.string(),
+  countryOfOrigin: z.string(),
+  category:        z.string(),
+  supplierId:      z.string(),
   buyUom:          z.string().min(1, 'Buy UOM is required'),
   uom:             z.string().min(1, 'Sell UOM is required'),
   unitsPerBuyUom:  z.number().int().min(1, 'Must be at least 1'),
@@ -64,7 +69,7 @@ const schema = z.object({
   description:     z.string(),
   imageUrl:        z.string().url('Enter a valid URL').or(z.literal('')),
   costPrice:       z.number().min(0, 'Must be ≥ 0'),
-  sellingPrice:    z.number().min(0.01, 'Must be > 0'),
+  sellingPrice:    z.number().min(0, 'Must be ≥ 0'),
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
   status:            z.enum(['active', 'discontinued', 'seasonal']),
   tags:              z.array(z.string().min(1)),
@@ -89,6 +94,7 @@ export function ProductFormPage() {
   // DB-backed categories; fall back to hardcoded list while loading
   const dbCategories = useCategoryNames();
   const categoryOptions = dbCategories.length > 0 ? dbCategories : [...PRODUCT_CATEGORIES];
+  const uomOptions = useUomOptions();
 
   const suppliers = suppliersData?.data ?? [];
 
@@ -107,6 +113,11 @@ export function ProductFormPage() {
       imageUrl: '',
       buyUom: 'pcs',
       uom: 'pcs',
+      barcode: '',
+      brand: '',
+      countryOfOrigin: '',
+      category: '',
+      supplierId: '',
       unitsPerBuyUom: 1,
       sellMode: 'unit',
       costPrice: 0,
@@ -295,7 +306,7 @@ export function ProductFormPage() {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   {...register('barcode')}
-                  label="Barcode"
+                  label="Barcode (optional)"
                   fullWidth
                   error={!!errors.barcode}
                   helperText={errors.barcode?.message}
@@ -305,7 +316,7 @@ export function ProductFormPage() {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   {...register('brand')}
-                  label="Brand"
+                  label="Brand (optional)"
                   fullWidth
                   error={!!errors.brand}
                   helperText={errors.brand?.message}
@@ -320,11 +331,12 @@ export function ProductFormPage() {
                     <TextField
                       {...field}
                       select
-                      label="Country of Origin"
+                      label="Country of Origin (optional)"
                       fullWidth
                       error={!!errors.countryOfOrigin}
                       helperText={errors.countryOfOrigin?.message}
                     >
+                      <MenuItem value="">None</MenuItem>
                       {COUNTRIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </TextField>
                   )}
@@ -339,11 +351,12 @@ export function ProductFormPage() {
                     <TextField
                       {...field}
                       select
-                      label="Category"
+                      label="Category (optional)"
                       fullWidth
                       error={!!errors.category}
                       helperText={errors.category?.message}
                     >
+                      <MenuItem value="">None</MenuItem>
                       {categoryOptions.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </TextField>
                   )}
@@ -387,12 +400,12 @@ export function ProductFormPage() {
                     <TextField
                       {...field}
                       select
-                      label="Primary Supplier"
+                      label="Primary Supplier (optional)"
                       fullWidth
-                      required
                       error={!!errors.supplierId}
                       helperText={errors.supplierId?.message}
                     >
+                      <MenuItem value="">None</MenuItem>
                       {suppliers.map((s) => (
                         <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
                       ))}
@@ -414,7 +427,7 @@ export function ProductFormPage() {
                       error={!!errors.buyUom}
                       helperText={errors.buyUom?.message}
                     >
-                      {UOM_OPTIONS.map((u) => (
+                      {uomOptions.map((u) => (
                         <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
                       ))}
                     </TextField>
@@ -435,7 +448,7 @@ export function ProductFormPage() {
                       error={!!errors.uom}
                       helperText={errors.uom?.message}
                     >
-                      {UOM_OPTIONS.map((u) => (
+                      {uomOptions.map((u) => (
                         <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
                       ))}
                     </TextField>
@@ -596,7 +609,7 @@ export function ProductFormPage() {
                   type="number"
                   fullWidth
                   error={!!errors.sellingPrice}
-                  helperText={errors.sellingPrice?.message}
+                  helperText={errors.sellingPrice?.message ?? 'Products with NPR 0 selling price are not available in POS'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
                 />
               </Grid>
