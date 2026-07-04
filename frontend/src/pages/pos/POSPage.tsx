@@ -572,14 +572,14 @@ export function POSPage() {
       if (p.stock === 0) return false;
       if (p.sellingPrice <= 0) return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
-      if (supplierFilter && p.supplierName !== supplierFilter) return false;
+      if (supplierIdFilter && p.supplierId !== supplierIdFilter) return false;
       return true;
       })
     .sort((a, b) => {
       if (priceSort === 'asc') return a.sellingPrice - b.sellingPrice;
       if (priceSort === 'desc') return b.sellingPrice - a.sellingPrice;
       return 0;
-    }), [products, categoryFilter, supplierFilter, priceSort]);
+    }), [products, categoryFilter, supplierIdFilter, priceSort]);
 
   const cartQuantities = useMemo(() => {
     const map = new Map<string, number>();
