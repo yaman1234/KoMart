@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import dayjs from 'dayjs';
 import {
   Box,
   Button,
@@ -29,9 +30,10 @@ import {
   useAdjustStock,
   useReceiveBatch,
 } from '@/hooks/useInventory';
+import { useSuppliers } from '@/hooks/useSuppliers';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatDate } from '@/utils';
+import { formatCurrency, formatDate, uomLabel } from '@/utils';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch, StockAdjustmentType } from '@/types';
 
@@ -52,6 +54,8 @@ export function InventoryDetailPage() {
   const [tab, setTab] = useState<DetailTab>('batches');
 
   const { data: item, isLoading, isError } = useInventoryItem(productId ?? '');
+  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const suppliers = suppliersData?.data ?? [];
 
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
@@ -60,6 +64,9 @@ export function InventoryDetailPage() {
   const [rcvBatch, setRcvBatch] = useState('');
   const [rcvQty, setRcvQty] = useState('');
   const [rcvExpiry, setRcvExpiry] = useState('');
+  const [rcvCostPrice, setRcvCostPrice] = useState('');
+  const [rcvSellingPrice, setRcvSellingPrice] = useState('');
+  const [rcvSupplierId, setRcvSupplierId] = useState('');
   const [rcvError, setRcvError] = useState('');
 
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -101,23 +108,34 @@ export function InventoryDetailPage() {
   ];
 
   const openReceive = () => {
-    setRcvBatch(`BATCH-${Date.now()}`);
+    setRcvBatch(dayjs().format('YYYY-MM-DD'));
     setRcvQty('');
     setRcvExpiry('');
+    setRcvCostPrice(String(item.costPrice));
+    setRcvSellingPrice(String(item.sellingPrice));
+    setRcvSupplierId(item.supplierId);
     setRcvError('');
     setReceiveOpen(true);
   };
 
   const handleReceive = () => {
     const qty = parseInt(rcvQty, 10);
+    const unitCost = parseFloat(rcvCostPrice);
+    const sellingPrice = parseFloat(rcvSellingPrice);
     if (isNaN(qty) || qty < 1) { setRcvError('Enter a quantity ≥ 1'); return; }
     if (!rcvBatch.trim()) { setRcvError('Batch number is required'); return; }
+    if (!rcvSupplierId) { setRcvError('Select a supplier'); return; }
+    if (isNaN(unitCost) || unitCost < 0) { setRcvError('Enter a valid cost price'); return; }
+    if (isNaN(sellingPrice) || sellingPrice < 0) { setRcvError('Enter a valid selling price'); return; }
     receiveMutation.mutate(
       {
         productId: item.id,
         batchNumber: rcvBatch,
         quantity: qty,
         expiryDate: rcvExpiry || undefined,
+        unitCost,
+        sellingPrice,
+        supplierId: rcvSupplierId,
       },
       {
         onSuccess: () => {
@@ -261,13 +279,84 @@ export function InventoryDetailPage() {
         <MovementLedgerTab productId={productId} hideProductColumn />
       )}
 
-      <Dialog open={receiveOpen} onClose={() => setReceiveOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={receiveOpen} onClose={() => setReceiveOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Receive Stock — {item.name}</DialogTitle>
         <DialogContent>
           {rcvError && <Alert severity="error" sx={{ mb: 2 }}>{rcvError}</Alert>}
-          <TextField label="Batch Number" value={rcvBatch} onChange={(e) => setRcvBatch(e.target.value)} fullWidth margin="normal" required />
-          <TextField label="Quantity" value={rcvQty} onChange={(e) => setRcvQty(e.target.value)} type="number" fullWidth margin="normal" required slotProps={{ htmlInput: { min: 1 } }} />
-          <TextField label="Expiry Date" value={rcvExpiry} onChange={(e) => setRcvExpiry(e.target.value)} type="date" fullWidth margin="normal" slotProps={{ inputLabel: { shrink: true } }} />
+          <TextField
+            label="Batch Number"
+            value={rcvBatch}
+            onChange={(e) => { setRcvBatch(e.target.value); setRcvError(''); }}
+            fullWidth
+            margin="normal"
+            required
+          />
+          <TextField
+            select
+            label="Supplier"
+            value={rcvSupplierId}
+            onChange={(e) => { setRcvSupplierId(e.target.value); setRcvError(''); }}
+            fullWidth
+            margin="normal"
+            required
+          >
+            {suppliers.map((s) => (
+              <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Cost Price"
+            value={rcvCostPrice}
+            onChange={(e) => { setRcvCostPrice(e.target.value); setRcvError(''); }}
+            type="number"
+            fullWidth
+            margin="normal"
+            required
+            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+          />
+          <TextField
+            label="Selling Price"
+            value={rcvSellingPrice}
+            onChange={(e) => { setRcvSellingPrice(e.target.value); setRcvError(''); }}
+            type="number"
+            fullWidth
+            margin="normal"
+            required
+            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+          />
+          <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 1 }}>
+            <TextField
+              label="Quantity Received"
+              value={rcvQty}
+              onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
+              type="number"
+              required
+              fullWidth
+              slotProps={{ htmlInput: { min: 1 } }}
+              helperText="Quantity is in sell units"
+            />
+            <TextField
+              label="UOM"
+              value={item.uom ?? 'pcs'}
+              select
+              sx={{ minWidth: 140, flexShrink: 0 }}
+              slotProps={{ input: { readOnly: true } }}
+            >
+              <MenuItem value={item.uom ?? 'pcs'}>
+                {uomLabel(item.uom ?? 'pcs')}
+              </MenuItem>
+            </TextField>
+          </Box>
+          <TextField
+            label="Expiry Date"
+            value={rcvExpiry}
+            onChange={(e) => setRcvExpiry(e.target.value)}
+            type="date"
+            fullWidth
+            margin="normal"
+            slotProps={{ inputLabel: { shrink: true } }}
+            helperText="Leave blank if product has no expiry"
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setReceiveOpen(false)}>Cancel</Button>

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
-from app.models.product import ProductStatus
+from app.models.product import ProductStatus, SellMode
 
 
 class ProductCreate(BaseModel):
@@ -13,7 +13,10 @@ class ProductCreate(BaseModel):
     category: str
     supplier_id: str
     description: str = ""
+    buy_uom: str = "pcs"
     uom: str = "pcs"
+    units_per_buy_uom: int = Field(default=1, ge=1)
+    sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
     selling_price: float = Field(gt=0)
     images: list[str] = Field(default_factory=list)
@@ -47,7 +50,10 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     supplier_id: Optional[str] = None
     description: Optional[str] = None
+    buy_uom: Optional[str] = None
     uom: Optional[str] = None
+    units_per_buy_uom: Optional[int] = Field(default=None, ge=1)
+    sell_mode: Optional[SellMode] = None
     cost_price: Optional[float] = Field(default=None, ge=0)
     selling_price: Optional[float] = Field(default=None, gt=0)
     images: Optional[list[str]] = None
@@ -84,7 +90,10 @@ class ProductResponse(BaseModel):
     supplier_id: str
     supplier_name: str
     description: str
+    buy_uom: str
     uom: str
+    units_per_buy_uom: int
+    sell_mode: SellMode
     cost_price: float
     selling_price: float
     images: list[str]

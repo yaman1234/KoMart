@@ -193,6 +193,9 @@ export interface ReceiveBatchPayload {
   batchNumber: string;
   quantity: number;
   expiryDate?: string;   // ISO date string e.g. "2026-12-31"
+  unitCost?: number;
+  sellingPrice?: number;
+  supplierId?: string;
 }
 
 export interface InventoryQueryParams extends ListQueryParams {

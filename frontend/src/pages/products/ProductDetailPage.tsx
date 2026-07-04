@@ -20,6 +20,7 @@ import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
+import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { formatCurrency, formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
 
 export function ProductDetailPage() {
@@ -130,9 +131,11 @@ export function ProductDetailPage() {
           <Box sx={{ flex: 1, p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* Price + status row */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-              <Typography variant="h4" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                {formatCurrency(product.sellingPrice)}
-              </Typography>
+              <PriceWithUom
+                price={product.sellingPrice}
+                uom={product.uom ?? 'pcs'}
+                priceSx={{ fontSize: '1.75rem' }}
+              />
               <Chip label={stockStatus.label} color={stockStatus.color} sx={{ fontWeight: 600 }} />
               <Chip
                 label={productStatusLabel(product.status)}
@@ -148,9 +151,11 @@ export function ProductDetailPage() {
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                     Cost Price
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {formatCurrency(product.costPrice)}
-                  </Typography>
+                  <PriceWithUom
+                    price={product.costPrice}
+                    uom={product.uom ?? 'pcs'}
+                    priceSx={{ fontSize: '1rem', color: 'text.primary' }}
+                  />
                 </Box>
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>

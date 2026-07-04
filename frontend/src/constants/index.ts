@@ -37,6 +37,12 @@ export const NAV_ITEMS = [
   { label: 'Settings', path: '/settings', icon: 'Settings', roles: ['admin', 'manager'] },
 ] as const;
 
+export const SELL_MODE_OPTIONS = [
+  { value: 'unit', label: 'Sell whole unit only (e.g. pack)' },
+  { value: 'piece', label: 'Sell individual pieces only' },
+  { value: 'both', label: 'Sell pack or pieces' },
+] as const;
+
 export const UOM_OPTIONS = [
   { value: 'pcs',    label: 'Pieces (pcs)' },
   { value: 'pack',   label: 'Pack' },

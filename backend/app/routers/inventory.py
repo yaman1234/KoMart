@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from math import ceil
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
+from app.models.supplier import Supplier
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
 from app.schemas.inventory import (
     BatchCreate,
@@ -93,6 +96,7 @@ def _item_response(product: Product, batches: list[InventoryBatch]) -> Inventory
         low_stock_threshold=product.low_stock_threshold,
         cost_price=product.cost_price,
         selling_price=product.selling_price,
+        uom=product.uom or "pcs",
         batches=[_batch_response(batch) for batch in batches],
         batch_count=len(active_batches),
         nearest_expiry=nearest_expiry(batches),
@@ -191,13 +195,41 @@ async def receive_batch(
 ):
     """Receive a new stock batch (sets expiry date and quantity)."""
     product = await Product.get(body.product_id)
-    stock_before = product.stock if product else 0
+    if not product or not product.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    stock_before = product.stock
+    product_updates: dict = {}
+    resolved_selling_price = product.selling_price
+
+    if body.unit_cost is not None:
+        product_updates["cost_price"] = body.unit_cost
+    if body.selling_price is not None:
+        product_updates["selling_price"] = body.selling_price
+        resolved_selling_price = body.selling_price
+    if body.supplier_id:
+        supplier = await Supplier.get(body.supplier_id)
+        if not supplier or not supplier.is_active:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+        product_updates["supplier_id"] = str(supplier.id)
+        product_updates["supplier_name"] = supplier.name
+
+    if product_updates:
+        product_updates["updated_at"] = datetime.now(timezone.utc)
+        await product.set(product_updates)
+        refreshed_product = await Product.get(body.product_id)
+        if refreshed_product:
+            product = refreshed_product
+            if body.selling_price is None:
+                resolved_selling_price = product.selling_price
 
     batch = await receive_stock(
         body.product_id,
         body.batch_number,
         body.quantity,
         expiry_date=body.expiry_date,
+        unit_cost=body.unit_cost,
+        unit_selling_price=resolved_selling_price,
         created_by=current_user.name,
     )
 

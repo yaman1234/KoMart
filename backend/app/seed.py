@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 from app.database import init_db
 from app.auth.jwt import hash_password
 from app.models.user import User, UserRole
-from app.models.product import Product
+from app.models.product import Product, SellMode
 from app.models.inventory import InventoryBatch, StockAdjustment
 from app.models.supplier import Supplier
 from app.models.purchase_order import PurchaseOrder
@@ -482,6 +482,14 @@ async def seed():
 
         supplier_id, supplier_name = _supplier_for_country(country)
 
+        # Pack-buy / piece-sell examples for common retail SKUs
+        if cat in ("Snacks", "Instant Noodles", "Confectionery"):
+            buy_uom, sell_uom, units_per_buy, sell_mode = "pack", "pcs", 12, SellMode.both
+        elif cat == "Beverages":
+            buy_uom, sell_uom, units_per_buy, sell_mode = "box", "bottle", 6, SellMode.both
+        else:
+            buy_uom, sell_uom, units_per_buy, sell_mode = "pcs", "pcs", 1, SellMode.unit
+
         p = await Product(
             name=name,
             sku=sku,
@@ -492,6 +500,10 @@ async def seed():
             supplier_id=supplier_id,
             supplier_name=supplier_name,
             description=DESC_TEMPLATES.get(cat, "Quality Asian imported product."),
+            buy_uom=buy_uom,
+            uom=sell_uom,
+            units_per_buy_uom=units_per_buy,
+            sell_mode=sell_mode,
             cost_price=float(cost),
             selling_price=float(sell),
             images=[_img(name)],

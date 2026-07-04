@@ -244,6 +244,7 @@ async def receive_stock(
     expiry_date: str | None = None,
     purchase_order_id: str | None = None,
     unit_cost: float | None = None,
+    unit_selling_price: float | None = None,
     created_by: str = "System",
 ) -> InventoryBatch:
     if quantity < 1:
@@ -255,6 +256,11 @@ async def receive_stock(
 
     stock_before = product.stock
     landed_cost = unit_cost if unit_cost is not None and unit_cost > 0 else product.cost_price
+    selling_price = (
+        unit_selling_price
+        if unit_selling_price is not None and unit_selling_price >= 0
+        else product.selling_price
+    )
 
     batch = InventoryBatch(
         product_id=product_id,
@@ -290,6 +296,7 @@ async def receive_stock(
         reference_type=ref_type,
         reference_id=ref_id,
         unit_cost=landed_cost,
+        unit_selling_price=selling_price,
     )
     return batch
 

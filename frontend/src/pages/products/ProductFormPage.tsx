@@ -29,7 +29,7 @@ import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProdu
 import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
-import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS } from '@/constants';
+import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
 import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
@@ -53,7 +53,10 @@ const schema = z.object({
   countryOfOrigin: z.string().min(1, 'Country is required'),
   category:        z.string().min(1, 'Category is required'),
   supplierId:      z.string().min(1, 'Supplier is required'),
-  uom:             z.string().min(1, 'UOM is required'),
+  buyUom:          z.string().min(1, 'Buy UOM is required'),
+  uom:             z.string().min(1, 'Sell UOM is required'),
+  unitsPerBuyUom:  z.number().int().min(1, 'Must be at least 1'),
+  sellMode:        z.enum(['unit', 'piece', 'both']),
   description:     z.string(),
   imageUrl:        z.string().url('Enter a valid URL').or(z.literal('')),
   costPrice:       z.number().min(0, 'Must be ≥ 0'),
@@ -98,7 +101,10 @@ export function ProductFormPage() {
     defaultValues: {
       description: '',
       imageUrl: '',
+      buyUom: 'pcs',
       uom: 'pcs',
+      unitsPerBuyUom: 1,
+      sellMode: 'unit',
       costPrice: 0,
       sellingPrice: 0,
       lowStockThreshold: 10,
@@ -119,7 +125,10 @@ export function ProductFormPage() {
         countryOfOrigin:  product.countryOfOrigin,
         category:         product.category,
         supplierId:       product.supplierId,
+        buyUom:           product.buyUom ?? product.uom ?? 'pcs',
         uom:              product.uom ?? 'pcs',
+        unitsPerBuyUom:   product.unitsPerBuyUom ?? 1,
+        sellMode:           product.sellMode ?? 'unit',
         description:      product.description,
         imageUrl:         product.images[0] ?? '',
         costPrice:        product.costPrice,
@@ -141,6 +150,9 @@ export function ProductFormPage() {
 
   const brand = watch('brand');
   const category = watch('category');
+  const buyUom = watch('buyUom');
+  const sellUom = watch('uom');
+  const unitsPerBuyUom = watch('unitsPerBuyUom');
 
   useEffect(() => {
     if (!isEditing && storeSettings?.autoSku && brand && category) {
@@ -385,7 +397,28 @@ export function ProductFormPage() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="buyUom"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      select
+                      label="Buy UOM"
+                      fullWidth
+                      error={!!errors.buyUom}
+                      helperText={errors.buyUom?.message}
+                    >
+                      {UOM_OPTIONS.map((u) => (
+                        <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  )}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <Controller
                   name="uom"
                   control={control}
@@ -393,13 +426,51 @@ export function ProductFormPage() {
                     <TextField
                       {...field}
                       select
-                      label="Unit of Measure"
+                      label="Sell UOM"
                       fullWidth
                       error={!!errors.uom}
                       helperText={errors.uom?.message}
                     >
                       {UOM_OPTIONS.map((u) => (
                         <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  )}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <TextField
+                  {...register('unitsPerBuyUom', { valueAsNumber: true })}
+                  label="Units per buy unit"
+                  type="number"
+                  fullWidth
+                  error={!!errors.unitsPerBuyUom}
+                  helperText={
+                    errors.unitsPerBuyUom?.message
+                    ?? (buyUom !== sellUom || unitsPerBuyUom > 1
+                      ? `1 ${buyUom} = ${unitsPerBuyUom} ${sellUom}`
+                      : 'e.g. 12 if 1 pack = 12 pieces')
+                  }
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="sellMode"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      select
+                      label="Sell mode"
+                      fullWidth
+                      error={!!errors.sellMode}
+                      helperText={errors.sellMode?.message}
+                    >
+                      {SELL_MODE_OPTIONS.map((o) => (
+                        <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                       ))}
                     </TextField>
                   )}
