@@ -31,6 +31,7 @@ import {
   useReceiveBatch,
 } from '@/hooks/useInventory';
 import { useSuppliers } from '@/hooks/useSuppliers';
+import { useUomOptions } from '@/hooks/useUoms';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate, uomLabel } from '@/utils';
@@ -56,6 +57,7 @@ export function InventoryDetailPage() {
   const { data: item, isLoading, isError } = useInventoryItem(productId ?? '');
   const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const suppliers = suppliersData?.data ?? [];
+  const uomOptions = useUomOptions();
 
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
@@ -67,6 +69,7 @@ export function InventoryDetailPage() {
   const [rcvCostPrice, setRcvCostPrice] = useState('');
   const [rcvSellingPrice, setRcvSellingPrice] = useState('');
   const [rcvSupplierId, setRcvSupplierId] = useState('');
+  const [rcvUom, setRcvUom] = useState('pcs');
   const [rcvError, setRcvError] = useState('');
 
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -114,6 +117,7 @@ export function InventoryDetailPage() {
     setRcvCostPrice(String(item.costPrice));
     setRcvSellingPrice(String(item.sellingPrice));
     setRcvSupplierId(item.supplierId);
+    setRcvUom(item.uom ?? 'pcs');
     setRcvError('');
     setReceiveOpen(true);
   };
@@ -333,18 +337,18 @@ export function InventoryDetailPage() {
               required
               fullWidth
               slotProps={{ htmlInput: { min: 1 } }}
-              helperText="Quantity is in sell units"
+              helperText={`Quantity in ${uomLabel(rcvUom, uomOptions)}`}
             />
             <TextField
               label="UOM"
-              value={item.uom ?? 'pcs'}
+              value={rcvUom}
               select
+              onChange={(e) => { setRcvUom(e.target.value); setRcvError(''); }}
               sx={{ minWidth: 140, flexShrink: 0 }}
-              slotProps={{ input: { readOnly: true } }}
             >
-              <MenuItem value={item.uom ?? 'pcs'}>
-                {uomLabel(item.uom ?? 'pcs')}
-              </MenuItem>
+              {uomOptions.map((u) => (
+                <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+              ))}
             </TextField>
           </Box>
           <TextField

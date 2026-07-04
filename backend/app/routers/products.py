@@ -64,8 +64,9 @@ async def list_products(
 ):
     query = Product.find(Product.is_active == True)  # noqa: E712
     if sellable_only:
-        # Exclude discontinued only — legacy documents without `status` default to active in the model.
+        # POS catalog: active/seasonal with a billable selling price.
         query = query.find(Product.status != ProductStatus.discontinued)
+        query = query.find(Product.selling_price > 0)
     elif status:
         query = query.find(Product.status == ProductStatus(status))
     if search:

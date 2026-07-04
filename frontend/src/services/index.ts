@@ -50,6 +50,7 @@ import type {
   Expense,
   ExpenseWritePayload,
   ExpenseSummary,
+  ExpenseStats,
   Category,
   Uom,
   UserListItem,
@@ -666,6 +667,11 @@ export const expenseService = {
     if (useMock()) return mockApi.getExpenses(params);
     const { data } = await apiClient.get('/expenses', { params });
     return data;
+  },
+  getStats: async (): Promise<ExpenseStats> => {
+    if (useMock()) return mockApi.getExpenseStats();
+    const { data } = await apiClient.get('/expenses/summary');
+    return data as ExpenseStats;
   },
   getById: async (id: string): Promise<Expense> => {
     if (useMock()) return mockApi.getExpense(id);

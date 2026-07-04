@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from app.models.customer import Customer, MembershipTier
 from app.models.transaction import Transaction, TransactionItem, BatchAllocation
 from app.models.inventory import AdjustmentType, StockAdjustment
-from app.models.product import Product, ProductStatus, product_is_sellable
+from app.models.product import Product, ProductStatus, product_is_billable
 from app.schemas.transaction import TransactionCreate, TransactionResponse
 from app.services.stock import (
     BatchDeduction,
@@ -117,9 +117,11 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
         product = await Product.get(item.product_id)
         if not product:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
-        if not product_is_sellable(product):
+        if not product_is_billable(product):
             if product.status == ProductStatus.discontinued:
                 detail = f"Product '{product.name}' is discontinued and cannot be sold"
+            elif product.selling_price <= 0:
+                detail = f"Product '{product.name}' has no selling price and cannot be sold"
             else:
                 detail = f"Product '{product.name}' is not available for sale"
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=detail)
@@ -136,9 +138,11 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
             product = await Product.get(item.product_id)
             if not product:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
-            if not product_is_sellable(product):
+            if not product_is_billable(product):
                 if product.status == ProductStatus.discontinued:
                     detail = f"Product '{product.name}' is discontinued and cannot be sold"
+                elif product.selling_price <= 0:
+                    detail = f"Product '{product.name}' has no selling price and cannot be sold"
                 else:
                     detail = f"Product '{product.name}' is not available for sale"
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=detail)

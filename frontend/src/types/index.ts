@@ -675,6 +675,12 @@ export interface ExpenseSummary {
   daily: ExpenseDataPoint[];
 }
 
+export interface ExpenseStats {
+  totalExpenses: number;
+  thisMonth: number;
+  setupInvestment: number;
+}
+
 export type AuditModule =
   | 'auth'
   | 'products'

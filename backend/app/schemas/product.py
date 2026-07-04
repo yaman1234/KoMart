@@ -8,9 +8,9 @@ class ProductCreate(BaseModel):
     name: str
     sku: str
     barcode: str = ""
-    brand: str
-    country_of_origin: str
-    category: str
+    brand: str = ""
+    country_of_origin: str = ""
+    category: str = ""
     supplier_id: str = ""
     description: str = ""
     buy_uom: str = "pcs"
@@ -18,7 +18,7 @@ class ProductCreate(BaseModel):
     units_per_buy_uom: int = Field(default=1, ge=1)
     sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
-    selling_price: float = Field(gt=0)
+    selling_price: float = Field(ge=0)
     images: list[str] = Field(default_factory=list)
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
@@ -56,7 +56,7 @@ class ProductUpdate(BaseModel):
     units_per_buy_uom: Optional[int] = Field(default=None, ge=1)
     sell_mode: Optional[SellMode] = None
     cost_price: Optional[float] = Field(default=None, ge=0)
-    selling_price: Optional[float] = Field(default=None, gt=0)
+    selling_price: Optional[float] = Field(default=None, ge=0)
     images: Optional[list[str]] = None
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None

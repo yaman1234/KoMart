@@ -184,6 +184,7 @@ export const QUERY_KEYS = {
   customer: (id: string) => ['customers', id] as const,
   notifications: ['notifications'] as const,
   expenses: ['expenses'] as const,
+  expenseStats: ['expenses', 'stats'] as const,
   expense: (id: string) => ['expenses', id] as const,
   reports: (type: string) => ['reports', type] as const,
   settings: ['settings'] as const,
