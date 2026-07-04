@@ -1,12 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-<<<<<<< HEAD
-import dayjs from 'dayjs';
-import { QUERY_KEYS, STALE_TIME } from '@/constants';
-import { expenseService, reportsService } from '@/services';
-=======
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { expenseService } from '@/services';
->>>>>>> dev
 import type { Expense, ExpenseWritePayload, ListQueryParams } from '@/types';
 
 const expenseStatsKey = [...QUERY_KEYS.expenses, 'stats'] as const;
@@ -68,12 +62,8 @@ export function useCreateExpense() {
   return useMutation({
     mutationFn: (data: ExpenseWritePayload) => expenseService.create(data),
     onSuccess: () => {
-<<<<<<< HEAD
-      invalidateExpenseQueries(queryClient);
-=======
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
->>>>>>> dev
     },
   });
 }
@@ -84,12 +74,8 @@ export function useUpdateExpense() {
     mutationFn: ({ id, data }: { id: string; data: Partial<ExpenseWritePayload> }) =>
       expenseService.update(id, data),
     onSuccess: (_, { id }) => {
-<<<<<<< HEAD
-      invalidateExpenseQueries(queryClient);
-=======
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
->>>>>>> dev
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expense(id) });
     },
   });
@@ -100,12 +86,8 @@ export function useDeleteExpense() {
   return useMutation({
     mutationFn: (id: string) => expenseService.delete(id),
     onSuccess: () => {
-<<<<<<< HEAD
-      invalidateExpenseQueries(queryClient);
-=======
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
->>>>>>> dev
     },
   });
 }

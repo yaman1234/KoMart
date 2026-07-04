@@ -29,16 +29,8 @@ import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProdu
 import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS, DROPDOWN_PAGE_SIZE } from '@/constants';
-=======
-import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
->>>>>>> dev
-=======
 import { useUomOptions } from '@/hooks/useUoms';
 import { PRODUCT_CATEGORIES, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
->>>>>>> dev
 import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
