@@ -27,10 +27,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     cors_origins: str = "http://localhost:5173"
 
-<<<<<<< HEAD
     # Serverless: skip the full stock-sync on every cold start
     skip_stock_refresh_on_start: bool = False
-=======
+
     @model_validator(mode="after")
     def _check_secret_key(self) -> "Settings":
         if not self.secret_key:
@@ -39,7 +38,6 @@ class Settings(BaseSettings):
                 "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
             )
         return self
->>>>>>> dev
 
     @property
     def cors_origins_list(self) -> list[str]:

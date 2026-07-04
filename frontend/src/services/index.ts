@@ -380,7 +380,13 @@ export const transactionService = {
       loyaltyPointsRedeemed?: number;
     },
   ): Promise<Transaction> => {
-    if (useMock()) return mockApi.updateTransaction(id, payload);
+    if (useMock()) {
+      const { customerId, ...rest } = payload;
+      return mockApi.updateTransaction(id, {
+        ...rest,
+        ...(customerId !== undefined && { customerId: customerId ?? undefined }),
+      });
+    }
     const { data } = await apiClient.patch(`/transactions/${id}`, payload);
     return data as Transaction;
   },

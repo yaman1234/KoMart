@@ -287,10 +287,10 @@ export function DiscountsTab() {
               onChange={(_e, newValue) => setForm((f) => ({ ...f, productIds: newValue.map((p) => p.id) }))}
               isOptionEqualToValue={(option: Product, value: Product) => option.id === value.id}
               renderInput={(params) => <TextField {...params} label="Products" placeholder="Search products…" />}
-              renderTags={(value: Product[], getTagProps: (params: { index: number }) => Record<string, unknown>) =>
-                value.map((option: Product, index: number) => {
-                  const { key, ...tagProps } = getTagProps({ index });
-                  return <Chip key={key as string} label={option.name} size="small" {...tagProps} />;
+              renderValue={(value, getItemProps) =>
+                (value as Product[]).map((option, index) => {
+                  const { key, ...itemProps } = getItemProps({ index });
+                  return <Chip key={key} label={option.name} size="small" {...itemProps} />;
                 })
               }
             />
