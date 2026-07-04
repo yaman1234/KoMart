@@ -551,6 +551,14 @@ export const mockApi = {
     return txn;
   },
 
+  async updateTransaction(id: string, payload: Partial<Transaction>): Promise<Transaction> {
+    await delay(400);
+    const idx = transactions.findIndex((t) => t.id === id);
+    if (idx === -1) throw new Error('Transaction not found');
+    transactions[idx] = { ...transactions[idx], ...payload };
+    return transactions[idx];
+  },
+
   // ── Notifications ─────────────────────────────────────────────────────────
   async getNotifications(params?: {
     unreadOnly?: boolean;
@@ -847,7 +855,7 @@ export const mockApi = {
       code: data.code ?? '',
       ruleType: data.ruleType ?? 'cart_percent',
       value: data.value ?? 0,
-      productId: data.productId ?? '',
+      productIds: data.productIds ?? [],
       category: data.category ?? '',
       minCartTotal: data.minCartTotal ?? 0,
       maxDiscount: data.maxDiscount ?? 0,

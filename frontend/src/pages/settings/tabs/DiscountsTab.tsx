@@ -279,18 +279,18 @@ export function DiscountsTab() {
             </Select>
           </FormControl>
           {needsProduct && (
-            <Autocomplete<Product, true>
+            <Autocomplete<Product, true, false, false>
               multiple
               options={products}
-              getOptionLabel={(option) => option.name}
+              getOptionLabel={(option: Product) => option.name}
               value={selectedProducts}
               onChange={(_e, newValue) => setForm((f) => ({ ...f, productIds: newValue.map((p) => p.id) }))}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
+              isOptionEqualToValue={(option: Product, value: Product) => option.id === value.id}
               renderInput={(params) => <TextField {...params} label="Products" placeholder="Search products…" />}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => {
+              renderTags={(value: Product[], getTagProps: (params: { index: number }) => Record<string, unknown>) =>
+                value.map((option: Product, index: number) => {
                   const { key, ...tagProps } = getTagProps({ index });
-                  return <Chip key={key} label={option.name} size="small" {...tagProps} />;
+                  return <Chip key={key as string} label={option.name} size="small" {...tagProps} />;
                 })
               }
             />
