@@ -32,7 +32,8 @@ import { DROPDOWN_PAGE_SIZE, GRID_PAGE_SIZE, PRODUCT_CATEGORIES, PRODUCT_STATUS_
 import { useProducts, useInfiniteProducts } from '@/hooks/useProducts';
 import { useDiscountRules } from '@/hooks/useDiscounts';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { formatCurrency, isAdminOrManager, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
+import { PriceWithUom } from '@/components/products/PriceWithUom';
+import { isAdminOrManager, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useAuthStore } from '@/store';
@@ -112,10 +113,14 @@ const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, 
               sx={{ mb: 0.75, ml: product.category ? 0.5 : 0, height: 20, fontSize: '0.65rem' }}
             />
           )}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap' }}>
-              {formatCurrency(product.sellingPrice)}
-            </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 0.5, mt: 0.5, minWidth: 0 }}>
+            <Box sx={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
+              <PriceWithUom
+                price={product.sellingPrice}
+                uom={product.uom ?? 'pcs'}
+                priceSx={{ fontSize: '0.8125rem' }}
+              />
+            </Box>
             <Chip
               label={stockLabel}
               color={stockColor}
@@ -288,7 +293,9 @@ export function ProductsPage() {
       id: 'sellingPrice',
       label: 'Price',
       align: 'right',
-      render: (row) => formatCurrency(row.sellingPrice),
+      render: (row) => (
+        <PriceWithUom price={row.sellingPrice} uom={row.uom ?? 'pcs'} priceSx={{ fontSize: '0.8125rem' }} />
+      ),
     },
     {
       id: 'stock',

@@ -45,6 +45,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PaymentIcon from '@mui/icons-material/Payment';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useQueryClient } from '@tanstack/react-query';
@@ -66,7 +67,8 @@ import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { PaymentModal } from '@/components/pos/PaymentModal';
 import { CustomerPicker } from '@/components/pos/CustomerPicker';
-import { ProductMetaChips } from '@/components/products/ProductMetaChips';
+import { PriceWithUom } from '@/components/products/PriceWithUom';
+import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
 import { DRAWER_COLLAPSED } from '@/layouts/Sidebar';
 import type { Product, Transaction, PaymentMethod } from '@/types';
 
@@ -112,9 +114,22 @@ interface ProductCardProps {
   qtyInCart: number;
   discountLabel?: string | null;
   onAdd: (product: Product) => void;
+  onViewDetails: (product: Product) => void;
 }
 
-const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd }: ProductCardProps) {
+const POS_IMAGE_CHIP_SX = {
+  height: 18,
+  fontSize: '0.55rem',
+  fontWeight: 700,
+  bgcolor: 'rgba(0,0,0,0.62)',
+  color: 'common.white',
+  border: '1px solid rgba(255,255,255,0.2)',
+  backdropFilter: 'blur(4px)',
+  '& .MuiChip-label': { px: 0.6 },
+  maxWidth: '100%',
+} as const;
+
+const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd, onViewDetails }: ProductCardProps) {
   const inCart = qtyInCart > 0;
   const stockColor =
     product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
@@ -124,6 +139,8 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
       : product.stock <= product.lowStockThreshold
         ? `Low: ${product.stock}`
         : String(product.stock);
+  const visibleTags = (product.tags ?? []).slice(0, 2);
+  const hiddenTagCount = Math.max(0, (product.tags ?? []).length - visibleTags.length);
 
   return (
     <Card
@@ -195,12 +212,72 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
                 boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
                 border: '2px solid',
                 borderColor: 'background.paper',
-                zIndex: 1,
+                zIndex: 2,
               }}
             >
               {qtyInCart}
             </Box>
           )}
+
+          {product.category && (
+            <Box sx={{ position: 'absolute', top: 6, left: 6, zIndex: 1, maxWidth: 'calc(100% - 40px)' }}>
+              <Chip label={product.category} size="small" sx={POS_IMAGE_CHIP_SX} />
+            </Box>
+          )}
+
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 6,
+              left: 6,
+              right: 6,
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              gap: 0.5,
+            }}
+          >
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, minWidth: 0, flex: '1 1 auto', pr: 0.5 }}>
+              {visibleTags.map((tag) => (
+                <Chip key={tag} label={tag} size="small" sx={POS_IMAGE_CHIP_SX} />
+              ))}
+              {hiddenTagCount > 0 && (
+                <Chip label={`+${hiddenTagCount}`} size="small" sx={POS_IMAGE_CHIP_SX} />
+              )}
+              {discountLabel && (
+                <Tooltip title={discountLabel}>
+                  <Chip
+                    icon={<LocalOfferIcon sx={{ fontSize: '0.7rem !important', color: 'inherit !important' }} />}
+                    label={discountLabel}
+                    size="small"
+                    sx={{ ...POS_IMAGE_CHIP_SX, bgcolor: 'rgba(46,125,50,0.85)' }}
+                  />
+                </Tooltip>
+              )}
+            </Box>
+            <IconButton
+              size="small"
+              aria-label="View product details"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onViewDetails(product);
+              }}
+              sx={{
+                width: 28,
+                height: 28,
+                flexShrink: 0,
+                bgcolor: 'rgba(0,0,0,0.62)',
+                color: 'common.white',
+                border: '1px solid rgba(255,255,255,0.2)',
+                backdropFilter: 'blur(4px)',
+                '&:hover': { bgcolor: 'rgba(0,0,0,0.78)' },
+              }}
+            >
+              <VisibilityIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
         </Box>
 
         {/* Info section */}
@@ -220,11 +297,6 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
           >
             {product.name}
           </Typography>
-          <ProductMetaChips
-            category={product.category}
-            tags={product.tags}
-            discountLabel={discountLabel}
-          />
           <Box
             sx={{
               display: 'flex',
@@ -232,20 +304,16 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
               alignItems: 'center',
               gap: 0.5,
               mt: 'auto',
+              minWidth: 0,
             }}
           >
-            <Typography
-              variant="body2"
-              color="primary"
-              sx={{
-                fontWeight: 700,
-                fontSize: { xs: '0.7rem', sm: '0.8125rem' },
-                whiteSpace: 'nowrap',
-                lineHeight: 1.2,
-              }}
-            >
-              {formatCurrency(product.sellingPrice)}
-            </Typography>
+            <Box sx={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
+              <PriceWithUom
+                price={product.sellingPrice}
+                uom={product.uom ?? 'pcs'}
+                priceSx={{ fontSize: { xs: '0.7rem', sm: '0.8125rem' } }}
+              />
+            </Box>
             <Chip
               label={stockLabel}
               color={stockColor}
@@ -404,6 +472,7 @@ export function POSPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [custForm, setCustForm] = useState<CreateCustForm>(EMPTY_FORM);
   const [custFormError, setCustFormError] = useState('');
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
   const queryClient = useQueryClient();
   const { items, addItem, removeItem, updateQuantity, customerId, setCustomer, clearCart, loyaltyPointsRedeemed } = useCartStore();
@@ -774,6 +843,7 @@ export function POSPage() {
                   qtyInCart={cartQuantities.get(product.id) ?? 0}
                   discountLabel={productDiscountMap.get(product.id)}
                   onAdd={handleAddProduct}
+                  onViewDetails={setDetailProduct}
                 />
               </Grid>
             ))}
@@ -1194,6 +1264,12 @@ export function POSPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ProductQuickViewDialog
+        product={detailProduct}
+        open={!!detailProduct}
+        onClose={() => setDetailProduct(null)}
+      />
     </Box>
   );
 }

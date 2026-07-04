@@ -8,6 +8,9 @@ class BatchCreate(BaseModel):
     batch_number: str
     quantity: int = Field(ge=1)
     expiry_date: Optional[str] = None   # ISO date string, e.g. "2026-12-31"
+    unit_cost: Optional[float] = Field(None, ge=0)
+    selling_price: Optional[float] = Field(None, ge=0)
+    supplier_id: Optional[str] = None
 
 
 class BatchResponse(BaseModel):
@@ -41,6 +44,7 @@ class InventoryItemResponse(BaseModel):
     low_stock_threshold: int
     cost_price: float
     selling_price: float
+    uom: str = "pcs"
     batches: list[BatchResponse] = []
     batch_count: int = 0
     nearest_expiry: Optional[str] = None

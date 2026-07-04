@@ -1,4 +1,4 @@
-import { CURRENCY_SYMBOL } from '@/constants';
+import { CURRENCY_SYMBOL, UOM_OPTIONS } from '@/constants';
 import type { ProductStatus, UserRole } from '@/types';
 
 export const isAdmin = (role?: UserRole): boolean => role === 'admin';
@@ -48,6 +48,14 @@ export function formatAmount(amount: number): string {
 
 export function formatCurrency(amount: number): string {
   return `${CURRENCY_SYMBOL} ${formatAmount(amount)}`;
+}
+
+export function uomLabel(value: string): string {
+  return UOM_OPTIONS.find((o) => o.value === value)?.label ?? value;
+}
+
+export function formatPricePerUom(price: number, uom: string): string {
+  return `${formatCurrency(price)} / ${uom}`;
 }
 
 export function formatDate(date: string | Date): string {

@@ -296,9 +296,12 @@ export const mockProducts: Product[] = [
     createdAt: '2024-06-01T00:00:00Z',
     updatedAt: '2025-06-01T00:00:00Z',
   },
-].map((p) => ({
+].map((p, i) => ({
   ...p,
+  buyUom: i < 3 ? 'pack' : 'pcs',
   uom: 'pcs',
+  unitsPerBuyUom: i < 3 ? 12 : 1,
+  sellMode: i < 3 ? 'both' as const : 'unit' as const,
   ...supplierForCountry(p.countryOfOrigin),
 }));
 

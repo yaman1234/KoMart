@@ -12,6 +12,12 @@ class ProductStatus(str, Enum):
     seasonal = "seasonal"
 
 
+class SellMode(str, Enum):
+    unit = "unit"    # sell whole sell-uom unit only (e.g. pack)
+    piece = "piece"  # sell individual pieces only
+    both = "both"    # sell pack or pieces
+
+
 SELLABLE_PRODUCT_STATUSES = frozenset({ProductStatus.active, ProductStatus.seasonal})
 
 
@@ -29,7 +35,10 @@ class Product(Document):
     supplier_id: str
     supplier_name: str
     description: str = ""
-    uom: str = "pcs"            # Unit of Measure: pcs, pack, box, kg, g, ml, L …
+    buy_uom: str = "pcs"          # how purchased from supplier
+    uom: str = "pcs"              # sell UOM: pcs, pack, box, kg, g, ml, L …
+    units_per_buy_uom: int = Field(default=1, ge=1)
+    sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
     selling_price: float = Field(ge=0)
     images: list[str] = Field(default_factory=list)

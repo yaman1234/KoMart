@@ -4,7 +4,7 @@ from math import ceil
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
-from app.models.product import Product, ProductStatus, product_is_sellable
+from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
 from app.models.supplier import Supplier
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.schemas.common import PaginatedResponse
@@ -33,7 +33,10 @@ def _to_response(p: Product) -> ProductResponse:
         supplier_id=p.supplier_id,
         supplier_name=p.supplier_name,
         description=p.description,
+        buy_uom=getattr(p, "buy_uom", None) or p.uom or "pcs",
         uom=p.uom if hasattr(p, "uom") and p.uom else "pcs",
+        units_per_buy_uom=getattr(p, "units_per_buy_uom", None) or 1,
+        sell_mode=getattr(p, "sell_mode", None) or SellMode.unit,
         cost_price=p.cost_price,
         selling_price=p.selling_price,
         images=p.images,

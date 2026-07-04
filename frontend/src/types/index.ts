@@ -134,7 +134,10 @@ export interface Product {
   supplierId: string;
   supplierName: string;
   description: string;
+  buyUom?: string;
   uom: string;
+  unitsPerBuyUom?: number;
+  sellMode?: 'unit' | 'piece' | 'both';
   costPrice: number;
   sellingPrice: number;
   images: string[];

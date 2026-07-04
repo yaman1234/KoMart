@@ -68,3 +68,12 @@ async def init_db() -> None:
         {"$or": [{"status": {"$exists": False}}, {"status": None}]},
         {"$set": {"status": ProductStatus.active.value}},
     )
+    # Backfill UOM fields on legacy products.
+    await Product.get_motor_collection().update_many(
+        {"buy_uom": {"$exists": False}},
+        [{"$set": {
+            "buy_uom": {"$ifNull": ["$uom", "pcs"]},
+            "units_per_buy_uom": 1,
+            "sell_mode": "unit",
+        }}],
+    )
