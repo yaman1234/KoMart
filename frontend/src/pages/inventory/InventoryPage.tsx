@@ -89,7 +89,7 @@ export function InventoryPage() {
 
   const { data, isLoading } = useInventory(inventoryParams);
   const { data: stats } = useInventoryStats();
-  const { data: suppliersData } = useSuppliers({ pageSize: 100 });
+  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
 

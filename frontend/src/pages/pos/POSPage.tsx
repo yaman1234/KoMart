@@ -423,7 +423,7 @@ export function POSPage() {
   const { data: productsData } = useProducts({ search, pageSize: 200, sellableOnly: true });
   const { data: discountRules = [] } = useDiscountRules(true);
   const { data: paymentCustomer } = useCustomer(customerId ?? '');
-  const { data: suppliersData } = useSuppliers({ pageSize: 200 });
+  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const suppliers = suppliersData?.data ?? [];
 
   const products = productsData?.data ?? [];

@@ -75,7 +75,7 @@ export function ProductFormPage() {
 
   const { data: product, isLoading: productLoading } = useProduct(id ?? '');
   const { data: storeSettings } = useStoreSettings();
-  const { data: suppliersData } = useSuppliers({ pageSize: 100 });
+  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
 

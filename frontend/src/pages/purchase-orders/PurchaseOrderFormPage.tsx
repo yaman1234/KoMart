@@ -111,7 +111,7 @@ export function PurchaseOrderFormPage() {
   const [formLoaded, setFormLoaded] = useState(false);
 
   const { data: existingPo, isLoading: poLoading, isError: poError } = usePurchaseOrder(id ?? '');
-  const { data: suppliersData } = useSuppliers({ pageSize: 100 });
+  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const { data: productsData } = useProducts(
     { search: productSearch, supplierId, pageSize: 50 },
     { enabled: !!supplierId },

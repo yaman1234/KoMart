@@ -151,7 +151,7 @@ export function ProductsPage() {
   // sentinel ref for infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: suppliersData } = useSuppliers({ pageSize: 200 });
+  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const { data: discountRules = [] } = useDiscountRules(true);
   const suppliers = suppliersData?.data ?? [];
 
@@ -467,15 +467,17 @@ export function ProductsPage() {
             </Grid>
           )}
 
-          {/* Sentinel + load-more indicator */}
-          <Box ref={sentinelRef} sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-            {isFetchingNextPage && <CircularProgress size={24} />}
-            {!isFetchingNextPage && !hasNextPage && filteredGridProducts.length > 0 && (
-              <Typography variant="caption" color="text.disabled">
-                All products loaded
-              </Typography>
-            )}
-          </Box>
+          {/* Sentinel + load-more indicator (only after first page renders) */}
+          {!infiniteLoading && filteredGridProducts.length > 0 && (
+            <Box ref={sentinelRef} sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              {isFetchingNextPage && <CircularProgress size={24} />}
+              {!isFetchingNextPage && !hasNextPage && (
+                <Typography variant="caption" color="text.disabled">
+                  All products loaded
+                </Typography>
+              )}
+            </Box>
+          )}
         </Box>
       )}
 
