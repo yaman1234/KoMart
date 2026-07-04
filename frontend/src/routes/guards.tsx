@@ -1,9 +1,34 @@
 import { Navigate, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { CircularProgress, Box } from '@mui/material';
 import { useAuthStore } from '@/store';
 import type { UserRole } from '@/types';
 
+function useHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    if ((useAuthStore.persist as unknown as { hasHydrated: () => boolean }).hasHydrated()) {
+      setHydrated(true);
+    }
+    return unsub;
+  }, []);
+  return hydrated;
+}
+
+function HydrationLoader() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <CircularProgress />
+    </Box>
+  );
+}
+
 export function ProtectedRoute() {
+  const hydrated = useHydrated();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  if (!hydrated) return <HydrationLoader />;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -13,7 +38,10 @@ export function ProtectedRoute() {
 }
 
 export function GuestRoute() {
+  const hydrated = useHydrated();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  if (!hydrated) return <HydrationLoader />;
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
