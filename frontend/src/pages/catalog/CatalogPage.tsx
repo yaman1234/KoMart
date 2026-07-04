@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { SearchBar } from '@/components/common/SearchBar';
 import { ProductMetaChips } from '@/components/products/ProductMetaChips';
 import { HeroCarousel } from '@/components/catalog/HeroCarousel';
-import { useInfiniteCatalogProducts, useCatalogOffers, useCatalogTags } from '@/hooks/useCatalog';
+import { useInfiniteCatalogProducts, useCatalogOffers, useCatalogTags, useStoreInfo } from '@/hooks/useCatalog';
 import { buildCatalogDiscountMap, hasActiveDiscount } from '@/utils/catalogDiscounts';
 import { formatCurrency, productStatusOf, productStatusLabel, productStatusColor } from '@/utils';
 import { PRODUCT_CATEGORIES } from '@/constants';
@@ -176,6 +176,7 @@ export function CatalogPage() {
 
   const { data: offers = [] } = useCatalogOffers();
   const { data: tags = [] } = useCatalogTags();
+  const { data: storeInfo } = useStoreInfo();
 
   const queryParams = {
     search: search || undefined,
@@ -227,7 +228,7 @@ export function CatalogPage() {
   return (
     <Box>
       {/* Hero Carousel */}
-      <HeroCarousel />
+      <HeroCarousel offers={offers} storeInfo={storeInfo} />
 
       {/* Toolbar */}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>

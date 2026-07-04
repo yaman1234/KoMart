@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from pydantic import model_validator
@@ -29,6 +30,13 @@ class Settings(BaseSettings):
 
     # Serverless: skip the full stock-sync on every cold start
     skip_stock_refresh_on_start: bool = False
+
+    @model_validator(mode="after")
+    def _apply_serverless_defaults(self) -> "Settings":
+        # Vercel cold starts must not block on a full stock sync (N sequential DB round-trips).
+        if os.getenv("VERCEL") and os.getenv("SKIP_STOCK_REFRESH_ON_START") is None:
+            self.skip_stock_refresh_on_start = True
+        return self
 
     @model_validator(mode="after")
     def _check_secret_key(self) -> "Settings":

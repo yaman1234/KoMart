@@ -1,7 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@/constants';
-import { expenseService } from '@/services';
+import dayjs from 'dayjs';
+import { QUERY_KEYS, STALE_TIME } from '@/constants';
+import { expenseService, reportsService } from '@/services';
 import type { Expense, ExpenseWritePayload, ListQueryParams } from '@/types';
+
+const expenseStatsKey = [...QUERY_KEYS.expenses, 'stats'] as const;
+
+function invalidateExpenseQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
+  void queryClient.invalidateQueries({ queryKey: expenseStatsKey });
+}
+
+/** Summary cards on the expenses page — uses /reports/expense-summary instead of bulk list fetch. */
+export function useExpensePageStats() {
+  const monthStart = dayjs().startOf('month').format('YYYY-MM-DD');
+  const today = dayjs().format('YYYY-MM-DD');
+
+  const allTime = useQuery({
+    queryKey: [...expenseStatsKey, 'all'],
+    queryFn: () => reportsService.getExpenseSummary({ startDate: '2000-01-01', endDate: today }),
+    staleTime: STALE_TIME.standard,
+  });
+  const thisMonth = useQuery({
+    queryKey: [...expenseStatsKey, 'month', monthStart],
+    queryFn: () => reportsService.getExpenseSummary({ startDate: monthStart, endDate: today }),
+    staleTime: STALE_TIME.standard,
+  });
+
+  return {
+    totalAll: allTime.data?.totalExpenses ?? 0,
+    setupTotal: allTime.data?.setupInvestment ?? 0,
+    thisMonthTotal: thisMonth.data?.totalExpenses ?? 0,
+    isLoading: allTime.isLoading || thisMonth.isLoading,
+  };
+}
 
 export function useExpenses(params?: ListQueryParams) {
   return useQuery({
@@ -23,7 +55,7 @@ export function useCreateExpense() {
   return useMutation({
     mutationFn: (data: ExpenseWritePayload) => expenseService.create(data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
+      invalidateExpenseQueries(queryClient);
     },
   });
 }
@@ -34,7 +66,7 @@ export function useUpdateExpense() {
     mutationFn: ({ id, data }: { id: string; data: Partial<ExpenseWritePayload> }) =>
       expenseService.update(id, data),
     onSuccess: (_, { id }) => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
+      invalidateExpenseQueries(queryClient);
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expense(id) });
     },
   });
@@ -45,7 +77,7 @@ export function useDeleteExpense() {
   return useMutation({
     mutationFn: (id: string) => expenseService.delete(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
+      invalidateExpenseQueries(queryClient);
     },
   });
 }

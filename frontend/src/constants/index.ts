@@ -6,6 +6,18 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 export const DEFAULT_PAGE_SIZE = 10;
 
+/** Grid / infinite-scroll product pages (products list, catalog). */
+export const GRID_PAGE_SIZE = 24;
+
+/** POS product grid — one screen of cards; load more on scroll. */
+export const POS_PRODUCTS_PAGE_SIZE = 48;
+
+/** Dropdowns and pickers (suppliers, product autocomplete). */
+export const DROPDOWN_PAGE_SIZE = 50;
+
+/** Typeahead / search result limits. */
+export const PRODUCT_SEARCH_PAGE_SIZE = 25;
+
 /** React Query stale-time tiers (milliseconds). */
 export const STALE_TIME = {
   realtime: 30_000,

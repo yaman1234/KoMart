@@ -24,7 +24,7 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { StatCard } from '@/components/common/StatCard';
-import { useExpenses, useDeleteExpense } from '@/hooks/useExpenses';
+import { useExpenses, useDeleteExpense, useExpensePageStats } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES } from '@/constants';
 import { formatCurrency, formatDate, isAdminOrManager } from '@/utils';
 import { showApiError, showSuccess } from '@/utils/toast';
@@ -59,6 +59,7 @@ export function ExpensesPage() {
 
   const { data, isLoading } = useExpenses({ search, page: page + 1, pageSize });
   const deleteMutation = useDeleteExpense();
+  const { totalAll, setupTotal, thisMonthTotal } = useExpensePageStats();
 
   const allExpenses = data?.data ?? [];
 
@@ -66,20 +67,6 @@ export function ExpensesPage() {
   const filtered = category
     ? allExpenses.filter((e) => e.category === category)
     : allExpenses;
-
-  // Summary stats from ALL loaded data (use a wide fetch for stat cards)
-  const { data: allData } = useExpenses({ pageSize: 1000 });
-  const all = allData?.data ?? [];
-
-  const totalAll = all.reduce((s, e) => s + e.amount, 0);
-  const setupTotal = all.filter((e) => e.isSetupCost).reduce((s, e) => s + e.amount, 0);
-  const now = new Date();
-  const thisMonthTotal = all
-    .filter((e) => {
-      const d = new Date(e.date);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    })
-    .reduce((s, e) => s + e.amount, 0);
 
   const columns: Column<Expense>[] = [
     {

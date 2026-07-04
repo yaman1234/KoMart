@@ -1,5 +1,5 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { QUERY_KEYS, STALE_TIME } from '@/constants';
+import { GRID_PAGE_SIZE, QUERY_KEYS, STALE_TIME } from '@/constants';
 import { productService } from '@/services';
 import type { ListQueryParams, Product } from '@/types';
 
@@ -59,11 +59,14 @@ export function useDeleteProduct() {
   });
 }
 
-export function useInfiniteProducts(params?: Omit<ListQueryParams, 'page'>) {
+export function useInfiniteProducts(
+  params?: Omit<ListQueryParams, 'page'> & { pageSize?: number },
+) {
+  const { pageSize = GRID_PAGE_SIZE, ...rest } = params ?? {};
   return useInfiniteQuery({
-    queryKey: [...QUERY_KEYS.products, 'infinite', params],
+    queryKey: [...QUERY_KEYS.products, 'infinite', { ...rest, pageSize }],
     queryFn: ({ pageParam }) =>
-      productService.getAll({ ...params, page: pageParam as number, pageSize: 24 }),
+      productService.getAll({ ...rest, page: pageParam as number, pageSize }),
     initialPageParam: 1,
     getNextPageParam: (last) =>
       (last.page < last.totalPages ? last.page + 1 : undefined),

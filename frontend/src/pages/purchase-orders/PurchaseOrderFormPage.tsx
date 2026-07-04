@@ -28,6 +28,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
+import { DROPDOWN_PAGE_SIZE, PRODUCT_SEARCH_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
@@ -111,9 +112,9 @@ export function PurchaseOrderFormPage() {
   const [formLoaded, setFormLoaded] = useState(false);
 
   const { data: existingPo, isLoading: poLoading, isError: poError } = usePurchaseOrder(id ?? '');
-  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const { data: productsData } = useProducts(
-    { search: productSearch, supplierId, pageSize: 50 },
+    { search: productSearch, supplierId, pageSize: PRODUCT_SEARCH_PAGE_SIZE },
     { enabled: !!supplierId },
   );
   const createMutation = useCreatePurchaseOrder();

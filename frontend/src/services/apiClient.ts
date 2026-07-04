@@ -48,11 +48,11 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
-/** Public client for unauthenticated endpoints (catalog) */
+/** Public client for unauthenticated endpoints (catalog) — allow extra time for serverless cold starts */
 export const publicClient = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30000,
+  timeout: 60000,
 });
 
 publicClient.interceptors.request.use((config) => {

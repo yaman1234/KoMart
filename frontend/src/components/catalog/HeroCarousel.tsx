@@ -6,7 +6,6 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PhoneIcon from '@mui/icons-material/Phone';
 import EmailIcon from '@mui/icons-material/Email';
-import { useStoreInfo, useCatalogOffers } from '@/hooks/useCatalog';
 import { APP_NAME, CURRENCY_SYMBOL } from '@/constants';
 import type { CatalogOffer, CatalogStoreInfo } from '@/types';
 
@@ -150,10 +149,12 @@ function StoreInfoSlide({ info }: { info: CatalogStoreInfo }) {
   );
 }
 
-export function HeroCarousel() {
-  const { data: storeInfo } = useStoreInfo();
-  const { data: offers = [] } = useCatalogOffers();
+interface HeroCarouselProps {
+  offers?: CatalogOffer[];
+  storeInfo?: CatalogStoreInfo;
+}
 
+export function HeroCarousel({ offers = [], storeInfo }: HeroCarouselProps) {
   const slides = buildSlides(offers, storeInfo);
   const count = slides.length;
 

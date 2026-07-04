@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -32,6 +32,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
@@ -48,7 +49,8 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useProducts } from '@/hooks/useProducts';
+import { useInfiniteProducts } from '@/hooks/useProducts';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useEvaluateDiscounts, useDiscountRules } from '@/hooks/useDiscounts';
 import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
 import { useSuppliers } from '@/hooks/useSuppliers';
@@ -58,7 +60,7 @@ import { transactionService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { formatAmount, formatCurrency } from '@/utils';
-import { PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
+import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE, PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
@@ -383,9 +385,12 @@ function CollapsedCartRail({ totalUnits, total, hasItems, onExpand, onPay }: Col
 export function POSPage() {
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [supplierFilter, setSupplierFilter] = useState('');
+  const [supplierIdFilter, setSupplierIdFilter] = useState('');
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
+  const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
+  const stockByIdRef = useRef(new Map<string, number>());
   const [cartCollapsed, setCartCollapsed] = useState(isMobile);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
@@ -420,13 +425,47 @@ export function POSPage() {
   const receiptBranding = storeSettings ? receiptBrandingFromSettings(storeSettings) : undefined;
   const createCustomerMutation = useCreateCustomer();
 
-  const { data: productsData } = useProducts({ search, pageSize: 200, sellableOnly: true });
+  const {
+    data: infiniteProductsData,
+    isLoading: productsLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteProducts({
+    search: debouncedSearch || undefined,
+    category: categoryFilter || undefined,
+    supplierId: supplierIdFilter || undefined,
+    sellableOnly: true,
+    pageSize: POS_PRODUCTS_PAGE_SIZE,
+  });
   const { data: discountRules = [] } = useDiscountRules(true);
   const { data: paymentCustomer } = useCustomer(customerId ?? '');
-  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const suppliers = suppliersData?.data ?? [];
 
-  const products = productsData?.data ?? [];
+  const products = infiniteProductsData?.pages.flatMap((p) => p.data) ?? [];
+
+  useEffect(() => {
+    for (const p of products) {
+      stockByIdRef.current.set(p.id, p.stock);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    const el = productGridSentinelRef.current;
+    if (!el || productsLoading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [productsLoading, hasNextPage, isFetchingNextPage, fetchNextPage, products.length]);
 
   const productDiscountMap = useMemo(
     () => buildProductDiscountMap(products, discountRules),
@@ -458,12 +497,7 @@ export function POSPage() {
   }, [discountEval]);
 
   const displayedProducts = products
-    .filter((p) => {
-      if (p.stock === 0) return false;
-      if (categoryFilter && p.category !== categoryFilter) return false;
-      if (supplierFilter && p.supplierName !== supplierFilter) return false;
-      return true;
-    })
+    .filter((p) => p.stock > 0)
     .sort((a, b) => {
       if (priceSort === 'asc') return a.sellingPrice - b.sellingPrice;
       if (priceSort === 'desc') return b.sellingPrice - a.sellingPrice;
@@ -539,9 +573,8 @@ export function POSPage() {
 
   // ── Stock helpers ─────────────────────────────────────────────────────────
   const getProductStock = useCallback((productId: string): number => {
-    const p = products.find((prod) => prod.id === productId);
-    return p?.stock ?? 0;
-  }, [products]);
+    return stockByIdRef.current.get(productId) ?? 0;
+  }, []);
 
   const handleAddProduct = useCallback((product: Product) => {
     if (product.stock === 0) return;
@@ -703,13 +736,13 @@ export function POSPage() {
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <InputLabel>Supplier</InputLabel>
             <Select
-              value={supplierFilter}
+              value={supplierIdFilter}
               label="Supplier"
-              onChange={(e) => setSupplierFilter(e.target.value)}
+              onChange={(e) => setSupplierIdFilter(e.target.value)}
             >
               <MenuItem value="">All</MenuItem>
               {suppliers.map((s) => (
-                <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>
+                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -744,11 +777,25 @@ export function POSPage() {
                 />
               </Grid>
             ))}
-            {displayedProducts.length === 0 && (
+            {displayedProducts.length === 0 && !productsLoading && (
               <Grid size={{ xs: 2, sm: 3, md: 5 }}>
                 <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                   No products found
                 </Typography>
+              </Grid>
+            )}
+            {productsLoading && (
+              <Grid size={{ xs: 2, sm: 3, md: 5 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={28} />
+                </Box>
+              </Grid>
+            )}
+            {!productsLoading && hasNextPage && (
+              <Grid size={{ xs: 2, sm: 3, md: 5 }}>
+                <Box ref={productGridSentinelRef} sx={{ py: 2, textAlign: 'center' }}>
+                  {isFetchingNextPage && <CircularProgress size={24} />}
+                </Box>
               </Grid>
             )}
           </Grid>

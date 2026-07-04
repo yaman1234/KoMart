@@ -28,12 +28,12 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { ProductMetaChips } from '@/components/products/ProductMetaChips';
+import { DROPDOWN_PAGE_SIZE, GRID_PAGE_SIZE, PRODUCT_CATEGORIES, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import { useProducts, useInfiniteProducts } from '@/hooks/useProducts';
 import { useDiscountRules } from '@/hooks/useDiscounts';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { formatCurrency, isAdminOrManager, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
-import { PRODUCT_CATEGORIES, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useAuthStore } from '@/store';
 import type { Product, ProductStatus } from '@/types';
@@ -145,13 +145,13 @@ export function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState<'' | ProductStatus>('');
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(24);
+  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZE);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
 
   // sentinel ref for infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const { data: discountRules = [] } = useDiscountRules(true);
   const suppliers = suppliersData?.data ?? [];
 

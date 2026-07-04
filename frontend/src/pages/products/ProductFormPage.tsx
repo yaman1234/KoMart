@@ -29,7 +29,7 @@ import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProdu
 import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
-import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS } from '@/constants';
+import { PRODUCT_CATEGORIES, COUNTRIES, UOM_OPTIONS, PRODUCT_STATUS_OPTIONS, DROPDOWN_PAGE_SIZE } from '@/constants';
 import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ export function ProductFormPage() {
 
   const { data: product, isLoading: productLoading } = useProduct(id ?? '');
   const { data: storeSettings } = useStoreSettings();
-  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
 

@@ -1,5 +1,5 @@
 import { useQuery, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
-import { QUERY_KEYS, STALE_TIME } from '@/constants';
+import { QUERY_KEYS, STALE_TIME, GRID_PAGE_SIZE } from '@/constants';
 import { catalogService } from '@/services';
 import type { ListQueryParams } from '@/types';
 
@@ -16,7 +16,7 @@ export function useInfiniteCatalogProducts(params?: Omit<ListQueryParams, 'page'
   return useInfiniteQuery({
     queryKey: [...QUERY_KEYS.catalog, 'infinite', params],
     queryFn: ({ pageParam }) =>
-      catalogService.getAll({ ...params, page: pageParam as number, pageSize: 24 }),
+      catalogService.getAll({ ...params, page: pageParam as number, pageSize: GRID_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (last) =>
       last.page < last.totalPages ? last.page + 1 : undefined,

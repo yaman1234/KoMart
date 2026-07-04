@@ -20,7 +20,7 @@ import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { useProducts } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatDate, getInitials, canManageSuppliers } from '@/utils';
-import { PO_STATUS_LABELS } from '@/constants';
+import { PO_STATUS_LABELS, DROPDOWN_PAGE_SIZE } from '@/constants';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
@@ -109,7 +109,7 @@ export function SupplierDetailPage() {
     { enabled: !!id },
   );
   const { data: productsData, isLoading: productsLoading } = useProducts(
-    { supplierId: id, pageSize: 50 },
+    { supplierId: id, pageSize: DROPDOWN_PAGE_SIZE },
     { enabled: !!id },
   );
 

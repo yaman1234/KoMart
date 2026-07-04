@@ -31,7 +31,8 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await refresh_all_product_stocks()
+    if not settings.skip_stock_refresh_on_start:
+        await refresh_all_product_stocks()
     yield
 
 

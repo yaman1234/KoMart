@@ -26,7 +26,7 @@ import { useInventory, useInventoryStats, useAdjustStock, useReceiveBatch } from
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { formatDate, formatCurrency } from '@/utils';
 import { useAuthStore } from '@/store';
-import { PRODUCT_CATEGORIES } from '@/constants';
+import { PRODUCT_CATEGORIES, DROPDOWN_PAGE_SIZE } from '@/constants';
 import type { InventoryItem, StockAdjustmentType } from '@/types';
 import type { InventoryQueryParams } from '@/services';
 import { showApiError, showSuccess } from '@/utils/toast';
@@ -89,7 +89,7 @@ export function InventoryPage() {
 
   const { data, isLoading } = useInventory(inventoryParams);
   const { data: stats } = useInventoryStats();
-  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
 

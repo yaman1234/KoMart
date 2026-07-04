@@ -32,7 +32,8 @@ import BlockIcon from '@mui/icons-material/Block';
 import { useDiscountRules, useCreateDiscountRule, useUpdateDiscountRule, useDeleteDiscountRule } from '@/hooks/useDiscounts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategoryNames } from '@/hooks/useCategories';
-import { DISCOUNT_RULE_TYPES } from '@/constants';
+import { DISCOUNT_RULE_TYPES, DROPDOWN_PAGE_SIZE, PRODUCT_SEARCH_PAGE_SIZE } from '@/constants';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import type { DiscountRule, DiscountRuleType, Product } from '@/types';
@@ -70,19 +71,9 @@ function ruleValueLabel(rule: DiscountRule): string {
 
 export function DiscountsTab() {
   const { data: rules = [], isLoading } = useDiscountRules(false);
-  const { data: productsData } = useProducts({ pageSize: 200 });
+  const [productSearch, setProductSearch] = useState('');
+  const debouncedProductSearch = useDebouncedValue(productSearch, 300);
   const categories = useCategoryNames();
-  const products = productsData?.data ?? [];
-
-  const productMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of products) map.set(p.id, p.name);
-    return map;
-  }, [products]);
-
-  const createMutation = useCreateDiscountRule();
-  const updateMutation = useUpdateDiscountRule();
-  const deleteMutation = useDeleteDiscountRule();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<DiscountRule | null>(null);
@@ -93,25 +84,56 @@ export function DiscountsTab() {
   const needsCategory = form.ruleType.startsWith('category_');
   const isPercent = form.ruleType.includes('percent');
 
+  const hasRuleProducts = rules.some((r) => r.productIds.length > 0);
+  const { data: labelProductsData } = useProducts(
+    { pageSize: DROPDOWN_PAGE_SIZE },
+    { enabled: hasRuleProducts },
+  );
+  const { data: searchProductsData } = useProducts(
+    { search: debouncedProductSearch || undefined, pageSize: PRODUCT_SEARCH_PAGE_SIZE },
+    { enabled: dialogOpen && needsProduct },
+  );
+
+  const products = searchProductsData?.data ?? [];
+  const labelProducts = labelProductsData?.data ?? [];
+
+  const productMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of labelProducts) map.set(p.id, p.name);
+    for (const p of products) map.set(p.id, p.name);
+    return map;
+  }, [labelProducts, products]);
+
+  const createMutation = useCreateDiscountRule();
+  const updateMutation = useUpdateDiscountRule();
+  const deleteMutation = useDeleteDiscountRule();
+
   const sortedRules = useMemo(
     () => [...rules].sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name)),
     [rules],
   );
 
   const selectedProducts = useMemo(
-    () => products.filter((p) => form.productIds.includes(p.id)),
-    [products, form.productIds],
+    () => form.productIds.map((id) => {
+      const fromSearch = products.find((p) => p.id === id);
+      if (fromSearch) return fromSearch;
+      const name = productMap.get(id);
+      return name ? { id, name } as Product : null;
+    }).filter((p): p is Product => p !== null),
+    [products, form.productIds, productMap],
   );
 
   const openCreate = () => {
     setEditTarget(null);
     setForm(EMPTY_FORM);
+    setProductSearch('');
     setError('');
     setDialogOpen(true);
   };
 
   const openEdit = (rule: DiscountRule) => {
     setEditTarget(rule);
+    setProductSearch('');
     setForm({
       name: rule.name,
       code: rule.code,
@@ -282,6 +304,8 @@ export function DiscountsTab() {
             <Autocomplete<Product, true, false, false>
               multiple
               options={products}
+              inputValue={productSearch}
+              onInputChange={(_e, value) => setProductSearch(value)}
               getOptionLabel={(option: Product) => option.name}
               value={selectedProducts}
               onChange={(_e, newValue) => setForm((f) => ({ ...f, productIds: newValue.map((p) => p.id) }))}
