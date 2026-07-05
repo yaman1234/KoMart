@@ -28,7 +28,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
-import { DROPDOWN_PAGE_SIZE, PRODUCT_SEARCH_PAGE_SIZE } from '@/constants';
+import { DROPDOWN_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
@@ -96,6 +96,8 @@ function emptyLine(id: number): LineItem {
 
 const tomorrow = () => dayjs().add(1, 'day').startOf('day');
 
+const PO_PRODUCT_PAGE_SIZE = 200;
+
 export function PurchaseOrderFormPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -113,10 +115,10 @@ export function PurchaseOrderFormPage() {
 
   const { data: existingPo, isLoading: poLoading, isError: poError } = usePurchaseOrder(id ?? '');
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
-  const { data: productsData } = useProducts(
-    { search: productSearch, supplierId, pageSize: PRODUCT_SEARCH_PAGE_SIZE },
-    { enabled: !!supplierId },
-  );
+  const { data: productsData } = useProducts({
+    search: productSearch || undefined,
+    pageSize: PO_PRODUCT_PAGE_SIZE,
+  });
   const createMutation = useCreatePurchaseOrder();
   const updateMutation = useUpdatePurchaseOrder();
 
@@ -318,15 +320,7 @@ export function PurchaseOrderFormPage() {
               select
               label="Supplier"
               value={supplierId}
-              onChange={(e) => {
-                const next = e.target.value;
-                if (next !== supplierId) {
-                  nextLineId.current += 1;
-                  setLines([emptyLine(nextLineId.current)]);
-                  setProductSearch('');
-                }
-                setSupplierId(next);
-              }}
+              onChange={(e) => setSupplierId(e.target.value)}
               fullWidth
               size="small"
               required
@@ -397,12 +391,10 @@ export function PurchaseOrderFormPage() {
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
             <Typography variant="caption" color="text.secondary">
-              {supplierId
-                ? 'Search and add products from this supplier\'s catalog'
-                : 'Select a supplier first to add products'}
+              Search and add any product
             </Typography>
           </Box>
-          <Button startIcon={<AddIcon />} onClick={addLine} size="small" variant="outlined" disabled={!supplierId}>
+          <Button startIcon={<AddIcon />} onClick={addLine} size="small" variant="outlined">
             Add Item
           </Button>
         </Box>
@@ -438,7 +430,6 @@ export function PurchaseOrderFormPage() {
                   <TableCell>
                     <Autocomplete
                       size="small"
-                      disabled={!supplierId}
                       options={productOptions(products, line.product, usedProductIds(i))}
                       getOptionLabel={(p) => `${p.name}${p.sku ? ` (${p.sku})` : ''}`}
                       isOptionEqualToValue={(a, b) => a.id === b.id}
@@ -456,7 +447,7 @@ export function PurchaseOrderFormPage() {
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          placeholder={supplierId ? 'Search product...' : 'Select supplier first'}
+                          placeholder="Search product..."
                         />
                       )}
                     />
@@ -511,7 +502,7 @@ export function PurchaseOrderFormPage() {
         </TableContainer>
 
         <Box sx={{ mt: 1.5 }}>
-          <Button startIcon={<AddIcon />} onClick={addLine} size="small" disabled={!supplierId}>
+          <Button startIcon={<AddIcon />} onClick={addLine} size="small">
             Add Another Item
           </Button>
         </Box>
