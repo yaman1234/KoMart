@@ -30,7 +30,7 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useUomOptions } from '@/hooks/useUoms';
-import { PRODUCT_CATEGORIES, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
+import { DROPDOWN_PAGE_SIZE, PRODUCT_CATEGORIES, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
 import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
