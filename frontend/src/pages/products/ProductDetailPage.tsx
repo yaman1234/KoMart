@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
-import { formatCurrency, formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
+import { formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
