@@ -345,6 +345,8 @@ export interface CartItem {
   batchAllocations?: Array<{ batchId: string; quantity: number; unitCost: number }>;
 }
 
+export type TransactionStatus = 'completed' | 'voided';
+
 export interface Transaction {
   id: string;
   transactionNumber: string;
@@ -362,6 +364,9 @@ export interface Transaction {
   total: number;
   totalCost?: number;
   paymentMethod: PaymentMethod;
+  status?: TransactionStatus;
+  voidReason?: string;
+  notes?: string;
   createdAt: string;
   createdBy: string;
 }

@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
-import { formatCurrency, formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
+import { formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
@@ -136,7 +136,12 @@ export function ProductDetailPage() {
                 uom={product.uom ?? 'pcs'}
                 priceSx={{ fontSize: '1.75rem' }}
               />
-              <Chip label={stockStatus.label} color={stockStatus.color} sx={{ fontWeight: 600 }} />
+              <Chip
+                label={`Stock: ${product.stock}`}
+                color={stockStatus.color}
+                sx={{ fontWeight: 600 }}
+              />
+              <Chip label={stockStatus.label} color={stockStatus.color} variant="outlined" sx={{ fontWeight: 600 }} />
               <Chip
                 label={productStatusLabel(product.status)}
                 color={productStatusColor(product.status)}
@@ -168,9 +173,17 @@ export function ProductDetailPage() {
               </Box>
             )}
 
-            <Divider />
+            {canEdit && (
+              <Button
+                variant="outlined"
+                onClick={() => navigate(`/inventory/${product.id}`)}
+                sx={{ alignSelf: 'flex-start' }}
+              >
+                Manage in Inventory
+              </Button>
+            )}
 
-            {/* Key-value quick info */}
+            <Divider />
             <Grid container spacing={0.5}>
               {quickInfoItems.map((item) => (
                 <Grid key={item.label} size={{ xs: 12, sm: 6 }}>

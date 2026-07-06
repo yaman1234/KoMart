@@ -67,7 +67,6 @@ export function ExpensesPage() {
   const { data, isLoading } = useExpenses(listParams);
   const { data: stats, isLoading: statsLoading } = useExpenseStats();
   const deleteMutation = useDeleteExpense();
-  const { totalAll, setupTotal, thisMonthTotal } = useExpensePageStats();
 
   const rows = data?.data ?? [];
 

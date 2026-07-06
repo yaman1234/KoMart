@@ -82,10 +82,18 @@ function productOptions(
   products: Product[],
   selected: Product | null,
   usedProductIds: Set<string>,
+  preferredSupplierId?: string,
 ): Product[] {
   const available = products.filter(
     (p) => !usedProductIds.has(p.id) || p.id === selected?.id,
   );
+  if (preferredSupplierId) {
+    available.sort((a, b) => {
+      const aPref = a.supplierId === preferredSupplierId ? 0 : 1;
+      const bPref = b.supplierId === preferredSupplierId ? 0 : 1;
+      return aPref - bPref || a.name.localeCompare(b.name);
+    });
+  }
   if (!selected || available.some((p) => p.id === selected.id)) return available;
   return [selected, ...available];
 }
@@ -113,8 +121,8 @@ export function PurchaseOrderFormPage() {
 
   const { data: existingPo, isLoading: poLoading, isError: poError } = usePurchaseOrder(id ?? '');
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
-  const { data: productsData } = useProducts(
-    { search: productSearch, supplierId, pageSize: PRODUCT_SEARCH_PAGE_SIZE },
+  const { data: productsData, isLoading: productsLoading } = useProducts(
+    { search: productSearch, pageSize: PRODUCT_SEARCH_PAGE_SIZE },
     { enabled: !!supplierId },
   );
   const createMutation = useCreatePurchaseOrder();
@@ -137,15 +145,18 @@ export function PurchaseOrderFormPage() {
     setExpectedDelivery(existingPo.expectedDelivery ?? '');
     setLines(
       existingPo.items.length > 0
-        ? existingPo.items.map((item) => {
-            nextLineId.current += 1;
-            return {
-              id: nextLineId.current,
-              product: productFromPoItem(item),
-              quantityInput: String(item.quantity),
-              unitCost: item.unitCost,
-            };
-          })
+        ? [
+            ...existingPo.items.map((item) => {
+              nextLineId.current += 1;
+              return {
+                id: nextLineId.current,
+                product: productFromPoItem(item),
+                quantityInput: String(item.quantity),
+                unitCost: item.unitCost,
+              };
+            }),
+            emptyLine(++nextLineId.current),
+          ]
         : [emptyLine(++nextLineId.current)],
     );
     setFormLoaded(true);
@@ -173,6 +184,25 @@ export function PurchaseOrderFormPage() {
     setLines((prev) =>
       prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
     );
+  };
+
+  const selectProduct = (i: number, product: Product | null) => {
+    setLines((prev) => {
+      const next = prev.map((l, idx) =>
+        idx === i
+          ? {
+              ...l,
+              product,
+              ...(product ? { unitCost: product.costPrice } : {}),
+            }
+          : l,
+      );
+      if (product && i === prev.length - 1) {
+        nextLineId.current += 1;
+        return [...next, emptyLine(nextLineId.current)];
+      }
+      return next;
+    });
   };
 
   const normalizeQuantity = (i: number) => {
@@ -398,7 +428,7 @@ export function PurchaseOrderFormPage() {
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
             <Typography variant="caption" color="text.secondary">
               {supplierId
-                ? 'Search and add products from this supplier\'s catalog'
+                ? 'Search products to add — items linked to this supplier appear first'
                 : 'Select a supplier first to add products'}
             </Typography>
           </Box>
@@ -439,20 +469,25 @@ export function PurchaseOrderFormPage() {
                     <Autocomplete
                       size="small"
                       disabled={!supplierId}
-                      options={productOptions(products, line.product, usedProductIds(i))}
+                      loading={productsLoading}
+                      openOnFocus
+                      options={productOptions(products, line.product, usedProductIds(i), supplierId)}
                       getOptionLabel={(p) => `${p.name}${p.sku ? ` (${p.sku})` : ''}`}
                       isOptionEqualToValue={(a, b) => a.id === b.id}
                       filterOptions={(x) => x}
+                      noOptionsText={
+                        productsLoading
+                          ? 'Loading products…'
+                          : productSearch
+                            ? 'No products match your search'
+                            : 'Type to search products'
+                      }
                       value={line.product}
                       onInputChange={(_, value, reason) => {
                         if (reason === 'input') setProductSearch(value);
+                        if (reason === 'clear') setProductSearch('');
                       }}
-                      onChange={(_, v) => {
-                        updateLine(i, {
-                          product: v,
-                          ...(v ? { unitCost: v.costPrice } : {}),
-                        });
-                      }}
+                      onChange={(_, v) => selectProduct(i, v)}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -525,6 +560,3 @@ export function PurchaseOrderFormPage() {
     </Box>
   );
 }
-
-// Backward-compatible export
-export { PurchaseOrderFormPage as CreatePurchaseOrderPage };

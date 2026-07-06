@@ -1,17 +1,13 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from math import ceil
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
-from app.models.product import Product
-from app.models.inventory import InventoryBatch
-from app.services.stock import receive_stock
+from app.services.po_receive import receive_purchase_order_items
 from app.models.purchase_order import (
     PurchaseOrder,
     POStatus,
-    PurchaseOrderItem,
-    compute_po_status,
 )
 from app.schemas.purchase_order import (
     PurchaseOrderCreate,
@@ -206,85 +202,11 @@ async def receive_items(
     request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
-    po = await PurchaseOrder.get(po_id)
-    if not po:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
-
-    if po.status not in (POStatus.ordered, POStatus.partial):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Only ordered or partially received purchase orders can be processed",
-        )
-
-    if not body.items:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No items to receive")
-
-    before = po_snapshot(po)
-    item_map = {i.product_id: i for i in po.items}
-    updated_items: list[PurchaseOrderItem] = list(po.items)
-    now = datetime.now(timezone.utc)
-    batch_seq = await InventoryBatch.count()
-
-    for receive in body.items:
-        if receive.product_id not in item_map:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail=f"Product {receive.product_id} is not on this purchase order",
-            )
-
-        idx = next(i for i, it in enumerate(updated_items) if it.product_id == receive.product_id)
-        item = updated_items[idx]
-        remaining = item.quantity - item.received_quantity
-        if remaining <= 0:
-            continue
-
-        delta = min(receive.receive_quantity, remaining)
-        if delta <= 0:
-            continue
-
-        product = await Product.get(item.product_id)
-        if not product:
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                detail=f"Product {item.product_name} not found",
-            )
-
-        batch_seq += 1
-        await receive_stock(
-            item.product_id,
-            f"PO-{po.order_number}-{batch_seq:03d}",
-            delta,
-            expiry_date=receive.expiry_date,
-            purchase_order_id=str(po.id),
-            unit_cost=item.unit_cost,
-            created_by=current_user.name,
-        )
-
-        updated_items[idx] = item.model_copy(
-            update={"received_quantity": item.received_quantity + delta},
-        )
-
-    if updated_items == list(po.items):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No stock was received")
-
-    new_status = compute_po_status(updated_items)
-    await po.set({
-        "items": updated_items,
-        "status": new_status,
-        "received_by": current_user.name,
-        "received_date": date.today().isoformat(),
-        "updated_at": now,
-    })
-
-    refreshed = await PurchaseOrder.get(po_id)
-    await log_audit(
-        module=AuditModule.purchase_orders,
-        action="receive",
-        user=current_user,
+    refreshed = await receive_purchase_order_items(
+        po_id,
+        body.items,
+        created_by=current_user.name,
+        current_user=current_user,
         request=request,
-        entity_type="purchase_order",
-        entity_id=po_id,
-        previous=before,
-        new=po_snapshot(refreshed),  # type: ignore[arg-type]
     )
-    return _to_response(refreshed)  # type: ignore[arg-type]
+    return _to_response(refreshed)

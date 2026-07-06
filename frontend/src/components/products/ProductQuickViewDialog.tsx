@@ -150,7 +150,7 @@ export function ProductQuickViewDialog({
 
             {canSeeCostPrice && (
               <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                   Cost Price
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -163,7 +163,7 @@ export function ProductQuickViewDialog({
               <Stack spacing={1.5} sx={{ mb: 2 }}>
                 {discountLabel && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                       Discount
                     </Typography>
                     <Chip
@@ -177,7 +177,7 @@ export function ProductQuickViewDialog({
                 )}
                 {tags.length > 0 && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                       Tags
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -195,7 +195,7 @@ export function ProductQuickViewDialog({
             <Grid container spacing={1.5}>
               {infoRows.map((row) => (
                 <Grid key={row.label} size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="caption" color="text.secondary" display="block">
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                     {row.label}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>

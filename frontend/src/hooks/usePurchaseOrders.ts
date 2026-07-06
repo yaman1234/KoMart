@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { purchaseOrderService } from '@/services';
 import type { ListQueryParams, PurchaseOrderStatus, PurchaseOrderReceiveItem, PurchaseOrderWritePayload } from '@/types';
+import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function usePurchaseOrders(
   params?: ListQueryParams,
@@ -66,13 +67,11 @@ export function useReceivePurchaseOrderItems() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, items }: { id: string; items: PurchaseOrderReceiveItem[] }) =>
-      purchaseOrderService.receiveItems(id, items),
+      purchaseOrderService.receiveItemsInChunks(id, items),
     onSuccess: (_, { id }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
+      invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
     },
   });
 }

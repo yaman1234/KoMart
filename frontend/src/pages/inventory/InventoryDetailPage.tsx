@@ -16,6 +16,11 @@ import {
   DialogActions,
   TextField,
   MenuItem,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  Collapse,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -78,6 +83,8 @@ export function InventoryDetailPage() {
   const [adjType, setAdjType] = useState<StockAdjustmentType>('adjustment');
   const [adjReason, setAdjReason] = useState('');
   const [adjError, setAdjError] = useState('');
+  const [adjMode, setAdjMode] = useState<'delta' | 'target'>('target');
+  const [adjAdvancedOpen, setAdjAdvancedOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -158,11 +165,21 @@ export function InventoryDetailPage() {
     setAdjType('adjustment');
     setAdjReason('');
     setAdjError('');
+    setAdjMode('target');
+    setAdjAdvancedOpen(false);
     setAdjustOpen(true);
   };
 
   const handleAdjust = () => {
-    const qty = parseInt(adjQty, 10);
+    let qty: number;
+    if (adjMode === 'target') {
+      const target = parseInt(adjQty, 10);
+      if (isNaN(target) || target < 0) { setAdjError('Enter a valid target stock (≥ 0)'); return; }
+      qty = target - item.stock;
+      if (qty === 0) { setAdjError('Target matches current stock'); return; }
+    } else {
+      qty = parseInt(adjQty, 10);
+    }
     if (isNaN(qty) || qty === 0) { setAdjError('Enter a non-zero quantity'); return; }
     if (!adjReason.trim()) { setAdjError('Reason is required'); return; }
     adjustMutation.mutate(
@@ -371,12 +388,31 @@ export function InventoryDetailPage() {
       </Dialog>
 
       <Dialog open={adjustOpen} onClose={() => setAdjustOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Adjust Stock — {item.name}</DialogTitle>
+        <DialogTitle>
+          Adjust Stock — {item.name}
+          <Typography variant="body2" color="text.secondary">
+            Current stock: {item.stock}
+          </Typography>
+        </DialogTitle>
         <DialogContent>
           {adjError && <Alert severity="error" sx={{ mb: 2 }}>{adjError}</Alert>}
+          <FormControl component="fieldset" sx={{ mt: 1, mb: 1 }}>
+            <RadioGroup
+              row
+              value={adjMode}
+              onChange={(e) => { setAdjMode(e.target.value as 'delta' | 'target'); setAdjQty(''); setAdjError(''); }}
+            >
+              <FormControlLabel value="target" control={<Radio size="small" />} label="Set target stock" />
+              <FormControlLabel value="delta" control={<Radio size="small" />} label="Adjust by +/- delta" />
+            </RadioGroup>
+          </FormControl>
           <TextField select label="Type" value={adjType} onChange={(e) => setAdjType(e.target.value as StockAdjustmentType)} fullWidth margin="normal">
             {ADJUSTMENT_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
           </TextField>
+          <Button size="small" onClick={() => setAdjAdvancedOpen((o) => !o)} sx={{ mb: 1 }}>
+            {adjAdvancedOpen ? 'Hide' : 'Show'} advanced batch options
+          </Button>
+          <Collapse in={adjAdvancedOpen}>
           {activeBatches.length > 0 && (
             <TextField select label="Batch (optional)" value={adjBatchId} onChange={(e) => setAdjBatchId(e.target.value)} fullWidth margin="normal">
               <MenuItem value="">Auto (FEFO)</MenuItem>
@@ -385,7 +421,27 @@ export function InventoryDetailPage() {
               ))}
             </TextField>
           )}
-          <TextField label="Quantity (negative to reduce)" value={adjQty} onChange={(e) => setAdjQty(e.target.value)} type="number" fullWidth margin="normal" />
+          </Collapse>
+          <TextField
+            label={adjMode === 'target' ? 'Target stock' : 'Quantity (negative to reduce)'}
+            value={adjQty}
+            onChange={(e) => setAdjQty(e.target.value)}
+            type="number"
+            fullWidth
+            margin="normal"
+            helperText={
+              adjQty
+                ? adjMode === 'target'
+                  ? (() => {
+                      const target = parseInt(adjQty, 10);
+                      if (isNaN(target)) return '';
+                      const delta = target - item.stock;
+                      return delta === 0 ? 'No change needed' : `Will adjust by ${delta > 0 ? '+' : ''}${delta}`;
+                    })()
+                  : `New stock: ${item.stock + (parseInt(adjQty, 10) || 0)}`
+                : ''
+            }
+          />
           <TextField label="Reason" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} fullWidth margin="normal" multiline rows={2} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

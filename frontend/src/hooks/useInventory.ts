@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { inventoryService, type ReceiveBatchPayload, type InventoryQueryParams, type InventoryHistoryParams } from '@/services';
 import type { StockAdjustment, InventoryMovementQueryParams } from '@/types';
+import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 function inventoryQueryKey(params?: InventoryQueryParams) {
   return [
@@ -36,12 +37,11 @@ export function useReceiveBatch() {
   return useMutation({
     mutationFn: (payload: ReceiveBatchPayload) => inventoryService.receiveBatch(payload),
     onSuccess: (_, payload) => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.inventory, 'history'] });
-      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
-      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movementSummary'] });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryItem(payload.productId) });
+      // Low-stock and expiring counts derive from stock; prices may change on receive.
+      invalidateCommerceQueries(queryClient, {
+        productId: payload.productId,
+        scopes: ['stock', 'price'],
+      });
     },
   });
 }
@@ -52,12 +52,7 @@ export function useAdjustStock() {
     mutationFn: (data: Omit<StockAdjustment, 'id' | 'createdAt'>) =>
       inventoryService.adjustStock(data),
     onSuccess: (_, data) => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.inventory, 'history'] });
-      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
-      void queryClient.invalidateQueries({ queryKey: ['inventory', 'movementSummary'] });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryItem(data.productId) });
+      invalidateCommerceQueries(queryClient, { productId: data.productId, scopes: ['stock'] });
     },
   });
 }

@@ -8,8 +8,9 @@ from typing import Any
 from beanie import PydanticObjectId
 
 from app.models.expense import Expense
+from app.models.inventory import InventoryBatch
 from app.models.product import Product
-from app.models.transaction import Transaction, TransactionItem
+from app.models.transaction import Transaction, TransactionItem, TransactionStatus
 
 
 def parse_date_range(start_date: str, end_date: str) -> tuple[datetime, datetime]:
@@ -25,7 +26,10 @@ def parse_date_range(start_date: str, end_date: str) -> tuple[datetime, datetime
 
 
 async def fetch_transactions(start: datetime, end: datetime) -> list[Transaction]:
-    return await Transaction.find({"created_at": {"$gte": start, "$lte": end}}).to_list()
+    return await Transaction.find({
+        "created_at": {"$gte": start, "$lte": end},
+        "status": {"$ne": TransactionStatus.voided.value},
+    }).to_list()
 
 
 def line_revenue(item: TransactionItem) -> float:
@@ -66,7 +70,10 @@ async def aggregate_sales_total(
     since: datetime,
     until: datetime | None = None,
 ) -> float:
-    match: dict[str, Any] = {"created_at": {"$gte": since}}
+    match: dict[str, Any] = {
+        "created_at": {"$gte": since},
+        "status": {"$ne": TransactionStatus.voided.value},
+    }
     if until is not None:
         match["created_at"]["$lte"] = until
     pipeline = [
@@ -79,7 +86,12 @@ async def aggregate_sales_total(
 
 async def aggregate_sales_by_day(start: datetime, end: datetime) -> dict[str, float]:
     pipeline = [
-        {"$match": {"created_at": {"$gte": start, "$lte": end}}},
+        {
+            "$match": {
+                "created_at": {"$gte": start, "$lte": end},
+                "status": {"$ne": TransactionStatus.voided.value},
+            },
+        },
         {
             "$group": {
                 "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
@@ -91,6 +103,35 @@ async def aggregate_sales_by_day(start: datetime, end: datetime) -> dict[str, fl
     return {row["_id"]: float(row["revenue"]) for row in rows}
 
 
+async def aggregate_batch_inventory_value() -> float:
+    """
+    Batch-weighted valuation: sum(qty * unit_cost) per product from active batches.
+    Fallback to product.stock * product.cost_price when a product has no active batches.
+    """
+    batch_pipeline = [
+        {"$match": {"quantity": {"$gt": 0}}},
+        {
+            "$group": {
+                "_id": "$product_id",
+                "batch_value": {"$sum": {"$multiply": ["$quantity", "$unit_cost"]}},
+            },
+        },
+    ]
+    batch_rows = await InventoryBatch.aggregate(batch_pipeline).to_list()
+    batch_by_product = {row["_id"]: float(row["batch_value"]) for row in batch_rows}
+
+    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    total = 0.0
+    for product in products:
+        pid = str(product.id)
+        batch_value = batch_by_product.get(pid, 0.0)
+        if batch_value > 0:
+            total += batch_value
+        else:
+            total += product.stock * product.cost_price
+    return total
+
+
 async def aggregate_product_inventory_stats() -> dict[str, float | int]:
     pipeline = [
         {"$match": {"is_active": True}},
@@ -98,7 +139,6 @@ async def aggregate_product_inventory_stats() -> dict[str, float | int]:
             "$group": {
                 "_id": None,
                 "total_products": {"$sum": 1},
-                "inventory_value": {"$sum": {"$multiply": ["$stock", "$cost_price"]}},
                 "low_stock": {
                     "$sum": {
                         "$cond": [
@@ -118,17 +158,18 @@ async def aggregate_product_inventory_stats() -> dict[str, float | int]:
         },
     ]
     rows = await Product.aggregate(pipeline).to_list()
+    inventory_value = await aggregate_batch_inventory_value()
     if not rows:
         return {
             "total_products": 0,
-            "inventory_value": 0.0,
+            "inventory_value": inventory_value,
             "low_stock": 0,
             "out_of_stock": 0,
         }
     row = rows[0]
     return {
         "total_products": int(row["total_products"]),
-        "inventory_value": float(row["inventory_value"]),
+        "inventory_value": inventory_value,
         "low_stock": int(row["low_stock"]),
         "out_of_stock": int(row["out_of_stock"]),
     }

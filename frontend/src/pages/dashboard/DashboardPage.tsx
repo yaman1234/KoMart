@@ -131,6 +131,7 @@ export function DashboardPage() {
               <StatCard
                 title="Inventory Value"
                 value={formatCurrency(stats?.inventoryValue ?? 0)}
+                subtitle="Sum of batch qty × batch cost (product cost field is latest receive price)"
                 icon={<InventoryIcon />}
                 loading={statsLoading}
               />

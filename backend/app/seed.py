@@ -5,6 +5,7 @@ Commands:
   python -m app.seed --init          Create admin user + store settings + categories (idempotent)
   python -m app.seed --full-seed     Wipe and repopulate with full demo data (dev only)
   python -m app.seed --backfill-suppliers  Assign supplier_id on existing products without wiping data
+  python -m app.seed --backfill-category-ids  Link product.category text to Category FK
 """
 import argparse
 import asyncio
@@ -723,6 +724,31 @@ async def backfill_product_suppliers():
     print(f"Backfill complete — updated {updated} product(s).")
 
 
+async def backfill_category_ids() -> None:
+    """Link products.category text to Category documents via category_id."""
+    await init_db()
+    categories = await Category.find_all().to_list()
+    by_name = {c.name.lower(): c for c in categories}
+    products = await Product.find_all().to_list()
+    updated = 0
+    unmatched: list[str] = []
+    for product in products:
+        if getattr(product, "category_id", ""):
+            continue
+        key = (product.category or "").strip().lower()
+        if not key:
+            continue
+        cat = by_name.get(key)
+        if not cat:
+            unmatched.append(product.name)
+            continue
+        await product.set({"category_id": str(cat.id), "category": cat.name})
+        updated += 1
+    print(f"Category backfill — updated {updated} product(s).")
+    if unmatched:
+        print(f"Unmatched ({len(unmatched)}): {', '.join(unmatched[:10])}{'...' if len(unmatched) > 10 else ''}")
+
+
 async def backfill_cashier_ids() -> None:
     """Populate cashier_id on existing transactions using created_by (name → user ID)."""
     await init_db()
@@ -766,12 +792,19 @@ if __name__ == "__main__":
         action="store_true",
         help="Populate cashier_id on existing transactions from created_by email",
     )
+    group.add_argument(
+        "--backfill-category-ids",
+        action="store_true",
+        help="Link product.category text to Category.category_id",
+    )
     args = parser.parse_args()
 
     if args.backfill_suppliers:
         asyncio.run(backfill_product_suppliers())
     elif args.backfill_cashier_ids:
         asyncio.run(backfill_cashier_ids())
+    elif args.backfill_category_ids:
+        asyncio.run(backfill_category_ids())
     elif args.full_seed:
         asyncio.run(seed())
     else:

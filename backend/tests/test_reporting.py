@@ -5,9 +5,11 @@ from datetime import datetime, timezone, timedelta
 
 from app.database import init_db
 from app.models.product import Product
+from app.models.inventory import InventoryBatch
 from app.models.transaction import Transaction, PaymentMethod, TransactionItem
 from app.services.reporting import (
     aggregate_product_inventory_stats,
+    aggregate_batch_inventory_value,
     aggregate_sales_by_day,
     aggregate_sales_total,
     build_product_cache,
@@ -59,6 +61,46 @@ async def test_aggregate_product_inventory_stats(sample_products: list[Product])
     assert stats["total_products"] >= 3
     assert stats["out_of_stock"] >= 1
     assert stats["inventory_value"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_aggregate_batch_inventory_value_weighted():
+    product = Product(
+        name="Batch Val Product",
+        sku="BVAL-001",
+        barcode="BVAL-001",
+        brand="Test",
+        country_of_origin="Nepal",
+        category="Snacks",
+        supplier_id="sup-1",
+        supplier_name="Supplier",
+        cost_price=100.0,
+        selling_price=150.0,
+        stock=150,
+        low_stock_threshold=1,
+        is_active=True,
+    )
+    await product.insert()
+    pid = str(product.id)
+    await InventoryBatch(
+        product_id=pid,
+        batch_number="B1",
+        quantity=100,
+        unit_cost=165.0,
+    ).insert()
+    await InventoryBatch(
+        product_id=pid,
+        batch_number="B2",
+        quantity=50,
+        unit_cost=170.0,
+    ).insert()
+
+    value = await aggregate_batch_inventory_value()
+    assert value >= 100 * 165 + 50 * 170
+
+    await product.delete()
+    for batch in await InventoryBatch.find(InventoryBatch.product_id == pid).to_list():
+        await batch.delete()
 
 
 @pytest.mark.asyncio

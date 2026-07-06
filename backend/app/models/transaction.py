@@ -13,6 +13,11 @@ class PaymentMethod(str, Enum):
     khalti = "khalti"
 
 
+class TransactionStatus(str, Enum):
+    completed = "completed"
+    voided = "voided"
+
+
 class BatchAllocation(BaseModel):
     batch_id: str
     quantity: int
@@ -54,6 +59,11 @@ class Transaction(Document):
     total: float = Field(ge=0)
     total_cost: float = Field(default=0.0, ge=0)
     payment_method: PaymentMethod
+    status: TransactionStatus = TransactionStatus.completed
+    void_reason: str = ""
+    notes: str = ""
+    voided_at: Optional[datetime] = None
+    voided_by: Optional[str] = None
     created_by: str
     cashier_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

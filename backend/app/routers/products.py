@@ -10,6 +10,7 @@ from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, product_snapshot
+from app.services.category_sync import resolve_category_fields, propagate_category_rename
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -30,6 +31,7 @@ def _to_response(p: Product) -> ProductResponse:
         brand=p.brand,
         country_of_origin=p.country_of_origin,
         category=p.category,
+        category_id=getattr(p, "category_id", "") or "",
         supplier_id=p.supplier_id,
         supplier_name=p.supplier_name,
         description=p.description,
@@ -106,8 +108,15 @@ async def create_product(
         supplier_name = supplier.name
     data = body.model_dump()
     data.pop("stock", None)
+    category = data.pop("category", None)
+    cat_id, cat_name = await resolve_category_fields(
+        category_id=data.pop("category_id", None) or None,
+        category=category,
+    )
     product = Product(
         **data,
+        category=cat_name,
+        category_id=cat_id,
         supplier_name=supplier_name,
         stock=0,
     )
@@ -144,6 +153,13 @@ async def update_product(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
     before = product_snapshot(product)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "category_id" in update_data or "category" in update_data:
+        cat_id, cat_name = await resolve_category_fields(
+            category_id=update_data.pop("category_id", None),
+            category=update_data.get("category"),
+        )
+        update_data["category_id"] = cat_id
+        update_data["category"] = cat_name
     if "supplier_id" in update_data:
         sid = update_data["supplier_id"]
         if sid:

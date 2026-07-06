@@ -97,7 +97,7 @@ async def test_create_discount_rule(
             "name": "Snack Deal",
             "rule_type": "product_percent",
             "value": 15,
-            "product_id": str(snack_product.id),
+            "product_ids": [str(snack_product.id)],
         },
         headers={"Authorization": f"Bearer {token}"},
     )

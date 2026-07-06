@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { discountService } from '@/services';
 import type { CartItem, DiscountRule, DiscountRuleType } from '@/types';
+import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function useDiscountRules(activeOnly = true) {
   return useQuery({
@@ -39,6 +40,7 @@ export function useCreateDiscountRule() {
     }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.discounts });
+      invalidateCommerceQueries(queryClient, { scopes: ['price'] });
     },
   });
 }
@@ -50,6 +52,7 @@ export function useUpdateDiscountRule() {
       discountService.update(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.discounts });
+      invalidateCommerceQueries(queryClient, { scopes: ['price'] });
     },
   });
 }
@@ -60,6 +63,7 @@ export function useDeleteDiscountRule() {
     mutationFn: (id: string) => discountService.delete(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.discounts });
+      invalidateCommerceQueries(queryClient, { scopes: ['price'] });
     },
   });
 }

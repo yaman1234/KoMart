@@ -87,6 +87,24 @@ function isSetupInvestmentExpense(e: Expense): boolean {
 }
 const notifications = [...mockNotifications];
 
+/** In-memory only; not persisted across reload — mock stock helpers mirror real API behavior. */
+function applyMockStockDelta(productId: string, delta: number): void {
+  const prodIdx = products.findIndex((p) => p.id === productId);
+  if (prodIdx !== -1) {
+    products[prodIdx] = {
+      ...products[prodIdx],
+      stock: Math.max(0, products[prodIdx].stock + delta),
+    };
+  }
+  const invIdx = inventory.findIndex((i) => i.id === productId);
+  if (invIdx !== -1) {
+    inventory[invIdx] = {
+      ...inventory[invIdx],
+      stock: Math.max(0, inventory[invIdx].stock + delta),
+    };
+  }
+}
+
 function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 10;
@@ -277,20 +295,36 @@ export const mockApi = {
 
   async adjustStock(adjustment: Omit<StockAdjustment, 'id' | 'createdAt'>): Promise<void> {
     await delay(500);
-    const prodIdx = products.findIndex((p) => p.id === adjustment.productId);
-    if (prodIdx !== -1) {
-      products[prodIdx] = {
-        ...products[prodIdx],
-        stock: Math.max(0, products[prodIdx].stock + adjustment.quantity),
-      };
+    applyMockStockDelta(adjustment.productId, adjustment.quantity);
+  },
+
+  async receiveBatch(payload: import('@/services').ReceiveBatchPayload): Promise<import('@/types').InventoryBatch> {
+    await delay(500);
+    applyMockStockDelta(payload.productId, payload.quantity);
+    const prodIdx = products.findIndex((p) => p.id === payload.productId);
+    if (prodIdx !== -1 && payload.unitCost != null) {
+      products[prodIdx] = { ...products[prodIdx], costPrice: payload.unitCost };
     }
-    const invIdx = inventory.findIndex((i) => i.id === adjustment.productId);
+    if (prodIdx !== -1 && payload.sellingPrice != null) {
+      products[prodIdx] = { ...products[prodIdx], sellingPrice: payload.sellingPrice };
+    }
+    const invIdx = inventory.findIndex((i) => i.id === payload.productId);
     if (invIdx !== -1) {
       inventory[invIdx] = {
         ...inventory[invIdx],
-        stock: Math.max(0, inventory[invIdx].stock + adjustment.quantity),
+        costPrice: payload.unitCost ?? inventory[invIdx].costPrice,
+        sellingPrice: payload.sellingPrice ?? inventory[invIdx].sellingPrice,
       };
     }
+    return {
+      id: `batch-${generateId().slice(0, 8)}`,
+      productId: payload.productId,
+      batchNumber: payload.batchNumber,
+      quantity: payload.quantity,
+      unitCost: payload.unitCost ?? 0,
+      expiryDate: payload.expiryDate,
+      receivedAt: new Date().toISOString(),
+    };
   },
 
   async getInventoryHistory(params?: import('@/services').InventoryHistoryParams): Promise<PaginatedResponse<StockAdjustment>> {
@@ -413,6 +447,9 @@ export const mockApi = {
       if (!receive) return item;
       const remaining = item.quantity - item.receivedQuantity;
       const delta = Math.min(receive.receiveQuantity, remaining);
+      if (delta > 0) {
+        applyMockStockDelta(item.productId, delta);
+      }
       const receivedQuantity = item.receivedQuantity + delta;
       const lineStatus: PurchaseOrderLineStatus =
         receivedQuantity <= 0 ? 'pending'
@@ -542,6 +579,9 @@ export const mockApi = {
       createdAt: new Date().toISOString(),
     };
     transactions = [txn, ...transactions];
+    for (const line of data.items) {
+      applyMockStockDelta(line.productId, -line.quantity);
+    }
     if (data.customerId) {
       const idx = customers.findIndex((c) => c.id === data.customerId);
       if (idx !== -1) {

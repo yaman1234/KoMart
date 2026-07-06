@@ -2,6 +2,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousDa
 import { GRID_PAGE_SIZE, QUERY_KEYS, STALE_TIME } from '@/constants';
 import { productService } from '@/services';
 import type { ListQueryParams, Product } from '@/types';
+import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function useProducts(
   params?: ListQueryParams,
@@ -30,8 +31,7 @@ export function useCreateProduct() {
     mutationFn: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) =>
       productService.create(data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
+      invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
     },
   });
 }
@@ -42,8 +42,8 @@ export function useUpdateProduct() {
     mutationFn: ({ id, data }: { id: string; data: Partial<Product> }) =>
       productService.update(id, data),
     onSuccess: (_, { id }) => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(id) });
+      // Product cost/sell price drives POS and inventory valuation.
+      invalidateCommerceQueries(queryClient, { productId: id, scopes: ['stock', 'price'] });
     },
   });
 }
@@ -53,8 +53,7 @@ export function useDeleteProduct() {
   return useMutation({
     mutationFn: (id: string) => productService.delete(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
+      invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
     },
   });
 }

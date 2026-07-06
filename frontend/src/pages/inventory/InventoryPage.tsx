@@ -16,6 +16,11 @@ import {
   MenuItem,
   Typography,
   Alert,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  Collapse,
 } from '@mui/material';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -66,12 +71,15 @@ export function InventoryPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [pageView, setPageView] = useState<PageView>('stock');
+  const [opsGuideOpen, setOpsGuideOpen] = useState(false);
 
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [adjBatchId, setAdjBatchId] = useState('');
   const [adjQty, setAdjQty] = useState('');
   const [adjType, setAdjType] = useState<StockAdjustmentType>('adjustment');
   const [adjReason, setAdjReason] = useState('');
+  const [adjMode, setAdjMode] = useState<'delta' | 'target'>('target');
+  const [adjAdvancedOpen, setAdjAdvancedOpen] = useState(false);
   const [adjError, setAdjError] = useState('');
 
   const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
@@ -235,13 +243,23 @@ export function InventoryPage() {
     setAdjType('adjustment');
     setAdjReason('');
     setAdjError('');
+    setAdjMode('target');
+    setAdjAdvancedOpen(false);
   };
 
   const handleAdjust = () => {
-    const qty = parseInt(adjQty, 10);
+    if (!adjustTarget) return;
+    let qty: number;
+    if (adjMode === 'target') {
+      const target = parseInt(adjQty, 10);
+      if (isNaN(target) || target < 0) { setAdjError('Enter a valid target stock (≥ 0)'); return; }
+      qty = target - adjustTarget.stock;
+      if (qty === 0) { setAdjError('Target matches current stock'); return; }
+    } else {
+      qty = parseInt(adjQty, 10);
+    }
     if (isNaN(qty) || qty === 0) { setAdjError('Enter a non-zero quantity'); return; }
     if (!adjReason.trim()) { setAdjError('Reason is required'); return; }
-    if (!adjustTarget) return;
     adjustMutation.mutate(
       {
         productId: adjustTarget.id,
@@ -266,6 +284,27 @@ export function InventoryPage() {
   return (
     <Box>
       <PageHeader title="Inventory" subtitle="Stock is tracked per batch; product stock is synced automatically" />
+
+      <Alert
+        severity="info"
+        sx={{ mb: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={() => setOpsGuideOpen((o) => !o)}>
+            {opsGuideOpen ? 'Hide' : 'Show'} guide
+          </Button>
+        }
+      >
+        Quick guide: change quantity here (Receive / Adjust); change sell price on Product Edit; bulk updates via PO receive or Excel scripts.
+      </Alert>
+      <Collapse in={opsGuideOpen}>
+        <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
+          <Typography variant="body2" component="div">
+            <strong>Quantity</strong> — Receive adds a batch; Adjust sets stock to a physical count (target mode) or a +/- delta.<br />
+            <strong>Sell price</strong> — Product Edit form (not here).<br />
+            <strong>Bulk stock</strong> — Purchase Order receive or <code>update_products_from_excel.py</code>.
+          </Typography>
+        </Alert>
+      </Collapse>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
@@ -466,6 +505,16 @@ export function InventoryPage() {
         </DialogTitle>
         <DialogContent>
           {adjError && <Alert severity="error" sx={{ mb: 2 }}>{adjError}</Alert>}
+          <FormControl component="fieldset" sx={{ mt: 1, mb: 1 }}>
+            <RadioGroup
+              row
+              value={adjMode}
+              onChange={(e) => { setAdjMode(e.target.value as 'delta' | 'target'); setAdjQty(''); setAdjError(''); }}
+            >
+              <FormControlLabel value="target" control={<Radio size="small" />} label="Set target stock" />
+              <FormControlLabel value="delta" control={<Radio size="small" />} label="Adjust by +/- delta" />
+            </RadioGroup>
+          </FormControl>
           <TextField
             select
             label="Type"
@@ -476,6 +525,14 @@ export function InventoryPage() {
           >
             {ADJUSTMENT_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
           </TextField>
+          <Button
+            size="small"
+            onClick={() => setAdjAdvancedOpen((o) => !o)}
+            sx={{ mb: 1 }}
+          >
+            {adjAdvancedOpen ? 'Hide' : 'Show'} advanced batch options
+          </Button>
+          <Collapse in={adjAdvancedOpen}>
           {adjustTarget && activeBatches(adjustTarget).length > 0 && (
             <TextField
               select
@@ -494,14 +551,28 @@ export function InventoryPage() {
               ))}
             </TextField>
           )}
+          </Collapse>
           <TextField
-            label="Quantity (use negative to reduce)"
+            label={adjMode === 'target' ? 'Target stock' : 'Quantity (use negative to reduce)'}
             value={adjQty}
             onChange={(e) => { setAdjQty(e.target.value); setAdjError(''); }}
             type="number"
             fullWidth
             margin="normal"
-            helperText={adjQty ? `New stock: ${(adjustTarget?.stock ?? 0) + (parseInt(adjQty, 10) || 0)}` : ''}
+            helperText={
+              adjQty && adjustTarget
+                ? adjMode === 'target'
+                  ? (() => {
+                      const target = parseInt(adjQty, 10);
+                      if (isNaN(target)) return '';
+                      const delta = target - adjustTarget.stock;
+                      return delta === 0
+                        ? 'No change needed'
+                        : `Will adjust by ${delta > 0 ? '+' : ''}${delta} → new stock ${target}`;
+                    })()
+                  : `New stock: ${adjustTarget.stock + (parseInt(adjQty, 10) || 0)}`
+                : ''
+            }
           />
           <TextField
             label="Reason"
