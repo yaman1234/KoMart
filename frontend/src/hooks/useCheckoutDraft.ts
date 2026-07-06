@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useEvaluateDiscounts } from '@/hooks/useDiscounts';
+import { cartLineKey } from '@/utils/cartLine';
+import { resolveSellOption } from '@/utils/uomSell';
 import type { AppliedPromotion, CartItem, Product } from '@/types';
 
 export type CheckoutDiscountType = 'flat' | 'pct' | null;
@@ -21,8 +23,8 @@ export interface CheckoutDiscountBreakdown {
 }
 
 export interface CartMutators {
-  updateQuantity: (productId: string, quantity: number) => void;
-  removeItem: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number, sellUom?: string) => void;
+  removeItem: (productId: string, sellUom?: string) => void;
   addItem: (item: CartItem) => void;
 }
 
@@ -56,7 +58,7 @@ export function useCheckoutDraft(
   const lineDiscountMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const line of discountEval?.lineItems ?? []) {
-      map.set(line.productId, line.perUnitDiscount);
+      map.set(cartLineKey(line.productId, line.sellUom), line.perUnitDiscount);
     }
     return map;
   }, [discountEval]);
@@ -106,29 +108,33 @@ export function useCheckoutDraft(
   const paymentItems = useMemo(
     () => items.map((item) => ({
       ...item,
-      discount: lineDiscountMap.get(item.productId) ?? 0,
+      discount: lineDiscountMap.get(cartLineKey(item.productId, item.sellUom)) ?? 0,
     })),
     [items, lineDiscountMap],
   );
 
-  const updateQty = useCallback((productId: string, quantity: number) => {
+  const updateQty = useCallback((productId: string, quantity: number, sellUom?: string) => {
     if (quantity < 1) return;
-    cartMutators.updateQuantity(productId, quantity);
+    cartMutators.updateQuantity(productId, quantity, sellUom);
   }, [cartMutators]);
 
-  const removeLine = useCallback((productId: string) => {
-    cartMutators.removeItem(productId);
+  const removeLine = useCallback((productId: string, sellUom?: string) => {
+    cartMutators.removeItem(productId, sellUom);
   }, [cartMutators]);
 
-  const addProduct = useCallback((product: Product) => {
+  const addProduct = useCallback((product: Product, asPack = false) => {
     if (product.sellingPrice <= 0) return;
+    const opt = resolveSellOption(product, asPack);
     cartMutators.addItem({
       productId: product.id,
       name: product.name,
       sku: product.sku,
-      price: product.sellingPrice,
+      price: opt.price,
       quantity: 1,
       discount: 0,
+      sellUom: opt.sellUom,
+      unitFactor: opt.unitFactor,
+      uom: opt.sellUom,
       category: product.category,
     });
   }, [cartMutators]);

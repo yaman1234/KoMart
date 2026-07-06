@@ -24,6 +24,8 @@ export function useCreateDiscountRule() {
       productIds?: string[];
       category?: string;
       minCartTotal?: number;
+      minLineQty?: number;
+      sellUom?: string;
       maxDiscount?: number;
       priority?: number;
     }) => discountService.create({
@@ -34,6 +36,8 @@ export function useCreateDiscountRule() {
       productIds: data.productIds ?? [],
       category: data.category ?? '',
       minCartTotal: data.minCartTotal ?? 0,
+      minLineQty: data.minLineQty ?? 0,
+      sellUom: data.sellUom ?? '',
       maxDiscount: data.maxDiscount ?? 0,
       priority: data.priority ?? 0,
       isActive: true,
@@ -76,6 +80,7 @@ export function useEvaluateDiscounts(items: CartItem[], couponCode: string) {
         price: i.price,
         quantity: i.quantity,
         category: i.category ?? '',
+        sellUom: i.sellUom ?? '',
       })),
       couponCode,
     }),
@@ -90,6 +95,7 @@ export function useEvaluateDiscounts(items: CartItem[], couponCode: string) {
         price: i.price,
         quantity: i.quantity,
         category: i.category ?? '',
+        sellUom: i.sellUom ?? '',
       })),
       couponCode,
     }),

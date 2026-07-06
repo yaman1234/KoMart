@@ -89,6 +89,10 @@ async def init_db() -> None:
             "sell_mode": "unit",
         }}],
     )
+    await Product.get_motor_collection().update_many(
+        {"pack_selling_price": {"$exists": False}},
+        {"$set": {"pack_selling_price": 0.0}},
+    )
     await _seed_default_uoms()
 
 

@@ -34,6 +34,8 @@ class TransactionItem(BaseModel):
     list_price: float = 0.0
     unit_cost: float = 0.0
     category: str = ""
+    sell_uom: str = ""
+    unit_factor: int = Field(default=1, ge=1)
     batch_allocations: list[BatchAllocation] = Field(default_factory=list)
 
 

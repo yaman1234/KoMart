@@ -97,6 +97,8 @@ def _item_response(product: Product, batches: list[InventoryBatch]) -> Inventory
         cost_price=product.cost_price,
         selling_price=product.selling_price,
         uom=product.uom or "pcs",
+        buy_uom=getattr(product, "buy_uom", None) or product.uom or "pcs",
+        units_per_buy_uom=getattr(product, "units_per_buy_uom", None) or 1,
         batches=[_batch_response(batch) for batch in batches],
         batch_count=len(active_batches),
         nearest_expiry=nearest_expiry(batches),

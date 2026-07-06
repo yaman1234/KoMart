@@ -676,7 +676,7 @@ export const discountService = {
     await apiClient.delete(`/discounts/${id}`);
   },
   evaluate: async (payload: {
-    items: Array<{ productId: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ productId: string; price: number; quantity: number; category?: string; sellUom?: string }>;
     couponCode?: string;
   }): Promise<EvaluateDiscountResult> => {
     if (useMock()) return mockApi.evaluateDiscount(payload);

@@ -45,6 +45,8 @@ class InventoryItemResponse(BaseModel):
     cost_price: float
     selling_price: float
     uom: str = "pcs"
+    buy_uom: str = "pcs"
+    units_per_buy_uom: int = 1
     batches: list[BatchResponse] = []
     batch_count: int = 0
     nearest_expiry: Optional[str] = None

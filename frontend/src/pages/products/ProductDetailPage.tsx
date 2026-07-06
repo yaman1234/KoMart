@@ -21,7 +21,10 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { useProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
-import { formatDate, isAdminOrManager, productStatusColor, productStatusLabel } from '@/utils';
+import { UomConversionHint } from '@/components/uom/UomUi';
+import { formatDate, isAdminOrManager, productStatusColor, productStatusLabel, uomLabel } from '@/utils';
+import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
+import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
@@ -51,6 +54,10 @@ export function ProductDetailPage() {
         ? { label: 'Low Stock', color: 'warning' as const }
         : { label: 'In Stock', color: 'success' as const };
 
+  const showPackPrice = canSellAsPack(product);
+  const packOption = packSellOption(product);
+  const packPriceIsDerived = showPackPrice && (product.packSellingPrice ?? 0) <= 0;
+
   const quickInfoItems = [
     { label: 'SKU', value: product.sku },
     { label: 'Barcode', value: product.barcode },
@@ -63,6 +70,16 @@ export function ProductDetailPage() {
       href: product.supplierId ? `/suppliers/${product.supplierId}` : undefined,
     },
     { label: 'Added', value: formatDate(product.createdAt) },
+    { label: 'Buy UOM', value: uomLabel(product.buyUom ?? product.uom ?? 'pcs') },
+    { label: 'Base UOM', value: uomLabel(product.uom ?? 'pcs') },
+    {
+      label: 'Conversion',
+      value: formatConversion(
+        product.buyUom ?? 'pcs',
+        product.uom ?? 'pcs',
+        product.unitsPerBuyUom ?? 1,
+      ) || '—',
+    },
   ];
 
   return (
@@ -130,14 +147,47 @@ export function ProductDetailPage() {
           {/* Quick info panel */}
           <Box sx={{ flex: 1, p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* Price + status row */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-              <PriceWithUom
-                price={product.sellingPrice}
-                uom={product.uom ?? 'pcs'}
-                priceSx={{ fontSize: '1.75rem' }}
-              />
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {canSellAsPiece(product) && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Piece price
+                    </Typography>
+                    <PriceWithUom
+                      price={product.sellingPrice}
+                      uom={product.uom ?? 'pcs'}
+                      priceSx={{ fontSize: '1.75rem' }}
+                    />
+                  </Box>
+                )}
+                {showPackPrice && packOption && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Pack price
+                    </Typography>
+                    <PriceWithUom
+                      price={packOption.price}
+                      uom={product.buyUom ?? 'pack'}
+                      priceSx={{ fontSize: '1.75rem' }}
+                    />
+                    {packPriceIsDerived && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                        Derived from piece price until pack price is set in product edit.
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+                {!canSellAsPiece(product) && !showPackPrice && (
+                  <PriceWithUom
+                    price={product.sellingPrice}
+                    uom={product.uom ?? 'pcs'}
+                    priceSx={{ fontSize: '1.75rem' }}
+                  />
+                )}
+              </Box>
               <Chip
-                label={`Stock: ${product.stock}`}
+                label={`Stock: ${formatStockQty(product.stock, product.uom ?? 'pcs')}`}
                 color={stockStatus.color}
                 sx={{ fontWeight: 600 }}
               />
@@ -184,7 +234,12 @@ export function ProductDetailPage() {
             )}
 
             <Divider />
-            <Grid container spacing={0.5}>
+            <UomConversionHint
+              buyUom={product.buyUom ?? product.uom ?? 'pcs'}
+              baseUom={product.uom ?? 'pcs'}
+              factor={product.unitsPerBuyUom ?? 1}
+            />
+            <Grid container spacing={0.5} sx={{ mt: 1 }}>
               {quickInfoItems.map((item) => (
                 <Grid key={item.label} size={{ xs: 12, sm: 6 }}>
                   <Box sx={{ display: 'flex', gap: 1, py: 0.75 }}>

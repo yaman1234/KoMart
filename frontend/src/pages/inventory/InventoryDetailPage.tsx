@@ -36,10 +36,11 @@ import {
   useReceiveBatch,
 } from '@/hooks/useInventory';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { useUomOptions } from '@/hooks/useUoms';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatDate, uomLabel } from '@/utils';
+import { formatCurrency, formatDate } from '@/utils';
+import { formatStockQty } from '@/utils/uomDisplay';
+import { UomConversionHint } from '@/components/uom/UomUi';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch, StockAdjustmentType } from '@/types';
 
@@ -62,7 +63,6 @@ export function InventoryDetailPage() {
   const { data: item, isLoading, isError } = useInventoryItem(productId ?? '');
   const { data: suppliersData } = useSuppliers({ pageSize: 50 });
   const suppliers = suppliersData?.data ?? [];
-  const uomOptions = useUomOptions();
 
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
@@ -74,7 +74,6 @@ export function InventoryDetailPage() {
   const [rcvCostPrice, setRcvCostPrice] = useState('');
   const [rcvSellingPrice, setRcvSellingPrice] = useState('');
   const [rcvSupplierId, setRcvSupplierId] = useState('');
-  const [rcvUom, setRcvUom] = useState('pcs');
   const [rcvError, setRcvError] = useState('');
 
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -124,7 +123,6 @@ export function InventoryDetailPage() {
     setRcvCostPrice(String(item.costPrice));
     setRcvSellingPrice(String(item.sellingPrice));
     setRcvSupplierId(item.supplierId);
-    setRcvUom(item.uom ?? 'pcs');
     setRcvError('');
     setReceiveOpen(true);
   };
@@ -241,7 +239,7 @@ export function InventoryDetailPage() {
         <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Current Stock"
-            value={item.stock}
+            value={formatStockQty(item.stock, item.uom ?? 'pcs')}
             color={stockColor === 'success' ? undefined : `${stockColor}.main`}
             subtitle={item.stock === 0 ? 'Out of stock' : item.stock <= item.lowStockThreshold ? 'Low stock' : undefined}
           />
@@ -301,9 +299,24 @@ export function InventoryDetailPage() {
       )}
 
       <Dialog open={receiveOpen} onClose={() => setReceiveOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Receive Stock — {item.name}</DialogTitle>
+        <DialogTitle>
+          Receive Stock — {item.name}
+          <Typography variant="body2" color="text.secondary">
+            Current: {formatStockQty(item.stock, item.uom ?? 'pcs')}
+          </Typography>
+        </DialogTitle>
         <DialogContent>
           {rcvError && <Alert severity="error" sx={{ mb: 2 }}>{rcvError}</Alert>}
+          <Box sx={{ mb: 2 }}>
+            <UomConversionHint
+              buyUom={item.buyUom ?? item.uom ?? 'pcs'}
+              baseUom={item.uom ?? 'pcs'}
+              factor={item.unitsPerBuyUom ?? 1}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Manual receive counts in base units. For pack receive, use Purchase Orders.
+            </Typography>
+          </Box>
           <TextField
             label="Batch Number"
             value={rcvBatch}
@@ -326,7 +339,7 @@ export function InventoryDetailPage() {
             ))}
           </TextField>
           <TextField
-            label="Cost Price"
+            label="Cost Price (per base)"
             value={rcvCostPrice}
             onChange={(e) => { setRcvCostPrice(e.target.value); setRcvError(''); }}
             type="number"
@@ -336,7 +349,7 @@ export function InventoryDetailPage() {
             slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
           />
           <TextField
-            label="Selling Price"
+            label="Selling Price (per base)"
             value={rcvSellingPrice}
             onChange={(e) => { setRcvSellingPrice(e.target.value); setRcvError(''); }}
             type="number"
@@ -345,29 +358,17 @@ export function InventoryDetailPage() {
             required
             slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
           />
-          <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 1 }}>
-            <TextField
-              label="Quantity Received"
-              value={rcvQty}
-              onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
-              type="number"
-              required
-              fullWidth
-              slotProps={{ htmlInput: { min: 1 } }}
-              helperText={`Quantity in ${uomLabel(rcvUom, uomOptions)}`}
-            />
-            <TextField
-              label="UOM"
-              value={rcvUom}
-              select
-              onChange={(e) => { setRcvUom(e.target.value); setRcvError(''); }}
-              sx={{ minWidth: 140, flexShrink: 0 }}
-            >
-              {uomOptions.map((u) => (
-                <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
-              ))}
-            </TextField>
-          </Box>
+          <TextField
+            label={`Quantity received (base: ${item.uom ?? 'pcs'})`}
+            value={rcvQty}
+            onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
+            type="number"
+            required
+            fullWidth
+            margin="normal"
+            slotProps={{ htmlInput: { min: 1 } }}
+            helperText="Stock always increases in base units"
+          />
           <TextField
             label="Expiry Date"
             value={rcvExpiry}

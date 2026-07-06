@@ -28,8 +28,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
-import { DROPDOWN_PAGE_SIZE } from '@/constants';
+import { DROPDOWN_PAGE_SIZE, PRODUCT_SEARCH_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
+import { UomGroupedTableHead, UomStockLabel } from '@/components/uom/UomUi';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
 import {
@@ -48,6 +49,7 @@ interface LineItem {
   product: Product | null;
   quantityInput: string;
   unitCost: number;
+  unitsPerBuyUom: number;
 }
 
 function parseQuantity(input: string): number {
@@ -67,7 +69,9 @@ function productFromPoItem(item: PurchaseOrderItem): Product {
     supplierId: '',
     supplierName: '',
     description: '',
-    uom: 'pcs',
+    buyUom: item.orderUom ?? 'pcs',
+    uom: item.baseUom ?? 'pcs',
+    unitsPerBuyUom: item.unitsPerBuyUom ?? 1,
     costPrice: item.unitCost,
     sellingPrice: item.unitCost,
     images: [],
@@ -99,12 +103,10 @@ function productOptions(
 }
 
 function emptyLine(id: number): LineItem {
-  return { id, product: null, quantityInput: '1', unitCost: 0 };
+  return { id, product: null, quantityInput: '1', unitCost: 0, unitsPerBuyUom: 1 };
 }
 
 const tomorrow = () => dayjs().add(1, 'day').startOf('day');
-
-const PO_PRODUCT_PAGE_SIZE = 200;
 
 export function PurchaseOrderFormPage() {
   const navigate = useNavigate();
@@ -155,6 +157,7 @@ export function PurchaseOrderFormPage() {
                 product: productFromPoItem(item),
                 quantityInput: String(item.quantity),
                 unitCost: item.unitCost,
+                unitsPerBuyUom: item.unitsPerBuyUom ?? 1,
               };
             }),
             emptyLine(++nextLineId.current),
@@ -195,7 +198,12 @@ export function PurchaseOrderFormPage() {
           ? {
               ...l,
               product,
-              ...(product ? { unitCost: product.costPrice } : {}),
+              ...(product
+                ? {
+                    unitCost: product.costPrice * (product.unitsPerBuyUom ?? 1),
+                    unitsPerBuyUom: product.unitsPerBuyUom ?? 1,
+                  }
+                : {}),
             }
           : l,
       );
@@ -239,6 +247,9 @@ export function PurchaseOrderFormPage() {
         quantity: parseQuantity(l.quantityInput),
         unitCost: l.unitCost,
         receivedQuantity: 0,
+        orderUom: l.product!.buyUom ?? l.product!.uom ?? 'pcs',
+        baseUom: l.product!.uom ?? 'pcs',
+        unitsPerBuyUom: l.unitsPerBuyUom,
       })),
     };
   };
@@ -422,7 +433,7 @@ export function PurchaseOrderFormPage() {
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
             <Typography variant="caption" color="text.secondary">
               {supplierId
-                ? 'Search products to add — items linked to this supplier appear first'
+                ? 'Order in buy units; stock converts to base on receive.'
                 : 'Select a supplier first to add products'}
             </Typography>
           </Box>
@@ -437,22 +448,38 @@ export function PurchaseOrderFormPage() {
             size="small"
             sx={{
               tableLayout: 'fixed',
-              minWidth: 640,
+              minWidth: 760,
               '& .MuiTableCell-root': { verticalAlign: 'middle', py: 1 },
             }}
           >
             <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell align="center" sx={{ width: 48, fontWeight: 700 }}>SN</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Product</TableCell>
-                <TableCell align="right" sx={{ width: 88, fontWeight: 700 }}>Qty</TableCell>
-                <TableCell align="right" sx={{ width: 120, fontWeight: 700 }}>Unit Cost</TableCell>
-                <TableCell align="right" sx={{ width: 100, fontWeight: 700 }}>Total</TableCell>
-                <TableCell sx={{ width: 48 }} />
-              </TableRow>
+              <UomGroupedTableHead
+                leadingColumns={[
+                  { id: 'sn', label: 'SN', align: 'center', width: 48 },
+                  { id: 'product', label: 'Product' },
+                ]}
+                buyColumns={[
+                  { id: 'qty', label: 'Qty', align: 'right', width: 72 },
+                  { id: 'buyUom', label: 'Buy UOM', width: 72 },
+                  { id: 'units', label: 'Units/pack', align: 'right', width: 72 },
+                ]}
+                baseColumns={[
+                  { id: 'stockQty', label: 'Stock qty', align: 'right', width: 100 },
+                ]}
+                trailingColumns={[
+                  { id: 'cost', label: 'Unit cost (buy)', align: 'right', width: 120 },
+                  { id: 'total', label: 'Total', align: 'right', width: 100 },
+                  { id: 'actions', label: '', width: 48 },
+                ]}
+              />
             </TableHead>
             <TableBody>
-              {lines.map((line, i) => (
+              {lines.map((line, i) => {
+                const qty = parseQuantity(line.quantityInput);
+                const orderUom = line.product?.buyUom ?? line.product?.uom ?? 'pcs';
+                const baseUom = line.product?.uom ?? 'pcs';
+                const baseQty = qty * line.unitsPerBuyUom;
+                return (
                 <TableRow key={line.id}>
                   <TableCell align="center">
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
@@ -502,6 +529,31 @@ export function PurchaseOrderFormPage() {
                       slotProps={{ htmlInput: { min: 1 } }}
                     />
                   </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
+                      {line.product ? orderUom : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={line.unitsPerBuyUom}
+                      disabled={!line.product}
+                      onChange={(e) =>
+                        updateLine(i, { unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                      }
+                      sx={{ width: 64 }}
+                      slotProps={{ htmlInput: { min: 1 } }}
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    {line.product ? (
+                      <UomStockLabel qty={baseQty} baseUom={baseUom} variant="body2" />
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
                   <TableCell align="right">
                     <TextField
                       size="small"
@@ -518,7 +570,7 @@ export function PurchaseOrderFormPage() {
                   <TableCell align="right">
                     <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {line.product
-                        ? formatCurrency(parseQuantity(line.quantityInput) * line.unitCost)
+                        ? formatCurrency(qty * line.unitCost)
                         : '—'}
                     </Typography>
                   </TableCell>
@@ -534,7 +586,8 @@ export function PurchaseOrderFormPage() {
                     </IconButton>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

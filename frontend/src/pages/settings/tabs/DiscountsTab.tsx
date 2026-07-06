@@ -46,6 +46,8 @@ const EMPTY_FORM = {
   productIds: [] as string[],
   category: '',
   minCartTotal: 0,
+  minLineQty: 0,
+  sellUom: '',
   maxDiscount: 0,
   priority: 0,
 };
@@ -142,6 +144,8 @@ export function DiscountsTab() {
       productIds: rule.productIds,
       category: rule.category,
       minCartTotal: rule.minCartTotal,
+      minLineQty: rule.minLineQty ?? 0,
+      sellUom: rule.sellUom ?? '',
       maxDiscount: rule.maxDiscount,
       priority: rule.priority,
     });
@@ -354,6 +358,22 @@ export function DiscountsTab() {
             value={form.minCartTotal}
             onChange={(e) => setForm((f) => ({ ...f, minCartTotal: Number(e.target.value) || 0 }))}
             fullWidth
+          />
+          <TextField
+            label="Minimum Line Qty (optional)"
+            type="number"
+            value={form.minLineQty || ''}
+            onChange={(e) => setForm((f) => ({ ...f, minLineQty: Number(e.target.value) || 0 }))}
+            fullWidth
+            helperText="Promo only — qty in line sell UOM (e.g. 3 packs)"
+          />
+          <TextField
+            label="Sell UOM filter (optional)"
+            value={form.sellUom}
+            onChange={(e) => setForm((f) => ({ ...f, sellUom: e.target.value }))}
+            fullWidth
+            placeholder="e.g. pack, pcs"
+            helperText="Leave blank to apply to any sell unit"
           />
           <TextField
             label="Max Discount Cap (NPR, 0 = none)"

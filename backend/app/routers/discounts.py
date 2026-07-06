@@ -27,6 +27,8 @@ def _to_response(rule: DiscountRule) -> DiscountRuleResponse:
         product_ids=rule.product_ids,
         category=rule.category,
         min_cart_total=rule.min_cart_total,
+        min_line_qty=getattr(rule, "min_line_qty", 0) or 0,
+        sell_uom=getattr(rule, "sell_uom", "") or "",
         max_discount=rule.max_discount,
         starts_at=rule.starts_at.isoformat() if rule.starts_at else None,
         ends_at=rule.ends_at.isoformat() if rule.ends_at else None,

@@ -9,6 +9,9 @@ class PurchaseOrderItemResponse(BaseModel):
     quantity: int
     unit_cost: float
     received_quantity: int
+    order_uom: str = "pcs"
+    base_uom: str = "pcs"
+    units_per_buy_uom: int = 1
     line_status: LineStatus
 
 
@@ -19,6 +22,9 @@ def item_to_response(item: PurchaseOrderItem) -> PurchaseOrderItemResponse:
         quantity=item.quantity,
         unit_cost=item.unit_cost,
         received_quantity=item.received_quantity,
+        order_uom=getattr(item, "order_uom", None) or "pcs",
+        base_uom=getattr(item, "base_uom", None) or "pcs",
+        units_per_buy_uom=getattr(item, "units_per_buy_uom", None) or 1,
         line_status=line_status(item),
     )
 
@@ -49,6 +55,7 @@ class PurchaseOrderReceiveItem(BaseModel):
     product_id: str
     receive_quantity: int = Field(ge=1)
     expiry_date: str
+    units_per_buy_uom: int | None = Field(default=None, ge=1)
 
 
 class PurchaseOrderReceiveRequest(BaseModel):

@@ -491,6 +491,10 @@ async def seed():
         else:
             buy_uom, sell_uom, units_per_buy, sell_mode = "pcs", "pcs", 1, SellMode.unit
 
+        pack_selling_price = 0.0
+        if units_per_buy > 1 and sell_mode in (SellMode.unit, SellMode.both):
+            pack_selling_price = round(float(sell) * units_per_buy * 0.93, 2)
+
         p = await Product(
             name=name,
             sku=sku,
@@ -507,6 +511,7 @@ async def seed():
             sell_mode=sell_mode,
             cost_price=float(cost),
             selling_price=float(sell),
+            pack_selling_price=pack_selling_price,
             images=[_img(name)],
             nutrition_info=NUTRITION_MAP.get(cat),
             allergen_info=ALLERGEN_MAP.get(cat),

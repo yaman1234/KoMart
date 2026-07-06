@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
+import { cartLineKey } from '@/utils/cartLine';
+import { formatSellLineSubtitle } from '@/utils/uomDisplay';
 import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
 import type { ReceiptBranding, Transaction } from '@/types';
@@ -96,9 +98,14 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
         ))}
 
         {txn.items.map((item) => (
-          <React.Fragment key={item.productId}>
+          <React.Fragment key={cartLineKey(item.productId, item.sellUom)}>
             <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', wordBreak: 'break-word' }}>
               {item.name}
+              {item.sellUom && (
+                <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.6rem' }}>
+                  {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? 'pcs')}
+                </Box>
+              )}
             </Typography>
             <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
               {item.quantity}

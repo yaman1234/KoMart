@@ -32,6 +32,8 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useUomOptions } from '@/hooks/useUoms';
 import { DROPDOWN_PAGE_SIZE, PRODUCT_CATEGORIES, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
+import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
+import { formatCurrency } from '@/utils';
 import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
@@ -63,12 +65,42 @@ const schema = z.object({
   imageUrl:        z.string().url('Enter a valid URL').or(z.literal('')),
   costPrice:       z.number().min(0, 'Must be ≥ 0'),
   sellingPrice:    z.number().min(0, 'Must be ≥ 0'),
+  packSellingPrice: z.number().min(0, 'Must be ≥ 0'),
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
   status:            z.enum(['active', 'discontinued', 'seasonal']),
   tags:              z.array(z.string().min(1)),
   nutritionInfo:   z.string(),
   allergenInfo:    z.string(),
+}).superRefine((data, ctx) => {
+  const packSellEnabled =
+    (data.sellMode === 'unit' || data.sellMode === 'both') && data.unitsPerBuyUom > 1;
+  if (packSellEnabled && data.packSellingPrice <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Pack price is required when selling whole packs/boxes',
+      path: ['packSellingPrice'],
+    });
+  }
 });
+
+function buildPackPriceHelper(
+  sellingPrice: number,
+  unitsPerBuyUom: number,
+  packSellingPrice: number,
+): string {
+  const suggested = sellingPrice * unitsPerBuyUom;
+  if (suggested <= 0) {
+    return 'Set piece price first, then enter a pack bundle price';
+  }
+  const base = `Suggested: ${formatCurrency(suggested)} (${unitsPerBuyUom} × piece price)`;
+  if (packSellingPrice <= 0) return base;
+  const diff = suggested - packSellingPrice;
+  if (Math.abs(diff) < 0.01) return `${base}. Matches suggested linear price.`;
+  if (diff > 0) {
+    return `${base}. Your pack price saves ${formatCurrency(diff)} vs selling ${unitsPerBuyUom} singles.`;
+  }
+  return `${base}. Your pack price is ${formatCurrency(Math.abs(diff))} above the linear price.`;
+}
 
 type FormValues = z.infer<typeof schema>;
 
@@ -115,6 +147,7 @@ export function ProductFormPage() {
       sellMode: 'unit',
       costPrice: 0,
       sellingPrice: 0,
+      packSellingPrice: 0,
       lowStockThreshold: 10,
       status: 'active',
       tags: [],
@@ -141,6 +174,7 @@ export function ProductFormPage() {
         imageUrl:         product.images[0] ?? '',
         costPrice:        product.costPrice,
         sellingPrice:     product.sellingPrice,
+        packSellingPrice: product.packSellingPrice ?? 0,
         lowStockThreshold: product.lowStockThreshold,
         status:            product.status ?? 'active',
         tags:              product.tags ?? [],
@@ -161,6 +195,12 @@ export function ProductFormPage() {
   const buyUom = watch('buyUom');
   const sellUom = watch('uom');
   const unitsPerBuyUom = watch('unitsPerBuyUom');
+  const sellMode = watch('sellMode');
+  const sellingPrice = watch('sellingPrice');
+  const packSellingPrice = watch('packSellingPrice');
+  const packSellEnabled =
+    (sellMode === 'unit' || sellMode === 'both') && unitsPerBuyUom > 1;
+  const suggestedPackPrice = sellingPrice * unitsPerBuyUom;
 
   useEffect(() => {
     if (!isEditing && storeSettings?.autoSku && brand && category) {
@@ -419,7 +459,12 @@ export function ProductFormPage() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12 }}>
+                <Divider sx={{ my: 1 }} />
+                <UomSectionTitle>Buy (supplier)</UomSectionTitle>
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="buyUom"
                   control={control}
@@ -430,7 +475,7 @@ export function ProductFormPage() {
                       label="Buy UOM"
                       fullWidth
                       error={!!errors.buyUom}
-                      helperText={errors.buyUom?.message}
+                      helperText={errors.buyUom?.message ?? 'How the supplier bills (pack, box)'}
                     >
                       {uomOptions.map((u) => (
                         <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
@@ -440,7 +485,36 @@ export function ProductFormPage() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  {...register('unitsPerBuyUom', { valueAsNumber: true })}
+                  label="Units per buy"
+                  type="number"
+                  fullWidth
+                  error={!!errors.unitsPerBuyUom}
+                  helperText={
+                    errors.unitsPerBuyUom?.message
+                    ?? 'Pieces (or base units) inside one buy unit'
+                  }
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 4 }} sx={{ display: 'flex', alignItems: 'center' }}>
+                <UomConversionHint
+                  buyUom={buyUom}
+                  baseUom={sellUom}
+                  factor={unitsPerBuyUom}
+                  uomOptions={uomOptions}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Divider sx={{ my: 1 }} />
+                <UomSectionTitle>Base (stock &amp; sell)</UomSectionTitle>
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Controller
                   name="uom"
                   control={control}
@@ -448,10 +522,10 @@ export function ProductFormPage() {
                     <TextField
                       {...field}
                       select
-                      label="Sell UOM"
+                      label="Base UOM"
                       fullWidth
                       error={!!errors.uom}
-                      helperText={errors.uom?.message}
+                      helperText={errors.uom?.message ?? 'Stock is counted in this unit'}
                     >
                       {uomOptions.map((u) => (
                         <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
@@ -461,24 +535,7 @@ export function ProductFormPage() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  {...register('unitsPerBuyUom', { valueAsNumber: true })}
-                  label="Units per buy unit"
-                  type="number"
-                  fullWidth
-                  error={!!errors.unitsPerBuyUom}
-                  helperText={
-                    errors.unitsPerBuyUom?.message
-                    ?? (buyUom !== sellUom || unitsPerBuyUom > 1
-                      ? `1 ${buyUom} = ${unitsPerBuyUom} ${sellUom}`
-                      : 'e.g. 12 if 1 pack = 12 pieces')
-                  }
-                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Controller
                   name="sellMode"
                   control={control}
@@ -489,7 +546,7 @@ export function ProductFormPage() {
                       label="Sell mode"
                       fullWidth
                       error={!!errors.sellMode}
-                      helperText={errors.sellMode?.message}
+                      helperText={errors.sellMode?.message ?? 'How cashiers sell at POS'}
                     >
                       {SELL_MODE_OPTIONS.map((o) => (
                         <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
@@ -599,25 +656,58 @@ export function ProductFormPage() {
               <Grid size={12}>
                 <TextField
                   {...register('costPrice', { valueAsNumber: true })}
-                  label="Cost Price (NPR)"
+                  label={`Cost Price (NPR per ${sellUom || 'pcs'})`}
                   type="number"
                   fullWidth
                   error={!!errors.costPrice}
-                  helperText={errors.costPrice?.message}
+                  helperText={errors.costPrice?.message ?? 'Per base unit'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
                 />
               </Grid>
               <Grid size={12}>
                 <TextField
                   {...register('sellingPrice', { valueAsNumber: true })}
-                  label="Selling Price (NPR)"
+                  label={`Selling Price (NPR per ${sellUom || 'pcs'})`}
                   type="number"
                   fullWidth
                   error={!!errors.sellingPrice}
-                  helperText={errors.sellingPrice?.message ?? 'Products with NPR 0 selling price are not available in POS'}
+                  helperText={errors.sellingPrice?.message ?? 'Per base unit · NPR 0 hides product from POS'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
                 />
               </Grid>
+              {packSellEnabled && (
+                <Grid size={12}>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                    <TextField
+                      {...register('packSellingPrice', { valueAsNumber: true })}
+                      label={`Pack Price (NPR per ${buyUom || 'pack'})`}
+                      type="number"
+                      fullWidth
+                      error={!!errors.packSellingPrice}
+                      helperText={
+                        errors.packSellingPrice?.message
+                        ?? buildPackPriceHelper(sellingPrice, unitsPerBuyUom, packSellingPrice)
+                      }
+                      slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                    />
+                    {suggestedPackPrice > 0 && (
+                      <Button
+                        type="button"
+                        variant="outlined"
+                        size="small"
+                        sx={{ mt: 1, flexShrink: 0, whiteSpace: 'nowrap' }}
+                        onClick={() => setValue(
+                          'packSellingPrice',
+                          Math.round(suggestedPackPrice * 100) / 100,
+                          { shouldValidate: true },
+                        )}
+                      >
+                        Use suggested
+                      </Button>
+                    )}
+                  </Box>
+                </Grid>
+              )}
             </Grid>
           </Paper>
 

@@ -66,6 +66,8 @@ export interface DiscountRule {
   productIds: string[];
   category: string;
   minCartTotal: number;
+  minLineQty?: number;
+  sellUom?: string;
   maxDiscount: number;
   startsAt?: string;
   endsAt?: string;
@@ -84,6 +86,7 @@ export interface AppliedPromotion {
 export interface EvaluateDiscountResult {
   lineItems: Array<{
     productId: string;
+    sellUom?: string;
     perUnitDiscount: number;
     lineDiscount: number;
   }>;
@@ -149,6 +152,7 @@ export interface Product {
   sellMode?: 'unit' | 'piece' | 'both';
   costPrice: number;
   sellingPrice: number;
+  packSellingPrice?: number;
   images: string[];
   nutritionInfo?: string;
   allergenInfo?: string;
@@ -282,6 +286,9 @@ export interface PurchaseOrderItem {
   quantity: number;
   unitCost: number;
   receivedQuantity: number;
+  orderUom?: string;
+  baseUom?: string;
+  unitsPerBuyUom?: number;
   lineStatus?: PurchaseOrderLineStatus;
 }
 
@@ -313,6 +320,7 @@ export interface PurchaseOrderReceiveItem {
   productId: string;
   receiveQuantity: number;
   expiryDate: string;
+  unitsPerBuyUom?: number;
 }
 
 export type MembershipTier = 'bronze' | 'silver' | 'gold' | 'platinum';
@@ -339,6 +347,9 @@ export interface CartItem {
   price: number;
   quantity: number;
   discount: number;
+  sellUom?: string;
+  unitFactor?: number;
+  uom?: string;
   category?: string;
   listPrice?: number;
   unitCost?: number;

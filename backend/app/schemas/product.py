@@ -1,7 +1,18 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 
 from app.models.product import ProductStatus, SellMode
+
+
+def pack_selling_price_required(
+    sell_mode: SellMode,
+    units_per_buy_uom: int,
+    pack_selling_price: float,
+) -> bool:
+    """Pack price must be set when saving a product that sells whole packs/boxes."""
+    if sell_mode in (SellMode.unit, SellMode.both) and units_per_buy_uom > 1:
+        return pack_selling_price > 0
+    return True
 
 
 class ProductCreate(BaseModel):
@@ -20,6 +31,7 @@ class ProductCreate(BaseModel):
     sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
     selling_price: float = Field(ge=0)
+    pack_selling_price: float = Field(default=0.0, ge=0)
     images: list[str] = Field(default_factory=list)
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
@@ -43,6 +55,16 @@ class ProductCreate(BaseModel):
                 out.append(tag)
         return out
 
+    @model_validator(mode="after")
+    def validate_pack_price(self) -> "ProductCreate":
+        if not pack_selling_price_required(
+            self.sell_mode,
+            self.units_per_buy_uom,
+            self.pack_selling_price,
+        ):
+            raise ValueError("Pack selling price is required when selling whole packs/boxes.")
+        return self
+
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -59,6 +81,7 @@ class ProductUpdate(BaseModel):
     sell_mode: Optional[SellMode] = None
     cost_price: Optional[float] = Field(default=None, ge=0)
     selling_price: Optional[float] = Field(default=None, ge=0)
+    pack_selling_price: Optional[float] = Field(default=None, ge=0)
     images: Optional[list[str]] = None
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
@@ -100,6 +123,7 @@ class ProductResponse(BaseModel):
     sell_mode: SellMode
     cost_price: float
     selling_price: float
+    pack_selling_price: float = 0.0
     images: list[str]
     nutrition_info: Optional[str]
     allergen_info: Optional[str]

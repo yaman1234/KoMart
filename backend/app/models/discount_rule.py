@@ -24,6 +24,8 @@ class DiscountRule(Document):
     product_ids: list[str] = Field(default_factory=list)
     category: str = ""
     min_cart_total: float = Field(default=0, ge=0)
+    min_line_qty: int = Field(default=0, ge=0)
+    sell_uom: str = ""
     max_discount: float = Field(default=0, ge=0)
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None

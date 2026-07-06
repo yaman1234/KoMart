@@ -132,13 +132,15 @@ export const useDashboardStore = create<DashboardState>()(
   ),
 );
 
+import { cartLineKey } from '@/utils/cartLine';
+
 interface CartState {
   items: import('@/types').CartItem[];
   customerId: string | null;
   loyaltyPointsRedeemed: number;
   addItem: (item: import('@/types').CartItem) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  removeItem: (productId: string, sellUom?: string) => void;
+  updateQuantity: (productId: string, quantity: number, sellUom?: string) => void;
   updateDiscount: (productId: string, discount: number) => void;
   setCustomer: (customerId: string | null) => void;
   setLoyaltyPoints: (points: number) => void;
@@ -152,11 +154,14 @@ export const useCartStore = create<CartState>()((set) => ({
   loyaltyPointsRedeemed: 0,
   addItem: (item) =>
     set((state) => {
-      const existing = state.items.find((i) => i.productId === item.productId);
+      const key = cartLineKey(item.productId, item.sellUom);
+      const existing = state.items.find(
+        (i) => cartLineKey(i.productId, i.sellUom) === key,
+      );
       if (existing) {
         return {
           items: state.items.map((i) =>
-            i.productId === item.productId
+            cartLineKey(i.productId, i.sellUom) === key
               ? { ...i, quantity: i.quantity + item.quantity }
               : i,
           ),
@@ -164,17 +169,23 @@ export const useCartStore = create<CartState>()((set) => ({
       }
       return { items: [...state.items, item] };
     }),
-  removeItem: (productId) =>
+  removeItem: (productId, sellUom) =>
     set((state) => ({
-      items: state.items.filter((i) => i.productId !== productId),
+      items: state.items.filter(
+        (i) => cartLineKey(i.productId, i.sellUom) !== cartLineKey(productId, sellUom),
+      ),
     })),
-  updateQuantity: (productId, quantity) =>
+  updateQuantity: (productId, quantity, sellUom) =>
     set((state) => ({
       items:
         quantity <= 0
-          ? state.items.filter((i) => i.productId !== productId)
+          ? state.items.filter(
+              (i) => cartLineKey(i.productId, i.sellUom) !== cartLineKey(productId, sellUom),
+            )
           : state.items.map((i) =>
-              i.productId === productId ? { ...i, quantity } : i,
+              cartLineKey(i.productId, i.sellUom) === cartLineKey(productId, sellUom)
+                ? { ...i, quantity }
+                : i,
             ),
     })),
   updateDiscount: (productId, discount) =>

@@ -25,6 +25,8 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { formatAmount, formatCurrency } from '@/utils';
+import { formatSellLineSubtitle } from '@/utils/uomDisplay';
+import { cartLineKey } from '@/utils/cartLine';
 import { cashTenderSuggestions } from '@/utils/cashTenderSuggestions';
 import { useCheckoutDraft, type CartMutators, type CheckoutDiscountType } from '@/hooks/useCheckoutDraft';
 import { ReceiptView } from '@/components/pos/ReceiptView';
@@ -408,14 +410,17 @@ export function PaymentModal({
               </Typography>
             ) : (
               draft.items.map((item, index) => {
-                const perUnitDiscount = draft.paymentItems.find((p) => p.productId === item.productId)?.discount ?? 0;
+                const lineKey = cartLineKey(item.productId, item.sellUom);
+                const perUnitDiscount = draft.paymentItems.find(
+                  (p) => cartLineKey(p.productId, p.sellUom) === lineKey,
+                )?.discount ?? 0;
                 const lineDiscount = perUnitDiscount * item.quantity;
                 const lineGross = item.price * item.quantity;
                 const lineNet = lineGross - lineDiscount;
 
                 return (
                   <Box
-                    key={item.productId}
+                    key={lineKey}
                     sx={{
                       display: 'grid',
                       gridTemplateColumns: '32px minmax(0, 1fr) 88px 72px 64px 80px 36px',
@@ -437,13 +442,14 @@ export function PaymentModal({
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
                         {item.sku}
+                        {item.sellUom ? ` · ${formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? 'pcs')}` : ''}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
                       <IconButton
                         size="small"
                         aria-label="Decrease quantity"
-                        onClick={() => draft.updateQty(item.productId, item.quantity - 1)}
+                        onClick={() => draft.updateQty(item.productId, item.quantity - 1, item.sellUom)}
                         disabled={item.quantity <= 1}
                         sx={{ p: 0.25, width: 22, height: 22 }}
                       >
@@ -455,7 +461,7 @@ export function PaymentModal({
                       <IconButton
                         size="small"
                         aria-label="Increase quantity"
-                        onClick={() => draft.updateQty(item.productId, item.quantity + 1)}
+                        onClick={() => draft.updateQty(item.productId, item.quantity + 1, item.sellUom)}
                         sx={{ p: 0.25, width: 22, height: 22 }}
                       >
                         <AddIcon sx={{ fontSize: 14 }} />
@@ -481,7 +487,7 @@ export function PaymentModal({
                     <IconButton
                       size="small"
                       aria-label="Remove item"
-                      onClick={() => draft.removeLine(item.productId)}
+                      onClick={() => draft.removeLine(item.productId, item.sellUom)}
                       sx={{ p: 0.25 }}
                     >
                       <DeleteIcon sx={{ fontSize: 16 }} />

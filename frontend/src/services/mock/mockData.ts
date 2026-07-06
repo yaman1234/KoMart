@@ -296,14 +296,22 @@ export const mockProducts: Product[] = [
     createdAt: '2024-06-01T00:00:00Z',
     updatedAt: '2025-06-01T00:00:00Z',
   },
-].map((p, i) => ({
-  ...p,
-  buyUom: i < 3 ? 'pack' : 'pcs',
-  uom: 'pcs',
-  unitsPerBuyUom: i < 3 ? 12 : 1,
-  sellMode: i < 3 ? 'both' as const : 'unit' as const,
-  ...supplierForCountry(p.countryOfOrigin),
-}));
+].map((p, i) => {
+  const unitsPerBuyUom = i < 3 ? 12 : 1;
+  const sellMode = i < 3 ? 'both' as const : 'unit' as const;
+  const packSellingPrice = unitsPerBuyUom > 1
+    ? Math.round(p.sellingPrice * unitsPerBuyUom * 0.93)
+    : 0;
+  return {
+    ...p,
+    buyUom: i < 3 ? 'pack' : 'pcs',
+    uom: 'pcs',
+    unitsPerBuyUom,
+    sellMode,
+    packSellingPrice,
+    ...supplierForCountry(p.countryOfOrigin),
+  };
+});
 
 export const mockInventory: InventoryItem[] = mockProducts.map((p) => ({
   ...p,

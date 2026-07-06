@@ -33,7 +33,8 @@ class _ReceivePlan:
     line_index: int
     item: PurchaseOrderItem
     receive: PurchaseOrderReceiveItem
-    delta: int
+    buy_delta: int
+    base_delta: int
     batch_number: str = ""
     landed_cost: float = 0.0
 
@@ -108,10 +109,10 @@ async def _commit_writes(ctx: _ReceiveWriteContext, *, session: Any | None) -> N
         pid = plan.item.product_id
         product = ctx.product_map[pid]
         sb = running_stock[pid]
-        sa = sb + plan.delta
+        sa = sb + plan.base_delta
         running_stock[pid] = sa
         cost = plan.landed_cost
-        qty_abs = plan.delta
+        qty_abs = plan.base_delta
         adj_docs.append({
             "product_id": pid,
             "product_name": product.name,
@@ -120,7 +121,7 @@ async def _commit_writes(ctx: _ReceiveWriteContext, *, session: Any | None) -> N
             "reference_type": "purchase_order",
             "reference_id": ctx.po_id_str,
             "type": AdjustmentType.receive.value,
-            "quantity": plan.delta,
+            "quantity": plan.base_delta,
             "stock_before": sb,
             "stock_after": sa,
             "unit_cost": round(cost, 4),
@@ -222,14 +223,29 @@ async def receive_purchase_order_items(
         if remaining <= 0:
             continue
 
-        delta = min(receive.receive_quantity, remaining)
-        if delta <= 0:
+        buy_delta = min(receive.receive_quantity, remaining)
+        if buy_delta <= 0:
             continue
 
-        plans.append(_ReceivePlan(line_index=idx, item=item, receive=receive, delta=delta))
-        updated_items[idx] = item.model_copy(
-            update={"received_quantity": item.received_quantity + delta},
+        units = receive.units_per_buy_uom or getattr(item, "units_per_buy_uom", None) or 1
+        base_delta = buy_delta * units
+
+        item_updates: dict = {"received_quantity": item.received_quantity + buy_delta}
+        if receive.units_per_buy_uom and receive.units_per_buy_uom != getattr(
+            item, "units_per_buy_uom", 1
+        ):
+            item_updates["units_per_buy_uom"] = units
+
+        plans.append(
+            _ReceivePlan(
+                line_index=idx,
+                item=item,
+                receive=receive,
+                buy_delta=buy_delta,
+                base_delta=base_delta,
+            ),
         )
+        updated_items[idx] = item.model_copy(update=item_updates)
 
     if not plans:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No stock was received")
@@ -286,7 +302,14 @@ async def receive_purchase_order_items(
         before_cost = product.cost_price
         before_sell = product.selling_price
 
-        plan.landed_cost = plan.item.unit_cost if plan.item.unit_cost > 0 else product.cost_price
+        units = getattr(plan.item, "units_per_buy_uom", None) or 1
+        cost_per_buy = plan.item.unit_cost if plan.item.unit_cost > 0 else product.cost_price * units
+        plan.landed_cost = round(cost_per_buy / units, 4) if units else cost_per_buy
+
+        pu = product_field_updates.setdefault(pid, {})
+        if plan.landed_cost > 0 and plan.landed_cost != product.cost_price:
+            product.cost_price = plan.landed_cost
+            pu["cost_price"] = plan.landed_cost
         plan.batch_number = _batch_number_for_line(
             po.order_number,
             plan.line_index,
@@ -294,10 +317,6 @@ async def receive_purchase_order_items(
             batch_count_by_product,
         )
 
-        pu = product_field_updates.setdefault(pid, {})
-        if plan.item.unit_cost > 0 and plan.item.unit_cost != product.cost_price:
-            product.cost_price = plan.item.unit_cost
-            pu["cost_price"] = plan.item.unit_cost
         if supplier:
             product.supplier_id = str(supplier.id)
             product.supplier_name = supplier.name
@@ -317,13 +336,13 @@ async def receive_purchase_order_items(
         batch_docs.append({
             "product_id": pid,
             "batch_number": plan.batch_number,
-            "quantity": plan.delta,
+            "quantity": plan.base_delta,
             "unit_cost": plan.landed_cost,
             "expiry_date": plan.receive.expiry_date,
             "purchase_order_id": po_id_str,
             "received_at": now,
         })
-        stock_delta[pid] += plan.delta
+        stock_delta[pid] += plan.base_delta
 
     ctx = _ReceiveWriteContext(
         po_id=po.id,

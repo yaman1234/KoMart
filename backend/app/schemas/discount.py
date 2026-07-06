@@ -15,6 +15,8 @@ class DiscountRuleCreate(BaseModel):
     product_ids: list[str] = Field(default_factory=list)
     category: str = ""
     min_cart_total: float = Field(default=0, ge=0)
+    min_line_qty: int = Field(default=0, ge=0)
+    sell_uom: str = ""
     max_discount: float = Field(default=0, ge=0)
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
@@ -30,6 +32,8 @@ class DiscountRuleUpdate(BaseModel):
     product_ids: Optional[list[str]] = None
     category: Optional[str] = None
     min_cart_total: Optional[float] = Field(default=None, ge=0)
+    min_line_qty: Optional[int] = Field(default=None, ge=0)
+    sell_uom: Optional[str] = None
     max_discount: Optional[float] = Field(default=None, ge=0)
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
@@ -46,6 +50,8 @@ class DiscountRuleResponse(BaseModel):
     product_ids: list[str]
     category: str
     min_cart_total: float
+    min_line_qty: int = 0
+    sell_uom: str = ""
     max_discount: float
     starts_at: Optional[str] = None
     ends_at: Optional[str] = None
@@ -60,6 +66,7 @@ class EvaluateCartItem(BaseModel):
     price: float = Field(gt=0)
     quantity: int = Field(ge=1)
     category: str = ""
+    sell_uom: str = ""
 
 
 class EvaluateDiscountRequest(BaseModel):
@@ -69,6 +76,7 @@ class EvaluateDiscountRequest(BaseModel):
 
 class EvaluatedLineItem(BaseModel):
     product_id: str
+    sell_uom: str = ""
     per_unit_discount: float
     line_discount: float
 

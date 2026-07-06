@@ -72,6 +72,14 @@ def _cart_discount_amount(rule: DiscountRule, cart_base: float) -> float:
 
 
 def _matches_line(rule: DiscountRule, item: EvaluateCartItem) -> bool:
+    min_qty = getattr(rule, "min_line_qty", 0) or 0
+    if min_qty > 0 and item.quantity < min_qty:
+        return False
+    rule_sell_uom = (getattr(rule, "sell_uom", None) or "").strip().lower()
+    if rule_sell_uom:
+        item_sell_uom = (item.sell_uom or "").strip().lower()
+        if item_sell_uom != rule_sell_uom:
+            return False
     if rule.rule_type in (DiscountRuleType.product_percent, DiscountRuleType.product_flat):
         return bool(rule.product_ids) and item.product_id in rule.product_ids
     if rule.rule_type in (DiscountRuleType.category_percent, DiscountRuleType.category_flat):
@@ -138,6 +146,7 @@ async def evaluate_discounts(
         evaluated_lines.append(
             EvaluatedLineItem(
                 product_id=item.product_id,
+                sell_uom=item.sell_uom or "",
                 per_unit_discount=per_unit,
                 line_discount=best_amount,
             )

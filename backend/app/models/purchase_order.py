@@ -26,6 +26,13 @@ class PurchaseOrderItem(BaseModel):
     quantity: int = Field(ge=1)
     unit_cost: float = Field(ge=0)
     received_quantity: int = Field(default=0, ge=0)
+    order_uom: str = "pcs"
+    base_uom: str = "pcs"
+    units_per_buy_uom: int = Field(default=1, ge=1)
+
+    @property
+    def base_quantity_ordered(self) -> int:
+        return self.quantity * self.units_per_buy_uom
 
 
 def line_status(item: PurchaseOrderItem) -> LineStatus:

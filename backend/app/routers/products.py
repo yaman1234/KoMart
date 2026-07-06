@@ -6,7 +6,7 @@ from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
 from app.models.supplier import Supplier
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, pack_selling_price_required
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, product_snapshot
@@ -41,6 +41,7 @@ def _to_response(p: Product) -> ProductResponse:
         sell_mode=getattr(p, "sell_mode", None) or SellMode.unit,
         cost_price=p.cost_price,
         selling_price=p.selling_price,
+        pack_selling_price=getattr(p, "pack_selling_price", 0.0) or 0.0,
         images=p.images,
         nutrition_info=p.nutrition_info,
         allergen_info=p.allergen_info,
@@ -66,9 +67,16 @@ async def list_products(
 ):
     query = Product.find(Product.is_active == True)  # noqa: E712
     if sellable_only:
-        # POS catalog: active/seasonal with a billable selling price.
+        # POS catalog: active/seasonal with a billable price path (piece or pack).
         query = query.find(Product.status != ProductStatus.discontinued)
-        query = query.find(Product.selling_price > 0)
+        query = query.find({"$or": [
+            {"selling_price": {"$gt": 0}},
+            {"$and": [
+                {"pack_selling_price": {"$gt": 0}},
+                {"sell_mode": {"$in": [SellMode.unit.value, SellMode.both.value]}},
+                {"units_per_buy_uom": {"$gt": 1}},
+            ]},
+        ]})
     elif status:
         query = query.find(Product.status == ProductStatus(status))
     if search:
@@ -153,6 +161,14 @@ async def update_product(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
     before = product_snapshot(product)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+    eff_sell_mode = update_data.get("sell_mode", product.sell_mode)
+    eff_units = update_data.get("units_per_buy_uom", product.units_per_buy_uom)
+    eff_pack_price = update_data.get("pack_selling_price", product.pack_selling_price)
+    if not pack_selling_price_required(eff_sell_mode, eff_units, eff_pack_price):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Pack selling price is required when selling whole packs/boxes.",
+        )
     if "category_id" in update_data or "category" in update_data:
         cat_id, cat_name = await resolve_category_fields(
             category_id=update_data.pop("category_id", None),

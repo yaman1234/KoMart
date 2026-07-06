@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from app.models.customer import Customer, MembershipTier
 from app.models.transaction import Transaction, TransactionItem, BatchAllocation, TransactionStatus
 from app.models.inventory import AdjustmentType, StockAdjustment
-from app.models.product import Product, ProductStatus, product_is_billable
+from app.models.product import Product, product_is_billable, billable_rejection_detail
 from app.schemas.transaction import TransactionCreate, TransactionResponse
 from app.services.stock import (
     BatchDeduction,
@@ -19,6 +19,11 @@ from app.services.stock import (
     restock_from_deductions,
 )
 from app.services.store_settings import get_store_settings
+
+
+def _base_quantity(item: TransactionItem) -> int:
+    factor = getattr(item, "unit_factor", None) or 1
+    return item.quantity * max(1, factor)
 
 
 def _compute_tier(total_spent: float) -> MembershipTier:
@@ -55,15 +60,19 @@ async def prepare_sale_body(body: TransactionCreate) -> TransactionCreate:
                 price=item.price,
                 quantity=item.quantity,
                 category=product.category if product else "",
+                sell_uom=getattr(item, "sell_uom", "") or "",
             )
         )
 
     evaluated = await evaluate_discounts(evaluate_items, coupon_code=body.coupon_code or "")
-    line_map = {line.product_id: line.per_unit_discount for line in evaluated.line_items}
-    items = [
-        item.model_copy(update={"discount": line_map.get(item.product_id, item.discount)})
-        for item in body.items
-    ]
+    items = []
+    for i, item in enumerate(body.items):
+        per_unit = (
+            evaluated.line_items[i].per_unit_discount
+            if i < len(evaluated.line_items)
+            else item.discount
+        )
+        items.append(item.model_copy(update={"discount": per_unit}))
 
     line_discount_total = sum(i.discount * i.quantity for i in items)
     loyalty = body.loyalty_points_redeemed
@@ -121,14 +130,11 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
         if not product:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
         if not product_is_billable(product):
-            if product.status == ProductStatus.discontinued:
-                detail = f"Product '{product.name}' is discontinued and cannot be sold"
-            elif product.selling_price <= 0:
-                detail = f"Product '{product.name}' has no selling price and cannot be sold"
-            else:
-                detail = f"Product '{product.name}' is not available for sale"
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=detail)
-        await check_stock_available(item.product_id, item.quantity)
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=billable_rejection_detail(product),
+            )
+        await check_stock_available(item.product_id, _base_quantity(item))
 
     txn_number = await _next_txn_number()
     all_deductions: list[BatchDeduction] = []
@@ -142,16 +148,14 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
             if not product:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
             if not product_is_billable(product):
-                if product.status == ProductStatus.discontinued:
-                    detail = f"Product '{product.name}' is discontinued and cannot be sold"
-                elif product.selling_price <= 0:
-                    detail = f"Product '{product.name}' has no selling price and cannot be sold"
-                else:
-                    detail = f"Product '{product.name}' is not available for sale"
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=detail)
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail=billable_rejection_detail(product),
+                )
             stock_before = product.stock
+            base_qty = _base_quantity(item)
 
-            deductions = await deduct_stock_fefo(item.product_id, item.quantity)
+            deductions = await deduct_stock_fefo(item.product_id, base_qty)
             all_deductions.extend(deductions)
 
             running_stock = stock_before
@@ -176,7 +180,7 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
 
             total_line_cost = sum(d.quantity * d.unit_cost for d in deductions)
             weighted_cost = (
-                total_line_cost / item.quantity if item.quantity else product.cost_price
+                total_line_cost / base_qty if base_qty else product.cost_price
             )
             allocations = [
                 BatchAllocation(
