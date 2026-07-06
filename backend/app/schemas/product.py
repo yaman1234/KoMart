@@ -11,6 +11,7 @@ class ProductCreate(BaseModel):
     brand: str = ""
     country_of_origin: str = ""
     category: str = ""
+    category_id: str = ""
     supplier_id: str = ""
     description: str = ""
     buy_uom: str = "pcs"
@@ -48,6 +49,7 @@ class ProductUpdate(BaseModel):
     brand: Optional[str] = None
     country_of_origin: Optional[str] = None
     category: Optional[str] = None
+    category_id: Optional[str] = None
     supplier_id: Optional[str] = None
     barcode: Optional[str] = None
     description: Optional[str] = None
@@ -88,6 +90,7 @@ class ProductResponse(BaseModel):
     brand: str
     country_of_origin: str
     category: str
+    category_id: str = ""
     supplier_id: str
     supplier_name: str
     description: str

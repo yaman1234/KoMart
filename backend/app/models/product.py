@@ -37,6 +37,7 @@ class Product(Document):
     brand: str = ""
     country_of_origin: str = ""
     category: Indexed(str) = ""     # type: ignore[valid-type]
+    category_id: str = ""  # canonical FK; category string kept for search/display
     supplier_id: str = ""
     supplier_name: str = ""
     description: str = ""

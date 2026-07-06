@@ -167,6 +167,7 @@ export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?:
     <div class="row"><span>Payment</span><span class="bold">${escapeHtml(txn.paymentMethod.toUpperCase())}</span></div>
     ${tendered !== undefined ? `<div class="row"><span>Tendered</span><span>${tendered.toFixed(2)}</span></div>` : ''}
     ${change !== undefined && change >= 0 ? `<div class="row bold"><span>Change</span><span>${change.toFixed(2)}</span></div>` : ''}
+    ${txn.notes?.trim() ? `<div class="sep"></div><div><span class="bold">Remarks</span><br/>${escapeHtml(txn.notes.trim())}</div>` : ''}
     <div class="sep"></div>
     ${brandingFooterHtml(branding)}
     <div style="margin-top:16px"></div>`;

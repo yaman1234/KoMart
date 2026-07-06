@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -14,15 +14,22 @@ import {
   Alert,
   Paper,
   Chip,
+  IconButton,
+  Autocomplete,
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import PersonIcon from '@mui/icons-material/Person';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
+import { CustomerPicker } from '@/components/pos/CustomerPicker';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { formatAmount, formatCurrency } from '@/utils';
+import { cashTenderSuggestions } from '@/utils/cashTenderSuggestions';
+import { useCheckoutDraft, type CartMutators, type CheckoutDiscountType } from '@/hooks/useCheckoutDraft';
 import { ReceiptView } from '@/components/pos/ReceiptView';
 import { ReceiptActions } from '@/components/pos/ReceiptActions';
-import type { AppliedPromotion, CartItem, PaymentMethod, ReceiptBranding, Transaction } from '@/types';
+import type { AppliedPromotion, CartItem, PaymentMethod, Product, ReceiptBranding, Transaction } from '@/types';
 import { printTransactionReceipt } from '@/utils/receiptPrint';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -36,26 +43,33 @@ export interface PaymentCustomerInfo {
   isWalkIn?: boolean;
 }
 
-export interface PaymentDiscountBreakdown {
-  promotionLineDiscount: number;
-  promotionCartDiscount: number;
-  manualDiscount: number;
-  loyaltyPointsRedeemed: number;
-  appliedPromotions: AppliedPromotion[];
-  totalDiscount: number;
-}
-
-interface PaymentSummary {
+export interface PaymentConfirmPayload {
+  method: PaymentMethod;
+  tendered?: number;
+  items: CartItem[];
   subtotal: number;
   total: number;
+  manualDiscount: number;
+  loyaltyPointsRedeemed: number;
+  notes: string;
+  promotionDiscount: number;
+  appliedPromotions: AppliedPromotion[];
+  discount: number;
 }
 
 interface PaymentModalProps {
   open: boolean;
   items: CartItem[];
-  summary: PaymentSummary;
+  cartMutators: CartMutators;
+  initialDiscountType?: CheckoutDiscountType;
+  initialDiscountInput?: number;
+  initialLoyaltyPointsRedeemed?: number;
+  products: Product[];
+  productCategoryMap: Record<string, string>;
+  customerId: string | null;
+  onCustomerChange: (id: string | null) => void;
+  onAddCustomer: () => void;
   customer?: PaymentCustomerInfo | null;
-  discountBreakdown?: PaymentDiscountBreakdown;
   loading?: boolean;
   transaction?: Transaction | null;
   tenderedAmount?: number;
@@ -63,7 +77,7 @@ interface PaymentModalProps {
   defaultPaymentMethod?: PaymentMethod;
   autoPrint?: boolean;
   receiptBranding?: ReceiptBranding;
-  onConfirm: (method: PaymentMethod, tendered?: number) => void;
+  onConfirm: (payload: PaymentConfirmPayload) => void;
   onClose: () => void;
   onNewSale: () => void;
 }
@@ -75,10 +89,14 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'khalti', label: 'Khalti' },
 ];
 
-function formatTier(tier?: string): string {
-  if (!tier) return '';
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
-}
+const noNumberSpinnerSx = {
+  MozAppearance: 'textfield',
+  '& input[type=number]': { MozAppearance: 'textfield' },
+  '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+    WebkitAppearance: 'none',
+    margin: 0,
+  },
+} as const;
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -96,9 +114,16 @@ function SectionLabel({ children }: { children: ReactNode }) {
 export function PaymentModal({
   open,
   items,
-  summary,
+  cartMutators,
+  initialDiscountType = null,
+  initialDiscountInput = 0,
+  initialLoyaltyPointsRedeemed = 0,
+  products,
+  productCategoryMap,
+  customerId,
+  onCustomerChange,
+  onAddCustomer,
   customer,
-  discountBreakdown,
   loading,
   transaction,
   tenderedAmount,
@@ -112,24 +137,53 @@ export function PaymentModal({
 }: PaymentModalProps) {
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [tendered, setTendered] = useState('');
+  const [addProductValue, setAddProductValue] = useState<Product | null>(null);
   const printedTxnId = useRef<string | null>(null);
+  const openSessionRef = useRef(false);
+  const customerIdAtOpenRef = useRef<string | null>(customerId);
 
-  const breakdown = discountBreakdown ?? {
-    promotionLineDiscount: 0,
-    promotionCartDiscount: 0,
-    manualDiscount: 0,
-    loyaltyPointsRedeemed: 0,
-    appliedPromotions: [],
-    totalDiscount: 0,
-  };
+  const draft = useCheckoutDraft(items, productCategoryMap, cartMutators);
+
+  const sellableProducts = useMemo(
+    () => products.filter((p) => p.sellingPrice > 0),
+    [products],
+  );
 
   useEffect(() => {
-    if (open && !transaction) {
-      setMethod(defaultPaymentMethod);
-      setTendered('');
-      printedTxnId.current = null;
+    if (!open) {
+      openSessionRef.current = false;
+      return;
     }
-  }, [open, transaction, defaultPaymentMethod]);
+    if (transaction || openSessionRef.current) return;
+
+    openSessionRef.current = true;
+    customerIdAtOpenRef.current = customerId;
+    draft.initDraft({
+      discountType: initialDiscountType,
+      discountInput: initialDiscountInput,
+      loyaltyPointsRedeemed: initialLoyaltyPointsRedeemed,
+    });
+    setMethod(defaultPaymentMethod);
+    setTendered('');
+    setAddProductValue(null);
+    printedTxnId.current = null;
+  }, [
+    open,
+    transaction,
+    defaultPaymentMethod,
+    initialDiscountType,
+    initialDiscountInput,
+    initialLoyaltyPointsRedeemed,
+    customerId,
+    draft.initDraft,
+  ]);
+
+  useEffect(() => {
+    if (!open || !openSessionRef.current) return;
+    if (customerIdAtOpenRef.current === customerId) return;
+    customerIdAtOpenRef.current = customerId;
+    draft.setLoyalty(0);
+  }, [customerId, open, draft.setLoyalty]);
 
   useEffect(() => {
     if (!transaction) {
@@ -144,10 +198,26 @@ export function PaymentModal({
   }, [transaction, autoPrint, tenderedAmount, method, tendered, receiptBranding]);
 
   const tenderedNum = parseFloat(tendered) || 0;
-  const change = tenderedNum - summary.total;
+  const change = tenderedNum - draft.total;
   const showReceipt = !!transaction;
-  const customerName = customer?.name ?? 'Walk-In Customer';
-  const isWalkIn = customer?.isWalkIn ?? !customer?.phone;
+  const cashSuggestions = useMemo(() => cashTenderSuggestions(draft.total), [draft.total]);
+  const breakdown = draft.discountBreakdown;
+
+  const handleConfirm = () => {
+    onConfirm({
+      method,
+      tendered: method === 'cash' ? tenderedNum : undefined,
+      items: draft.paymentItems,
+      subtotal: draft.subtotal,
+      total: draft.total,
+      manualDiscount: draft.manualDiscount,
+      loyaltyPointsRedeemed: draft.loyaltyPointsRedeemed,
+      notes: draft.notes.trim(),
+      promotionDiscount: draft.promotionDiscount,
+      appliedPromotions: draft.appliedPromotions,
+      discount: breakdown.promotionCartDiscount + draft.manualDiscount + draft.loyaltyPointsRedeemed,
+    });
+  };
 
   if (showReceipt) {
     const txn = transaction!;
@@ -179,14 +249,15 @@ export function PaymentModal({
     );
   }
 
-  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalUnits = draft.items.reduce((sum, item) => sum + item.quantity, 0);
+  const customerLoyalty = customer?.loyaltyPoints ?? 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
         Confirm Payment
         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 400, mt: 0.25 }}>
-          {totalUnits} item{totalUnits === 1 ? '' : 's'} · {formatCurrency(summary.total)}
+          {totalUnits} item{totalUnits === 1 ? '' : 's'} · {formatCurrency(draft.total)}
         </Typography>
       </DialogTitle>
 
@@ -205,149 +276,121 @@ export function PaymentModal({
             mb: 2,
           }}
         >
-          {/* Customer */}
           <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2 }}>
-            <SectionLabel>Customer</SectionLabel>
-            <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
-              <Box
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  bgcolor: isWalkIn ? 'action.selected' : 'primary.main',
-                  color: isWalkIn ? 'text.secondary' : 'primary.contrastText',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <PersonIcon fontSize="small" />
-              </Box>
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-                  {customerName}
-                </Typography>
-                {isWalkIn ? (
-                  <Typography variant="caption" color="text.secondary">
-                    Walk-in sale
-                  </Typography>
-                ) : (
-                  <Box sx={{ mt: 0.5 }}>
-                    {customer?.phone && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {customer.phone}
-                      </Typography>
-                    )}
-                    {customer?.email && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
-                        {customer.email}
-                      </Typography>
-                    )}
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.25 }}>
-                      {customer?.membershipTier && (
-                        <Chip
-                          label={formatTier(customer.membershipTier)}
-                          size="small"
-                          variant="outlined"
-                          sx={{ height: 20, fontSize: '0.65rem' }}
-                        />
-                      )}
-                      {customer?.loyaltyPoints != null && customer.loyaltyPoints > 0 && (
-                        <Chip
-                          label={`${customer.loyaltyPoints} pts`}
-                          size="small"
-                          color="primary"
-                          variant="outlined"
-                          sx={{ height: 20, fontSize: '0.65rem' }}
-                        />
-                      )}
-                    </Box>
-                  </Box>
-                )}
-              </Box>
-            </Box>
+            <CustomerPicker
+              customerId={customerId}
+              onCustomerChange={onCustomerChange}
+              onAddCustomer={onAddCustomer}
+            />
           </Paper>
 
-          {/* Discount summary */}
           <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2 }}>
             <SectionLabel>Discounts</SectionLabel>
-            {breakdown.totalDiscount <= 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No discounts applied
-              </Typography>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: 1 }}>
+              <ToggleButtonGroup
+                value={draft.discountType}
+                exclusive
+                size="small"
+                onChange={(_, v: CheckoutDiscountType) => {
+                  draft.setDiscount(v ?? null, 0);
+                }}
+              >
+                <ToggleButton value="flat" sx={{ px: 1.25, py: 0.35, fontSize: '0.75rem' }}>NPR</ToggleButton>
+                <ToggleButton value="pct" sx={{ px: 1.25, py: 0.35, fontSize: '0.75rem' }}>%</ToggleButton>
+              </ToggleButtonGroup>
+              {draft.discountType !== null && (
+                <TextField
+                  placeholder={draft.discountType === 'pct' ? '%' : 'NPR'}
+                  type="number"
+                  size="small"
+                  value={draft.discountInput || ''}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value) || 0;
+                    const max = draft.discountType === 'pct' ? 100 : draft.netAfterPromo;
+                    draft.setDiscount(draft.discountType, Math.min(Math.max(0, v), max));
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 0,
+                      max: draft.discountType === 'pct' ? 100 : draft.netAfterPromo,
+                      step: draft.discountType === 'pct' ? 5 : 10,
+                    },
+                  }}
+                  sx={{
+                    width: 88,
+                    ...noNumberSpinnerSx,
+                    '& .MuiInputBase-root': { height: 30 },
+                  }}
+                />
+              )}
+            </Box>
+
+            {customerLoyalty > 0 && (
+              <TextField
+                label="Loyalty points (1 pt = NPR 1)"
+                type="number"
+                size="small"
+                fullWidth
+                value={draft.loyaltyInput || ''}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10) || 0;
+                  draft.setLoyalty(Math.min(v, customerLoyalty, draft.maxLoyalty));
+                }}
+                slotProps={{
+                  htmlInput: { min: 0, max: Math.min(customerLoyalty, draft.maxLoyalty) },
+                }}
+                sx={{ mb: 1, ...noNumberSpinnerSx }}
+              />
+            )}
+
+            {breakdown.appliedPromotions.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
                 {breakdown.appliedPromotions.map((promo) => (
-                  <Box key={promo.ruleId} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                      <LocalOfferOutlinedIcon sx={{ fontSize: 14, color: 'success.main', flexShrink: 0 }} />
-                      <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={promo.name}>
-                        {promo.name}
-                      </Typography>
-                    </Box>
-                    <Typography variant="body2" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                      - {formatAmount(promo.amount)}
-                    </Typography>
-                  </Box>
+                  <Chip
+                    key={promo.ruleId}
+                    icon={<LocalOfferOutlinedIcon />}
+                    label={`${promo.name} (−${formatAmount(promo.amount)})`}
+                    size="small"
+                    color="success"
+                    variant="outlined"
+                  />
                 ))}
-                {breakdown.manualDiscount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="text.secondary">Manual discount</Typography>
-                    <Typography variant="body2" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                      - {formatAmount(breakdown.manualDiscount)}
-                    </Typography>
-                  </Box>
-                )}
-                {breakdown.loyaltyPointsRedeemed > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="text.secondary">Loyalty redemption</Typography>
-                    <Typography variant="body2" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                      - {formatAmount(breakdown.loyaltyPointsRedeemed)}
-                    </Typography>
-                  </Box>
-                )}
-                <Divider sx={{ my: 0.25 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Total savings</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main', fontVariantNumeric: 'tabular-nums' }}>
-                    - {formatAmount(breakdown.totalDiscount)}
-                  </Typography>
-                </Box>
               </Box>
             )}
           </Paper>
         </Box>
 
-        {/* Items table */}
         <SectionLabel>Order items</SectionLabel>
         <Box
           sx={{
             border: '1px solid',
             borderColor: 'divider',
             borderRadius: 1.5,
-            mb: 2,
+            mb: 1,
             overflow: 'hidden',
           }}
         >
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: '32px minmax(0, 1fr) 40px 72px 64px 80px',
+              gridTemplateColumns: '32px minmax(0, 1fr) 88px 72px 64px 80px 36px',
               bgcolor: 'primary.main',
               color: 'primary.contrastText',
               px: 1.25,
               py: 0.875,
               gap: 0.5,
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
             }}
           >
-            {['#', 'Item', 'Qty', 'Price', 'Disc', 'Total'].map((label, i) => (
+            {['#', 'Item', 'Qty', 'Price', 'Disc', 'Total', ''].map((label, i) => (
               <Typography
-                key={label}
+                key={label || 'actions'}
                 variant="caption"
                 sx={{
                   fontWeight: 700,
-                  textAlign: i >= 2 ? 'right' : i === 0 ? 'center' : 'left',
+                  textAlign: i >= 2 && i < 6 ? 'right' : i === 0 ? 'center' : 'left',
                   fontSize: '0.68rem',
                   textTransform: 'uppercase',
                   letterSpacing: 0.3,
@@ -359,69 +402,115 @@ export function PaymentModal({
           </Box>
 
           <Box sx={{ maxHeight: 240, overflow: 'auto' }}>
-            {items.map((item, index) => {
-              const lineGross = item.price * item.quantity;
-              const lineDiscount = (item.discount ?? 0) * item.quantity;
-              const lineNet = lineGross - lineDiscount;
+            {draft.items.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                No items — add a product below
+              </Typography>
+            ) : (
+              draft.items.map((item, index) => {
+                const perUnitDiscount = draft.paymentItems.find((p) => p.productId === item.productId)?.discount ?? 0;
+                const lineDiscount = perUnitDiscount * item.quantity;
+                const lineGross = item.price * item.quantity;
+                const lineNet = lineGross - lineDiscount;
 
-              return (
-                <Box
-                  key={item.productId}
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: '32px minmax(0, 1fr) 40px 72px 64px 80px',
-                    px: 1.25,
-                    py: 0.75,
-                    gap: 0.5,
-                    alignItems: 'center',
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                    bgcolor: index % 2 === 0 ? 'background.paper' : 'action.hover',
-                    '&:last-child': { borderBottom: 0 },
-                  }}
-                >
-                  <Typography variant="caption" sx={{ textAlign: 'center', fontWeight: 700, color: 'text.secondary' }}>
-                    {index + 1}
-                  </Typography>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', lineHeight: 1.3 }} noWrap title={item.name}>
-                      {item.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                      {item.sku}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                    {item.quantity}
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.8125rem' }}>
-                    {formatAmount(item.price)}
-                  </Typography>
-                  <Typography
-                    variant="body2"
+                return (
+                  <Box
+                    key={item.productId}
                     sx={{
-                      textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums',
-                      fontSize: '0.8125rem',
-                      color: lineDiscount > 0 ? 'success.main' : 'text.disabled',
+                      display: 'grid',
+                      gridTemplateColumns: '32px minmax(0, 1fr) 88px 72px 64px 80px 36px',
+                      px: 1.25,
+                      py: 0.75,
+                      gap: 0.5,
+                      alignItems: 'center',
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: index % 2 === 0 ? 'background.paper' : 'action.hover',
                     }}
                   >
-                    {lineDiscount > 0 ? `- ${formatAmount(lineDiscount)}` : '—'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                    {formatAmount(lineNet)}
-                  </Typography>
-                </Box>
-              );
-            })}
+                    <Typography variant="caption" sx={{ textAlign: 'center', fontWeight: 700, color: 'text.secondary' }}>
+                      {index + 1}
+                    </Typography>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', lineHeight: 1.3 }} noWrap title={item.name}>
+                        {item.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                        {item.sku}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
+                      <IconButton
+                        size="small"
+                        aria-label="Decrease quantity"
+                        onClick={() => draft.updateQty(item.productId, item.quantity - 1)}
+                        disabled={item.quantity <= 1}
+                        sx={{ p: 0.25, width: 22, height: 22 }}
+                      >
+                        <RemoveIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                      <Typography variant="body2" sx={{ minWidth: 20, textAlign: 'center', fontWeight: 700, fontSize: '0.75rem' }}>
+                        {item.quantity}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        aria-label="Increase quantity"
+                        onClick={() => draft.updateQty(item.productId, item.quantity + 1)}
+                        sx={{ p: 0.25, width: 22, height: 22 }}
+                      >
+                        <AddIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                    <Typography variant="body2" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.8125rem' }}>
+                      {formatAmount(item.price)}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        fontSize: '0.8125rem',
+                        color: lineDiscount > 0 ? 'success.main' : 'text.disabled',
+                      }}
+                    >
+                      {lineDiscount > 0 ? `- ${formatAmount(lineDiscount)}` : '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {formatAmount(lineNet)}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      aria-label="Remove item"
+                      onClick={() => draft.removeLine(item.productId)}
+                      sx={{ p: 0.25 }}
+                    >
+                      <DeleteIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Box>
+                );
+              })
+            )}
           </Box>
         </Box>
 
-        {/* Bill totals */}
-        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2.5, bgcolor: 'action.hover' }}>
+        <Autocomplete
+          size="small"
+          options={sellableProducts}
+          value={addProductValue}
+          onChange={(_, product) => {
+            if (!product) return;
+            draft.addProduct(product);
+            setAddProductValue(null);
+          }}
+          getOptionLabel={(p) => `${p.name} (${p.sku})`}
+          renderInput={(params) => <TextField {...params} label="Add product" placeholder="Search products…" />}
+          sx={{ mb: 2 }}
+        />
+
+        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2, bgcolor: 'action.hover' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
             <Typography variant="body2" color="text.secondary">Subtotal</Typography>
-            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatAmount(summary.subtotal)}</Typography>
+            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatAmount(draft.subtotal)}</Typography>
           </Box>
           {breakdown.promotionLineDiscount > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
@@ -459,10 +548,23 @@ export function PaymentModal({
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>Amount due</Typography>
             <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', fontVariantNumeric: 'tabular-nums' }}>
-              {formatCurrency(summary.total)}
+              {formatCurrency(draft.total)}
             </Typography>
           </Box>
         </Paper>
+
+        <TextField
+          label="Remarks / description"
+          multiline
+          minRows={2}
+          maxRows={4}
+          fullWidth
+          value={draft.notes}
+          onChange={(e) => draft.setNotes(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: 500 } }}
+          helperText={`${draft.notes.length}/500`}
+          sx={{ mb: 2 }}
+        />
 
         <SectionLabel>Payment</SectionLabel>
         <Box sx={{ mb: method === 'cash' ? 1.25 : 2 }}>
@@ -483,35 +585,49 @@ export function PaymentModal({
         </Box>
 
         {method === 'cash' && (
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 1 }}>
-            <TextField
-              label="Cash tendered (NPR)"
-              value={tendered}
-              onChange={(e) => setTendered(e.target.value)}
-              type="number"
-              size="small"
-              autoFocus
-              disabled={loading}
-              sx={{ flex: 1, minWidth: 0 }}
-              slotProps={{ htmlInput: { min: 0, step: 10 } }}
-            />
-            {tenderedNum > 0 && (
-              <Alert
-                severity={change >= 0 ? 'success' : 'error'}
-                icon={false}
-                sx={{ flex: 1, minWidth: 0, py: 0.75, px: 1.25, display: 'flex', alignItems: 'center' }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    {change >= 0 ? 'Change' : 'Short'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {formatCurrency(Math.abs(change))}
-                  </Typography>
-                </Box>
-              </Alert>
-            )}
-          </Box>
+          <>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
+              {cashSuggestions.map((amount) => (
+                <Chip
+                  key={amount}
+                  label={formatCurrency(amount)}
+                  size="small"
+                  clickable
+                  color={tenderedNum === amount ? 'primary' : 'default'}
+                  onClick={() => setTendered(String(amount))}
+                />
+              ))}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 1 }}>
+              <TextField
+                label="Cash tendered (NPR)"
+                value={tendered}
+                onChange={(e) => setTendered(e.target.value)}
+                type="number"
+                size="small"
+                autoFocus
+                disabled={loading}
+                sx={{ flex: 1, minWidth: 0, ...noNumberSpinnerSx }}
+                slotProps={{ htmlInput: { min: 0, step: 10 } }}
+              />
+              {tenderedNum > 0 && (
+                <Alert
+                  severity={change >= 0 ? 'success' : 'error'}
+                  icon={false}
+                  sx={{ flex: 1, minWidth: 0, py: 0.75, px: 1.25, display: 'flex', alignItems: 'center' }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                      {change >= 0 ? 'Change' : 'Short'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {formatCurrency(Math.abs(change))}
+                    </Typography>
+                  </Box>
+                </Alert>
+              )}
+            </Box>
+          </>
         )}
 
         {method !== 'cash' && (
@@ -526,7 +642,7 @@ export function PaymentModal({
             }}
           >
             <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
-              {formatCurrency(summary.total)}
+              {formatCurrency(draft.total)}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Collect via {METHODS.find((m) => m.value === method)?.label}
@@ -541,8 +657,11 @@ export function PaymentModal({
           variant="contained"
           size="large"
           loading={loading}
-          disabled={method === 'cash' && (tenderedNum <= 0 || tenderedNum < summary.total)}
-          onClick={() => onConfirm(method, method === 'cash' ? tenderedNum : undefined)}
+          disabled={
+            draft.items.length === 0
+            || (method === 'cash' && (tenderedNum <= 0 || tenderedNum < draft.total))
+          }
+          onClick={handleConfirm}
           sx={{ minWidth: 180 }}
         >
           Confirm Payment

@@ -13,6 +13,7 @@ import {
   IconButton,
   Tooltip,
   Autocomplete,
+  Alert,
 } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -255,6 +256,18 @@ export function ProductFormPage() {
           </Box>
         }
       />
+
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Change <strong>sell price</strong> here. Change <strong>quantity</strong> from Inventory (Receive / Adjust) — stock is batch-based and cannot be edited on this form.
+        {isEditing && product && (
+          <>
+            {' '}Current stock: <strong>{product.stock}</strong>.
+            <Button size="small" sx={{ ml: 1 }} onClick={() => navigate(`/inventory/${product.id}`)}>
+              Manage in Inventory
+            </Button>
+          </>
+        )}
+      </Alert>
 
       <Grid container spacing={3}>
         {/* ── Left column ─────────────────────────────────────────────────── */}

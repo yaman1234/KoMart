@@ -1250,9 +1250,11 @@ History: `GET /inventory/history`
 
 ## 6.11 Stock Valuation
 
-**Method:** `Inventory Value = Σ (product.stock × product.cost_price)`
+**Method:** `Inventory Value = Σ (batch.quantity × batch.unit_cost)` for active batches. Products with no batches fall back to `product.stock × product.cost_price`.
 
-Used in dashboard and `/reports/inventory-summary`. Batch-level cost averaging is **not** implemented; product-level `cost_price` is used.
+Used in dashboard and `/reports/inventory-summary`. Product `cost_price` remains the **latest receive reference**; batch costs are authoritative for valuation.
+
+See [MIGRATION_BATCH_VALUATION.md](./MIGRATION_BATCH_VALUATION.md).
 
 ## 6.12 FIFO / LIFO / Weighted Average — Recommendation
 
@@ -2190,6 +2192,15 @@ See [MIGRATION_PHASE2.md](./MIGRATION_PHASE2.md).
 | MIGRATION_REFRESH_TOKENS.md | JWT refresh token rotation |
 | MIGRATION_PRINTING_FIX.md | Receipt printing fix |
 | MIGRATION_AUDIT_LOGS.md | Global audit logging |
+| MIGRATION_RELIABILITY_PHASE0.md | Reliability upgrade Phase 0 — cleanup + invalidation helper |
+| MIGRATION_CACHE_INVALIDATION.md | Centralized React Query cache invalidation |
+| MIGRATION_PO_PRICE_SYNC.md | PO receive syncs product cost price |
+| MIGRATION_EXCEL_UPDATE.md | Bulk Excel update for existing products |
+| MIGRATION_INVENTORY_UX.md | Target stock adjust + ops guide |
+| MIGRATION_MOCK_STOCK.md | Mock mode stock parity |
+| MIGRATION_BATCH_VALUATION.md | Batch-weighted inventory value |
+| MIGRATION_SALE_VOID.md | Sale void flow |
+| MIGRATION_CATEGORY_FK.md | Category FK on products |
 | FastAPI Documentation | https://fastapi.tiangolo.com |
 | Beanie ODM | https://beanie-odm.dev |
 | React Documentation | https://react.dev |

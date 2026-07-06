@@ -8,7 +8,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  TextField,
+  Chip,
 } from '@mui/material';
+import BlockIcon from '@mui/icons-material/Block';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -18,7 +21,7 @@ import { ReceiptView } from '@/components/pos/ReceiptView';
 import { ReceiptActions } from '@/components/pos/ReceiptActions';
 import { SaleDetailView } from './SaleDetailView';
 import { SaleEditDialog } from './SaleEditDialog';
-import { useTransaction, useUpdateTransaction } from '@/hooks/useTransactions';
+import { useTransaction, useUpdateTransaction, useVoidTransaction } from '@/hooks/useTransactions';
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { useAuthStore } from '@/store';
@@ -35,9 +38,13 @@ export function SaleDetailPage() {
   const { data: storeSettings } = useStoreSettings();
   const receiptBranding = storeSettings ? receiptBrandingFromSettings(storeSettings) : undefined;
   const updateMutation = useUpdateTransaction();
+  const voidMutation = useVoidTransaction();
 
   const [editOpen, setEditOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidError, setVoidError] = useState('');
 
   if (isLoading) {
     return (
@@ -51,6 +58,8 @@ export function SaleDetailPage() {
     return <Alert severity="error">Sale not found.</Alert>;
   }
 
+  const isVoided = txn.status === 'voided';
+
   return (
     <Box>
       <PageHeader
@@ -59,13 +68,24 @@ export function SaleDetailPage() {
         breadcrumbs={[{ label: 'Sales', path: '/sales' }, { label: txn.transactionNumber }]}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            {canEdit && (
+            {isVoided && <Chip label="VOIDED" color="error" />}
+            {canEdit && !isVoided && (
               <Button
                 variant="contained"
                 startIcon={<EditIcon />}
                 onClick={() => setEditOpen(true)}
               >
                 Edit
+              </Button>
+            )}
+            {canEdit && !isVoided && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<BlockIcon />}
+                onClick={() => { setVoidOpen(true); setVoidReason(''); setVoidError(''); }}
+              >
+                Void Sale
               </Button>
             )}
             <Button
@@ -85,6 +105,12 @@ export function SaleDetailPage() {
 
       <SaleDetailView transaction={txn} />
 
+      {isVoided && txn.voidReason && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Voided — {txn.voidReason}
+        </Alert>
+      )}
+
       <SaleEditDialog
         open={editOpen}
         transaction={txn}
@@ -103,6 +129,45 @@ export function SaleDetailPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setReceiptOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={voidOpen} onClose={() => setVoidOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Void sale {txn.transactionNumber}?</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Stock will be restored to original batches. This sale will be removed from revenue reports.
+          </Alert>
+          {voidError && <Alert severity="error" sx={{ mb: 2 }}>{voidError}</Alert>}
+          <TextField
+            label="Reason for void"
+            value={voidReason}
+            onChange={(e) => setVoidReason(e.target.value)}
+            fullWidth
+            multiline
+            rows={3}
+            required
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVoidOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            loading={voidMutation.isPending}
+            onClick={async () => {
+              if (!voidReason.trim()) { setVoidError('Reason is required'); return; }
+              try {
+                await voidMutation.mutateAsync({ id: txn.id, reason: voidReason.trim() });
+                showSuccess('Sale voided.');
+                setVoidOpen(false);
+              } catch {
+                setVoidError('Could not void sale.');
+              }
+            }}
+          >
+            Void Sale
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -127,6 +127,17 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
       <RRow label="Payment" value={txn.paymentMethod.toUpperCase()} />
       {cash !== undefined && <RRow label="Tendered" value={formatAmount(cash)} />}
       {cashChg !== undefined && cashChg >= 0 && <RRow label="Change" value={formatAmount(cashChg)} bold />}
+      {txn.notes?.trim() && (
+        <>
+          <RDivider />
+          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', fontWeight: 600, mb: 0.25 }}>
+            Remarks
+          </Typography>
+          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}>
+            {txn.notes.trim()}
+          </Typography>
+        </>
+      )}
       <RDivider />
       {footerLines.length > 0 ? (
         footerLines.map((line) => (

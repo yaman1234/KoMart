@@ -22,6 +22,14 @@ from app.models import (
     DiscountRule,
 )
 
+_motor_client: AsyncIOMotorClient | None = None
+
+
+def get_motor_client() -> AsyncIOMotorClient:
+    if _motor_client is None:
+        raise RuntimeError("Database not initialized — call init_db() first")
+    return _motor_client
+
 
 async def _drop_conflicting_indexes(db) -> None:
     """Drop old indexes whose options changed (e.g. non-unique → unique)."""
@@ -39,7 +47,9 @@ async def _drop_conflicting_indexes(db) -> None:
 
 
 async def init_db() -> None:
-    client = AsyncIOMotorClient(settings.mongo_url)
+    global _motor_client
+    _motor_client = AsyncIOMotorClient(settings.mongo_url)
+    client = _motor_client
     db = client[settings.mongo_db_name]
 
     await _drop_conflicting_indexes(db)

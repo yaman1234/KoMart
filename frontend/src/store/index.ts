@@ -142,6 +142,7 @@ interface CartState {
   updateDiscount: (productId: string, discount: number) => void;
   setCustomer: (customerId: string | null) => void;
   setLoyaltyPoints: (points: number) => void;
+  replaceCart: (items: import('@/types').CartItem[], customerId: string | null) => void;
   clearCart: () => void;
 }
 
@@ -184,6 +185,7 @@ export const useCartStore = create<CartState>()((set) => ({
     })),
   setCustomer: (customerId) => set({ customerId }),
   setLoyaltyPoints: (loyaltyPointsRedeemed) => set({ loyaltyPointsRedeemed }),
+  replaceCart: (items, customerId) => set({ items, customerId }),
   clearCart: () =>
     set({ items: [], customerId: null, loyaltyPointsRedeemed: 0 }),
 }));

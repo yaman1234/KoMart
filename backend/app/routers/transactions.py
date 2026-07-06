@@ -6,11 +6,11 @@ from typing import Optional
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User, UserRole
 from app.models.transaction import Transaction, PaymentMethod
-from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionUpdate
+from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionUpdate, TransactionVoidRequest
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, sale_snapshot
-from app.services.sales import record_sale, update_transaction, _to_response
+from app.services.sales import record_sale, update_transaction, void_sale, _to_response
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
@@ -110,6 +110,31 @@ async def patch_transaction(
     await log_audit(
         module=AuditModule.sales,
         action="update",
+        user=current_user,
+        request=request,
+        entity_type="transaction",
+        entity_id=txn_id,
+        previous=before,
+        new=sale_snapshot(result),
+    )
+    return result
+
+
+@router.post("/{txn_id}/void", response_model=TransactionResponse)
+async def void_transaction(
+    txn_id: str,
+    body: TransactionVoidRequest,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    txn = await Transaction.get(txn_id)
+    if not txn:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    before = sale_snapshot(_to_response(txn))
+    result = await void_sale(txn_id, body.reason, current_user.name)
+    await log_audit(
+        module=AuditModule.sales,
+        action="void",
         user=current_user,
         request=request,
         entity_type="transaction",

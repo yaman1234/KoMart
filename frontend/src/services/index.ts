@@ -1,6 +1,7 @@
 import { apiClient, publicClient } from './apiClient';
 import { mockApi } from './mock/mockApi';
 import { isMockEnabled } from '@/config/mock';
+import { PO_RECEIVE_CHUNK_SIZE, PO_RECEIVE_TIMEOUT_MS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type {
   CatalogProduct,
@@ -239,7 +240,7 @@ export const inventoryService = {
     return data;
   },
   receiveBatch: async (payload: ReceiveBatchPayload): Promise<InventoryBatch> => {
-    if (useMock()) return Promise.resolve({} as InventoryBatch);
+    if (useMock()) return mockApi.receiveBatch(payload);
     const { data } = await apiClient.post('/inventory/batches', payload);
     return data as InventoryBatch;
   },
@@ -317,8 +318,33 @@ export const purchaseOrderService = {
   },
   receiveItems: async (id: string, items: PurchaseOrderReceiveItem[]): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.receivePurchaseOrderItems(id, items);
-    const { data } = await apiClient.post(`/purchase-orders/${id}/receive`, { items });
+    const { data } = await apiClient.post(
+      `/purchase-orders/${id}/receive`,
+      { items },
+      { timeout: PO_RECEIVE_TIMEOUT_MS },
+    );
     return data;
+  },
+  /** Receive in chunks — each chunk is one atomic server transaction. */
+  receiveItemsInChunks: async (
+    id: string,
+    items: PurchaseOrderReceiveItem[],
+  ): Promise<PurchaseOrder> => {
+    if (useMock()) return mockApi.receivePurchaseOrderItems(id, items);
+    if (items.length <= PO_RECEIVE_CHUNK_SIZE) {
+      return purchaseOrderService.receiveItems(id, items);
+    }
+    let last: PurchaseOrder | null = null;
+    for (let i = 0; i < items.length; i += PO_RECEIVE_CHUNK_SIZE) {
+      const chunk = items.slice(i, i + PO_RECEIVE_CHUNK_SIZE);
+      const { data } = await apiClient.post(
+        `/purchase-orders/${id}/receive`,
+        { items: chunk },
+        { timeout: PO_RECEIVE_TIMEOUT_MS },
+      );
+      last = data;
+    }
+    return last!;
   },
 };
 
@@ -393,6 +419,10 @@ export const transactionService = {
       });
     }
     const { data } = await apiClient.patch(`/transactions/${id}`, payload);
+    return data as Transaction;
+  },
+  void: async (id: string, reason: string): Promise<Transaction> => {
+    const { data } = await apiClient.post(`/transactions/${id}/void`, { reason });
     return data as Transaction;
   },
 };

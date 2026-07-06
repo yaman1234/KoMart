@@ -18,6 +18,10 @@ export const DROPDOWN_PAGE_SIZE = 50;
 /** Typeahead / search result limits. */
 export const PRODUCT_SEARCH_PAGE_SIZE = 25;
 
+/** PO receive — chunk size and extended API timeout (ms). */
+export const PO_RECEIVE_CHUNK_SIZE = 5;
+export const PO_RECEIVE_TIMEOUT_MS = 120_000;
+
 /** React Query stale-time tiers (milliseconds). */
 export const STALE_TIME = {
   realtime: 30_000,

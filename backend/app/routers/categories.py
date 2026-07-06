@@ -5,6 +5,8 @@ from typing import List, Optional
 from app.auth.dependencies import get_current_user, require_manager_or_above, require_admin_only
 from app.models.user import User
 from app.models.category import Category
+from app.models.product import Product
+from app.services.category_sync import propagate_category_rename
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -78,6 +80,8 @@ async def update_category(
         update_data["is_active"] = body.is_active
     if update_data:
         await category.set(update_data)
+        if body.name is not None:
+            await propagate_category_rename(category_id, body.name)
     refreshed = await Category.get(category_id)
     return _to_response(refreshed)  # type: ignore[arg-type]
 

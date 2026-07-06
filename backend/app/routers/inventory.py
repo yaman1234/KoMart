@@ -6,7 +6,6 @@ from math import ceil
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
-from app.models.supplier import Supplier
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
 from app.schemas.inventory import (
     BatchCreate,
@@ -30,6 +29,7 @@ from app.services.stock import (
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit
 from app.services.reporting import aggregate_product_inventory_stats
+from app.services.inventory_sync import apply_receive_product_updates, log_receive_price_change
 from app.services.inventory_movements import (
     aggregate_movement_summary,
     build_movement_row,
@@ -199,29 +199,30 @@ async def receive_batch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
 
     stock_before = product.stock
-    product_updates: dict = {}
+    before_cost = product.cost_price
+    before_sell = product.selling_price
     resolved_selling_price = product.selling_price
 
-    if body.unit_cost is not None:
-        product_updates["cost_price"] = body.unit_cost
+    product, _ = await apply_receive_product_updates(
+        product,
+        unit_cost=body.unit_cost,
+        unit_selling_price=body.selling_price,
+        supplier_id=body.supplier_id or None,
+    )
     if body.selling_price is not None:
-        product_updates["selling_price"] = body.selling_price
         resolved_selling_price = body.selling_price
-    if body.supplier_id:
-        supplier = await Supplier.get(body.supplier_id)
-        if not supplier or not supplier.is_active:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
-        product_updates["supplier_id"] = str(supplier.id)
-        product_updates["supplier_name"] = supplier.name
+    else:
+        resolved_selling_price = product.selling_price
 
-    if product_updates:
-        product_updates["updated_at"] = datetime.now(timezone.utc)
-        await product.set(product_updates)
-        refreshed_product = await Product.get(body.product_id)
-        if refreshed_product:
-            product = refreshed_product
-            if body.selling_price is None:
-                resolved_selling_price = product.selling_price
+    await log_receive_price_change(
+        product_id=body.product_id,
+        before_cost=before_cost,
+        before_sell=before_sell,
+        product=product,
+        current_user=current_user,
+        request=request,
+        module=AuditModule.inventory,
+    )
 
     batch = await receive_stock(
         body.product_id,

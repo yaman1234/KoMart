@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { QUERY_KEYS } from '@/constants';
 import { transactionService } from '@/services';
 import type { ListQueryParams, PaymentMethod } from '@/types';
+import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function useTransactions(params?: ListQueryParams) {
   return useQuery({
@@ -35,8 +36,18 @@ export function useUpdateTransaction() {
     }) => transactionService.update(id, payload),
     onSuccess: (_, { id }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transaction(id) });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
+      invalidateCommerceQueries(queryClient, { scopes: ['sale'] });
+    },
+  });
+}
+
+export function useVoidTransaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      transactionService.void(id, reason),
+    onSuccess: () => {
+      invalidateCommerceQueries(queryClient, { scopes: ['sale'] });
     },
   });
 }

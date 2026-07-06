@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 
 from app.models.customer import Customer, MembershipTier
-from app.models.transaction import Transaction, TransactionItem, BatchAllocation
+from app.models.transaction import Transaction, TransactionItem, BatchAllocation, TransactionStatus
 from app.models.inventory import AdjustmentType, StockAdjustment
 from app.models.product import Product, ProductStatus, product_is_billable
 from app.schemas.transaction import TransactionCreate, TransactionResponse
@@ -103,6 +103,9 @@ def _to_response(txn: Transaction) -> TransactionResponse:
         loyalty_points_redeemed=txn.loyalty_points_redeemed,
         total=txn.total,
         payment_method=txn.payment_method,
+        status=getattr(txn, "status", TransactionStatus.completed),
+        void_reason=getattr(txn, "void_reason", "") or "",
+        notes=getattr(txn, "notes", "") or "",
         created_by=txn.created_by,
         cashier_id=txn.cashier_id,
         created_at=txn.created_at.isoformat(),
@@ -294,5 +297,56 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
         return _to_response(txn)
 
     await txn.set(updates)
+    refreshed = await Transaction.get(txn_id)
+    return _to_response(refreshed)  # type: ignore[arg-type]
+
+
+async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResponse:
+    """Void a completed sale; restock from stored batch allocations and reverse loyalty."""
+    txn = await Transaction.get(txn_id)
+    if not txn:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    current_status = getattr(txn, "status", TransactionStatus.completed)
+    if current_status == TransactionStatus.voided:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Transaction already voided")
+
+    if not reason.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Void reason is required")
+
+    deductions: list[BatchDeduction] = []
+    for item in txn.items:
+        for alloc in item.batch_allocations:
+            deductions.append(
+                BatchDeduction(
+                    product_id=item.product_id,
+                    batch_id=alloc.batch_id,
+                    quantity=alloc.quantity,
+                    unit_cost=alloc.unit_cost,
+                ),
+            )
+    if deductions:
+        await restock_from_deductions(deductions)
+
+    if txn.customer_id:
+        customer = await Customer.get(txn.customer_id)
+        if customer:
+            points_earned = int(txn.total / 100)
+            new_points = customer.loyalty_points - points_earned + txn.loyalty_points_redeemed
+            new_spent = max(0.0, customer.total_spent - txn.total)
+            await customer.set({
+                "loyalty_points": max(0, new_points),
+                "total_spent": new_spent,
+                "membership_tier": _compute_tier(new_spent),
+            })
+
+    now = datetime.now(timezone.utc)
+    await txn.set({
+        "status": TransactionStatus.voided,
+        "void_reason": reason.strip(),
+        "voided_at": now,
+        "voided_by": voided_by,
+        "updated_at": now,
+    })
     refreshed = await Transaction.get(txn_id)
     return _to_response(refreshed)  # type: ignore[arg-type]

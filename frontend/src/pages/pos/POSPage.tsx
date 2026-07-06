@@ -49,6 +49,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 import { useInfiniteProducts } from '@/hooks/useProducts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -65,12 +66,11 @@ import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE, PRODUCT_CATEGORIES, QUERY_K
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
-import { PaymentModal } from '@/components/pos/PaymentModal';
-import { CustomerPicker } from '@/components/pos/CustomerPicker';
+import { PaymentModal, type PaymentConfirmPayload } from '@/components/pos/PaymentModal';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
 import { DRAWER_COLLAPSED } from '@/layouts/Sidebar';
-import type { Product, Transaction, PaymentMethod } from '@/types';
+import type { Product, Transaction, CartItem } from '@/types';
 
 const CART_EXPANDED_WIDTH = 'clamp(300px, 38vw, 540px)';
 
@@ -86,15 +86,6 @@ const qtyBadgeSx = {
     boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
     border: '2px solid',
     borderColor: 'background.paper',
-  },
-} as const;
-
-const noNumberSpinnerSx = {
-  MozAppearance: 'textfield',
-  '& input[type=number]': { MozAppearance: 'textfield' },
-  '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-    WebkitAppearance: 'none',
-    margin: 0,
   },
 } as const;
 
@@ -460,14 +451,12 @@ export function POSPage() {
   const [supplierIdFilter, setSupplierIdFilter] = useState('');
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
-  const stockByIdRef = useRef(new Map<string, number>());
+  const cartSnapshotRef = useRef<{ items: CartItem[]; customerId: string | null } | null>(null);
   const [cartCollapsed, setCartCollapsed] = useState(isMobile);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
-  const [discountType, setDiscountType] = useState<'flat' | 'pct' | null>(null);
-  const [discountInput, setDiscountInput] = useState(0);
   const [tenderedAmount, setTenderedAmount] = useState<number | undefined>(undefined);
 
   // Quick-create customer dialog
@@ -477,7 +466,12 @@ export function POSPage() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
   const queryClient = useQueryClient();
-  const { items, addItem, removeItem, updateQuantity, customerId, setCustomer, clearCart, loyaltyPointsRedeemed } = useCartStore();
+  const { items, addItem, removeItem, updateQuantity, customerId, setCustomer, clearCart, replaceCart } = useCartStore();
+
+  const cartMutators = useMemo(
+    () => ({ updateQuantity, removeItem, addItem }),
+    [updateQuantity, removeItem, addItem],
+  );
 
   // Backspace = remove last cart item (when not typing in an input)
   useEffect(() => {
@@ -517,12 +511,6 @@ export function POSPage() {
   const products = infiniteProductsData?.pages.flatMap((p) => p.data) ?? [];
 
   useEffect(() => {
-    for (const p of products) {
-      stockByIdRef.current.set(p.id, p.stock);
-    }
-  }, [products]);
-
-  useEffect(() => {
     const el = productGridSentinelRef.current;
     if (!el || productsLoading) return;
 
@@ -559,14 +547,6 @@ export function POSPage() {
 
   const { data: discountEval } = useEvaluateDiscounts(cartItemsForDiscount, '');
 
-  const lineDiscountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const line of discountEval?.lineItems ?? []) {
-      map.set(line.productId, line.perUnitDiscount);
-    }
-    return map;
-  }, [discountEval]);
-
   const displayedProducts = useMemo(() => products
     .filter((p) => {
       if (p.stock === 0) return false;
@@ -591,23 +571,9 @@ export function POSPage() {
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const promotionLineDiscount = discountEval?.lineDiscountTotal ?? 0;
   const promotionCartDiscount = discountEval?.cartDiscount ?? 0;
-  const netAfterPromo = Math.max(0, subtotal - promotionLineDiscount - promotionCartDiscount);
-  const manualDiscount = discountType === null
-    ? 0
-    : discountType === 'pct'
-      ? Math.round(netAfterPromo * discountInput / 100 * 100) / 100
-      : Math.min(discountInput, netAfterPromo);
-  const totalDiscount = promotionLineDiscount + promotionCartDiscount + manualDiscount + loyaltyPointsRedeemed;
+  const totalDiscount = promotionLineDiscount + promotionCartDiscount;
   const total = Math.max(0, subtotal - totalDiscount);
   const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
-
-  const paymentItems = useMemo(
-    () => items.map((item) => ({
-      ...item,
-      discount: lineDiscountMap.get(item.productId) ?? 0,
-    })),
-    [items, lineDiscountMap],
-  );
 
   const paymentCustomerInfo = useMemo(() => {
     if (!customerId || !paymentCustomer) {
@@ -623,40 +589,24 @@ export function POSPage() {
     };
   }, [customerId, paymentCustomer]);
 
-  const discountBreakdown = useMemo(
-    () => ({
-      promotionLineDiscount,
-      promotionCartDiscount,
-      manualDiscount,
-      loyaltyPointsRedeemed,
-      appliedPromotions: discountEval?.appliedPromotions ?? [],
-      totalDiscount,
-    }),
-    [
-      promotionLineDiscount,
-      promotionCartDiscount,
-      manualDiscount,
-      loyaltyPointsRedeemed,
-      discountEval?.appliedPromotions,
-      totalDiscount,
-    ],
-  );
+  const openPaymentModal = useCallback(() => {
+    if (items.length === 0) return;
+    cartSnapshotRef.current = {
+      items: items.map((i) => ({ ...i })),
+      customerId,
+    };
+    setPaymentError('');
+    setPaymentOpen(true);
+  }, [items, customerId]);
 
   const handleCollapsedPay = () => {
     if (items.length === 0) return;
     setCartCollapsed(false);
-    setPaymentOpen(true);
+    openPaymentModal();
   };
 
-  // ── Stock helpers ─────────────────────────────────────────────────────────
-  const getProductStock = useCallback((productId: string): number => {
-    return stockByIdRef.current.get(productId) ?? 0;
-  }, []);
-
   const handleAddProduct = useCallback((product: Product) => {
-    if (product.stock === 0 || product.sellingPrice <= 0) return;
-    const currentQty = items.find((i) => i.productId === product.id)?.quantity ?? 0;
-    if (currentQty >= product.stock) return;
+    if (product.sellingPrice <= 0) return;
     addItem({
       productId: product.id,
       name: product.name,
@@ -667,50 +617,58 @@ export function POSPage() {
       discount: 0,
       category: product.category,
     });
-  }, [addItem, items, products]);
+  }, [addItem]);
 
   const handleQtyChange = useCallback((productId: string, newQty: number) => {
     if (isNaN(newQty) || newQty < 1) {
       updateQuantity(productId, 0);
       return;
     }
-    const stock = getProductStock(productId);
-    if (stock > 0 && newQty > stock) return;
     updateQuantity(productId, newQty);
-  }, [updateQuantity, getProductStock]);
+  }, [updateQuantity]);
 
   // ── Payment ────────────────────────────────────────────────────────────────
-  const handlePayment = async (method: PaymentMethod, tendered?: number) => {
-    if (items.length === 0) return;
+  const handlePayment = async (payload: PaymentConfirmPayload) => {
+    if (payload.items.length === 0) return;
     setPaymentError('');
-    setTenderedAmount(tendered);
+    setTenderedAmount(payload.tendered);
     setProcessing(true);
     try {
       const txn = await transactionService.create({
         customerId: customerId ?? undefined,
         customerName: paymentCustomer?.name ?? 'Walk-In',
-        items: items.map((item) => ({
-          ...item,
-          discount: lineDiscountMap.get(item.productId) ?? 0,
-        })),
-        subtotal,
-        promotionDiscount: discountEval?.promotionDiscountTotal ?? 0,
-        manualDiscount,
-        appliedPromotions: discountEval?.appliedPromotions ?? [],
-        discount: promotionCartDiscount + manualDiscount + loyaltyPointsRedeemed,
+        items: payload.items,
+        subtotal: payload.subtotal,
+        promotionDiscount: payload.promotionDiscount,
+        manualDiscount: payload.manualDiscount,
+        appliedPromotions: payload.appliedPromotions,
+        discount: payload.discount,
         tax: 0,
-        loyaltyPointsRedeemed,
-        total,
-        paymentMethod: method,
+        loyaltyPointsRedeemed: payload.loyaltyPointsRedeemed,
+        total: payload.total,
+        paymentMethod: payload.method,
+        notes: payload.notes || undefined,
         createdBy: user?.name ?? 'Cashier',
       });
-      // Keep modal open — PaymentModal switches to receipt view
       setReceipt(txn);
-      showSuccess('Sale completed successfully.');
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
+      showSuccess('Sale completed — POS and Dashboard will reflect changes shortly.');
+      for (const item of payload.items) {
+        queryClient.setQueriesData<{ data: { id: string; stock: number }[] }>(
+          { queryKey: QUERY_KEYS.products },
+          (old) => {
+            if (!old?.data) return old;
+            return {
+              ...old,
+              data: old.data.map((p) =>
+                p.id === item.productId
+                  ? { ...p, stock: Math.max(0, p.stock - item.quantity) }
+                  : p,
+              ),
+            };
+          },
+        );
+      }
+      invalidateCommerceQueries(queryClient, { scopes: ['sale'] });
     } catch (err) {
       setPaymentError(getErrorMessage(err));
     } finally {
@@ -723,8 +681,6 @@ export function POSPage() {
     setReceipt(null);
     setPaymentOpen(false);
     setSearch('');
-    setDiscountInput(0);
-    setDiscountType(null);
     setTenderedAmount(undefined);
   };
 
@@ -919,14 +875,6 @@ export function POSPage() {
               overflow: 'hidden',
             }}
           >
-        <CustomerPicker
-          customerId={customerId}
-          onCustomerChange={setCustomer}
-          onAddCustomer={() => { setCustForm(EMPTY_FORM); setCustFormError(''); setCreateOpen(true); }}
-        />
-
-        <Divider sx={{ flexShrink: 0, my: 0 }} />
-
         {/* Cart header */}
         <Box
           sx={{
@@ -950,7 +898,7 @@ export function POSPage() {
               size="small"
               color="error"
               sx={{ minWidth: 0, px: 1 }}
-              onClick={() => { clearCart(); setDiscountInput(0); setDiscountType(null); }}
+              onClick={() => clearCart()}
             >
               Clear
             </Button>
@@ -1109,81 +1057,6 @@ export function POSPage() {
             </Box>
           )}
 
-          {/* Discount: label + controls + amount (single row) */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-              minHeight: 32,
-              mb: 0.75,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, flexShrink: 0 }}>
-              Discount
-            </Typography>
-            <LocalOfferIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
-            <ToggleButtonGroup
-              value={discountType}
-              exclusive
-              size="small"
-              onChange={(_, v: 'flat' | 'pct' | null) => {
-                setDiscountType(v);
-                setDiscountInput(0);
-              }}
-              sx={{
-                flexShrink: 0,
-                '& .MuiToggleButton-root': { px: 1.25, py: 0.35, fontSize: '0.75rem', lineHeight: 1.3 },
-              }}
-            >
-              <ToggleButton value="flat">NPR</ToggleButton>
-              <ToggleButton value="pct">%</ToggleButton>
-            </ToggleButtonGroup>
-            {discountType !== null && (
-              <TextField
-                placeholder={discountType === 'pct' ? '%' : 'NPR'}
-                type="number"
-                size="small"
-                autoFocus
-                value={discountInput || ''}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value) || 0;
-                  const max = discountType === 'pct' ? 100 : netAfterPromo;
-                  setDiscountInput(Math.min(Math.max(0, v), max));
-                }}
-                slotProps={{
-                  htmlInput: {
-                    min: 0,
-                    max: discountType === 'pct' ? 100 : netAfterPromo,
-                    step: discountType === 'pct' ? 5 : 10,
-                  },
-                }}
-                sx={{
-                  width: 80,
-                  flexShrink: 0,
-                  ...noNumberSpinnerSx,
-                  '& .MuiInputBase-root': { height: 30 },
-                  '& .MuiInputBase-input': { py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'right' },
-                }}
-              />
-            )}
-            {totalDiscount > 0 && (
-              <Typography
-                variant="body2"
-                color="success.main"
-                sx={{
-                  ml: 'auto',
-                  flexShrink: 0,
-                  fontWeight: 600,
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                - {formatAmount(totalDiscount)}
-              </Typography>
-            )}
-          </Box>
-
           <Divider sx={{ mb: 0.75 }} />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>Total</Typography>
@@ -1198,7 +1071,7 @@ export function POSPage() {
           variant="contained"
           size="large"
           disabled={items.length === 0}
-          onClick={() => setPaymentOpen(true)}
+          onClick={openPaymentModal}
           sx={{ py: 1.5, fontSize: '1rem', fontWeight: 700 }}
         >
           Pay {formatCurrency(total)}
@@ -1211,10 +1084,14 @@ export function POSPage() {
       {/* ── Payment modal (transitions to receipt on success) ─────────────── */}
       <PaymentModal
         open={paymentOpen}
-        items={paymentItems}
-        summary={{ subtotal, total }}
+        items={items}
+        cartMutators={cartMutators}
+        products={products}
+        productCategoryMap={productCategoryMap}
+        customerId={customerId}
+        onCustomerChange={setCustomer}
+        onAddCustomer={() => { setCustForm(EMPTY_FORM); setCustFormError(''); setCreateOpen(true); }}
         customer={paymentCustomerInfo}
-        discountBreakdown={discountBreakdown}
         loading={processing}
         error={paymentError}
         transaction={receipt}
@@ -1224,6 +1101,10 @@ export function POSPage() {
         receiptBranding={receiptBranding}
         onConfirm={handlePayment}
         onClose={() => {
+          if (!receipt && cartSnapshotRef.current) {
+            replaceCart(cartSnapshotRef.current.items, cartSnapshotRef.current.customerId);
+            cartSnapshotRef.current = null;
+          }
           if (!receipt) setPaymentOpen(false);
         }}
         onNewSale={handleNewSale}

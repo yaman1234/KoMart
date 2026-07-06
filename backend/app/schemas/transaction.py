@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
-from app.models.transaction import PaymentMethod, TransactionItem, AppliedPromotion
+from app.models.transaction import PaymentMethod, TransactionItem, AppliedPromotion, TransactionStatus
 
 
 class TransactionCreate(BaseModel):
@@ -18,6 +18,7 @@ class TransactionCreate(BaseModel):
     total: float
     payment_method: PaymentMethod
     created_by: str
+    notes: str = Field(default="", max_length=500)
 
 
 class TransactionResponse(BaseModel):
@@ -37,6 +38,9 @@ class TransactionResponse(BaseModel):
     total: float
     total_cost: float = 0.0
     payment_method: PaymentMethod
+    status: TransactionStatus = TransactionStatus.completed
+    void_reason: str = ""
+    notes: str = ""
     created_by: str
     cashier_id: Optional[str] = None
     created_at: str
@@ -48,6 +52,11 @@ class TransactionUpdate(BaseModel):
     payment_method: Optional[PaymentMethod] = None
     discount: Optional[float] = Field(None, ge=0)
     loyalty_points_redeemed: Optional[int] = Field(None, ge=0)
+    notes: Optional[str] = Field(None, max_length=500)
+
+
+class TransactionVoidRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class TransactionItemResponse(TransactionItem):
