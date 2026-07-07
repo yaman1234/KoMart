@@ -407,16 +407,31 @@ export const mockApi = {
     await delay(600);
     const idx = purchaseOrders.findIndex((p) => p.id === id);
     if (idx === -1) throw new Error('Purchase order not found');
-    if (purchaseOrders[idx].status !== 'draft') {
-      throw new Error('Only draft purchase orders can be edited');
+    const po = purchaseOrders[idx];
+    if (po.status === 'received' || po.status === 'cancelled') {
+      throw new Error('This purchase order cannot be edited');
     }
+    if (po.status === 'ordered' && data.status === 'draft') {
+      throw new Error('Cannot revert a placed order to draft');
+    }
+
+    const receivedByProduct = new Map(po.items.map((i) => [i.productId, i.receivedQuantity]));
+    const mergedItems = data.items.map((item) => {
+      const received = receivedByProduct.get(item.productId) ?? 0;
+      if (item.quantity < received) {
+        throw new Error(`Quantity for ${item.productName} cannot be less than received quantity (${received})`);
+      }
+      const lineStatus =
+        received <= 0 ? 'pending' as const
+        : received >= item.quantity ? 'received' as const
+        : 'partial' as const;
+      return { ...item, receivedQuantity: received, lineStatus };
+    });
+
     purchaseOrders[idx] = {
-      ...purchaseOrders[idx],
+      ...po,
       ...data,
-      items: data.items.map((item) => ({
-        ...item,
-        lineStatus: 'pending' as const,
-      })),
+      items: mergedItems,
       updatedAt: new Date().toISOString(),
     };
     return purchaseOrders[idx];

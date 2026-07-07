@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import List
 
-from app.auth.dependencies import get_current_user, require_admin_only
+from app.auth.dependencies import get_current_user, require_admin_only, require_manager_or_above
 from app.auth.jwt import hash_password
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreate, UserUpdate, UserMeUpdate, UserListItem
+from app.schemas.user import UserCreate, UserUpdate, UserMeUpdate, UserListItem, AssignableUserItem
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, user_snapshot
 
@@ -38,6 +38,17 @@ async def update_me(body: UserMeUpdate, current_user: User = Depends(get_current
         await current_user.set(update_data)
     refreshed = await User.get(current_user.id)
     return _to_list_item(refreshed)  # type: ignore[arg-type]
+
+
+@router.get("/assignable", response_model=List[AssignableUserItem])
+async def list_assignable_users(_: User = Depends(require_manager_or_above)):
+    users = await User.find(User.is_active == True).to_list()  # noqa: E712
+    allowed = {UserRole.admin, UserRole.manager, UserRole.cashier}
+    return [
+        AssignableUserItem(id=str(u.id), name=u.name)
+        for u in users
+        if u.role in allowed
+    ]
 
 
 @router.get("", response_model=List[UserListItem])

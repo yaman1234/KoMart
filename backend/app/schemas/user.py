@@ -30,3 +30,8 @@ class UserListItem(BaseModel):
     role: UserRole
     is_active: bool
     created_at: str
+
+
+class AssignableUserItem(BaseModel):
+    id: str
+    name: str

@@ -338,7 +338,7 @@ async def receive_purchase_order_items(
             "batch_number": plan.batch_number,
             "quantity": plan.base_delta,
             "unit_cost": plan.landed_cost,
-            "expiry_date": plan.receive.expiry_date,
+            "expiry_date": plan.receive.expiry_date or None,
             "purchase_order_id": po_id_str,
             "received_at": now,
         })

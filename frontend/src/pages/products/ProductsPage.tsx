@@ -21,6 +21,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import GridViewIcon from '@mui/icons-material/GridView';
+import TableRowsIcon from '@mui/icons-material/TableRows';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +39,13 @@ import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useAuthStore } from '@/store';
 import type { Product, ProductStatus } from '@/types';
+import { ProductSheetView } from '@/pages/products/components/ProductSheetView';
+import { filterByStock, type StockFilter } from '@/pages/products/productStockFilter';
+
+const LIST_PAGE_SIZE = 10;
+const SHEET_PAGE_SIZE = 50;
+
+type ViewMode = 'grid' | 'list' | 'sheet';
 
 // ── Grid card ──────────────────────────────────────────────────────────────────
 interface ProductGridCardProps {
@@ -134,8 +142,6 @@ const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, 
   );
 });
 
-type StockFilter = '' | 'in' | 'low' | 'out';
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 export function ProductsPage() {
   const navigate = useNavigate();
@@ -151,7 +157,7 @@ export function ProductsPage() {
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(GRID_PAGE_SIZE);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // sentinel ref for infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -182,20 +188,15 @@ export function ProductsPage() {
   // ── Paged query (list) ──────────────────────────────────────────────────────
   const { data: pagedData, isLoading: pagedLoading } = useProducts(
     { ...sharedParams, page: page + 1, pageSize },
-    { enabled: viewMode === 'list' },
+    { enabled: viewMode === 'list' || viewMode === 'sheet' },
   );
 
   // ── Flatten infinite pages for grid ─────────────────────────────────────────
   const allGridProducts = infiniteData?.pages.flatMap((p) => p.data) ?? [];
 
-  const filteredGridProducts = allGridProducts.filter((p) => {
-    if (stockFilter === 'out') return p.stock === 0;
-    if (stockFilter === 'low') return p.stock > 0 && p.stock <= p.lowStockThreshold;
-    if (stockFilter === 'in') return p.stock > p.lowStockThreshold;
-    return true;
-  });
+  const filteredGridProducts = filterByStock(allGridProducts, stockFilter);
 
-  // ── List products (paged, server-side stock filter not available so skip) ────
+  // ── List / sheet products (paged) ───────────────────────────────────────────
   const listProducts = pagedData?.data ?? [];
 
   const discountMap = useMemo(
@@ -317,11 +318,15 @@ export function ProductsPage() {
     },
   ];
 
-  const resetFilters = (newViewMode?: 'list' | 'grid') => {
+  const resetFilters = (newViewMode?: ViewMode) => {
     setPage(0);
     if (newViewMode) {
       setViewMode(newViewMode);
-      setPageSize(newViewMode === 'grid' ? 24 : 10);
+      setPageSize(
+        newViewMode === 'grid' ? GRID_PAGE_SIZE
+        : newViewMode === 'sheet' ? SHEET_PAGE_SIZE
+        : LIST_PAGE_SIZE,
+      );
     }
   };
 
@@ -434,7 +439,7 @@ export function ProductsPage() {
           value={viewMode}
           exclusive
           size="small"
-          onChange={(_, v: 'list' | 'grid') => { if (v) resetFilters(v); }}
+          onChange={(_, v: ViewMode) => { if (v) resetFilters(v); }}
         >
           <ToggleButton value="grid" aria-label="Grid view">
             <Tooltip title="Grid view">
@@ -444,6 +449,11 @@ export function ProductsPage() {
           <ToggleButton value="list" aria-label="List view">
             <Tooltip title="List view">
               <ViewListIcon fontSize="small" />
+            </Tooltip>
+          </ToggleButton>
+          <ToggleButton value="sheet" aria-label="Sheet view">
+            <Tooltip title="Sheet view (copy for PO)">
+              <TableRowsIcon fontSize="small" />
             </Tooltip>
           </ToggleButton>
         </ToggleButtonGroup>
@@ -501,6 +511,20 @@ export function ProductsPage() {
           onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
           getRowId={(r) => r.id}
           onRowClick={(r) => navigate(`/products/${r.id}`)}
+        />
+      )}
+
+      {viewMode === 'sheet' && (
+        <ProductSheetView
+          products={listProducts}
+          loading={pagedLoading}
+          page={page}
+          pageSize={pageSize}
+          total={pagedData?.total}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+          filters={sharedParams}
+          stockFilter={stockFilter}
         />
       )}
     </Box>

@@ -1,0 +1,415 @@
+import { useCallback, useRef, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Chip,
+  IconButton,
+  MenuItem,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ContentPasteIcon from '@mui/icons-material/ContentPaste';
+import { useUomOptions } from '@/hooks/useUoms';
+import { formatCurrency } from '@/utils';
+import { showSuccess } from '@/utils/toast';
+import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
+import {
+  poFormColWidths,
+  poFormTableMinWidth,
+} from '@/pages/purchase-orders/poLineTableColumns';
+import type { PoLineItem } from '@/pages/purchase-orders/poFormTypes';
+import { emptyPoLineItem } from '@/pages/purchase-orders/poFormTypes';
+import { parseExcelPaste } from '@/pages/purchase-orders/poPasteParser';
+import {
+  resolveProductFromInput,
+  type ProductCatalogIndex,
+} from '@/pages/purchase-orders/poProductResolver';
+
+function parseQuantity(input: string): number {
+  const n = parseInt(input, 10);
+  return Number.isNaN(n) || n < 1 ? 1 : n;
+}
+
+function lineFromPaste(
+  id: number,
+  row: ReturnType<typeof parseExcelPaste>[number],
+  index: ProductCatalogIndex,
+  receivedQuantity = 0,
+): PoLineItem {
+  const product = resolveProductFromInput(row.sku, index);
+  const unitCost = row.unitCost > 0
+    ? row.unitCost
+    : product
+      ? product.costPrice * (product.unitsPerBuyUom ?? 1)
+      : 0;
+  return {
+    id,
+    skuInput: row.sku,
+    product,
+    productNameFallback: product?.name ?? '',
+    quantityInput: String(row.quantity),
+    buyUom: row.buyUom || product?.buyUom || product?.uom || 'pcs',
+    unitsPerBuyUom: row.unitsPerBuyUom || product?.unitsPerBuyUom || 1,
+    unitCost,
+    receivedQuantity,
+    resolveError: product ? undefined : 'SKU not found',
+  };
+}
+
+function resolveLineSku(line: PoLineItem, index: ProductCatalogIndex): PoLineItem {
+  if (!line.skuInput.trim()) {
+    return { ...line, product: null, productNameFallback: '', resolveError: undefined };
+  }
+  const product = resolveProductFromInput(line.skuInput, index);
+  if (!product) {
+    return { ...line, product: null, resolveError: 'SKU not found' };
+  }
+  return {
+    ...line,
+    product,
+    productNameFallback: product.name,
+    buyUom: line.buyUom || product.buyUom || product.uom || 'pcs',
+    unitsPerBuyUom: line.unitsPerBuyUom || product.unitsPerBuyUom || 1,
+    unitCost: line.unitCost > 0
+      ? line.unitCost
+      : product.costPrice * (product.unitsPerBuyUom ?? 1),
+    resolveError: undefined,
+  };
+}
+
+function ensureTrailingEmptyRow(lines: PoLineItem[], nextId: () => number): PoLineItem[] {
+  if (lines.length === 0) return [emptyPoLineItem(nextId())];
+  const last = lines[lines.length - 1];
+  if (last.skuInput.trim() || last.product) {
+    return [...lines, emptyPoLineItem(nextId())];
+  }
+  return lines;
+}
+
+export interface PoLineItemsGridProps {
+  lines: PoLineItem[];
+  onChange: (lines: PoLineItem[]) => void;
+  catalogIndex: ProductCatalogIndex;
+  pasteWarning?: string;
+  onPasteWarning?: (message: string) => void;
+}
+
+const headerSx = {
+  fontWeight: 700,
+  fontSize: '0.75rem',
+  whiteSpace: 'nowrap',
+  py: 0.75,
+  px: 1,
+  bgcolor: 'action.hover',
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+};
+
+const cellPadSx = { p: 0, borderBottom: '1px solid', borderColor: 'divider' };
+
+export function PoLineItemsGrid({
+  lines,
+  onChange,
+  catalogIndex,
+  pasteWarning,
+  onPasteWarning,
+}: PoLineItemsGridProps) {
+  const uomOptions = useUomOptions();
+  const nextIdRef = useRef(Math.max(0, ...lines.map((l) => l.id)) + 1);
+  const [focusedRow, setFocusedRow] = useState(0);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const nextId = () => {
+    nextIdRef.current += 1;
+    return nextIdRef.current;
+  };
+
+  const updateLine = (index: number, patch: Partial<PoLineItem>) => {
+    onChange(lines.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  };
+
+  const removeLine = (index: number) => {
+    const next = lines.filter((_, i) => i !== index);
+    onChange(ensureTrailingEmptyRow(next.length ? next : [emptyPoLineItem(nextId())], nextId));
+  };
+
+  const addLine = () => {
+    onChange([...lines, emptyPoLineItem(nextId())]);
+  };
+
+  const applyPaste = useCallback(
+    (text: string, startRowIndex: number) => {
+      const parsed = parseExcelPaste(text);
+      if (parsed.length === 0) return;
+
+      const next = [...lines];
+      let notFound = 0;
+
+      parsed.forEach((row, offset) => {
+        const targetIndex = startRowIndex + offset;
+        const receivedQuantity = next[targetIndex]?.receivedQuantity ?? 0;
+        if (receivedQuantity > 0) return;
+
+        const line = lineFromPaste(
+          next[targetIndex]?.id ?? nextId(),
+          row,
+          catalogIndex,
+          receivedQuantity,
+        );
+        if (!line.product) notFound += 1;
+
+        if (targetIndex < next.length) {
+          next[targetIndex] = line;
+        } else {
+          next.push(line);
+        }
+      });
+
+      onChange(ensureTrailingEmptyRow(next, nextId));
+      const msg = notFound > 0
+        ? `Pasted ${parsed.length} row(s) · ${notFound} SKU(s) not found`
+        : `Pasted ${parsed.length} row(s)`;
+      showSuccess(msg);
+      if (notFound > 0) {
+        onPasteWarning?.(`Unresolved SKUs: ${parsed.filter((r) => !resolveProductFromInput(r.sku, catalogIndex)).map((r) => r.sku).join(', ')}`);
+      } else {
+        onPasteWarning?.('');
+      }
+    },
+    [lines, onChange, catalogIndex, onPasteWarning],
+  );
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text');
+    if (!text.includes('\t') && !text.includes('\n')) return;
+    e.preventDefault();
+    applyPaste(text, focusedRow);
+  };
+
+  const handleSkuBlur = (index: number) => {
+    const resolved = resolveLineSku(lines[index], catalogIndex);
+    let next = lines.map((l, i) => (i === index ? resolved : l));
+    if (resolved.product && index === lines.length - 1) {
+      next = [...next, emptyPoLineItem(nextId())];
+    }
+    onChange(next);
+  };
+
+  return (
+    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+          px: 1.5,
+          py: 1,
+          bgcolor: 'action.hover',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          Copy from Excel: <strong>SKU · Qty · Buy UOM · Unit cost · Units/pack</strong> — click a row, then Ctrl+V
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <IconButton
+            size="small"
+            aria-label="Focus grid for paste"
+            onClick={() => tableRef.current?.focus()}
+          >
+            <ContentPasteIcon fontSize="small" />
+          </IconButton>
+          <IconButton size="small" aria-label="Add row" onClick={addLine}>
+            <AddIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {pasteWarning && (
+        <Alert severity="warning" sx={{ borderRadius: 0 }}>{pasteWarning}</Alert>
+      )}
+
+      <TableContainer
+        ref={tableRef}
+        tabIndex={0}
+        onPaste={handlePaste}
+        sx={{ overflowX: 'auto', outline: 'none' }}
+      >
+        <Table
+          size="small"
+          sx={{
+            tableLayout: 'fixed',
+            minWidth: poFormTableMinWidth(),
+            borderCollapse: 'collapse',
+          }}
+        >
+          <colgroup>
+            {poFormColWidths().map((w, i) => (
+              <col key={i} style={{ width: w, minWidth: w }} />
+            ))}
+          </colgroup>
+          <TableHead>
+            <TableRow>
+              <TableCell align="center" sx={headerSx}>#</TableCell>
+              <TableCell sx={headerSx}>SKU</TableCell>
+              <TableCell sx={headerSx}>Product</TableCell>
+              <TableCell align="right" sx={headerSx}>Qty</TableCell>
+              <TableCell sx={headerSx}>Buy UOM</TableCell>
+              <TableCell align="right" sx={headerSx}>Units/pack</TableCell>
+              <TableCell align="right" sx={headerSx}>Unit cost</TableCell>
+              <TableCell align="right" sx={headerSx}>Line total</TableCell>
+              <TableCell sx={headerSx} />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {lines.map((line, index) => {
+              const qty = parseQuantity(line.quantityInput);
+              const locked = line.receivedQuantity > 0;
+              const lineTotal = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
+
+              return (
+                <TableRow
+                  key={line.id}
+                  hover
+                  sx={{
+                    bgcolor: line.resolveError ? 'error.50' : undefined,
+                  }}
+                >
+                  <TableCell align="center" sx={{ ...cellPadSx, color: 'text.secondary', fontSize: '0.75rem', fontWeight: 700 }}>
+                    {index + 1}
+                  </TableCell>
+                  <TableCell sx={cellPadSx}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      variant="outlined"
+                      value={line.skuInput}
+                      disabled={locked}
+                      placeholder="SKU"
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) => updateLine(index, { skuInput: e.target.value, resolveError: undefined })}
+                      onBlur={() => handleSkuBlur(index)}
+                      error={!!line.resolveError}
+                      sx={excelCellSx}
+                    />
+                  </TableCell>
+                  <TableCell sx={cellPadSx}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        px: 1,
+                        py: 0.75,
+                        fontSize: '0.8125rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={line.product?.name ?? line.productNameFallback}
+                    >
+                      {line.product?.name ?? (line.resolveError ? '—' : '')}
+                    </Typography>
+                    {locked && (
+                      <Chip label={`${line.receivedQuantity} received`} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
+                    )}
+                  </TableCell>
+                  <TableCell align="right" sx={cellPadSx}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={line.quantityInput}
+                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) => updateLine(index, { quantityInput: e.target.value })}
+                      onBlur={() =>
+                        updateLine(index, { quantityInput: String(parseQuantity(line.quantityInput)) })
+                      }
+                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
+                      slotProps={{ htmlInput: { min: 1, style: { textAlign: 'right' } } }}
+                    />
+                  </TableCell>
+                  <TableCell sx={cellPadSx}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={line.buyUom}
+                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) => updateLine(index, { buyUom: e.target.value })}
+                      sx={excelCellSx}
+                    >
+                      {uomOptions.map((o) => (
+                        <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </TableCell>
+                  <TableCell align="right" sx={cellPadSx}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={line.unitsPerBuyUom}
+                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) =>
+                        updateLine(index, {
+                          unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
+                        })
+                      }
+                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
+                      slotProps={{ htmlInput: { min: 1, style: { textAlign: 'right' } } }}
+                    />
+                  </TableCell>
+                  <TableCell align="right" sx={cellPadSx}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={line.unitCost}
+                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) =>
+                        updateLine(index, { unitCost: parseFloat(e.target.value) || 0 })
+                      }
+                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
+                      slotProps={{ htmlInput: { min: 0, step: 0.01, style: { textAlign: 'right' } } }}
+                    />
+                  </TableCell>
+                  <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', pr: 0.5 }}>
+                      {lineTotal > 0 ? formatCurrency(lineTotal) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={cellPadSx}>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      disabled={locked || (lines.length === 1 && !line.skuInput && !line.product)}
+                      onClick={() => removeLine(index)}
+                      aria-label="Remove row"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Paper>
+  );
+}

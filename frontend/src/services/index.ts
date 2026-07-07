@@ -55,6 +55,7 @@ import type {
   Category,
   Uom,
   UserListItem,
+  AssignableUserItem,
   UserRole,
   AuditLog,
   AuditLogQueryParams,
@@ -629,6 +630,16 @@ export const usersService = {
   getAll: async (): Promise<UserListItem[]> => {
     const { data } = await apiClient.get('/users');
     return data as UserListItem[];
+  },
+  getAssignable: async (): Promise<AssignableUserItem[]> => {
+    if (useMock()) {
+      return [
+        { id: 'user-1', name: 'Admin User' },
+        { id: 'user-2', name: 'Manager User' },
+      ];
+    }
+    const { data } = await apiClient.get('/users/assignable');
+    return data as AssignableUserItem[];
   },
   getMe: async (): Promise<UserListItem> => {
     const { data } = await apiClient.get('/users/me');

@@ -25,6 +25,50 @@ from app.services.store_settings import get_store_settings
 router = APIRouter(prefix="/purchase-orders", tags=["Purchase Orders"])
 
 
+def _resolve_ordered_by(body_ordered_by: str | None, current_user: User, placing_order: bool) -> str | None:
+    if body_ordered_by and body_ordered_by.strip():
+        return body_ordered_by.strip()
+    if placing_order:
+        return current_user.name
+    return None
+
+
+def _po_is_editable(po: PurchaseOrder) -> bool:
+    if po.status in (POStatus.received, POStatus.cancelled):
+        return False
+    if po.status == POStatus.partial:
+        return True
+    if po.status == POStatus.ordered:
+        return all(item.received_quantity == 0 for item in po.items)
+    return po.status == POStatus.draft
+
+
+def _allowed_update_status(po: PurchaseOrder, target: POStatus) -> bool:
+    if target in (POStatus.received, POStatus.cancelled, POStatus.partial) and target != po.status:
+        if target == POStatus.partial:
+            return po.status == POStatus.partial
+        return False
+    if po.status in (POStatus.ordered, POStatus.partial) and target == POStatus.draft:
+        return False
+    return target in (POStatus.draft, POStatus.ordered, POStatus.partial)
+
+
+def _merge_items(existing: PurchaseOrder, incoming: list) -> list:
+    received_by_product = {item.product_id: item.received_quantity for item in existing.items}
+    merged = []
+    for item in incoming:
+        data = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        received = received_by_product.get(data["product_id"], 0)
+        if data["quantity"] < received:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Quantity for {data['product_name']} cannot be less than received quantity ({received})",
+            )
+        data["received_quantity"] = received
+        merged.append(data)
+    return merged
+
+
 def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
     return PurchaseOrderResponse(
         id=str(po.id),
@@ -87,8 +131,12 @@ async def create_purchase_order(
     current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
-    if body.status == POStatus.ordered:
-        po_data["ordered_by"] = current_user.name
+    placing_order = body.status == POStatus.ordered
+    ordered_by = _resolve_ordered_by(body.ordered_by, current_user, placing_order)
+    if ordered_by:
+        po_data["ordered_by"] = ordered_by
+    elif not placing_order:
+        po_data.pop("ordered_by", None)
     po = PurchaseOrder(
         order_number=await _next_po_number(),
         **po_data,
@@ -124,24 +172,35 @@ async def update_purchase_order(
     po = await PurchaseOrder.get(po_id)
     if not po:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
-    if po.status != POStatus.draft:
+    if not _po_is_editable(po):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Only draft purchase orders can be edited",
+            detail="Only draft, ordered, or partial purchase orders can be edited",
         )
-    if body.status not in (POStatus.draft, POStatus.ordered):
+    if not _allowed_update_status(po, body.status):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Draft orders can only be saved as draft or placed as ordered",
+            detail="Invalid status for this purchase order update",
         )
 
     before = po_snapshot(po)
+    try:
+        merged_items = _merge_items(po, body.items)
+    except HTTPException:
+        raise
+
     updates: dict = {
         **body.model_dump(),
+        "items": merged_items,
         "updated_at": datetime.now(timezone.utc),
     }
-    if body.status == POStatus.ordered and not po.ordered_by:
-        updates["ordered_by"] = current_user.name
+    placing_order = body.status == POStatus.ordered
+    if body.ordered_by and body.ordered_by.strip():
+        updates["ordered_by"] = body.ordered_by.strip()
+    elif placing_order:
+        resolved = _resolve_ordered_by(None, current_user, True)
+        if resolved:
+            updates["ordered_by"] = resolved
 
     await po.set(updates)
     refreshed = await PurchaseOrder.get(po_id)

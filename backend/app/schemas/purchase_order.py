@@ -36,6 +36,7 @@ class PurchaseOrderCreate(BaseModel):
     total_amount: float = Field(ge=0)
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
+    ordered_by: Optional[str] = None
 
 
 class PurchaseOrderUpdate(BaseModel):
@@ -45,6 +46,7 @@ class PurchaseOrderUpdate(BaseModel):
     total_amount: float = Field(ge=0)
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
+    ordered_by: Optional[str] = None
 
 
 class PurchaseOrderStatusUpdate(BaseModel):
@@ -54,7 +56,7 @@ class PurchaseOrderStatusUpdate(BaseModel):
 class PurchaseOrderReceiveItem(BaseModel):
     product_id: str
     receive_quantity: int = Field(ge=1)
-    expiry_date: str
+    expiry_date: Optional[str] = None
     units_per_buy_uom: int | None = Field(default=None, ge=1)
 
 

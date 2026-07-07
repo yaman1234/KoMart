@@ -28,6 +28,11 @@ export interface UserListItem {
   createdAt: string;
 }
 
+export interface AssignableUserItem {
+  id: string;
+  name: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -319,7 +324,7 @@ export interface PurchaseOrder {
 export interface PurchaseOrderReceiveItem {
   productId: string;
   receiveQuantity: number;
-  expiryDate: string;
+  expiryDate?: string;
   unitsPerBuyUom?: number;
 }
 
