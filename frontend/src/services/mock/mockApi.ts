@@ -460,17 +460,21 @@ export const mockApi = {
     const updatedItems = po.items.map((item) => {
       const receive = items.find((r) => r.productId === item.productId);
       if (!receive) return item;
-      const remaining = item.quantity - item.receivedQuantity;
-      const delta = Math.min(receive.receiveQuantity, remaining);
-      if (delta > 0) {
-        applyMockStockDelta(item.productId, delta);
-      }
+      const delta = receive.receiveQuantity;
+      if (delta <= 0) return item;
+      const units = receive.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
+      applyMockStockDelta(item.productId, delta * units);
       const receivedQuantity = item.receivedQuantity + delta;
       const lineStatus: PurchaseOrderLineStatus =
         receivedQuantity <= 0 ? 'pending'
         : receivedQuantity >= item.quantity ? 'received'
         : 'partial';
-      return { ...item, receivedQuantity, lineStatus };
+      return {
+        ...item,
+        receivedQuantity,
+        unitsPerBuyUom: receive.unitsPerBuyUom ?? item.unitsPerBuyUom,
+        lineStatus,
+      };
     });
 
     const allReceived = updatedItems.every((i) => i.receivedQuantity >= i.quantity);

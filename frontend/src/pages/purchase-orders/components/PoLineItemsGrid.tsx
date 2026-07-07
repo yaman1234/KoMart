@@ -33,6 +33,63 @@ import {
   resolveProductFromInput,
   type ProductCatalogIndex,
 } from '@/pages/purchase-orders/poProductResolver';
+import { PO_LABELS, PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
+
+const EDITABLE_COLS = [0, 1, 2, 3, 4] as const;
+type EditableCol = (typeof EDITABLE_COLS)[number];
+
+function focusPoCell(container: HTMLElement | null, row: number, col: EditableCol) {
+  const el = container?.querySelector<HTMLElement>(`[data-po-row="${row}"][data-po-col="${col}"]`);
+  const input = el?.matches('input, select, textarea')
+    ? el
+    : el?.querySelector<HTMLElement>('input, select, textarea');
+  input?.focus();
+  if (input instanceof HTMLInputElement && input.type !== 'date') {
+    input.select();
+  }
+}
+
+function handleSpreadsheetKeyDown(
+  e: React.KeyboardEvent,
+  rowIndex: number,
+  colIndex: EditableCol,
+  rowCount: number,
+  container: HTMLElement | null,
+) {
+  const key = e.key;
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) return;
+
+  const colIdx = EDITABLE_COLS.indexOf(colIndex);
+  let nextRow = rowIndex;
+  let nextCol = colIndex;
+
+  if (key === 'ArrowRight') {
+    if (colIdx < EDITABLE_COLS.length - 1) nextCol = EDITABLE_COLS[colIdx + 1];
+    else return;
+  } else if (key === 'ArrowLeft') {
+    if (colIdx > 0) nextCol = EDITABLE_COLS[colIdx - 1];
+    else return;
+  } else if (key === 'ArrowDown' || key === 'Enter') {
+    if (rowIndex < rowCount - 1) nextRow = rowIndex + 1;
+    else return;
+  } else if (key === 'ArrowUp') {
+    if (rowIndex > 0) nextRow = rowIndex - 1;
+    else return;
+  }
+
+  e.preventDefault();
+  focusPoCell(container, nextRow, nextCol);
+}
+
+function poCellKeyDown(
+  e: React.KeyboardEvent,
+  rowIndex: number,
+  colIndex: EditableCol,
+  rowCount: number,
+  container: HTMLElement | null,
+) {
+  handleSpreadsheetKeyDown(e, rowIndex, colIndex, rowCount, container);
+}
 
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
@@ -221,7 +278,7 @@ export function PoLineItemsGrid({
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          Copy from Excel: <strong>SKU · Qty · Buy UOM · Unit cost · Units/pack</strong> — click a row, then Ctrl+V
+          Copy from Excel: <strong>{PO_PASTE_HINT}</strong> — click a row, then Ctrl+V
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           <IconButton
@@ -263,13 +320,13 @@ export function PoLineItemsGrid({
           <TableHead>
             <TableRow>
               <TableCell align="center" sx={headerSx}>#</TableCell>
-              <TableCell sx={headerSx}>SKU</TableCell>
-              <TableCell sx={headerSx}>Product</TableCell>
-              <TableCell align="right" sx={headerSx}>Qty</TableCell>
-              <TableCell sx={headerSx}>Buy UOM</TableCell>
-              <TableCell align="right" sx={headerSx}>Units/pack</TableCell>
-              <TableCell align="right" sx={headerSx}>Unit cost</TableCell>
-              <TableCell align="right" sx={headerSx}>Line total</TableCell>
+              <TableCell sx={headerSx}>{PO_LABELS.sku}</TableCell>
+              <TableCell sx={headerSx}>{PO_LABELS.product}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.packQty}</TableCell>
+              <TableCell sx={headerSx}>{PO_LABELS.buyUom}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.unitsPerPack}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.unitCost}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.lineTotal}</TableCell>
               <TableCell sx={headerSx} />
             </TableRow>
           </TableHead>
@@ -301,8 +358,12 @@ export function PoLineItemsGrid({
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { skuInput: e.target.value, resolveError: undefined })}
                       onBlur={() => handleSkuBlur(index)}
+                      onKeyDown={(e) => poCellKeyDown(e, index, 0, lines.length, tableRef.current)}
                       error={!!line.resolveError}
                       sx={excelCellSx}
+                      slotProps={{
+                        htmlInput: { 'data-po-row': index, 'data-po-col': 0 },
+                      }}
                     />
                   </TableCell>
                   <TableCell sx={cellPadSx}>
@@ -336,8 +397,16 @@ export function PoLineItemsGrid({
                       onBlur={() =>
                         updateLine(index, { quantityInput: String(parseQuantity(line.quantityInput)) })
                       }
+                      onKeyDown={(e) => poCellKeyDown(e, index, 1, lines.length, tableRef.current)}
                       sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
-                      slotProps={{ htmlInput: { min: 1, style: { textAlign: 'right' } } }}
+                      slotProps={{
+                        htmlInput: {
+                          min: 1,
+                          style: { textAlign: 'right' },
+                          'data-po-row': index,
+                          'data-po-col': 1,
+                        },
+                      }}
                     />
                   </TableCell>
                   <TableCell sx={cellPadSx}>
@@ -349,7 +418,11 @@ export function PoLineItemsGrid({
                       disabled={locked || (!line.product && !line.skuInput.trim())}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { buyUom: e.target.value })}
+                      onKeyDown={(e) => poCellKeyDown(e, index, 2, lines.length, tableRef.current)}
                       sx={excelCellSx}
+                      slotProps={{
+                        htmlInput: { 'data-po-row': index, 'data-po-col': 2 },
+                      }}
                     >
                       {uomOptions.map((o) => (
                         <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
@@ -369,8 +442,16 @@ export function PoLineItemsGrid({
                           unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
                         })
                       }
+                      onKeyDown={(e) => poCellKeyDown(e, index, 3, lines.length, tableRef.current)}
                       sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
-                      slotProps={{ htmlInput: { min: 1, style: { textAlign: 'right' } } }}
+                      slotProps={{
+                        htmlInput: {
+                          min: 1,
+                          style: { textAlign: 'right' },
+                          'data-po-row': index,
+                          'data-po-col': 3,
+                        },
+                      }}
                     />
                   </TableCell>
                   <TableCell align="right" sx={cellPadSx}>
@@ -384,8 +465,17 @@ export function PoLineItemsGrid({
                       onChange={(e) =>
                         updateLine(index, { unitCost: parseFloat(e.target.value) || 0 })
                       }
+                      onKeyDown={(e) => poCellKeyDown(e, index, 4, lines.length, tableRef.current)}
                       sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
-                      slotProps={{ htmlInput: { min: 0, step: 0.01, style: { textAlign: 'right' } } }}
+                      slotProps={{
+                        htmlInput: {
+                          min: 0,
+                          step: 0.01,
+                          style: { textAlign: 'right' },
+                          'data-po-row': index,
+                          'data-po-col': 4,
+                        },
+                      }}
                     />
                   </TableCell>
                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>

@@ -1,12 +1,13 @@
 import { productStatusLabel } from '@/utils';
 import type { Product } from '@/types';
+import { PO_LABELS } from '@/pages/purchase-orders/poTerminology';
 
 export const PRODUCT_SHEET_HEADERS = [
   'SKU',
-  'Qty',
-  'Buy UOM',
-  'Unit cost',
-  'Units/pack',
+  PO_LABELS.packQty,
+  PO_LABELS.buyUom,
+  PO_LABELS.unitCost,
+  PO_LABELS.unitsPerPack,
   'Name',
   'Category',
   'Brand',

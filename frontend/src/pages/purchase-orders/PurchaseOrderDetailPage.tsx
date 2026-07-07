@@ -12,7 +12,6 @@ import {
   TableHead,
   TableRow,
   TableContainer,
-  LinearProgress,
   CircularProgress,
   Alert,
   MenuItem,
@@ -30,7 +29,6 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
-import { UomStockLabel } from '@/components/uom/UomUi';
 import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
@@ -38,7 +36,6 @@ import {
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, formatDate, canManagePurchaseOrders } from '@/utils';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
-import { formatStockQty } from '@/utils/uomDisplay';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { PO_STATUS_LABELS, PO_LINE_STATUS_LABELS } from '@/constants';
@@ -49,6 +46,7 @@ import {
   poDetailFlatColWidths,
   poDetailTableMinWidth,
 } from '@/pages/purchase-orders/poLineTableColumns';
+import { PO_LABELS, PO_RECEIVE_HINT } from '@/pages/purchase-orders/poTerminology';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
   draft: 'default', ordered: 'warning', partial: 'info', received: 'success', cancelled: 'error',
@@ -101,10 +99,7 @@ export function PurchaseOrderDetailPage() {
     });
   };
 
-  const receivableItems = useMemo(
-    () => (po ? po.items.filter((item) => item.quantity - item.receivedQuantity > 0) : []),
-    [po],
-  );
+  const receivableItems = useMemo(() => po?.items ?? [], [po]);
 
   const selectAllState = useMemo(() => {
     if (receivableItems.length === 0) return { checked: false, indeterminate: false };
@@ -123,8 +118,8 @@ export function PurchaseOrderDetailPage() {
       const next = { ...prev };
       for (const item of receivableItems) {
         const remaining = item.quantity - item.receivedQuantity;
-        const base = next[item.productId] ?? { receiveQuantity: remaining, expiryDate: '', selected: false };
-        next[item.productId] = { ...base, selected: checked, receiveQuantity: remaining || 1 };
+        const base = next[item.productId] ?? { receiveQuantity: remaining > 0 ? remaining : 1, expiryDate: '', selected: false };
+        next[item.productId] = { ...base, selected: checked, receiveQuantity: remaining > 0 ? remaining : 1 };
       }
       return next;
     });
@@ -136,14 +131,14 @@ export function PurchaseOrderDetailPage() {
       .filter((item) => {
         const remaining = item.quantity - item.receivedQuantity;
         const sel = getReceiveSelection(item.productId, remaining);
-        return remaining > 0 && sel.selected && sel.receiveQuantity > 0;
+        return sel.selected && sel.receiveQuantity > 0;
       })
       .map((item) => {
         const remaining = item.quantity - item.receivedQuantity;
         const sel = getReceiveSelection(item.productId, remaining);
         const payload: PurchaseOrderReceiveItem = {
           productId: item.productId,
-          receiveQuantity: Math.min(sel.receiveQuantity, remaining),
+          receiveQuantity: sel.receiveQuantity,
         };
         if (sel.expiryDate) payload.expiryDate = sel.expiryDate;
         const lineUnits = item.unitsPerBuyUom ?? 1;
@@ -171,7 +166,7 @@ export function PurchaseOrderDetailPage() {
   const handleReceive = async () => {
     if (!po) return;
     if (itemsToReceive.length === 0) {
-      setReceiveError('Select at least one item with a receive quantity');
+      setReceiveError('Select at least one item with a pack qty');
       return;
     }
     setReceiveError('');
@@ -328,7 +323,7 @@ export function PurchaseOrderDetailPage() {
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
             {canReceive && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                Receive qty is in buy UOM; stock increases in base units.
+                {PO_RECEIVE_HINT}
               </Typography>
             )}
           </Box>
@@ -367,31 +362,33 @@ export function PurchaseOrderDetailPage() {
                 )}
                 <TableCell align="center" sx={headerCellSx}>#</TableCell>
                 <TableCell sx={headerCellSx}>Product</TableCell>
-                <TableCell align="right" sx={headerCellSx}>Ordered</TableCell>
-                <TableCell align="right" sx={headerCellSx}>Received</TableCell>
-                {canReceive && <TableCell align="right" sx={headerCellSx}>Receive qty</TableCell>}
-                {canReceive && <TableCell sx={headerCellSx}>Expiry (optional)</TableCell>}
-                <TableCell sx={headerCellSx}>Progress</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.ordered}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.received}</TableCell>
+                {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packQty}</TableCell>}
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitsPerPack}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.totalUnits}</TableCell>
+                {canReceive && <TableCell sx={headerCellSx}>{PO_LABELS.expiryOptional}</TableCell>}
                 <TableCell sx={headerCellSx}>Status</TableCell>
-                <TableCell align="right" sx={headerCellSx}>Unit cost</TableCell>
-                <TableCell align="right" sx={headerCellSx}>Line total</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {po.items.map((item, index) => {
                 const remaining = item.quantity - item.receivedQuantity;
-                const pct = item.quantity > 0 ? (item.receivedQuantity / item.quantity) * 100 : 0;
                 const receiveSel = getReceiveSelection(item.productId, remaining);
                 const orderUom = item.orderUom ?? 'pcs';
-                const baseUom = item.baseUom ?? 'pcs';
                 const unitsPerBuy = receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
-                const baseOrdered = item.quantity * (item.unitsPerBuyUom ?? 1);
-                const receiveBasePreview = receiveSel.selected ? receiveSel.receiveQuantity * unitsPerBuy : 0;
+                const orderedTotalUnits = item.quantity * (item.unitsPerBuyUom ?? 1);
+                const receiveTotalUnits = receiveSel.selected
+                  ? receiveSel.receiveQuantity * unitsPerBuy
+                  : 0;
                 const lineStatus = item.lineStatus ?? (
                   item.receivedQuantity <= 0 ? 'pending'
                   : item.receivedQuantity >= item.quantity ? 'received'
                   : 'partial'
                 );
+                const defaultPackQty = remaining > 0 ? remaining : 1;
 
                 return (
                   <TableRow key={item.productId} selected={canReceive && receiveSel.selected}>
@@ -399,12 +396,12 @@ export function PurchaseOrderDetailPage() {
                       <TableCell padding="checkbox">
                         <Checkbox
                           size="small"
-                          disabled={remaining <= 0}
-                          checked={receiveSel.selected && remaining > 0}
+                          checked={receiveSel.selected}
                           onChange={(e) =>
                             updateReceiveSelection(item.productId, remaining, {
                               selected: e.target.checked,
-                              receiveQuantity: receiveSel.receiveQuantity || remaining,
+                              receiveQuantity: receiveSel.receiveQuantity || defaultPackQty,
+                              unitsPerBuyUom: receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1,
                             })
                           }
                         />
@@ -420,7 +417,7 @@ export function PurchaseOrderDetailPage() {
                         {item.productName}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {item.quantity} {orderUom} · {formatStockQty(baseOrdered, baseUom)} stock
+                        {item.quantity} {orderUom} · {orderedTotalUnits} {PO_LABELS.totalUnits.toLowerCase()}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">{item.quantity}</TableCell>
@@ -431,22 +428,39 @@ export function PurchaseOrderDetailPage() {
                           size="small"
                           type="number"
                           value={receiveSel.receiveQuantity}
-                          disabled={!receiveSel.selected || remaining <= 0}
+                          disabled={!receiveSel.selected}
                           onChange={(e) =>
                             updateReceiveSelection(item.productId, remaining, {
-                              receiveQuantity: Math.min(remaining, Math.max(1, parseInt(e.target.value, 10) || 1)),
+                              receiveQuantity: Math.max(1, parseInt(e.target.value, 10) || 1),
                             })
                           }
                           sx={{ width: '100%', minWidth: 72 }}
-                          slotProps={{ htmlInput: { min: 1, max: remaining } }}
+                          slotProps={{ htmlInput: { min: 1 } }}
                         />
-                        {receiveSel.selected && receiveBasePreview > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            Base: <UomStockLabel qty={receiveBasePreview} baseUom={baseUom} />
-                          </Typography>
-                        )}
                       </TableCell>
                     )}
+                    <TableCell align="right">
+                      {canReceive ? (
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={unitsPerBuy}
+                          disabled={!receiveSel.selected}
+                          onChange={(e) =>
+                            updateReceiveSelection(item.productId, remaining, {
+                              unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            })
+                          }
+                          sx={{ width: '100%', minWidth: 72 }}
+                          slotProps={{ htmlInput: { min: 1 } }}
+                        />
+                      ) : (
+                        item.unitsPerBuyUom ?? 1
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {canReceive ? (receiveSel.selected ? receiveTotalUnits : '—') : orderedTotalUnits}
+                    </TableCell>
                     {canReceive && (
                       <TableCell>
                         <TextField
@@ -454,7 +468,7 @@ export function PurchaseOrderDetailPage() {
                           type="date"
                           label="Expiry"
                           value={receiveSel.expiryDate}
-                          disabled={!receiveSel.selected || remaining <= 0}
+                          disabled={!receiveSel.selected}
                           onChange={(e) =>
                             updateReceiveSelection(item.productId, remaining, { expiryDate: e.target.value })
                           }
@@ -467,19 +481,6 @@ export function PurchaseOrderDetailPage() {
                         />
                       </TableCell>
                     )}
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <LinearProgress
-                          variant="determinate"
-                          value={pct}
-                          sx={{ flex: 1, height: 6, borderRadius: 1, minWidth: 48 }}
-                          color={pct === 100 ? 'success' : 'primary'}
-                        />
-                        <Typography variant="caption" sx={{ minWidth: 28, textAlign: 'right' }}>
-                          {pct.toFixed(0)}%
-                        </Typography>
-                      </Box>
-                    </TableCell>
                     <TableCell>
                       <Chip label={PO_LINE_STATUS_LABELS[lineStatus]} size="small" color={LINE_STATUS_COLORS[lineStatus]} />
                     </TableCell>

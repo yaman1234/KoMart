@@ -35,6 +35,7 @@ import {
   productSheetColWidths,
   productSheetTableMinWidth,
 } from '@/pages/products/productSheetColumns';
+import { PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
 
 export interface ProductSheetViewProps {
   products: Product[];
@@ -199,7 +200,7 @@ export function ProductSheetView({
           Sheet view — copy rows for Purchase Orders
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-          PO columns: SKU · Qty · Buy UOM · Unit cost · Units/pack — paste into PO line grid with Ctrl+V
+          PO columns: {PO_PASTE_HINT} — paste into PO line grid with Ctrl+V
         </Typography>
         {stockFilter && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>

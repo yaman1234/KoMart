@@ -219,11 +219,7 @@ async def receive_purchase_order_items(
             )
 
         item = updated_items[idx]
-        remaining = item.quantity - item.received_quantity
-        if remaining <= 0:
-            continue
-
-        buy_delta = min(receive.receive_quantity, remaining)
+        buy_delta = receive.receive_quantity
         if buy_delta <= 0:
             continue
 

@@ -34,9 +34,10 @@ export const PO_DETAIL_FLAT_COLUMNS = {
   product: 220,
   ordered: 80,
   received: 80,
-  receiveQty: 100,
+  packQty: 88,
+  unitsPerPack: 88,
+  totalUnits: 96,
   expiry: 130,
-  progress: 110,
   status: 90,
   unitCost: 90,
   lineTotal: 100,
@@ -51,10 +52,16 @@ export function poDetailFlatColWidths(canReceive: boolean): number[] {
     PO_DETAIL_FLAT_COLUMNS.received,
   ];
   if (canReceive) {
-    widths.push(PO_DETAIL_FLAT_COLUMNS.receiveQty, PO_DETAIL_FLAT_COLUMNS.expiry);
+    widths.push(
+      PO_DETAIL_FLAT_COLUMNS.packQty,
+      PO_DETAIL_FLAT_COLUMNS.unitsPerPack,
+      PO_DETAIL_FLAT_COLUMNS.totalUnits,
+      PO_DETAIL_FLAT_COLUMNS.expiry,
+    );
+  } else {
+    widths.push(PO_DETAIL_FLAT_COLUMNS.unitsPerPack, PO_DETAIL_FLAT_COLUMNS.totalUnits);
   }
   widths.push(
-    PO_DETAIL_FLAT_COLUMNS.progress,
     PO_DETAIL_FLAT_COLUMNS.status,
     PO_DETAIL_FLAT_COLUMNS.unitCost,
     PO_DETAIL_FLAT_COLUMNS.lineTotal,
@@ -63,5 +70,5 @@ export function poDetailFlatColWidths(canReceive: boolean): number[] {
 }
 
 export function poDetailTableMinWidth(canReceive: boolean): number {
-  return canReceive ? 1050 : 820;
+  return canReceive ? 1100 : 900;
 }

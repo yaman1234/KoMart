@@ -7,7 +7,7 @@ export interface ParsedPasteRow {
 }
 
 const HEADER_SKU = new Set(['sku', 'product sku', 'code']);
-const HEADER_QTY = new Set(['qty', 'quantity', 'order qty', 'order quantity']);
+const HEADER_QTY = new Set(['qty', 'quantity', 'order qty', 'order quantity', 'pack qty']);
 const HEADER_UOM = new Set(['buy uom', 'uom', 'buyuom']);
 const HEADER_COST = new Set(['unit cost', 'unitcost', 'cost', 'price']);
 
