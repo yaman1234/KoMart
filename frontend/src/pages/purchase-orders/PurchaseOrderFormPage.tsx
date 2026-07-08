@@ -17,7 +17,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import dayjs from 'dayjs';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { DROPDOWN_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useSuppliers } from '@/hooks/useSuppliers';
@@ -36,6 +36,7 @@ import { useAuthStore } from '@/store';
 import type { Product, PurchaseOrderItem, PurchaseOrderStatus } from '@/types';
 import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsGrid';
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
+import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
 
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
@@ -88,11 +89,13 @@ const tomorrow = () => dayjs().add(1, 'day').startOf('day');
 
 export function PurchaseOrderFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const currentUser = useAuthStore((s) => s.user);
   const canManage = canManagePurchaseOrders(currentUser?.role);
   const nextLineId = useRef(0);
+  const prefillApplied = useRef(false);
 
   const [supplierId, setSupplierId] = useState('');
   const [expectedDelivery, setExpectedDelivery] = useState('');
@@ -126,6 +129,20 @@ export function PurchaseOrderFormPage() {
       setOrderedBy(currentUser.name);
     }
   }, [currentUser, isEdit, orderedBy]);
+
+  useEffect(() => {
+    if (isEdit || prefillApplied.current) return;
+    const state = location.state as { prefillProducts?: Product[] } | null;
+    const prefill = state?.prefillProducts;
+    if (!prefill?.length) return;
+
+    prefillApplied.current = true;
+    const loaded = productsToPoLines(prefill, nextLineId.current);
+    nextLineId.current += loaded.length;
+    nextLineId.current += 1;
+    setLines([...loaded, emptyPoLineItem(nextLineId.current)]);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [isEdit, location.pathname, location.state, navigate]);
 
   useEffect(() => {
     if (!isEdit || !existingPo || formLoaded || catalogLoading) return;

@@ -34,7 +34,7 @@ import { useProducts, useInfiniteProducts } from '@/hooks/useProducts';
 import { useDiscountRules } from '@/hooks/useDiscounts';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
-import { isAdminOrManager, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
+import { isAdminOrManager, canManagePurchaseOrders, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useAuthStore } from '@/store';
@@ -147,6 +147,7 @@ export function ProductsPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const canManage = isAdminOrManager(user?.role);
+  const canCreatePo = canManagePurchaseOrders(user?.role);
   const dbCategories = useCategoryNames();
   const categoryOptions = dbCategories.length > 0 ? dbCategories : [...PRODUCT_CATEGORIES];
   const [search, setSearch] = useState('');
@@ -525,6 +526,7 @@ export function ProductsPage() {
           onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
           filters={sharedParams}
           stockFilter={stockFilter}
+          canCreatePo={canCreatePo}
         />
       )}
     </Box>

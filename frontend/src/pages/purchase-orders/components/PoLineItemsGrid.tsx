@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   Box,
-  Chip,
   IconButton,
   MenuItem,
   Paper,
@@ -30,10 +29,12 @@ import type { PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { emptyPoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { parseExcelPaste } from '@/pages/purchase-orders/poPasteParser';
 import {
+  applyProductToLine,
   resolveProductFromInput,
   type ProductCatalogIndex,
 } from '@/pages/purchase-orders/poProductResolver';
 import { PO_LABELS, PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
+import { PoProductAutocompleteCell } from '@/pages/purchase-orders/components/PoProductAutocompleteCell';
 
 const EDITABLE_COLS = [0, 1, 2, 3, 4] as const;
 type EditableCol = (typeof EDITABLE_COLS)[number];
@@ -130,17 +131,7 @@ function resolveLineSku(line: PoLineItem, index: ProductCatalogIndex): PoLineIte
   if (!product) {
     return { ...line, product: null, resolveError: 'SKU not found' };
   }
-  return {
-    ...line,
-    product,
-    productNameFallback: product.name,
-    buyUom: line.buyUom || product.buyUom || product.uom || 'pcs',
-    unitsPerBuyUom: line.unitsPerBuyUom || product.unitsPerBuyUom || 1,
-    unitCost: line.unitCost > 0
-      ? line.unitCost
-      : product.costPrice * (product.unitsPerBuyUom ?? 1),
-    resolveError: undefined,
-  };
+  return applyProductToLine(line, product);
 }
 
 function ensureTrailingEmptyRow(lines: PoLineItem[], nextId: () => number): PoLineItem[] {
@@ -250,6 +241,14 @@ export function PoLineItemsGrid({
     if (!text.includes('\t') && !text.includes('\n')) return;
     e.preventDefault();
     applyPaste(text, focusedRow);
+  };
+
+  const handleProductChange = (index: number, updatedLine: PoLineItem) => {
+    let next = lines.map((l, i) => (i === index ? updatedLine : l));
+    if (updatedLine.product && index === lines.length - 1) {
+      next = [...next, emptyPoLineItem(nextId())];
+    }
+    onChange(next);
   };
 
   const handleSkuBlur = (index: number) => {
@@ -367,23 +366,13 @@ export function PoLineItemsGrid({
                     />
                   </TableCell>
                   <TableCell sx={cellPadSx}>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        px: 1,
-                        py: 0.75,
-                        fontSize: '0.8125rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={line.product?.name ?? line.productNameFallback}
-                    >
-                      {line.product?.name ?? (line.resolveError ? '—' : '')}
-                    </Typography>
-                    {locked && (
-                      <Chip label={`${line.receivedQuantity} received`} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
-                    )}
+                    <PoProductAutocompleteCell
+                      line={line}
+                      catalogIndex={catalogIndex}
+                      disabled={locked}
+                      onFocus={() => setFocusedRow(index)}
+                      onLineChange={(updated) => handleProductChange(index, updated)}
+                    />
                   </TableCell>
                   <TableCell align="right" sx={cellPadSx}>
                     <TextField

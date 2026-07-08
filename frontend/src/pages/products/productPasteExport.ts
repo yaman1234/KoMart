@@ -4,22 +4,22 @@ import { PO_LABELS } from '@/pages/purchase-orders/poTerminology';
 
 export const PRODUCT_SHEET_HEADERS = [
   'SKU',
+  'Name',
   PO_LABELS.packQty,
   PO_LABELS.buyUom,
-  PO_LABELS.unitCost,
   PO_LABELS.unitsPerPack,
-  'Name',
-  'Category',
-  'Brand',
-  'Supplier',
-  'Stock',
+  PO_LABELS.unitCost,
   'Base UOM',
   'Cost (base)',
   'Sell price',
+  'Stock',
+  'Category',
+  'Brand',
+  'Supplier',
   'Status',
 ] as const;
 
-export const PO_PASTE_COLUMN_COUNT = 5;
+export const PO_PASTE_COLUMN_COUNT = 6;
 
 export function buyUnitCost(product: Product): number {
   return product.costPrice * (product.unitsPerBuyUom ?? 1);
@@ -32,18 +32,18 @@ function formatCost(value: number): string {
 export function productToSheetCells(product: Product): string[] {
   return [
     product.sku ?? '',
+    product.name,
     '1',
     product.buyUom ?? product.uom ?? 'pcs',
-    formatCost(buyUnitCost(product)),
     String(product.unitsPerBuyUom ?? 1),
-    product.name,
-    product.category ?? '',
-    product.brand ?? '',
-    product.supplierName ?? '',
-    String(product.stock ?? 0),
+    formatCost(buyUnitCost(product)),
     product.uom ?? 'pcs',
     formatCost(product.costPrice ?? 0),
     formatCost(product.sellingPrice ?? 0),
+    String(product.stock ?? 0),
+    product.category ?? '',
+    product.brand ?? '',
+    product.supplierName ?? '',
     productStatusLabel(product.status),
   ];
 }

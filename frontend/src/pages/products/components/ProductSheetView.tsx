@@ -16,6 +16,8 @@ import {
   Typography,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { useNavigate } from 'react-router-dom';
 import { productService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
 import type { ListQueryParams, Product } from '@/types';
@@ -29,13 +31,14 @@ import {
   type StockFilter,
 } from '@/pages/products/productStockFilter';
 import {
+  EXTRA_COLUMN_START_INDEX,
   isPoPasteHeader,
   isSheetColumnRightAligned,
   PRODUCT_SHEET_HEADERS,
   productSheetColWidths,
   productSheetTableMinWidth,
 } from '@/pages/products/productSheetColumns';
-import { PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
+import { PO_LABELS } from '@/pages/purchase-orders/poTerminology';
 
 export interface ProductSheetViewProps {
   products: Product[];
@@ -47,6 +50,7 @@ export interface ProductSheetViewProps {
   onPageSizeChange: (size: number) => void;
   filters: ListQueryParams;
   stockFilter?: StockFilter;
+  canCreatePo?: boolean;
 }
 
 const headerSx = {
@@ -101,7 +105,9 @@ export function ProductSheetView({
   onPageSizeChange,
   filters,
   stockFilter,
+  canCreatePo = false,
 }: ProductSheetViewProps) {
+  const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copying, setCopying] = useState(false);
 
@@ -121,6 +127,13 @@ export function ProductSheetView({
     displayProducts.length > 0 && displayProducts.every((p) => selectedIds.has(p.id));
   const somePageSelected =
     displayProducts.some((p) => selectedIds.has(p.id)) && !allPageSelected;
+
+  const selectedWithSku = useMemo(
+    () => displayProducts.filter(
+      (p) => selectedIds.has(p.id) && (p.sku ?? '').trim().length > 0,
+    ),
+    [displayProducts, selectedIds],
+  );
 
   const toggleAll = (checked: boolean) => {
     if (!checked) {
@@ -182,6 +195,14 @@ export function ProductSheetView({
     }
   };
 
+  const handleCreatePurchaseOrder = () => {
+    if (selectedWithSku.length === 0) {
+      showWarning('Select at least one product with a SKU');
+      return;
+    }
+    navigate('/purchase-orders/new', { state: { prefillProducts: selectedWithSku } });
+  };
+
   const colAlign = (index: number): 'left' | 'right' =>
     isSheetColumnRightAligned(index) ? 'right' : 'left';
 
@@ -200,7 +221,7 @@ export function ProductSheetView({
           Sheet view — copy rows for Purchase Orders
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-          PO columns: {PO_PASTE_HINT} — paste into PO line grid with Ctrl+V
+          PO paste columns: SKU · Name · {PO_LABELS.packQty} · {PO_LABELS.buyUom} · {PO_LABELS.unitsPerPack} · {PO_LABELS.unitCost} — paste into PO line grid with Ctrl+V
         </Typography>
         {stockFilter && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
@@ -235,6 +256,18 @@ export function ProductSheetView({
           >
             Copy all filtered
           </Button>
+          {canCreatePo && (
+            <Button
+              size="small"
+              variant="contained"
+              color="secondary"
+              startIcon={<ReceiptLongIcon />}
+              disabled={selectedWithSku.length === 0}
+              onClick={handleCreatePurchaseOrder}
+            >
+              Create Purchase Order
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -275,7 +308,7 @@ export function ProductSheetView({
                   align={colAlign(index)}
                   sx={{
                     ...(isPoPasteHeader(index) ? poHeaderSx : headerSx),
-                    ...(index === 5 ? extraColBorder : {}),
+                    ...(index === EXTRA_COLUMN_START_INDEX ? extraColBorder : {}),
                   }}
                 >
                   {label}
@@ -323,7 +356,7 @@ export function ProductSheetView({
                         align={colAlign(index)}
                         sx={{
                           ...cellSx,
-                          ...(index === 5 ? extraColBorder : {}),
+                          ...(index === EXTRA_COLUMN_START_INDEX ? extraColBorder : {}),
                           color: !hasSku && index === 0 ? 'error.main' : undefined,
                         }}
                       >
