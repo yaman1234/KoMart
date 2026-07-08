@@ -63,6 +63,8 @@ async def list_products(
     supplier_id: str = Query(""),
     status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     sellable_only: bool = Query(False),
+    sort_by: str = Query("", pattern="^(|name|sku|selling_price)$"),
+    sort_order: str = Query("", pattern="^(|asc|desc)$"),
     _: User = Depends(get_current_user),
 ):
     query = Product.find(Product.is_active == True)  # noqa: E712
@@ -89,6 +91,10 @@ async def list_products(
         query = query.find(Product.category == category)
     if supplier_id:
         query = query.find(Product.supplier_id == supplier_id)
+
+    if sort_by and sort_order:
+        direction = 1 if sort_order == "asc" else -1
+        query = query.sort((sort_by, direction))
 
     total = await query.count()
     products = await query.skip((page - 1) * page_size).limit(page_size).to_list()

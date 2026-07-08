@@ -46,6 +46,7 @@ const LIST_PAGE_SIZE = 10;
 const SHEET_PAGE_SIZE = 50;
 
 type ViewMode = 'grid' | 'list' | 'sheet';
+type ProductSortField = '' | 'name' | 'sku' | 'sellingPrice';
 
 // ── Grid card ──────────────────────────────────────────────────────────────────
 interface ProductGridCardProps {
@@ -155,7 +156,8 @@ export function ProductsPage() {
   const [supplierId, setSupplierId] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
   const [statusFilter, setStatusFilter] = useState<'' | ProductStatus>('');
-  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
+  const [sortBy, setSortBy] = useState<ProductSortField>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(GRID_PAGE_SIZE);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -173,8 +175,25 @@ export function ProductsPage() {
     category: category || undefined,
     supplierId: supplierId || undefined,
     status: statusFilter || undefined,
-    sortBy: priceSort ? 'sellingPrice' : undefined,
-    sortOrder: (priceSort || undefined) as 'asc' | 'desc' | undefined,
+    sortBy: sortBy || undefined,
+    sortOrder: sortBy ? sortOrder : undefined,
+  };
+
+  const handleSort = (field: ProductSortField) => {
+    if (!field) return;
+    if (sortBy === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+    setPage(0);
+  };
+
+  const handlePriceSort = (order: 'asc' | 'desc') => {
+    setSortBy('sellingPrice');
+    setSortOrder(order);
+    setPage(0);
   };
 
   // ── Infinite query (grid) ────────────────────────────────────────────────────
@@ -244,8 +263,8 @@ export function ProductsPage() {
         />
       ),
     },
-    { id: 'name', label: 'Product Name', minWidth: 180, accessor: 'name' },
-    { id: 'sku', label: 'SKU', minWidth: 130, accessor: 'sku' },
+    { id: 'name', label: 'Product Name', minWidth: 180, accessor: 'name', sortable: true, sortKey: 'name' },
+    { id: 'sku', label: 'SKU', minWidth: 130, accessor: 'sku', sortable: true, sortKey: 'sku' },
     { id: 'category', label: 'Category', accessor: 'category' },
     {
       id: 'tags',
@@ -416,10 +435,12 @@ export function ProductsPage() {
 
         {/* Price sort */}
         <ToggleButtonGroup
-          value={priceSort}
+          value={sortBy === 'sellingPrice' ? sortOrder : ''}
           exclusive
           size="small"
-          onChange={(_, v: 'asc' | 'desc' | '') => { setPriceSort(v ?? ''); resetFilters(); }}
+          onChange={(_, v: 'asc' | 'desc' | '') => {
+            if (v) handlePriceSort(v);
+          }}
         >
           <Tooltip title="Price: Low to High">
             <ToggleButton value="asc" aria-label="Price ascending">
@@ -512,6 +533,9 @@ export function ProductsPage() {
           onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
           getRowId={(r) => r.id}
           onRowClick={(r) => navigate(`/products/${r.id}`)}
+          sortBy={sortBy || undefined}
+          sortOrder={sortOrder}
+          onSort={(key) => handleSort(key as ProductSortField)}
         />
       )}
 
@@ -527,6 +551,9 @@ export function ProductsPage() {
           filters={sharedParams}
           stockFilter={stockFilter}
           canCreatePo={canCreatePo}
+          sortBy={sortBy || undefined}
+          sortOrder={sortOrder}
+          onSort={(field) => handleSort(field)}
         />
       )}
     </Box>

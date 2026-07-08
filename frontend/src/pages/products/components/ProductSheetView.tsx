@@ -13,6 +13,7 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TableSortLabel,
   Typography,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -51,6 +52,9 @@ export interface ProductSheetViewProps {
   filters: ListQueryParams;
   stockFilter?: StockFilter;
   canCreatePo?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  onSort?: (field: 'name' | 'sku') => void;
 }
 
 const headerSx = {
@@ -83,6 +87,11 @@ const extraColBorder = {
   borderColor: 'divider',
 };
 
+const SHEET_SORT_FIELDS: Partial<Record<number, 'sku' | 'name'>> = {
+  0: 'sku',
+  1: 'name',
+};
+
 function copyToast(copied: number, skipped: number, truncatedTotal?: number) {
   if (truncatedTotal && truncatedTotal > copied) {
     let msg = `Copied first ${copied} of ${truncatedTotal} matching products`;
@@ -106,6 +115,9 @@ export function ProductSheetView({
   filters,
   stockFilter,
   canCreatePo = false,
+  sortBy,
+  sortOrder = 'asc',
+  onSort,
 }: ProductSheetViewProps) {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -302,18 +314,33 @@ export function ProductSheetView({
                   onChange={(e) => toggleAll(e.target.checked)}
                 />
               </TableCell>
-              {PRODUCT_SHEET_HEADERS.map((label, index) => (
-                <TableCell
-                  key={label}
-                  align={colAlign(index)}
-                  sx={{
-                    ...(isPoPasteHeader(index) ? poHeaderSx : headerSx),
-                    ...(index === EXTRA_COLUMN_START_INDEX ? extraColBorder : {}),
-                  }}
-                >
-                  {label}
-                </TableCell>
-              ))}
+              {PRODUCT_SHEET_HEADERS.map((label, index) => {
+                const sortField = SHEET_SORT_FIELDS[index];
+                const headerStyle = {
+                  ...(isPoPasteHeader(index) ? poHeaderSx : headerSx),
+                  ...(index === EXTRA_COLUMN_START_INDEX ? extraColBorder : {}),
+                };
+                return (
+                  <TableCell
+                    key={label}
+                    align={colAlign(index)}
+                    sortDirection={sortField && sortBy === sortField ? sortOrder : false}
+                    sx={headerStyle}
+                  >
+                    {sortField && onSort ? (
+                      <TableSortLabel
+                        active={sortBy === sortField}
+                        direction={sortBy === sortField ? sortOrder : 'asc'}
+                        onClick={() => onSort(sortField)}
+                      >
+                        {label}
+                      </TableSortLabel>
+                    ) : (
+                      label
+                    )}
+                  </TableCell>
+                );
+              })}
             </TableRow>
           </TableHead>
           <TableBody>

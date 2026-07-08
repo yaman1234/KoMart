@@ -6,6 +6,7 @@ import {
   TableHead,
   TableRow,
   TablePagination,
+  TableSortLabel,
   Paper,
   Typography,
   CircularProgress,
@@ -19,6 +20,8 @@ export interface Column<T> {
   align?: 'left' | 'right' | 'center';
   render?: (row: T) => ReactNode;
   accessor?: keyof T;
+  sortable?: boolean;
+  sortKey?: string;
 }
 
 interface DataTableProps<T> {
@@ -33,6 +36,9 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   getRowId: (row: T) => string;
   onRowClick?: (row: T) => void;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  onSort?: (sortKey: string) => void;
 }
 
 export function DataTable<T>({
@@ -47,6 +53,9 @@ export function DataTable<T>({
   emptyMessage = 'No data found',
   getRowId,
   onRowClick,
+  sortBy,
+  sortOrder = 'asc',
+  onSort,
 }: DataTableProps<T>) {
   return (
     <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden' }}>
@@ -58,9 +67,20 @@ export function DataTable<T>({
                 <TableCell
                   key={col.id}
                   align={col.align ?? 'left'}
+                  sortDirection={col.sortable && sortBy === col.sortKey ? sortOrder : false}
                   sx={{ minWidth: col.minWidth, fontWeight: 600 }}
                 >
-                  {col.label}
+                  {col.sortable && col.sortKey && onSort ? (
+                    <TableSortLabel
+                      active={sortBy === col.sortKey}
+                      direction={sortBy === col.sortKey ? sortOrder : 'asc'}
+                      onClick={() => onSort(col.sortKey!)}
+                    >
+                      {col.label}
+                    </TableSortLabel>
+                  ) : (
+                    col.label
+                  )}
                 </TableCell>
               ))}
             </TableRow>
