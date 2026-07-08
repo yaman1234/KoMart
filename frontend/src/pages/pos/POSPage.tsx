@@ -635,12 +635,15 @@ export function POSPage() {
     .filter((p) => {
       if (p.stock === 0) return false;
       const mode = p.sellMode ?? 'unit';
+      const units = p.unitsPerBuyUom ?? 1;
       const packPrice = packSellOption(p)?.price ?? 0;
       const piecePrice = p.sellingPrice;
       const billable =
-        mode === 'piece' ? piecePrice > 0
-        : mode === 'unit' ? packPrice > 0
-        : piecePrice > 0 || packPrice > 0;
+        mode === 'piece'
+          ? piecePrice > 0
+          : mode === 'unit'
+            ? (units <= 1 ? piecePrice > 0 : packPrice > 0)
+            : piecePrice > 0 || packPrice > 0;
       if (!billable) return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
       if (supplierIdFilter && p.supplierId !== supplierIdFilter) return false;

@@ -85,7 +85,7 @@ function poItemToLine(item: PurchaseOrderItem, id: number, catalogProducts: Prod
   };
 }
 
-const tomorrow = () => dayjs().add(1, 'day').startOf('day');
+const today = () => dayjs().startOf('day');
 
 export function PurchaseOrderFormPage() {
   const navigate = useNavigate();
@@ -98,7 +98,7 @@ export function PurchaseOrderFormPage() {
   const prefillApplied = useRef(false);
 
   const [supplierId, setSupplierId] = useState('');
-  const [expectedDelivery, setExpectedDelivery] = useState('');
+  const [expectedDelivery, setExpectedDelivery] = useState(() => today().format('YYYY-MM-DD'));
   const [orderedBy, setOrderedBy] = useState('');
   const [deliveryPickerOpen, setDeliveryPickerOpen] = useState(false);
   const [lines, setLines] = useState<PoLineItem[]>(() => [emptyPoLineItem(0)]);
@@ -149,7 +149,7 @@ export function PurchaseOrderFormPage() {
     if (!canEditPurchaseOrder(existingPo)) return;
 
     setSupplierId(existingPo.supplierId);
-    setExpectedDelivery(existingPo.expectedDelivery ?? '');
+    setExpectedDelivery(existingPo.expectedDelivery ?? today().format('YYYY-MM-DD'));
     setOrderedBy(existingPo.orderedBy ?? currentUser?.name ?? '');
 
     if (existingPo.items.length > 0) {
@@ -218,8 +218,8 @@ export function PurchaseOrderFormPage() {
     }
     if (expectedDelivery) {
       const delivery = dayjs(expectedDelivery).startOf('day');
-      if (!delivery.isAfter(dayjs().startOf('day'))) {
-        setError('Expected delivery must be after today');
+      if (delivery.isBefore(today())) {
+        setError('Expected delivery cannot be in the past');
         return false;
       }
     } else if (status === 'ordered') {
@@ -375,7 +375,7 @@ export function PurchaseOrderFormPage() {
               <DatePicker
                 label="Expected Delivery"
                 value={expectedDelivery ? dayjs(expectedDelivery) : null}
-                minDate={tomorrow()}
+                minDate={today()}
                 open={deliveryPickerOpen}
                 onOpen={() => setDeliveryPickerOpen(true)}
                 onClose={() => setDeliveryPickerOpen(false)}
