@@ -52,6 +52,13 @@ import {
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useUomOptions } from '@/hooks/useUoms';
+import {
+  validateDrafts,
+  validateProductRow,
+  countValidationErrors,
+  type ProductFieldErrors,
+  type ProductValidationMap,
+} from '@/pages/products/productSheetValidation';
 
 export interface ProductSheetViewProps {
   products: Product[];
@@ -76,9 +83,12 @@ const headerSx = {
   whiteSpace: 'nowrap',
   py: 0.75,
   px: 1,
-  bgcolor: 'action.hover',
+  bgcolor: 'background.paper',
   borderBottom: '1px solid',
   borderColor: 'divider',
+  position: 'sticky',
+  top: 0,
+  zIndex: 2,
 };
 
 const poHeaderSx = { ...headerSx, bgcolor: 'action.selected' };
@@ -179,6 +189,7 @@ interface SheetCellProps {
   bulkEditMode: boolean;
   draft?: Partial<Product>;
   options: SelectOptions;
+  fieldError?: string;
   onCellChange: (productId: string, field: keyof Product, value: unknown) => void;
 }
 
@@ -188,12 +199,16 @@ const SheetCell = memo(function SheetCell({
   bulkEditMode,
   draft,
   options,
+  fieldError,
   onCellChange,
 }: SheetCellProps) {
   const merged = useMemo(() => mergeProduct(product, draft), [product, draft]);
   const display = useMemo(() => getSheetCellValue(merged, col), [merged, col]);
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const inputSx = fieldError
+    ? { ...nativeInputSx, borderColor: 'error.main', bgcolor: 'error.50' }
+    : nativeInputSx;
 
   if (!bulkEditMode || !col.editable || !col.field) {
     return (
@@ -206,7 +221,7 @@ const SheetCell = memo(function SheetCell({
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}
-        title={display}
+        title={fieldError ?? display}
       >
         {display || '—'}
       </Typography>
@@ -230,7 +245,7 @@ const SheetCell = memo(function SheetCell({
         type="number"
         value={raw ?? ''}
         step={col.key.includes('discount') ? 0.1 : 0.01}
-        sx={nativeInputSx}
+        sx={inputSx}
         {...inputProps}
         onChange={(e) => {
           const v = e.target.value;
@@ -246,7 +261,8 @@ const SheetCell = memo(function SheetCell({
         <Box
           component="select"
           value={merged.supplierId ?? ''}
-          sx={nativeInputSx}
+          sx={inputSx}
+          title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, 'supplierId', e.target.value)}
         >
@@ -262,7 +278,8 @@ const SheetCell = memo(function SheetCell({
         <Box
           component="select"
           value={merged.category ?? ''}
-          sx={nativeInputSx}
+          sx={inputSx}
+          title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, 'category', e.target.value)}
         >
@@ -278,7 +295,8 @@ const SheetCell = memo(function SheetCell({
         <Box
           component="select"
           value={merged.countryOfOrigin ?? ''}
-          sx={nativeInputSx}
+          sx={inputSx}
+          title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, 'countryOfOrigin', e.target.value)}
         >
@@ -294,7 +312,8 @@ const SheetCell = memo(function SheetCell({
         <Box
           component="select"
           value={(merged[field] as string) ?? 'pcs'}
-          sx={nativeInputSx}
+          sx={inputSx}
+          title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, field, e.target.value)}
         >
@@ -309,7 +328,8 @@ const SheetCell = memo(function SheetCell({
         <Box
           component="select"
           value={merged.sellMode ?? 'unit'}
-          sx={nativeInputSx}
+          sx={inputSx}
+          title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, 'sellMode', e.target.value)}
         >
@@ -324,7 +344,8 @@ const SheetCell = memo(function SheetCell({
         <Box
           component="select"
           value={merged.status ?? 'active'}
-          sx={nativeInputSx}
+          sx={inputSx}
+          title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, 'status', e.target.value as ProductStatus)}
         >
@@ -343,7 +364,8 @@ const SheetCell = memo(function SheetCell({
         component="input"
         value={list.join(', ')}
         placeholder="Comma-separated"
-        sx={nativeInputSx}
+        sx={inputSx}
+        title={fieldError}
         {...inputProps}
         onChange={(e) => onCellChange(pid, field, parseList(e.target.value))}
       />
@@ -357,7 +379,8 @@ const SheetCell = memo(function SheetCell({
         component="textarea"
         value={(merged[textField] as string) ?? ''}
         rows={2}
-        sx={{ ...nativeInputSx, resize: 'vertical', minHeight: 40 }}
+        sx={{ ...inputSx, resize: 'vertical', minHeight: 40 }}
+        title={fieldError}
         {...inputProps}
         onChange={(e) => onCellChange(pid, textField, e.target.value)}
       />
@@ -369,7 +392,8 @@ const SheetCell = memo(function SheetCell({
       component="input"
       type="text"
       value={(merged[textField] as string) ?? ''}
-      sx={nativeInputSx}
+      sx={inputSx}
+      title={fieldError}
       {...inputProps}
       onChange={(e) => onCellChange(pid, textField, e.target.value)}
     />
@@ -381,7 +405,10 @@ interface SheetRowProps {
   draft?: Partial<Product>;
   bulkEditMode: boolean;
   selected: boolean;
+  rowIndex: number;
   options: SelectOptions;
+  fieldErrors?: ProductFieldErrors;
+  serverError?: string;
   onToggle: (id: string) => void;
   onCellChange: (productId: string, field: keyof Product, value: unknown) => void;
 }
@@ -391,12 +418,21 @@ const SheetRow = memo(function SheetRow({
   draft,
   bulkEditMode,
   selected,
+  rowIndex,
   options,
+  fieldErrors,
+  serverError,
   onToggle,
   onCellChange,
 }: SheetRowProps) {
   const hasSku = (product.sku ?? '').trim().length > 0;
   const rowDirty = !!draft;
+
+  const rowBg = rowDirty
+    ? 'warning.50'
+    : rowIndex % 2 === 1
+      ? 'action.hover'
+      : undefined;
 
   return (
     <TableRow
@@ -405,7 +441,7 @@ const SheetRow = memo(function SheetRow({
       onClick={() => onToggle(product.id)}
       sx={{
         cursor: bulkEditMode ? 'default' : 'pointer',
-        bgcolor: rowDirty ? 'warning.50' : undefined,
+        bgcolor: rowBg,
       }}
     >
       <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
@@ -416,26 +452,37 @@ const SheetRow = memo(function SheetRow({
           onChange={() => onToggle(product.id)}
         />
       </TableCell>
-      {PRODUCT_SHEET_COLUMNS.map((col, index) => (
-        <TableCell
-          key={col.key}
-          align={isSheetColumnRightAligned(index) ? 'right' : 'left'}
-          sx={{
-            ...cellSx,
-            ...(index === EXTRA_COLUMN_START_INDEX ? extraColBorder : {}),
-            color: !hasSku && col.key === 'sku' ? 'error.main' : undefined,
-          }}
-        >
-          <SheetCell
-            product={product}
-            col={col}
-            bulkEditMode={bulkEditMode}
-            draft={draft}
-            options={options}
-            onCellChange={onCellChange}
-          />
-        </TableCell>
-      ))}
+      {PRODUCT_SHEET_COLUMNS.map((col, index) => {
+        const fieldKey = col.field && col.field !== 'packQty' && col.field !== 'poUnitCost' && col.field !== 'packCost'
+          ? col.field as keyof Product
+          : undefined;
+        const fieldError = fieldKey ? fieldErrors?.[fieldKey] : undefined;
+        const showServerError = index === 0 && serverError;
+
+        return (
+          <TableCell
+            key={col.key}
+            align={isSheetColumnRightAligned(index) ? 'right' : 'left'}
+            sx={{
+              ...cellSx,
+              ...(index === EXTRA_COLUMN_START_INDEX ? extraColBorder : {}),
+              ...(fieldError || showServerError ? { bgcolor: 'error.50' } : {}),
+              color: !hasSku && col.key === 'sku' ? 'error.main' : undefined,
+            }}
+            title={fieldError ?? showServerError ?? undefined}
+          >
+            <SheetCell
+              product={product}
+              col={col}
+              bulkEditMode={bulkEditMode}
+              draft={draft}
+              options={options}
+              fieldError={fieldError}
+              onCellChange={onCellChange}
+            />
+          </TableCell>
+        );
+      })}
     </TableRow>
   );
 });
@@ -461,6 +508,8 @@ export function ProductSheetView({
   const [bulkEditMode, setBulkEditMode] = useState(false);
   const [bulkEditActivating, setBulkEditActivating] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Partial<Product>>>({});
+  const [validationErrors, setValidationErrors] = useState<ProductValidationMap>({});
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
 
   const bulkMutation = useBulkUpdateProducts();
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
@@ -499,7 +548,11 @@ export function ProductSheetView({
     !loading && products.length > 0 && displayProducts.length === 0 && !!stockFilter;
 
   useEffect(() => {
-    if (!bulkEditMode) setDrafts({});
+    if (!bulkEditMode) {
+      setDrafts({});
+      setValidationErrors({});
+      setServerErrors({});
+    }
     setSelectedIds(new Set());
   }, [page, pageSize, products, stockFilter, bulkEditMode]);
 
@@ -561,16 +614,33 @@ export function ProductSheetView({
   const handleCellChange = useCallback((productId: string, field: keyof Product, value: unknown) => {
     const product = productsRef.current.find((p) => p.id === productId);
     if (!product) return;
+    setServerErrors((prev) => {
+      if (!prev[productId]) return prev;
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
     setDrafts((prev) => {
       const current = { ...prev[productId], [field]: value } as Partial<Product>;
       const pricingFields: (keyof Product)[] = [
         'costPrice', 'sellingPrice', 'packSellingPrice', 'unitsPerBuyUom',
-        'discountPercent', 'offeredPrice', 'packDiscountPercent', 'packOfferedPrice',
+        'discountPercent', 'offeredPrice', 'packDiscountPercent', 'packOfferedPrice', 'sellMode',
       ];
       const withPricing = pricingFields.includes(field)
         ? applyDraftPricing(product, current, field)
         : current;
-      return { ...prev, [productId]: withPricing };
+      const nextDrafts = { ...prev, [productId]: withPricing };
+      const rowErrors = validateProductRow(product, withPricing);
+      setValidationErrors((ve) => {
+        const next = { ...ve };
+        if (Object.keys(rowErrors).length > 0) {
+          next[productId] = rowErrors;
+        } else {
+          delete next[productId];
+        }
+        return next;
+      });
+      return nextDrafts;
     });
   }, []);
 
@@ -586,10 +656,20 @@ export function ProductSheetView({
 
   const handleCancelEdit = () => {
     setDrafts({});
+    setValidationErrors({});
+    setServerErrors({});
     setBulkEditMode(false);
   };
 
   const handleSave = async () => {
+    const clientErrors = validateDrafts(displayProducts, drafts);
+    const errorCount = countValidationErrors(clientErrors);
+    if (errorCount > 0) {
+      setValidationErrors(clientErrors);
+      showWarning(`${errorCount} cell${errorCount !== 1 ? 's' : ''} failed validation — fix highlighted fields before saving`);
+      return;
+    }
+
     const updates: ProductBulkUpdateItem[] = [];
     for (const product of displayProducts) {
       const draft = drafts[product.id];
@@ -604,12 +684,34 @@ export function ProductSheetView({
     try {
       const result = await bulkMutation.mutateAsync(updates);
       if (result.errors.length > 0) {
+        const failedIds = new Set(result.errors.map((e) => e.id));
+        const nextServerErrors: Record<string, string> = {};
+        for (const err of result.errors) {
+          nextServerErrors[err.id] = err.detail;
+        }
+        setServerErrors(nextServerErrors);
+        setDrafts((prev) => {
+          const next: Record<string, Partial<Product>> = {};
+          for (const [id, draft] of Object.entries(prev)) {
+            if (failedIds.has(id)) next[id] = draft;
+          }
+          return next;
+        });
+        setValidationErrors((prev) => {
+          const next: ProductValidationMap = {};
+          for (const [id, errs] of Object.entries(prev)) {
+            if (failedIds.has(id)) next[id] = errs;
+          }
+          return next;
+        });
         showWarning(`Saved ${result.updated} row(s); ${result.errors.length} failed`);
       } else {
         showSuccess(`Saved ${result.updated} product${result.updated !== 1 ? 's' : ''}`);
+        setDrafts({});
+        setValidationErrors({});
+        setServerErrors({});
+        setBulkEditMode(false);
       }
-      setDrafts({});
-      setBulkEditMode(false);
     } catch (err) {
       showError(getErrorMessage(err));
     }
@@ -622,7 +724,17 @@ export function ProductSheetView({
   const tableMinWidth = useMemo(() => productSheetTableMinWidth(), []);
 
   return (
-    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        width: '100%',
+        overflow: 'hidden',
+      }}
+    >
       <Box
         sx={{
           px: 2,
@@ -714,8 +826,16 @@ export function ProductSheetView({
         </Alert>
       )}
 
-      <TableContainer sx={{ overflowX: 'auto', userSelect: bulkEditMode ? 'auto' : 'text' }}>
+      <TableContainer
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflow: 'auto',
+          userSelect: bulkEditMode ? 'auto' : 'text',
+        }}
+      >
         <Table
+          stickyHeader
           size="small"
           sx={{
             tableLayout: 'fixed',
@@ -783,14 +903,17 @@ export function ProductSheetView({
                 </TableCell>
               </TableRow>
             ) : (
-              displayProducts.map((product) => (
+              displayProducts.map((product, rowIndex) => (
                 <SheetRow
                   key={product.id}
                   product={product}
                   draft={drafts[product.id]}
                   bulkEditMode={bulkEditMode}
                   selected={selectedIds.has(product.id)}
+                  rowIndex={rowIndex}
                   options={selectOptions}
+                  fieldErrors={validationErrors[product.id]}
+                  serverError={serverErrors[product.id]}
                   onToggle={toggleRow}
                   onCellChange={handleCellChange}
                 />

@@ -6,11 +6,20 @@ from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
 from app.models.supplier import Supplier
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, pack_selling_price_required
+from app.schemas.product import (
+    ProductCreate,
+    ProductUpdate,
+    ProductResponse,
+    ProductBulkUpdateRequest,
+    ProductBulkUpdateResponse,
+    ProductBulkUpdateError,
+    pack_selling_price_required,
+)
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, product_snapshot
 from app.services.category_sync import resolve_category_fields, propagate_category_rename
+from app.services.product_pricing import compute_product_pricing, apply_pricing_to_dict
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -20,6 +29,63 @@ async def _resolve_supplier(supplier_id: str) -> Supplier:
     if not supplier:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
     return supplier
+
+
+def _pricing_sources(body_fields: set[str]) -> tuple[str, str]:
+    unit_source = "offered" if "offered_price" in body_fields and "discount_percent" not in body_fields else (
+        "percent" if "discount_percent" in body_fields else "auto"
+    )
+    pack_source = "offered" if "pack_offered_price" in body_fields and "pack_discount_percent" not in body_fields else (
+        "percent" if "pack_discount_percent" in body_fields else "auto"
+    )
+    return unit_source, pack_source
+
+
+async def _apply_product_update(
+    product: Product,
+    body: ProductUpdate,
+    *,
+    body_field_names: set[str] | None = None,
+) -> dict:
+    """Merge update onto product, resolve FKs, recompute pricing. Returns update_data dict."""
+    fields = body_field_names or {k for k, v in body.model_dump().items() if v is not None}
+    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+
+    eff_sell_mode = update_data.get("sell_mode", product.sell_mode)
+    eff_units = update_data.get("units_per_buy_uom", product.units_per_buy_uom)
+    eff_pack_price = update_data.get("pack_selling_price", product.pack_selling_price)
+    if not pack_selling_price_required(eff_sell_mode, eff_units, eff_pack_price):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Pack selling price is required when selling whole packs/boxes.",
+        )
+
+    if "category_id" in update_data or "category" in update_data:
+        cat_id, cat_name = await resolve_category_fields(
+            category_id=update_data.pop("category_id", None),
+            category=update_data.get("category"),
+        )
+        update_data["category_id"] = cat_id
+        update_data["category"] = cat_name
+
+    if "supplier_id" in update_data:
+        sid = update_data["supplier_id"]
+        if sid:
+            supplier = await _resolve_supplier(sid)
+            update_data["supplier_name"] = supplier.name
+        else:
+            update_data["supplier_name"] = ""
+
+    merged = {**product.model_dump(), **update_data}
+    unit_src, pack_src = _pricing_sources(fields)
+    pricing = apply_pricing_to_dict(
+        merged,
+        unit_discount_source=unit_src,  # type: ignore[arg-type]
+        pack_discount_source=pack_src,  # type: ignore[arg-type]
+    )
+    update_data.update(pricing)
+    update_data["updated_at"] = datetime.now(timezone.utc)
+    return update_data
 
 
 def _to_response(p: Product) -> ProductResponse:
@@ -42,6 +108,12 @@ def _to_response(p: Product) -> ProductResponse:
         cost_price=p.cost_price,
         selling_price=p.selling_price,
         pack_selling_price=getattr(p, "pack_selling_price", 0.0) or 0.0,
+        margin_percent=getattr(p, "margin_percent", 0.0) or 0.0,
+        discounted_amount=getattr(p, "discounted_amount", 0.0) or 0.0,
+        discount_percent=getattr(p, "discount_percent", 0.0) or 0.0,
+        offered_price=getattr(p, "offered_price", 0.0) or 0.0,
+        pack_discount_percent=getattr(p, "pack_discount_percent", 0.0) or 0.0,
+        pack_offered_price=getattr(p, "pack_offered_price", 0.0) or 0.0,
         images=p.images,
         nutrition_info=p.nutrition_info,
         allergen_info=p.allergen_info,
@@ -134,6 +206,9 @@ async def create_product(
         supplier_name=supplier_name,
         stock=0,
     )
+    pricing = compute_product_pricing(product)
+    for key, value in pricing.items():
+        setattr(product, key, value)
     await product.insert()
     await log_audit(
         module=AuditModule.products,
@@ -145,6 +220,51 @@ async def create_product(
         new=product_snapshot(product),
     )
     return _to_response(product)
+
+
+@router.post("/bulk-update", response_model=ProductBulkUpdateResponse)
+async def bulk_update_products(
+    body: ProductBulkUpdateRequest,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    updated = 0
+    errors: list[ProductBulkUpdateError] = []
+
+    for item in body.updates:
+        product = await Product.get(item.id)
+        if not product:
+            errors.append(ProductBulkUpdateError(id=item.id, detail="Product not found"))
+            continue
+        before = product_snapshot(product)
+        try:
+            item_fields = {k for k, v in item.model_dump().items() if v is not None and k != "id"}
+            update_body = ProductUpdate(**{k: v for k, v in item.model_dump().items() if k != "id" and v is not None})
+            update_data = await _apply_product_update(
+                product,
+                update_body,
+                body_field_names=item_fields,
+            )
+            await product.set(update_data)
+            refreshed = await Product.get(item.id)
+            after = product_snapshot(refreshed)  # type: ignore[arg-type]
+            await log_audit(
+                module=AuditModule.products,
+                action="update",
+                user=current_user,
+                request=request,
+                entity_type="product",
+                entity_id=item.id,
+                previous=before,
+                new=after,
+            )
+            updated += 1
+        except HTTPException as exc:
+            errors.append(ProductBulkUpdateError(id=item.id, detail=str(exc.detail)))
+        except Exception as exc:
+            errors.append(ProductBulkUpdateError(id=item.id, detail=str(exc)))
+
+    return ProductBulkUpdateResponse(updated=updated, errors=errors)
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -166,30 +286,8 @@ async def update_product(
     if not product:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
     before = product_snapshot(product)
-    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
-    eff_sell_mode = update_data.get("sell_mode", product.sell_mode)
-    eff_units = update_data.get("units_per_buy_uom", product.units_per_buy_uom)
-    eff_pack_price = update_data.get("pack_selling_price", product.pack_selling_price)
-    if not pack_selling_price_required(eff_sell_mode, eff_units, eff_pack_price):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Pack selling price is required when selling whole packs/boxes.",
-        )
-    if "category_id" in update_data or "category" in update_data:
-        cat_id, cat_name = await resolve_category_fields(
-            category_id=update_data.pop("category_id", None),
-            category=update_data.get("category"),
-        )
-        update_data["category_id"] = cat_id
-        update_data["category"] = cat_name
-    if "supplier_id" in update_data:
-        sid = update_data["supplier_id"]
-        if sid:
-            supplier = await _resolve_supplier(sid)
-            update_data["supplier_name"] = supplier.name
-        else:
-            update_data["supplier_name"] = ""
-    update_data["updated_at"] = datetime.now(timezone.utc)
+    body_fields = {k for k, v in body.model_dump().items() if v is not None}
+    update_data = await _apply_product_update(product, body, body_field_names=body_fields)
     await product.set(update_data)
     refreshed = await Product.get(product_id)
     after = product_snapshot(refreshed)  # type: ignore[arg-type]

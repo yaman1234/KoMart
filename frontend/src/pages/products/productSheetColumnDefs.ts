@@ -32,11 +32,6 @@ export const PRODUCT_SHEET_COLUMNS: ProductSheetColumnDef[] = [
   { key: 'buyUom', label: PRODUCT_FIELD_LABELS.buyUom, editable: true, poPaste: true, type: 'select', width: 72, field: 'buyUom' },
   { key: 'unitsPerPack', label: PRODUCT_FIELD_LABELS.unitsPerPack, editable: true, poPaste: true, align: 'right', type: 'number', width: 80, field: 'unitsPerBuyUom' },
   { key: 'poUnitCost', label: PRODUCT_FIELD_LABELS.poUnitCost, editable: false, poPaste: true, align: 'right', type: 'computed', width: 88, field: 'poUnitCost' },
-  { key: 'brand', label: PRODUCT_FIELD_LABELS.brand, editable: true, type: 'text', width: 90, field: 'brand' },
-  { key: 'country', label: PRODUCT_FIELD_LABELS.country, editable: true, type: 'select', width: 100, field: 'countryOfOrigin' },
-  { key: 'category', label: PRODUCT_FIELD_LABELS.category, editable: true, type: 'select', width: 100, field: 'category' },
-  { key: 'barcode', label: PRODUCT_FIELD_LABELS.barcode, editable: true, type: 'text', width: 100, field: 'barcode' },
-  { key: 'supplier', label: PRODUCT_FIELD_LABELS.supplier, editable: true, type: 'select', width: 120, field: 'supplierId' },
   { key: 'baseUom', label: PRODUCT_FIELD_LABELS.baseUom, editable: true, type: 'select', width: 72, field: 'uom' },
   { key: 'sellMode', label: PRODUCT_FIELD_LABELS.sellMode, editable: true, type: 'select', width: 88, field: 'sellMode' },
   { key: 'unitCost', label: PRODUCT_FIELD_LABELS.unitCost, editable: true, align: 'right', type: 'number', width: 80, field: 'costPrice' },
@@ -56,6 +51,11 @@ export const PRODUCT_SHEET_COLUMNS: ProductSheetColumnDef[] = [
   { key: 'allergens', label: PRODUCT_FIELD_LABELS.allergens, editable: true, type: 'multiline', width: 100, field: 'allergenInfo' },
   { key: 'images', label: PRODUCT_FIELD_LABELS.images, editable: true, type: 'text', width: 100, field: 'images' },
   { key: 'stock', label: PRODUCT_FIELD_LABELS.stock, editable: false, align: 'right', type: 'computed', width: 64, field: 'stock' },
+  { key: 'brand', label: PRODUCT_FIELD_LABELS.brand, editable: true, type: 'text', width: 90, field: 'brand' },
+  { key: 'country', label: PRODUCT_FIELD_LABELS.country, editable: true, type: 'select', width: 100, field: 'countryOfOrigin' },
+  { key: 'category', label: PRODUCT_FIELD_LABELS.category, editable: true, type: 'select', width: 100, field: 'category' },
+  { key: 'barcode', label: PRODUCT_FIELD_LABELS.barcode, editable: true, type: 'text', width: 100, field: 'barcode' },
+  { key: 'supplier', label: PRODUCT_FIELD_LABELS.supplier, editable: true, type: 'select', width: 120, field: 'supplierId' },
   { key: 'description', label: PRODUCT_FIELD_LABELS.description, editable: true, type: 'multiline', width: 140, field: 'description' },
 ];
 

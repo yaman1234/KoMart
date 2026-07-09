@@ -32,6 +32,10 @@ class ProductCreate(BaseModel):
     cost_price: float = Field(ge=0)
     selling_price: float = Field(ge=0)
     pack_selling_price: float = Field(default=0.0, ge=0)
+    discount_percent: float = Field(default=0.0, ge=0, le=100)
+    offered_price: float = Field(default=0.0, ge=0)
+    pack_discount_percent: float = Field(default=0.0, ge=0, le=100)
+    pack_offered_price: float = Field(default=0.0, ge=0)
     images: list[str] = Field(default_factory=list)
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
@@ -82,6 +86,10 @@ class ProductUpdate(BaseModel):
     cost_price: Optional[float] = Field(default=None, ge=0)
     selling_price: Optional[float] = Field(default=None, ge=0)
     pack_selling_price: Optional[float] = Field(default=None, ge=0)
+    discount_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    offered_price: Optional[float] = Field(default=None, ge=0)
+    pack_discount_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    pack_offered_price: Optional[float] = Field(default=None, ge=0)
     images: Optional[list[str]] = None
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None
@@ -124,6 +132,12 @@ class ProductResponse(BaseModel):
     cost_price: float
     selling_price: float
     pack_selling_price: float = 0.0
+    margin_percent: float = 0.0
+    discounted_amount: float = 0.0
+    discount_percent: float = 0.0
+    offered_price: float = 0.0
+    pack_discount_percent: float = 0.0
+    pack_offered_price: float = 0.0
     images: list[str]
     nutrition_info: Optional[str]
     allergen_info: Optional[str]
@@ -133,3 +147,21 @@ class ProductResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
+
+
+class ProductBulkUpdateItem(ProductUpdate):
+    id: str
+
+
+class ProductBulkUpdateRequest(BaseModel):
+    updates: list[ProductBulkUpdateItem] = Field(min_length=1, max_length=100)
+
+
+class ProductBulkUpdateError(BaseModel):
+    id: str
+    detail: str
+
+
+class ProductBulkUpdateResponse(BaseModel):
+    updated: int
+    errors: list[ProductBulkUpdateError] = Field(default_factory=list)

@@ -96,6 +96,12 @@ class Product(Document):
     cost_price: float = Field(ge=0)
     selling_price: float = Field(ge=0)
     pack_selling_price: float = Field(default=0.0, ge=0)
+    margin_percent: float = Field(default=0.0)
+    discounted_amount: float = Field(default=0.0, ge=0)
+    discount_percent: float = Field(default=0.0, ge=0, le=100)
+    offered_price: float = Field(default=0.0, ge=0)
+    pack_discount_percent: float = Field(default=0.0, ge=0, le=100)
+    pack_offered_price: float = Field(default=0.0, ge=0)
     images: list[str] = Field(default_factory=list)
     nutrition_info: Optional[str] = None
     allergen_info: Optional[str] = None

@@ -350,8 +350,17 @@ export function ProductsPage() {
     }
   };
 
+  const isSheetView = viewMode === 'sheet';
+
   return (
-    <Box>
+    <Box
+      sx={isSheetView ? {
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+      } : undefined}
+    >
       <PageHeader
         title="Products"
         subtitle={`${pagedData?.total ?? (infiniteData?.pages[0]?.total ?? 0)} products in catalog`}
@@ -540,22 +549,24 @@ export function ProductsPage() {
       )}
 
       {viewMode === 'sheet' && (
-        <ProductSheetView
-          products={listProducts}
-          loading={pagedLoading}
-          page={page}
-          pageSize={pageSize}
-          total={pagedData?.total}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
-          filters={sharedParams}
-          stockFilter={stockFilter}
-          canCreatePo={canCreatePo}
-          canBulkEdit={canManage}
-          sortBy={sortBy || undefined}
-          sortOrder={sortOrder}
-          onSort={(field) => handleSort(field)}
-        />
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <ProductSheetView
+            products={listProducts}
+            loading={pagedLoading}
+            page={page}
+            pageSize={pageSize}
+            total={pagedData?.total}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+            filters={sharedParams}
+            stockFilter={stockFilter}
+            canCreatePo={canCreatePo}
+            canBulkEdit={canManage}
+            sortBy={sortBy || undefined}
+            sortOrder={sortOrder}
+            onSort={(field) => handleSort(field)}
+          />
+        </Box>
       )}
     </Box>
   );
