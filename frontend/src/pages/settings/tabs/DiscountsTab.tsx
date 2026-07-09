@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -71,6 +71,17 @@ function ruleValueLabel(rule: DiscountRule): string {
   return rule.ruleType.includes('percent') ? `${rule.value}%` : `Rs. ${rule.value}`;
 }
 
+function productNamesTooltip(productIds: string[], productMap: Map<string, string>): React.ReactNode {
+  if (productIds.length === 0) return '';
+  return (
+    <Box component="span" sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+      {productIds.map((id) => (
+        <span key={id}>{productMap.get(id) ?? id}</span>
+      ))}
+    </Box>
+  );
+}
+
 export function DiscountsTab() {
   const { data: rules = [], isLoading } = useDiscountRules(false);
   const [productSearch, setProductSearch] = useState('');
@@ -81,6 +92,7 @@ export function DiscountsTab() {
   const [editTarget, setEditTarget] = useState<DiscountRule | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
+  const [productLabelCache, setProductLabelCache] = useState<Map<string, string>>(() => new Map());
 
   const needsProduct = form.ruleType.startsWith('product_');
   const needsCategory = form.ruleType.startsWith('category_');
@@ -100,11 +112,26 @@ export function DiscountsTab() {
   const labelProducts = labelProductsData?.data ?? [];
 
   const productMap = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, string>(productLabelCache);
     for (const p of labelProducts) map.set(p.id, p.name);
     for (const p of products) map.set(p.id, p.name);
     return map;
-  }, [labelProducts, products]);
+  }, [labelProducts, products, productLabelCache]);
+
+  useEffect(() => {
+    if (!dialogOpen || (!labelProducts.length && !products.length)) return;
+    setProductLabelCache((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const p of [...labelProducts, ...products]) {
+        if (next.get(p.id) !== p.name) {
+          next.set(p.id, p.name);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [dialogOpen, labelProducts, products]);
 
   const createMutation = useCreateDiscountRule();
   const updateMutation = useUpdateDiscountRule();
@@ -119,16 +146,26 @@ export function DiscountsTab() {
     () => form.productIds.map((id) => {
       const fromSearch = products.find((p) => p.id === id);
       if (fromSearch) return fromSearch;
-      const name = productMap.get(id);
-      return name ? { id, name } as Product : null;
-    }).filter((p): p is Product => p !== null),
+      const name = productMap.get(id) ?? id;
+      return { id, name } as Product;
+    }),
     [products, form.productIds, productMap],
   );
+
+  const productOptions = useMemo(() => {
+    const byId = new Map<string, Product>();
+    for (const p of products) byId.set(p.id, p);
+    for (const p of selectedProducts) {
+      if (!byId.has(p.id)) byId.set(p.id, p);
+    }
+    return [...byId.values()];
+  }, [products, selectedProducts]);
 
   const openCreate = () => {
     setEditTarget(null);
     setForm(EMPTY_FORM);
     setProductSearch('');
+    setProductLabelCache(new Map());
     setError('');
     setDialogOpen(true);
   };
@@ -136,6 +173,12 @@ export function DiscountsTab() {
   const openEdit = (rule: DiscountRule) => {
     setEditTarget(rule);
     setProductSearch('');
+    const cache = new Map<string, string>();
+    for (const id of rule.productIds) {
+      const name = productMap.get(id);
+      if (name) cache.set(id, name);
+    }
+    setProductLabelCache(cache);
     setForm({
       name: rule.name,
       code: rule.code,
@@ -240,8 +283,8 @@ export function DiscountsTab() {
                   <TableCell>
                     <Tooltip
                       title={
-                        rule.ruleType.startsWith('product_') && rule.productIds.length > 1
-                          ? rule.productIds.map((id) => productMap.get(id) ?? id).join(', ')
+                        rule.ruleType.startsWith('product_') && rule.productIds.length > 0
+                          ? productNamesTooltip(rule.productIds, productMap)
                           : ''
                       }
                     >
@@ -307,18 +350,32 @@ export function DiscountsTab() {
           {needsProduct && (
             <Autocomplete<Product, true, false, false>
               multiple
-              options={products}
+              options={productOptions}
               inputValue={productSearch}
-              onInputChange={(_e, value) => setProductSearch(value)}
+              onInputChange={(_e, value, reason) => {
+                if (reason === 'input') setProductSearch(value);
+                else if (reason === 'clear') setProductSearch('');
+              }}
               getOptionLabel={(option: Product) => option.name}
               value={selectedProducts}
-              onChange={(_e, newValue) => setForm((f) => ({ ...f, productIds: newValue.map((p) => p.id) }))}
+              onChange={(_e, newValue) => {
+                setProductLabelCache((prev) => {
+                  const next = new Map(prev);
+                  for (const p of newValue) next.set(p.id, p.name);
+                  return next;
+                });
+                setForm((f) => ({ ...f, productIds: newValue.map((p) => p.id) }));
+              }}
               isOptionEqualToValue={(option: Product, value: Product) => option.id === value.id}
               renderInput={(params) => <TextField {...params} label="Products" placeholder="Search products…" />}
               renderValue={(value, getItemProps) =>
                 (value as Product[]).map((option, index) => {
                   const { key, ...itemProps } = getItemProps({ index });
-                  return <Chip key={key} label={option.name} size="small" {...itemProps} />;
+                  return (
+                    <Tooltip key={key} title={option.name}>
+                      <Chip label={option.name} size="small" {...itemProps} />
+                    </Tooltip>
+                  );
                 })
               }
             />
