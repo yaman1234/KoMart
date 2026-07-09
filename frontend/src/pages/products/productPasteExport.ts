@@ -1,35 +1,24 @@
 import { productStatusLabel } from '@/utils';
 import type { Product } from '@/types';
-import { PO_LABELS } from '@/pages/purchase-orders/poTerminology';
+import {
+  PRODUCT_SHEET_COLUMNS,
+  PO_PASTE_COLUMN_COUNT,
+  productToSheetCells,
+} from '@/pages/products/productSheetColumnDefs';
+import { buyUnitCost } from '@/utils/productPricing';
 
-export const PRODUCT_SHEET_HEADERS = [
-  'SKU',
-  'Name',
-  PO_LABELS.packQty,
-  PO_LABELS.buyUom,
-  PO_LABELS.unitsPerPack,
-  PO_LABELS.unitCost,
-  'Base UOM',
-  'Cost (base)',
-  'Sell price',
-  'Stock',
-  'Category',
-  'Brand',
-  'Supplier',
-  'Status',
-] as const;
+export const PRODUCT_SHEET_HEADERS = PRODUCT_SHEET_COLUMNS.map((c) => c.label);
 
-export const PO_PASTE_COLUMN_COUNT = 6;
+export { PO_PASTE_COLUMN_COUNT };
 
-export function buyUnitCost(product: Product): number {
-  return product.costPrice * (product.unitsPerBuyUom ?? 1);
-}
+export { buyUnitCost };
 
 function formatCost(value: number): string {
   return Number.isFinite(value) ? value.toFixed(2) : '0.00';
 }
 
-export function productToSheetCells(product: Product): string[] {
+/** PO paste rows — first 6 columns only. */
+export function productToPoPasteCells(product: Product): string[] {
   return [
     product.sku ?? '',
     product.name,
@@ -37,14 +26,6 @@ export function productToSheetCells(product: Product): string[] {
     product.buyUom ?? product.uom ?? 'pcs',
     String(product.unitsPerBuyUom ?? 1),
     formatCost(buyUnitCost(product)),
-    product.uom ?? 'pcs',
-    formatCost(product.costPrice ?? 0),
-    formatCost(product.sellingPrice ?? 0),
-    String(product.stock ?? 0),
-    product.category ?? '',
-    product.brand ?? '',
-    product.supplierName ?? '',
-    productStatusLabel(product.status),
   ];
 }
 
@@ -60,12 +41,13 @@ export function productsToTsv(
   options: { includeHeader?: boolean } = {},
 ): string {
   const { includeHeader = true } = options;
+  const poHeaders = PRODUCT_SHEET_COLUMNS.slice(0, PO_PASTE_COLUMN_COUNT).map((c) => c.label);
   const lines: string[] = [];
   if (includeHeader) {
-    lines.push(PRODUCT_SHEET_HEADERS.join('\t'));
+    lines.push(poHeaders.join('\t'));
   }
   for (const product of products) {
-    lines.push(productToSheetCells(product).map(escapeTsvCell).join('\t'));
+    lines.push(productToPoPasteCells(product).map(escapeTsvCell).join('\t'));
   }
   return lines.join('\n');
 }
@@ -92,3 +74,5 @@ export async function copyProductsToClipboard(
   await navigator.clipboard.writeText(tsv);
   return { copied: copyable.length, skipped };
 }
+
+export { productToSheetCells, productStatusLabel };

@@ -1,9 +1,12 @@
 import { delay, generateId } from '@/utils';
+import { computeProductPricing } from '@/utils/productPricing';
 import type {
   LoginCredentials,
   ListQueryParams,
   PaginatedResponse,
   Product,
+  ProductBulkUpdateItem,
+  ProductBulkUpdateResponse,
   InventoryItem,
   InventoryStats,
   Supplier,
@@ -247,6 +250,17 @@ export const mockApi = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    const pricing = computeProductPricing({
+      costPrice: product.costPrice,
+      sellingPrice: product.sellingPrice,
+      packSellingPrice: product.packSellingPrice ?? 0,
+      unitsPerBuyUom: product.unitsPerBuyUom ?? 1,
+      discountPercent: product.discountPercent ?? 0,
+      offeredPrice: product.offeredPrice ?? 0,
+      packDiscountPercent: product.packDiscountPercent ?? 0,
+      packOfferedPrice: product.packOfferedPrice ?? 0,
+    });
+    Object.assign(product, pricing);
     products = [product, ...products];
     inventory = [{ ...product, batches: [], batchCount: 0 }, ...inventory];
     return product;
@@ -265,7 +279,37 @@ export const mockApi = {
       ...(supplier ? { supplierName: supplier.name } : {}),
       updatedAt: new Date().toISOString(),
     };
+    const merged = products[idx];
+    const pricing = computeProductPricing({
+      costPrice: merged.costPrice,
+      sellingPrice: merged.sellingPrice,
+      packSellingPrice: merged.packSellingPrice ?? 0,
+      unitsPerBuyUom: merged.unitsPerBuyUom ?? 1,
+      discountPercent: merged.discountPercent ?? 0,
+      offeredPrice: merged.offeredPrice ?? 0,
+      packDiscountPercent: merged.packDiscountPercent ?? 0,
+      packOfferedPrice: merged.packOfferedPrice ?? 0,
+    });
+    products[idx] = { ...merged, ...pricing };
     return products[idx];
+  },
+
+  async bulkUpdateProducts(
+    updates: ProductBulkUpdateItem[],
+  ): Promise<ProductBulkUpdateResponse> {
+    await delay(600);
+    const errors: ProductBulkUpdateResponse['errors'] = [];
+    let updated = 0;
+    for (const item of updates) {
+      const { id, ...data } = item;
+      try {
+        await this.updateProduct(id, data as Partial<Product>);
+        updated += 1;
+      } catch (err) {
+        errors.push({ id, detail: err instanceof Error ? err.message : 'Update failed' });
+      }
+    }
+    return { updated, errors };
   },
 
   async deleteProduct(id: string): Promise<void> {

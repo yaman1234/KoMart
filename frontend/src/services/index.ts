@@ -11,6 +11,8 @@ import type {
   ListQueryParams,
   PaginatedResponse,
   Product,
+  ProductBulkUpdateItem,
+  ProductBulkUpdateResponse,
   ProductStatus,
   InventoryItem,
   InventoryStats,
@@ -184,6 +186,11 @@ export const productService = {
   update: async (id: string, payload: Partial<Product>): Promise<Product> => {
     if (useMock()) return mockApi.updateProduct(id, payload);
     const { data } = await apiClient.patch(`/products/${id}`, payload);
+    return data;
+  },
+  bulkUpdate: async (updates: ProductBulkUpdateItem[]): Promise<ProductBulkUpdateResponse> => {
+    if (useMock()) return mockApi.bulkUpdateProducts(updates);
+    const { data } = await apiClient.post('/products/bulk-update', { updates });
     return data;
   },
   delete: async (id: string): Promise<void> => {

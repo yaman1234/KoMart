@@ -1,7 +1,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { GRID_PAGE_SIZE, QUERY_KEYS, STALE_TIME } from '@/constants';
 import { productService } from '@/services';
-import type { ListQueryParams, Product } from '@/types';
+import type { ListQueryParams, Product, ProductBulkUpdateItem } from '@/types';
 import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function useProducts(
@@ -44,6 +44,16 @@ export function useUpdateProduct() {
     onSuccess: (_, { id }) => {
       // Product cost/sell price drives POS and inventory valuation.
       invalidateCommerceQueries(queryClient, { productId: id, scopes: ['stock', 'price'] });
+    },
+  });
+}
+
+export function useBulkUpdateProducts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (updates: ProductBulkUpdateItem[]) => productService.bulkUpdate(updates),
+    onSuccess: () => {
+      invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
     },
   });
 }

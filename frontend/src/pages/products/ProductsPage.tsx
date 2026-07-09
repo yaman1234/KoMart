@@ -43,7 +43,7 @@ import { ProductSheetView } from '@/pages/products/components/ProductSheetView';
 import { filterByStock, type StockFilter } from '@/pages/products/productStockFilter';
 
 const LIST_PAGE_SIZE = 10;
-const SHEET_PAGE_SIZE = 50;
+const SHEET_PAGE_SIZE = 25;
 
 type ViewMode = 'grid' | 'list' | 'sheet';
 type ProductSortField = '' | 'name' | 'sku' | 'sellingPrice';
@@ -551,6 +551,7 @@ export function ProductsPage() {
           filters={sharedParams}
           stockFilter={stockFilter}
           canCreatePo={canCreatePo}
+          canBulkEdit={canManage}
           sortBy={sortBy || undefined}
           sortOrder={sortOrder}
           onSort={(field) => handleSort(field)}

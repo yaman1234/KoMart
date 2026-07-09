@@ -158,6 +158,12 @@ export interface Product {
   costPrice: number;
   sellingPrice: number;
   packSellingPrice?: number;
+  marginPercent?: number;
+  discountedAmount?: number;
+  discountPercent?: number;
+  offeredPrice?: number;
+  packDiscountPercent?: number;
+  packOfferedPrice?: number;
   images: string[];
   nutritionInfo?: string;
   allergenInfo?: string;
@@ -167,6 +173,21 @@ export interface Product {
   tags?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProductBulkUpdateItem {
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface ProductBulkUpdateError {
+  id: string;
+  detail: string;
+}
+
+export interface ProductBulkUpdateResponse {
+  updated: number;
+  errors: ProductBulkUpdateError[];
 }
 
 export interface InventoryBatch {

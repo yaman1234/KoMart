@@ -32,8 +32,10 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useUomOptions } from '@/hooks/useUoms';
 import { DROPDOWN_PAGE_SIZE, PRODUCT_CATEGORIES, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
+import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
 import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
 import { formatCurrency } from '@/utils';
+import { computeProductPricing } from '@/utils/productPricing';
 import { showApiError, showSuccess } from '@/utils/toast';
 
 // ── SKU generator ─────────────────────────────────────────────────────────────
@@ -66,6 +68,10 @@ const schema = z.object({
   costPrice:       z.number().min(0, 'Must be ≥ 0'),
   sellingPrice:    z.number().min(0, 'Must be ≥ 0'),
   packSellingPrice: z.number().min(0, 'Must be ≥ 0'),
+  discountPercent: z.number().min(0).max(100),
+  offeredPrice: z.number().min(0, 'Must be ≥ 0'),
+  packDiscountPercent: z.number().min(0).max(100),
+  packOfferedPrice: z.number().min(0, 'Must be ≥ 0'),
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
   status:            z.enum(['active', 'discontinued', 'seasonal']),
   tags:              z.array(z.string().min(1)),
@@ -148,6 +154,10 @@ export function ProductFormPage() {
       costPrice: 0,
       sellingPrice: 0,
       packSellingPrice: 0,
+      discountPercent: 0,
+      offeredPrice: 0,
+      packDiscountPercent: 0,
+      packOfferedPrice: 0,
       lowStockThreshold: 10,
       status: 'active',
       tags: [],
@@ -175,6 +185,10 @@ export function ProductFormPage() {
         costPrice:        product.costPrice,
         sellingPrice:     product.sellingPrice,
         packSellingPrice: product.packSellingPrice ?? 0,
+        discountPercent: product.discountPercent ?? 0,
+        offeredPrice: product.offeredPrice ?? product.sellingPrice,
+        packDiscountPercent: product.packDiscountPercent ?? 0,
+        packOfferedPrice: product.packOfferedPrice ?? product.packSellingPrice ?? 0,
         lowStockThreshold: product.lowStockThreshold,
         status:            product.status ?? 'active',
         tags:              product.tags ?? [],
@@ -197,10 +211,26 @@ export function ProductFormPage() {
   const unitsPerBuyUom = watch('unitsPerBuyUom');
   const sellMode = watch('sellMode');
   const sellingPrice = watch('sellingPrice');
+  const costPrice = watch('costPrice');
   const packSellingPrice = watch('packSellingPrice');
+  const discountPercent = watch('discountPercent');
+  const offeredPrice = watch('offeredPrice');
+  const packDiscountPercent = watch('packDiscountPercent');
+  const packOfferedPrice = watch('packOfferedPrice');
   const packSellEnabled =
     (sellMode === 'unit' || sellMode === 'both') && unitsPerBuyUom > 1;
   const suggestedPackPrice = sellingPrice * unitsPerBuyUom;
+
+  const derivedPricing = computeProductPricing({
+    costPrice: costPrice ?? 0,
+    sellingPrice: sellingPrice ?? 0,
+    packSellingPrice: packSellingPrice ?? 0,
+    unitsPerBuyUom: unitsPerBuyUom ?? 1,
+    discountPercent: discountPercent ?? 0,
+    offeredPrice: offeredPrice ?? 0,
+    packDiscountPercent: packDiscountPercent ?? 0,
+    packOfferedPrice: packOfferedPrice ?? 0,
+  });
 
   useEffect(() => {
     if (!isEditing && storeSettings?.autoSku && brand && category) {
@@ -656,7 +686,7 @@ export function ProductFormPage() {
               <Grid size={12}>
                 <TextField
                   {...register('costPrice', { valueAsNumber: true })}
-                  label={`Cost Price (NPR per ${sellUom || 'pcs'})`}
+                  label={PRODUCT_FIELD_LABELS.unitCost}
                   type="number"
                   fullWidth
                   error={!!errors.costPrice}
@@ -667,11 +697,49 @@ export function ProductFormPage() {
               <Grid size={12}>
                 <TextField
                   {...register('sellingPrice', { valueAsNumber: true })}
-                  label={`Selling Price (NPR per ${sellUom || 'pcs'})`}
+                  label={PRODUCT_FIELD_LABELS.unitPrice}
                   type="number"
                   fullWidth
                   error={!!errors.sellingPrice}
                   helperText={errors.sellingPrice?.message ?? 'Per base unit · NPR 0 hides product from POS'}
+                  slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                />
+              </Grid>
+              <Grid size={6}>
+                <TextField
+                  label={PRODUCT_FIELD_LABELS.marginPercent}
+                  value={derivedPricing.marginPercent.toFixed(1)}
+                  fullWidth
+                  disabled
+                  helperText="Saved when product is updated"
+                />
+              </Grid>
+              <Grid size={6}>
+                <TextField
+                  label={PRODUCT_FIELD_LABELS.packSavings}
+                  value={formatCurrency(derivedPricing.discountedAmount)}
+                  fullWidth
+                  disabled
+                  helperText="Savings vs buying singles as a pack"
+                />
+              </Grid>
+              <Grid size={6}>
+                <TextField
+                  {...register('discountPercent', { valueAsNumber: true })}
+                  label={PRODUCT_FIELD_LABELS.discountPercent}
+                  type="number"
+                  fullWidth
+                  error={!!errors.discountPercent}
+                  slotProps={{ htmlInput: { min: 0, max: 100, step: 0.1 } }}
+                />
+              </Grid>
+              <Grid size={6}>
+                <TextField
+                  {...register('offeredPrice', { valueAsNumber: true })}
+                  label={PRODUCT_FIELD_LABELS.offeredPrice}
+                  type="number"
+                  fullWidth
+                  error={!!errors.offeredPrice}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
                 />
               </Grid>
@@ -680,7 +748,7 @@ export function ProductFormPage() {
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                     <TextField
                       {...register('packSellingPrice', { valueAsNumber: true })}
-                      label={`Pack Price (NPR per ${buyUom || 'pack'})`}
+                      label={PRODUCT_FIELD_LABELS.packPrice}
                       type="number"
                       fullWidth
                       error={!!errors.packSellingPrice}
@@ -708,6 +776,30 @@ export function ProductFormPage() {
                   </Box>
                 </Grid>
               )}
+              {packSellEnabled && (
+                <>
+                  <Grid size={6}>
+                    <TextField
+                      {...register('packDiscountPercent', { valueAsNumber: true })}
+                      label={PRODUCT_FIELD_LABELS.packDiscountPercent}
+                      type="number"
+                      fullWidth
+                      error={!!errors.packDiscountPercent}
+                      slotProps={{ htmlInput: { min: 0, max: 100, step: 0.1 } }}
+                    />
+                  </Grid>
+                  <Grid size={6}>
+                    <TextField
+                      {...register('packOfferedPrice', { valueAsNumber: true })}
+                      label={PRODUCT_FIELD_LABELS.packOfferedPrice}
+                      type="number"
+                      fullWidth
+                      error={!!errors.packOfferedPrice}
+                      slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                    />
+                  </Grid>
+                </>
+              )}
             </Grid>
           </Paper>
 
@@ -720,7 +812,7 @@ export function ProductFormPage() {
             <Divider sx={{ mb: 3 }} />
             <TextField
               {...register('lowStockThreshold', { valueAsNumber: true })}
-              label="Low Stock Alert Threshold"
+              label={PRODUCT_FIELD_LABELS.lowStock}
               type="number"
               fullWidth
               error={!!errors.lowStockThreshold}
