@@ -469,7 +469,7 @@ const SheetRow = memo(function SheetRow({
               ...(fieldError || showServerError ? { bgcolor: 'error.50' } : {}),
               color: !hasSku && col.key === 'sku' ? 'error.main' : undefined,
             }}
-            title={fieldError ?? showServerError ?? undefined}
+            title={fieldError ?? (showServerError || undefined)}
           >
             <SheetCell
               product={product}
