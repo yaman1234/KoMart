@@ -404,6 +404,7 @@ export interface Transaction {
   status?: TransactionStatus;
   voidReason?: string;
   notes?: string;
+  saleDate?: string;
   createdAt: string;
   createdBy: string;
 }

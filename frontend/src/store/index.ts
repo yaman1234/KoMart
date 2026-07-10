@@ -134,17 +134,27 @@ export const useDashboardStore = create<DashboardState>()(
 
 import { cartLineKey } from '@/utils/cartLine';
 
+function todayDateString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
 interface CartState {
   items: import('@/types').CartItem[];
   customerId: string | null;
   loyaltyPointsRedeemed: number;
+  saleDate: string;
   addItem: (item: import('@/types').CartItem) => void;
   removeItem: (productId: string, sellUom?: string) => void;
   updateQuantity: (productId: string, quantity: number, sellUom?: string) => void;
   updateDiscount: (productId: string, discount: number) => void;
   setCustomer: (customerId: string | null) => void;
   setLoyaltyPoints: (points: number) => void;
-  replaceCart: (items: import('@/types').CartItem[], customerId: string | null) => void;
+  setSaleDate: (saleDate: string) => void;
+  replaceCart: (
+    items: import('@/types').CartItem[],
+    customerId: string | null,
+    saleDate?: string,
+  ) => void;
   clearCart: () => void;
 }
 
@@ -152,6 +162,7 @@ export const useCartStore = create<CartState>()((set) => ({
   items: [],
   customerId: null,
   loyaltyPointsRedeemed: 0,
+  saleDate: todayDateString(),
   addItem: (item) =>
     set((state) => {
       const key = cartLineKey(item.productId, item.sellUom);
@@ -196,7 +207,18 @@ export const useCartStore = create<CartState>()((set) => ({
     })),
   setCustomer: (customerId) => set({ customerId }),
   setLoyaltyPoints: (loyaltyPointsRedeemed) => set({ loyaltyPointsRedeemed }),
-  replaceCart: (items, customerId) => set({ items, customerId }),
+  setSaleDate: (saleDate) => set({ saleDate }),
+  replaceCart: (items, customerId, saleDate) =>
+    set({
+      items,
+      customerId,
+      ...(saleDate !== undefined ? { saleDate } : {}),
+    }),
   clearCart: () =>
-    set({ items: [], customerId: null, loyaltyPointsRedeemed: 0 }),
+    set({
+      items: [],
+      customerId: null,
+      loyaltyPointsRedeemed: 0,
+      saleDate: todayDateString(),
+    }),
 }));

@@ -639,7 +639,9 @@ export const mockApi = {
       ...data,
       id: `txn-${generateId().slice(0, 8)}`,
       transactionNumber: `TXN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(transactions.length + 1).padStart(3, '0')}`,
-      createdAt: new Date().toISOString(),
+      createdAt: data.saleDate
+        ? new Date(`${data.saleDate}T12:00:00`).toISOString()
+        : new Date().toISOString(),
     };
     transactions = [txn, ...transactions];
     for (const line of data.items) {

@@ -202,13 +202,28 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
             )
 
         total_cost = round(sum(i.unit_cost * i.quantity for i in enriched_items), 2)
-        txn_payload = body.model_dump()
+        txn_payload = body.model_dump(exclude={"sale_date"})
         txn_payload["items"] = enriched_items
         txn_payload["total_cost"] = total_cost
+
+        created_at = datetime.now(timezone.utc)
+        if body.sale_date:
+            try:
+                parsed = datetime.fromisoformat(body.sale_date)
+            except ValueError as exc:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid sale_date; use YYYY-MM-DD",
+                ) from exc
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            created_at = parsed
 
         txn = Transaction(
             transaction_number=txn_number,
             cashier_id=cashier_id,
+            created_at=created_at,
+            updated_at=created_at,
             **txn_payload,
         )
         await txn.insert()

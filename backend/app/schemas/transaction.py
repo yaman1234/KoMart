@@ -19,6 +19,7 @@ class TransactionCreate(BaseModel):
     payment_method: PaymentMethod
     created_by: str
     notes: str = Field(default="", max_length=500)
+    sale_date: Optional[str] = None
 
 
 class TransactionResponse(BaseModel):
