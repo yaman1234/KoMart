@@ -190,6 +190,23 @@ export interface ProductBulkUpdateResponse {
   errors: ProductBulkUpdateError[];
 }
 
+export type ProductCreatePayload = Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'supplierName'>;
+
+export interface ProductBulkCreateItem extends ProductCreatePayload {
+  row: number;
+}
+
+export interface ProductBulkCreateError {
+  row: number;
+  sku: string;
+  detail: string;
+}
+
+export interface ProductBulkCreateResponse {
+  created: number;
+  errors: ProductBulkCreateError[];
+}
+
 export interface InventoryBatch {
   id: string;
   productId: string;

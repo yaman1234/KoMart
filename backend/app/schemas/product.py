@@ -157,6 +157,26 @@ class ProductBulkUpdateRequest(BaseModel):
     updates: list[ProductBulkUpdateItem] = Field(min_length=1, max_length=100)
 
 
+class ProductBulkCreateItem(ProductCreate):
+    """A create row paired with its spreadsheet row number for error reporting."""
+    row: int = Field(ge=1)
+
+
+class ProductBulkCreateRequest(BaseModel):
+    products: list[ProductBulkCreateItem] = Field(min_length=1, max_length=100)
+
+
+class ProductBulkCreateError(BaseModel):
+    row: int
+    sku: str
+    detail: str
+
+
+class ProductBulkCreateResponse(BaseModel):
+    created: int
+    errors: list[ProductBulkCreateError] = Field(default_factory=list)
+
+
 class ProductBulkUpdateError(BaseModel):
     id: str
     detail: str

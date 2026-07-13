@@ -10,6 +10,7 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { POSPage } from '@/pages/pos/POSPage';
 import { ProductsPage } from '@/pages/products/ProductsPage';
 import { ProductFormPage } from '@/pages/products/ProductFormPage';
+import { BulkProductFormPage } from '@/pages/products/BulkProductFormPage';
 import { ProductDetailPage } from '@/pages/products/ProductDetailPage';
 import { InventoryPage } from '@/pages/inventory/InventoryPage';
 import { InventoryDetailPage } from '@/pages/inventory/InventoryDetailPage';
@@ -70,6 +71,7 @@ export const router = createBrowserRouter([
             element: <RoleGuard allow={['admin', 'manager']} />,
             children: [
               { path: '/products/new', element: <ProductFormPage /> },
+              { path: '/products/bulk-add', element: <BulkProductFormPage /> },
               { path: '/products/:id/edit', element: <ProductFormPage /> },
               { path: '/inventory', element: <InventoryPage /> },
               { path: '/inventory/:productId', element: <InventoryDetailPage /> },

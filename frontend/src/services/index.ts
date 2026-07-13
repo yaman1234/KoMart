@@ -183,6 +183,21 @@ export const productService = {
     const { data } = await apiClient.post('/products', payload);
     return data;
   },
+  bulkCreate: async (products: import('@/types').ProductBulkCreateItem[]): Promise<import('@/types').ProductBulkCreateResponse> => {
+    if (useMock()) {
+      const results = await Promise.allSettled(products.map(({ row: _row, ...product }) =>
+        mockApi.createProduct({ ...product, supplierName: '' }),
+      ));
+      return {
+        created: results.filter((result) => result.status === 'fulfilled').length,
+        errors: results.flatMap((result, index) => result.status === 'rejected'
+          ? [{ row: products[index].row, sku: products[index].sku, detail: result.reason instanceof Error ? result.reason.message : 'Could not create product' }]
+          : []),
+      };
+    }
+    const { data } = await apiClient.post('/products/bulk-create', { products });
+    return data;
+  },
   update: async (id: string, payload: Partial<Product>): Promise<Product> => {
     if (useMock()) return mockApi.updateProduct(id, payload);
     const { data } = await apiClient.patch(`/products/${id}`, payload);

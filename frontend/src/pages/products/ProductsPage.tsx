@@ -19,6 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import GridViewIcon from '@mui/icons-material/GridView';
 import TableRowsIcon from '@mui/icons-material/TableRows';
@@ -46,7 +47,7 @@ const LIST_PAGE_SIZE = 10;
 const SHEET_PAGE_SIZE = 25;
 
 type ViewMode = 'grid' | 'list' | 'sheet';
-type ProductSortField = '' | 'name' | 'sku' | 'sellingPrice';
+type ProductSortField = '' | 'name' | 'sku' | 'sellingPrice' | 'createdAt';
 
 // ── Grid card ──────────────────────────────────────────────────────────────────
 interface ProductGridCardProps {
@@ -366,9 +367,14 @@ export function ProductsPage() {
         subtitle={`${pagedData?.total ?? (infiniteData?.pages[0]?.total ?? 0)} products in catalog`}
         action={
           canManage ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/products/new')}>
-              Add Product
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button variant="outlined" startIcon={<ContentPasteIcon />} onClick={() => navigate('/products/bulk-add')}>
+                Bulk Add
+              </Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/products/new')}>
+                Add Product
+              </Button>
+            </Box>
           ) : undefined
         }
       />
@@ -441,6 +447,25 @@ export function ProductsPage() {
           <ToggleButton value="low">Low</ToggleButton>
           <ToggleButton value="out">Out</ToggleButton>
         </ToggleButtonGroup>
+
+        {/* Newest products */}
+        <ToggleButton
+          value="new"
+          selected={sortBy === 'createdAt' && sortOrder === 'desc'}
+          size="small"
+          onClick={() => {
+            if (sortBy === 'createdAt' && sortOrder === 'desc') {
+              setSortBy('');
+              setSortOrder('asc');
+            } else {
+              setSortBy('createdAt');
+              setSortOrder('desc');
+            }
+            setPage(0);
+          }}
+        >
+          New
+        </ToggleButton>
 
         {/* Price sort */}
         <ToggleButtonGroup

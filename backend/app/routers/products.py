@@ -13,6 +13,9 @@ from app.schemas.product import (
     ProductBulkUpdateRequest,
     ProductBulkUpdateResponse,
     ProductBulkUpdateError,
+    ProductBulkCreateRequest,
+    ProductBulkCreateResponse,
+    ProductBulkCreateError,
     pack_selling_price_required,
 )
 from app.schemas.common import PaginatedResponse
@@ -135,7 +138,7 @@ async def list_products(
     supplier_id: str = Query(""),
     status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     sellable_only: bool = Query(False),
-    sort_by: str = Query("", pattern="^(|name|sku|selling_price)$"),
+    sort_by: str = Query("", pattern="^(|name|sku|selling_price|sellingPrice|created_at|createdAt)$"),
     sort_order: str = Query("", pattern="^(|asc|desc)$"),
     _: User = Depends(get_current_user),
 ):
@@ -166,7 +169,11 @@ async def list_products(
 
     if sort_by and sort_order:
         direction = 1 if sort_order == "asc" else -1
-        query = query.sort((sort_by, direction))
+        db_sort_field = {
+            "sellingPrice": "selling_price",
+            "createdAt": "created_at",
+        }.get(sort_by, sort_by)
+        query = query.sort((db_sort_field, direction))
 
     total = await query.count()
     products = await query.skip((page - 1) * page_size).limit(page_size).to_list()
@@ -220,6 +227,67 @@ async def create_product(
         new=product_snapshot(product),
     )
     return _to_response(product)
+
+
+@router.post("/bulk-create", response_model=ProductBulkCreateResponse)
+async def bulk_create_products(
+    body: ProductBulkCreateRequest,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    """Create independent spreadsheet rows, returning row-level errors when needed."""
+    created = 0
+    errors: list[ProductBulkCreateError] = []
+    seen_skus: set[str] = set()
+
+    for item in body.products:
+        sku = item.sku.strip()
+        if sku in seen_skus:
+            errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="Duplicate SKU in this import"))
+            continue
+        seen_skus.add(sku)
+
+        if await Product.find_one(Product.sku == sku):
+            errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="SKU already exists"))
+            continue
+
+        try:
+            supplier_name = ""
+            if item.supplier_id:
+                supplier = await _resolve_supplier(item.supplier_id)
+                supplier_name = supplier.name
+            data = item.model_dump(exclude={"row"})
+            data["sku"] = sku
+            data.pop("stock", None)
+            category = data.pop("category", None)
+            cat_id, cat_name = await resolve_category_fields(
+                category_id=data.pop("category_id", None) or None,
+                category=category,
+            )
+            product = Product(
+                **data,
+                category=cat_name,
+                category_id=cat_id,
+                supplier_name=supplier_name,
+                stock=0,
+            )
+            for key, value in compute_product_pricing(product).items():
+                setattr(product, key, value)
+            await product.insert()
+            await log_audit(
+                module=AuditModule.products,
+                action="create",
+                user=current_user,
+                request=request,
+                entity_type="product",
+                entity_id=str(product.id),
+                new=product_snapshot(product),
+            )
+            created += 1
+        except HTTPException as exc:
+            errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail=str(exc.detail)))
+
+    return ProductBulkCreateResponse(created=created, errors=errors)
 
 
 @router.post("/bulk-update", response_model=ProductBulkUpdateResponse)
