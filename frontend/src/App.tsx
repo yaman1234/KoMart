@@ -1,6 +1,7 @@
 import { RouterProvider } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, CssBaseline, Alert, Box } from '@mui/material';
+import { Analytics } from '@vercel/analytics/react';
 import { queryClient } from '@/hooks/queryClient';
 import { useThemeStore } from '@/store';
 import { createAppTheme } from '@/theme';
@@ -28,6 +29,7 @@ export function App() {
         <GlobalLoader />
         <ToastProvider />
         <RouterProvider router={router} />
+        <Analytics />
       </ThemeProvider>
     </QueryClientProvider>
   );
