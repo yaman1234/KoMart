@@ -16,6 +16,8 @@ from app.schemas.product import (
     ProductBulkCreateRequest,
     ProductBulkCreateResponse,
     ProductBulkCreateError,
+    SkuSuggestRequest,
+    SkuSuggestResponse,
     pack_selling_price_required,
 )
 from app.schemas.common import PaginatedResponse
@@ -23,6 +25,8 @@ from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, product_snapshot
 from app.services.category_sync import resolve_category_fields, propagate_category_rename
 from app.services.product_pricing import compute_product_pricing, apply_pricing_to_dict
+from app.services.sku import generate_unique_sku
+from app.services.store_settings import get_store_settings
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -32,6 +36,22 @@ async def _resolve_supplier(supplier_id: str) -> Supplier:
     if not supplier:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
     return supplier
+
+
+async def _resolve_product_sku(
+    sku: str,
+    brand: str,
+    category: str,
+    *,
+    exclude: set[str] | None = None,
+    allow_auto: bool,
+) -> str:
+    normalized = sku.strip()
+    if normalized:
+        return normalized
+    if not allow_auto:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="SKU is required")
+    return await generate_unique_sku(brand, category, exclude=exclude)
 
 
 def _pricing_sources(body_fields: set[str]) -> tuple[str, str]:
@@ -187,19 +207,45 @@ async def list_products(
     )
 
 
+@router.post("/suggest-skus", response_model=SkuSuggestResponse)
+async def suggest_skus(
+    body: SkuSuggestRequest,
+    _: User = Depends(get_current_user),
+):
+    """Suggest unique SKUs for preview before create."""
+    exclude = {value.strip() for value in body.exclude if value.strip()}
+    skus: list[str] = []
+    for item in body.items:
+        sku = await generate_unique_sku(item.brand, item.category, exclude=exclude)
+        exclude.add(sku)
+        skus.append(sku)
+    return SkuSuggestResponse(skus=skus)
+
+
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def create_product(
     body: ProductCreate,
     request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
-    if await Product.find_one(Product.sku == body.sku):
+    settings = await get_store_settings()
+    try:
+        sku = await _resolve_product_sku(
+            body.sku,
+            body.brand,
+            body.category,
+            allow_auto=settings.auto_sku,
+        )
+    except HTTPException:
+        raise
+    if await Product.find_one(Product.sku == sku):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="SKU already exists")
     supplier_name = ""
     if body.supplier_id:
         supplier = await _resolve_supplier(body.supplier_id)
         supplier_name = supplier.name
     data = body.model_dump()
+    data["sku"] = sku
     data.pop("stock", None)
     category = data.pop("category", None)
     cat_id, cat_name = await resolve_category_fields(
@@ -241,7 +287,18 @@ async def bulk_create_products(
     seen_skus: set[str] = set()
 
     for item in body.products:
-        sku = item.sku.strip()
+        try:
+            sku = await _resolve_product_sku(
+                item.sku,
+                item.brand,
+                item.category,
+                exclude=seen_skus,
+                allow_auto=True,
+            )
+        except HTTPException as exc:
+            errors.append(ProductBulkCreateError(row=item.row, sku=item.sku.strip(), detail=str(exc.detail)))
+            continue
+
         if sku in seen_skus:
             errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="Duplicate SKU in this import"))
             continue

@@ -17,7 +17,7 @@ def pack_selling_price_required(
 
 class ProductCreate(BaseModel):
     name: str
-    sku: str
+    sku: str = ""
     barcode: str = ""
     brand: str = ""
     country_of_origin: str = ""
@@ -175,6 +175,20 @@ class ProductBulkCreateError(BaseModel):
 class ProductBulkCreateResponse(BaseModel):
     created: int
     errors: list[ProductBulkCreateError] = Field(default_factory=list)
+
+
+class SkuSuggestItem(BaseModel):
+    brand: str = ""
+    category: str = ""
+
+
+class SkuSuggestRequest(BaseModel):
+    items: list[SkuSuggestItem] = Field(min_length=1, max_length=100)
+    exclude: list[str] = Field(default_factory=list)
+
+
+class SkuSuggestResponse(BaseModel):
+    skus: list[str]
 
 
 class ProductBulkUpdateError(BaseModel):

@@ -15,6 +15,7 @@ from app.schemas.purchase_order import (
     PurchaseOrderStatusUpdate,
     PurchaseOrderReceiveRequest,
     PurchaseOrderResponse,
+    PurchaseOrderListResponse,
     item_to_response,
 )
 from app.schemas.common import PaginatedResponse
@@ -90,13 +91,13 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
 async def _next_po_number() -> str:
     settings = await get_store_settings()
     prefix_base = (settings.purchase_order_prefix or "PO").strip().upper()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%y%m%d")
     prefix = f"{prefix_base}-{today}-"
     count = await PurchaseOrder.find({"order_number": {"$regex": f"^{prefix}"}}).count()
     return f"{prefix}{str(count + 1).zfill(3)}"
 
 
-@router.get("", response_model=PaginatedResponse[PurchaseOrderResponse])
+@router.get("", response_model=PurchaseOrderListResponse)
 async def list_purchase_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=500),
@@ -114,13 +115,17 @@ async def list_purchase_orders(
         ]})
 
     total = await query.count()
+    received_total_amount = 0.0
+    received_orders = await query.find(PurchaseOrder.status == POStatus.received).to_list()
+    received_total_amount = round(sum(po.total_amount for po in received_orders), 2)
     orders = await query.sort("-created_at").skip((page - 1) * page_size).limit(page_size).to_list()
-    return PaginatedResponse(
+    return PurchaseOrderListResponse(
         data=[_to_response(po) for po in orders],
         total=total,
         page=page,
         page_size=page_size,
         total_pages=ceil(total / page_size) if total else 1,
+        received_total_amount=received_total_amount,
     )
 
 

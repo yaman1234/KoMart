@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Chip } from '@mui/material';
+import { Box, Button, Chip, Paper, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -101,6 +101,18 @@ export function PurchaseOrdersPage() {
           ) : undefined
         }
       />
+
+      <Paper
+        variant="outlined"
+        sx={{ mb: 2, px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          Total Received Value
+        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+          {formatCurrency(data?.receivedTotalAmount ?? 0)}
+        </Typography>
+      </Paper>
 
       <Box sx={{ mb: 3 }}>
         <SearchBar

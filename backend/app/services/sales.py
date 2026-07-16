@@ -39,7 +39,7 @@ def _compute_tier(total_spent: float) -> MembershipTier:
 async def _next_txn_number() -> str:
     settings = await get_store_settings()
     prefix_base = (settings.transaction_prefix or "TXN").strip().upper()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%y%m%d")
     prefix = f"{prefix_base}-{today}-"
     count = await Transaction.find({"transaction_number": {"$regex": f"^{prefix}"}}).count()
     return f"{prefix}{str(count + 1).zfill(3)}"

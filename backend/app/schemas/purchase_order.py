@@ -78,3 +78,12 @@ class PurchaseOrderResponse(BaseModel):
     received_date: Optional[str]
     created_at: str
     updated_at: str
+
+
+class PurchaseOrderListResponse(BaseModel):
+    data: list[PurchaseOrderResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    received_total_amount: float = 0.0

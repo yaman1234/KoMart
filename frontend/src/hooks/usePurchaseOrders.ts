@@ -1,14 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { purchaseOrderService } from '@/services';
-import type { ListQueryParams, PurchaseOrderStatus, PurchaseOrderReceiveItem, PurchaseOrderWritePayload } from '@/types';
+import type {
+  ListQueryParams,
+  PurchaseOrderListResponse,
+  PurchaseOrderStatus,
+  PurchaseOrderReceiveItem,
+  PurchaseOrderWritePayload,
+} from '@/types';
 import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function usePurchaseOrders(
   params?: ListQueryParams,
   options?: { enabled?: boolean },
 ) {
-  return useQuery({
+  return useQuery<PurchaseOrderListResponse>({
     queryKey: [...QUERY_KEYS.purchaseOrders, params],
     queryFn: () => purchaseOrderService.getAll(params),
     enabled: options?.enabled ?? true,

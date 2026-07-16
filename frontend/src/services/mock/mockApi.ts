@@ -161,6 +161,35 @@ function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> 
   return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
+function mockSuggestSkus(
+  items: import('@/types').SkuSuggestItem[],
+  exclude: string[] = [],
+): import('@/types').SkuSuggestResponse {
+  const used = new Set(exclude.map((sku) => sku.trim().toLowerCase()).filter(Boolean));
+  const existing = new Set(products.map((p) => p.sku.toLowerCase()));
+  const skus: string[] = [];
+  for (const item of items) {
+    let sku = '';
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      const brand = (item.brand || 'PRD').replace(/\s+/g, '').slice(0, 3).toUpperCase();
+      const category = (item.category || 'GEN')
+        .split(/[\s&]+/)
+        .map((word) => word[0] ?? '')
+        .join('')
+        .toUpperCase()
+        .slice(0, 3);
+      const candidate = `${brand}-${category}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+      const key = candidate.toLowerCase();
+      if (used.has(key) || existing.has(key)) continue;
+      sku = candidate;
+      used.add(key);
+      break;
+    }
+    skus.push(sku || `PRD-GEN-${generateId().slice(0, 6).toUpperCase()}`);
+  }
+  return { skus };
+}
+
 export const mockApi = {
   isMockEnabled: isMockEnabled(),
 
@@ -239,11 +268,20 @@ export const mockApi = {
     data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<Product> {
     await delay(600);
+    let sku = data.sku?.trim() ?? '';
+    if (!sku) {
+      const suggested = mockSuggestSkus(
+        [{ brand: data.brand ?? '', category: data.category ?? '' }],
+        products.map((p) => p.sku),
+      );
+      sku = suggested.skus[0] ?? `PRD-GEN-${generateId().slice(0, 6).toUpperCase()}`;
+    }
     const supplier = data.supplierId
       ? suppliers.find((s) => s.id === data.supplierId)
       : undefined;
     const product: Product = {
       ...data,
+      sku,
       status: data.status ?? 'active',
       supplierName: supplier?.name ?? data.supplierName ?? '',
       id: `prod-${generateId().slice(0, 8)}`,
@@ -264,6 +302,14 @@ export const mockApi = {
     products = [product, ...products];
     inventory = [{ ...product, batches: [], batchCount: 0 }, ...inventory];
     return product;
+  },
+
+  async suggestSkus(
+    items: import('@/types').SkuSuggestItem[],
+    exclude: string[] = [],
+  ): Promise<import('@/types').SkuSuggestResponse> {
+    await delay(200);
+    return mockSuggestSkus(items, exclude);
   },
 
   async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
@@ -419,9 +465,17 @@ export const mockApi = {
   },
 
   // ── Purchase Orders ───────────────────────────────────────────────────────
-  async getPurchaseOrders(params: ListQueryParams = {}): Promise<PaginatedResponse<PurchaseOrder>> {
+  async getPurchaseOrders(params: ListQueryParams = {}): Promise<import('@/types').PurchaseOrderListResponse> {
     await delay(400);
-    return paginate(purchaseOrders, params);
+    const page = paginate(purchaseOrders, params);
+    return {
+      ...page,
+      receivedTotalAmount: Math.round(
+        purchaseOrders
+          .filter((po) => po.status === 'received')
+          .reduce((sum, po) => sum + po.totalAmount, 0) * 100,
+      ) / 100,
+    };
   },
 
   async getPurchaseOrder(id: string): Promise<PurchaseOrder> {
@@ -433,7 +487,7 @@ export const mockApi = {
 
   async createPurchaseOrder(data: PurchaseOrderWritePayload): Promise<PurchaseOrder> {
     await delay(600);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(2, 10).replace(/-/g, '');
     const todayCount = purchaseOrders.filter((p) => p.orderNumber.startsWith(`PO-${today}-`)).length;
     const po: PurchaseOrder = {
       ...data,
@@ -635,10 +689,11 @@ export const mockApi = {
     data: Omit<Transaction, 'id' | 'transactionNumber' | 'createdAt'>,
   ): Promise<Transaction> {
     await delay(700);
+    const today = new Date().toISOString().slice(2, 10).replace(/-/g, '');
     const txn: Transaction = {
       ...data,
       id: `txn-${generateId().slice(0, 8)}`,
-      transactionNumber: `TXN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(transactions.length + 1).padStart(3, '0')}`,
+      transactionNumber: `TXN-${today}-${String(transactions.length + 1).padStart(3, '0')}`,
       createdAt: data.saleDate
         ? new Date(`${data.saleDate}T12:00:00`).toISOString()
         : new Date().toISOString(),

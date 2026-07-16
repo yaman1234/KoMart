@@ -10,6 +10,7 @@ interface MainLayoutProps {
 export function MainLayout({ title }: MainLayoutProps) {
   const { pathname } = useLocation();
   const isPos = pathname === '/pos';
+  const isFullWidth = isPos || pathname === '/products/bulk-add';
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -26,8 +27,8 @@ export function MainLayout({ title }: MainLayoutProps) {
       >
         <TopBar title={title} />
         <Container
-          maxWidth={isPos ? false : 'xl'}
-          disableGutters={isPos}
+          maxWidth={isFullWidth ? false : 'xl'}
+          disableGutters={isFullWidth}
           sx={{
             flex: 1,
             display: 'flex',
@@ -35,9 +36,9 @@ export function MainLayout({ title }: MainLayoutProps) {
             minHeight: 0,
             minWidth: 0,
             overflow: 'hidden',
-            py: isPos ? 1.5 : 3,
-            ...(isPos
-              ? { pl: { xs: 1.5, sm: 2 }, pr: 0, overflowX: 'hidden' }
+            py: isFullWidth ? 1.5 : 3,
+            ...(isFullWidth
+              ? { pl: { xs: 1.5, sm: 2 }, pr: { xs: 1.5, sm: 2 }, overflowX: 'hidden' }
               : {}),
           }}
         >

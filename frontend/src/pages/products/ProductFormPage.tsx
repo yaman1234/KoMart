@@ -37,20 +37,9 @@ import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
 import { formatCurrency } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
 import { showApiError, showSuccess } from '@/utils/toast';
+import { productService } from '@/services';
 
-// ── SKU generator ─────────────────────────────────────────────────────────────
-function generateSku(brand: string, category: string): string {
-  const b = (brand || 'PRD').replace(/\s+/g, '').slice(0, 3).toUpperCase();
-  const c = (category || 'GEN')
-    .split(/[\s&]+/)
-    .map((w) => w[0] ?? '')
-    .join('')
-    .toUpperCase()
-    .slice(0, 3);
-  const rand = String(Math.floor(1000 + Math.random() * 9000));
-  return `${b}-${c}-${rand}`;
-}
-
+// ── SKU generator (server-backed) ─────────────────────────────────────────────
 const schema = z.object({
   name:            z.string().min(1, 'Name is required'),
   sku:             z.string().min(1, 'SKU is required'),
@@ -234,15 +223,28 @@ export function ProductFormPage() {
 
   useEffect(() => {
     if (!isEditing && storeSettings?.autoSku && brand && category) {
-      setValue('sku', generateSku(brand, category), { shouldValidate: true });
+      let cancelled = false;
+      void productService.suggestSkus([{ brand, category }]).then(({ skus }) => {
+        if (!cancelled && skus[0]) {
+          setValue('sku', skus[0], { shouldValidate: true });
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [isEditing, storeSettings?.autoSku, brand, category, setValue]);
 
   // ── Auto SKU ──────────────────────────────────────────────────────────────
   const handleGenerateSku = useCallback(() => {
-    const brand    = watch('brand');
+    const brand = watch('brand');
     const category = watch('category');
-    setValue('sku', generateSku(brand, category), { shouldValidate: true });
+    const currentSku = watch('sku');
+    void productService
+      .suggestSkus([{ brand, category }], currentSku ? [currentSku] : [])
+      .then(({ skus }) => {
+        if (skus[0]) setValue('sku', skus[0], { shouldValidate: true });
+      });
   }, [watch, setValue]);
 
   // ── Image file picker ────────────────────────────────────────────────────

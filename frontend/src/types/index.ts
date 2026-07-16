@@ -207,6 +207,15 @@ export interface ProductBulkCreateResponse {
   errors: ProductBulkCreateError[];
 }
 
+export interface SkuSuggestItem {
+  brand: string;
+  category: string;
+}
+
+export interface SkuSuggestResponse {
+  skus: string[];
+}
+
 export interface InventoryBatch {
   id: string;
   productId: string;
@@ -357,6 +366,15 @@ export interface PurchaseOrder {
   receivedDate?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PurchaseOrderListResponse {
+  data: PurchaseOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  receivedTotalAmount: number;
 }
 
 export interface PurchaseOrderReceiveItem {

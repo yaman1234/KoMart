@@ -19,6 +19,7 @@ import type {
   InventoryBatch,
   Supplier,
   PurchaseOrder,
+  PurchaseOrderListResponse,
   PurchaseOrderStatus,
   PurchaseOrderReceiveItem,
   PurchaseOrderWritePayload,
@@ -198,6 +199,14 @@ export const productService = {
     const { data } = await apiClient.post('/products/bulk-create', { products });
     return data;
   },
+  suggestSkus: async (
+    items: import('@/types').SkuSuggestItem[],
+    exclude: string[] = [],
+  ): Promise<import('@/types').SkuSuggestResponse> => {
+    if (useMock()) return mockApi.suggestSkus(items, exclude);
+    const { data } = await apiClient.post('/products/suggest-skus', { items, exclude });
+    return data;
+  },
   update: async (id: string, payload: Partial<Product>): Promise<Product> => {
     if (useMock()) return mockApi.updateProduct(id, payload);
     const { data } = await apiClient.patch(`/products/${id}`, payload);
@@ -314,7 +323,7 @@ export const supplierService = {
 };
 
 export const purchaseOrderService = {
-  getAll: async (params?: ListQueryParams): Promise<PaginatedResponse<PurchaseOrder>> => {
+  getAll: async (params?: ListQueryParams): Promise<PurchaseOrderListResponse> => {
     if (useMock()) return mockApi.getPurchaseOrders(params);
     const { data } = await apiClient.get('/purchase-orders', { params });
     return data;
