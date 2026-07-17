@@ -1,14 +1,17 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from math import ceil
 from datetime import datetime, timezone, date
 import calendar
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
-from app.models.expense import Expense
+from app.models.expense import Expense, ExpenseCategory
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseStatsResponse
 from app.schemas.common import PaginatedResponse
 from app.services.expense_helpers import SETUP_INVESTMENT_MATCH, normalize_setup_fields
+from app.models.audit_log import AuditModule
+from app.services.audit import log_audit, expense_snapshot
+from app.services.po_payment import reverse_payment_for_expense
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -24,6 +27,7 @@ def _to_response(e: Expense) -> ExpenseResponse:
         paid_to=e.paid_to,
         payment_method=e.payment_method,
         is_setup_cost=e.is_setup_cost,
+        purchase_order_id=getattr(e, "purchase_order_id", None),
         created_at=e.created_at.isoformat(),
         updated_at=e.updated_at.isoformat(),
     )
@@ -36,6 +40,8 @@ async def list_expenses(
     search: str = Query(""),
     category: str = Query(""),
     is_setup_cost: str = Query(""),  # "true" | "false" | "" (all)
+    start_date: str = Query(""),
+    end_date: str = Query(""),
     _: User = Depends(get_current_user),
 ):
     query = Expense.find()
@@ -48,6 +54,11 @@ async def list_expenses(
 
     if is_setup_cost in ("true", "false"):
         query = query.find({"is_setup_cost": is_setup_cost == "true"})
+
+    if start_date:
+        query = query.find({"date": {"$gte": start_date}})
+    if end_date:
+        query = query.find({"date": {"$lte": end_date}})
 
     # Sort newest-date first
     query = query.sort([("date", -1), ("created_at", -1)])
@@ -88,24 +99,52 @@ async def expense_stats(_: User = Depends(get_current_user)):
 
     month_rows = await col.aggregate([
         {"$match": {"date": {"$gte": month_start, "$lte": month_end}}},
-        {"$group": {"_id": None, "this_month": {"$sum": "$amount"}}},
+        {
+            "$group": {
+                "_id": None,
+                "this_month": {"$sum": "$amount"},
+                "this_month_setup": {
+                    "$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]},
+                },
+            },
+        },
     ]).to_list(1)
 
     totals = totals_rows[0] if totals_rows else {}
     month = month_rows[0] if month_rows else {}
+    total_expenses = round(float(totals.get("total_expenses", 0) or 0), 2)
+    setup_investment = round(float(totals.get("setup_investment", 0) or 0), 2)
+    this_month = round(float(month.get("this_month", 0) or 0), 2)
 
     return ExpenseStatsResponse(
-        total_expenses=round(float(totals.get("total_expenses", 0) or 0), 2),
-        this_month=round(float(month.get("this_month", 0) or 0), 2),
-        setup_investment=round(float(totals.get("setup_investment", 0) or 0), 2),
+        total_expenses=total_expenses,
+        this_month=this_month,
+        setup_investment=setup_investment,
+        operating_expenses=round(total_expenses - setup_investment, 2),
     )
 
 
 @router.post("", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
-async def create_expense(body: ExpenseCreate, _: User = Depends(require_manager_or_above)):
+async def create_expense(
+    body: ExpenseCreate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
     data = normalize_setup_fields(body.model_dump())
+    if data.get("category") == ExpenseCategory.purchase_order and not data.get("purchase_order_id"):
+        # Manual PO-category expenses are allowed without a link; system payments set the id.
+        pass
     expense = Expense(**data)
     await expense.insert()
+    await log_audit(
+        module=AuditModule.expenses,
+        action="create",
+        user=current_user,
+        request=request,
+        entity_type="expense",
+        entity_id=str(expense.id),
+        new=expense_snapshot(expense),
+    )
     return _to_response(expense)
 
 
@@ -119,12 +158,22 @@ async def get_expense(expense_id: str, _: User = Depends(get_current_user)):
 
 @router.patch("/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(
-    expense_id: str, body: ExpenseUpdate, _: User = Depends(require_manager_or_above)
+    expense_id: str,
+    body: ExpenseUpdate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
 ):
     expense = await Expense.get(expense_id)
     if not expense:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Expense not found")
 
+    if getattr(expense, "purchase_order_id", None):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="PO-linked expenses cannot be edited here. Delete to reverse the payment, or record a new payment on the purchase order.",
+        )
+
+    before = expense_snapshot(expense)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     normalized = normalize_setup_fields({
         "category": update_data.get("category", expense.category),
@@ -137,12 +186,39 @@ async def update_expense(
     if update_data:
         await expense.set(update_data)
 
-    return _to_response(expense)
+    refreshed = await Expense.get(expense_id)
+    await log_audit(
+        module=AuditModule.expenses,
+        action="update",
+        user=current_user,
+        request=request,
+        entity_type="expense",
+        entity_id=expense_id,
+        previous=before,
+        new=expense_snapshot(refreshed),  # type: ignore[arg-type]
+    )
+    return _to_response(refreshed)  # type: ignore[arg-type]
 
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_expense(expense_id: str, _: User = Depends(require_manager_or_above)):
+async def delete_expense(
+    expense_id: str,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
     expense = await Expense.get(expense_id)
     if not expense:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Expense not found")
+
+    before = expense_snapshot(expense)
+    await reverse_payment_for_expense(expense, current_user=current_user, request=request)
     await expense.delete()
+    await log_audit(
+        module=AuditModule.expenses,
+        action="delete",
+        user=current_user,
+        request=request,
+        entity_type="expense",
+        entity_id=expense_id,
+        previous=before,
+    )

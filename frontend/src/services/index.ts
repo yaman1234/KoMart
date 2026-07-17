@@ -378,6 +378,14 @@ export const purchaseOrderService = {
     }
     return last!;
   },
+  recordPayment: async (
+    id: string,
+    payload: import('@/types').PurchaseOrderPaymentPayload,
+  ): Promise<PurchaseOrder> => {
+    if (useMock()) return mockApi.recordPurchaseOrderPayment(id, payload);
+    const { data } = await apiClient.post(`/purchase-orders/${id}/payments`, payload);
+    return data;
+  },
 };
 
 export const customerService = {
@@ -610,6 +618,22 @@ export const reportsService = {
   getExpenseSummary: async (range?: DateRange): Promise<ExpenseSummary> => {
     if (useMock()) return mockApi.getExpenseSummary(range);
     const { data } = await apiClient.get('/reports/expense-summary', { params: withRange(range) });
+    return data;
+  },
+  getDailySummary: async (date: string): Promise<import('@/types').DailySummary> => {
+    if (useMock()) return mockApi.getDailySummary(date);
+    const { data } = await apiClient.get('/reports/daily-summary', { params: { date } });
+    return data;
+  },
+};
+
+export const dayCloseService = {
+  upsert: async (
+    date: string,
+    payload: import('@/types').DayCloseUpsertPayload,
+  ): Promise<import('@/types').DayCloseRecord> => {
+    if (useMock()) return mockApi.upsertDayClose(date, payload);
+    const { data } = await apiClient.put(`/day-closes/${date}`, payload);
     return data;
   },
 };

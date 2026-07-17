@@ -84,6 +84,7 @@ let purchaseOrders = [...mockPurchaseOrders];
 let customers = [...mockCustomers];
 let transactions = [...mockTransactions];
 let expenses = [...mockExpenses];
+let dayCloses: import('@/types').DayCloseRecord[] = [];
 
 function isSetupInvestmentExpense(e: Expense): boolean {
   return e.isSetupCost || e.category === 'setup_investment';
@@ -475,6 +476,11 @@ export const mockApi = {
           .filter((po) => po.status === 'received')
           .reduce((sum, po) => sum + po.totalAmount, 0) * 100,
       ) / 100,
+      outstandingAmount: Math.round(
+        purchaseOrders
+          .filter((po) => po.status !== 'cancelled')
+          .reduce((sum, po) => sum + Math.max(0, po.totalAmount - (po.amountPaid ?? 0)), 0) * 100,
+      ) / 100,
     };
   },
 
@@ -494,6 +500,9 @@ export const mockApi = {
       items: data.items.map((item) => ({ ...item, lineStatus: 'pending' as const })),
       id: `po-${generateId().slice(0, 8)}`,
       orderNumber: `PO-${today}-${String(todayCount + 1).padStart(3, '0')}`,
+      amountPaid: 0,
+      paymentStatus: 'unpaid',
+      payments: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -585,6 +594,68 @@ export const mockApi = {
       status,
       receivedBy: 'Admin User',
       receivedDate: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString(),
+    };
+    return purchaseOrders[idx];
+  },
+
+  async recordPurchaseOrderPayment(
+    id: string,
+    payload: import('@/types').PurchaseOrderPaymentPayload,
+  ): Promise<PurchaseOrder> {
+    await delay(500);
+    const idx = purchaseOrders.findIndex((p) => p.id === id);
+    if (idx === -1) throw new Error('Purchase order not found');
+    const po = purchaseOrders[idx];
+    if (!['ordered', 'partial', 'received'].includes(po.status)) {
+      throw new Error('Payments can only be recorded for ordered, partial, or received purchase orders');
+    }
+    const amountPaid = po.amountPaid ?? 0;
+    const remaining = Math.round((po.totalAmount - amountPaid) * 100) / 100;
+    if (payload.amount <= 0) throw new Error('Payment amount must be greater than zero');
+    if (payload.amount > remaining + 0.001) {
+      throw new Error(`Payment exceeds remaining balance (${remaining.toFixed(2)})`);
+    }
+
+    const expenseId = `exp-${generateId().slice(0, 8)}`;
+    const expense: Expense = {
+      id: expenseId,
+      title: `PO payment ${po.orderNumber}`,
+      description: payload.notes || `Payment for purchase order ${po.orderNumber}`,
+      amount: payload.amount,
+      category: 'purchase_order',
+      date: payload.date,
+      paidTo: po.supplierName,
+      paymentMethod: payload.paymentMethod,
+      isSetupCost: false,
+      purchaseOrderId: po.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    expenses = [expense, ...expenses];
+
+    const nextPaid = Math.round((amountPaid + payload.amount) * 100) / 100;
+    const paymentStatus =
+      nextPaid <= 0 ? 'unpaid' as const
+      : nextPaid >= po.totalAmount ? 'paid' as const
+      : 'partial' as const;
+
+    purchaseOrders[idx] = {
+      ...po,
+      amountPaid: nextPaid,
+      paymentStatus,
+      payments: [
+        ...(po.payments ?? []),
+        {
+          amount: payload.amount,
+          date: payload.date,
+          paymentMethod: payload.paymentMethod,
+          notes: payload.notes,
+          expenseId,
+          createdBy: 'Admin User',
+          createdAt: new Date().toISOString(),
+        },
+      ],
       updatedAt: new Date().toISOString(),
     };
     return purchaseOrders[idx];
@@ -932,8 +1003,26 @@ export const mockApi = {
   // ── Expenses ────────────────────────────────────────────────────────────────
   async getExpenses(params?: ListQueryParams): Promise<PaginatedResponse<Expense>> {
     await delay(250);
-    const result = paginate<Expense>(expenses, params ?? {});
-    return result;
+    let filtered = [...expenses];
+    if (params?.search) {
+      const term = String(params.search).toLowerCase();
+      filtered = filtered.filter((e) => e.title.toLowerCase().includes(term));
+    }
+    if (params?.category) {
+      filtered = filtered.filter((e) => e.category === params.category);
+    }
+    if (params?.isSetupCost === 'true' || params?.isSetupCost === true) {
+      filtered = filtered.filter((e) => e.isSetupCost);
+    } else if (params?.isSetupCost === 'false' || params?.isSetupCost === false) {
+      filtered = filtered.filter((e) => !e.isSetupCost);
+    }
+    if (params?.startDate) {
+      filtered = filtered.filter((e) => e.date >= String(params.startDate));
+    }
+    if (params?.endDate) {
+      filtered = filtered.filter((e) => e.date <= String(params.endDate));
+    }
+    return paginate<Expense>(filtered, params ?? {});
   },
 
   async getExpenseStats(): Promise<ExpenseStats> {
@@ -953,6 +1042,7 @@ export const mockApi = {
       totalExpenses: Math.round(totalExpenses * 100) / 100,
       thisMonth: Math.round(thisMonthTotal * 100) / 100,
       setupInvestment: Math.round(setupInvestment * 100) / 100,
+      operatingExpenses: Math.round((totalExpenses - setupInvestment) * 100) / 100,
     };
   },
 
@@ -980,12 +1070,41 @@ export const mockApi = {
     await delay(300);
     const idx = expenses.findIndex((e) => e.id === id);
     if (idx === -1) throw new Error(`Expense ${id} not found`);
-    expenses[idx] = { ...expenses[idx], ...data, updatedAt: new Date().toISOString() };
+    if (expenses[idx].purchaseOrderId) {
+      throw new Error('PO-linked expenses cannot be edited here. Delete to reverse the payment.');
+    }
+    expenses[idx] = {
+      ...expenses[idx],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
     return { ...expenses[idx] };
   },
 
   async deleteExpense(id: string): Promise<void> {
     await delay(250);
+    const expense = expenses.find((e) => e.id === id);
+    if (expense?.purchaseOrderId) {
+      const poIdx = purchaseOrders.findIndex((p) => p.id === expense.purchaseOrderId);
+      if (poIdx !== -1) {
+        const po = purchaseOrders[poIdx];
+        const remainingPayments = (po.payments ?? []).filter((p) => p.expenseId !== id);
+        const amountPaid = Math.round(
+          Math.max(0, (po.amountPaid ?? 0) - expense.amount) * 100,
+        ) / 100;
+        const paymentStatus =
+          amountPaid <= 0 ? 'unpaid' as const
+          : amountPaid >= po.totalAmount ? 'paid' as const
+          : 'partial' as const;
+        purchaseOrders[poIdx] = {
+          ...po,
+          amountPaid,
+          paymentStatus,
+          payments: remainingPayments,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    }
     expenses = expenses.filter((e) => e.id !== id);
   },
 
@@ -1004,11 +1123,89 @@ export const mockApi = {
     return {
       totalExpenses: Math.round(totalExpenses * 100) / 100,
       setupInvestment: Math.round(setupInvestment * 100) / 100,
+      operatingExpenses: Math.round((totalExpenses - setupInvestment) * 100) / 100,
       byCategory: Object.entries(categoryMap)
         .map(([category, v]) => ({ category, amount: Math.round(v.amount * 100) / 100, count: v.count }))
         .sort((a, b) => b.amount - a.amount),
       daily: [],
     };
+  },
+
+  async getDailySummary(date: string): Promise<import('@/types').DailySummary> {
+    await delay(300);
+    const dayTxns = transactions.filter((t) => {
+      if (t.status === 'voided') return false;
+      return t.createdAt.slice(0, 10) === date;
+    });
+    const dayExpenses = expenses.filter((e) => e.date === date);
+    const normalize = (m: string) => (m === 'card' ? 'bank' : m);
+    const paymentMap: Record<string, { revenue: number; count: number }> = {};
+    let cashSales = 0;
+    for (const t of dayTxns) {
+      const method = normalize(t.paymentMethod);
+      if (!paymentMap[method]) paymentMap[method] = { revenue: 0, count: 0 };
+      paymentMap[method].revenue += t.total;
+      paymentMap[method].count += 1;
+      if (method === 'cash') cashSales += t.total;
+    }
+    const totalExpenses = dayExpenses.reduce((s, e) => s + e.amount, 0);
+    const setupInvestment = dayExpenses
+      .filter(isSetupInvestmentExpense)
+      .reduce((s, e) => s + e.amount, 0);
+    const cashExpenses = dayExpenses
+      .filter((e) => normalize(e.paymentMethod ?? '') === 'cash')
+      .reduce((s, e) => s + e.amount, 0);
+    const dayClose = dayCloses.find((d) => d.date === date) ?? null;
+    const opening = dayClose?.openingCash ?? 0;
+    const closing = dayClose?.closingCash ?? 0;
+    const expected = Math.round((opening + cashSales - cashExpenses) * 100) / 100;
+    return {
+      date,
+      sales: {
+        totalRevenue: Math.round(dayTxns.reduce((s, t) => s + t.total, 0) * 100) / 100,
+        transactionCount: dayTxns.length,
+      },
+      expenses: {
+        total: Math.round(totalExpenses * 100) / 100,
+        setupInvestment: Math.round(setupInvestment * 100) / 100,
+        operating: Math.round((totalExpenses - setupInvestment) * 100) / 100,
+      },
+      byPaymentMethod: Object.entries(paymentMap)
+        .map(([paymentMethod, v]) => ({
+          paymentMethod,
+          revenue: Math.round(v.revenue * 100) / 100,
+          count: v.count,
+        }))
+        .sort((a, b) => b.revenue - a.revenue),
+      cash: {
+        opening,
+        cashSales: Math.round(cashSales * 100) / 100,
+        cashExpenses: Math.round(cashExpenses * 100) / 100,
+        expected,
+        closing,
+        variance: Math.round((closing - expected) * 100) / 100,
+      },
+      dayClose,
+    };
+  },
+
+  async upsertDayClose(
+    date: string,
+    payload: import('@/types').DayCloseUpsertPayload,
+  ): Promise<import('@/types').DayCloseRecord> {
+    await delay(250);
+    const record: import('@/types').DayCloseRecord = {
+      date,
+      openingCash: payload.openingCash,
+      closingCash: payload.closingCash,
+      notes: payload.notes,
+      updatedBy: 'Admin User',
+      updatedAt: new Date().toISOString(),
+    };
+    const idx = dayCloses.findIndex((d) => d.date === date);
+    if (idx === -1) dayCloses = [record, ...dayCloses];
+    else dayCloses[idx] = record;
+    return record;
   },
 
   // ── Discounts ─────────────────────────────────────────────────────────────

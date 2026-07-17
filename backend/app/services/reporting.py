@@ -184,6 +184,26 @@ async def aggregate_expense_total_since(date_gte: str) -> float:
     return float(rows[0]["total"]) if rows else 0.0
 
 
+async def aggregate_operating_expense_total_since(date_gte: str) -> float:
+    """Sum expenses since date, excluding setup / investment costs."""
+    from app.services.expense_helpers import SETUP_INVESTMENT_MATCH
+
+    pipeline = [
+        {"$match": {"date": {"$gte": date_gte}}},
+        {
+            "$group": {
+                "_id": None,
+                "total": {"$sum": "$amount"},
+                "setup": {"$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]}},
+            },
+        },
+    ]
+    rows = await Expense.aggregate(pipeline).to_list()
+    if not rows:
+        return 0.0
+    return float(rows[0]["total"] or 0) - float(rows[0]["setup"] or 0)
+
+
 async def aggregate_sold_product_ids(since: datetime) -> set[str]:
     pipeline = [
         {"$match": {"created_at": {"$gte": since}}},

@@ -10,6 +10,7 @@ from pymongo import DESCENDING, ASCENDING, IndexModel
 
 class ExpenseCategory(str, Enum):
     setup_investment = "setup_investment"
+    purchase_order   = "purchase_order"
     rent             = "rent"
     utilities        = "utilities"
     salaries         = "salaries"
@@ -39,6 +40,7 @@ class Expense(Document):
             raise ValueError("date must be in YYYY-MM-DD format")
         return v
     is_setup_cost:  bool = False
+    purchase_order_id: Optional[str] = None
     created_at:     datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at:     datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -48,4 +50,5 @@ class Expense(Document):
             IndexModel([("date", DESCENDING)]),
             IndexModel([("category", ASCENDING), ("date", DESCENDING)]),
             IndexModel([("is_setup_cost", ASCENDING)]),
+            IndexModel([("purchase_order_id", ASCENDING)]),
         ]

@@ -8,6 +8,7 @@ from app.models.transaction import Transaction
 from app.schemas.dashboard import DashboardStats, RevenueDataPoint, TopProduct, SalesByCategory
 from app.services.reporting import (
     aggregate_expense_total_since,
+    aggregate_operating_expense_total_since,
     aggregate_product_inventory_stats,
     aggregate_sales_by_day,
     aggregate_sales_total,
@@ -39,6 +40,7 @@ async def get_stats(_: User = Depends(get_current_user)):
     monthly_sales = await aggregate_sales_total(month_start)
     month_start_str = month_start.strftime("%Y-%m-%d")
     monthly_expenses = await aggregate_expense_total_since(month_start_str)
+    monthly_operating = await aggregate_operating_expense_total_since(month_start_str)
 
     return DashboardStats(
         today_sales=round(today_sales, 2),
@@ -50,7 +52,7 @@ async def get_stats(_: User = Depends(get_current_user)):
         inventory_value=round(float(product_stats["inventory_value"]), 2),
         customer_count=customer_count,
         monthly_expenses=round(monthly_expenses, 2),
-        net_revenue=round(monthly_sales - monthly_expenses, 2),
+        net_revenue=round(monthly_sales - monthly_operating, 2),
     )
 
 

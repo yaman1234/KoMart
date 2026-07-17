@@ -25,6 +25,7 @@ import { SupplierDetailPage } from '@/pages/suppliers/SupplierDetailPage';
 import { CustomersPage } from '@/pages/customers/CustomersPage';
 import { CustomerDetailPage } from '@/pages/customers/CustomerDetailPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
+import { DailyReportPage } from '@/pages/reports/DailyReportPage';
 import { ExpensesPage } from '@/pages/expenses/ExpensesPage';
 import { ExpenseFormPage } from '@/pages/expenses/ExpenseFormPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
@@ -87,6 +88,7 @@ export const router = createBrowserRouter([
               { path: '/expenses/new', element: <ExpenseFormPage /> },
               { path: '/expenses/:id/edit', element: <ExpenseFormPage /> },
               { path: '/reports', element: <ReportsPage /> },
+              { path: '/reports/daily', element: <DailyReportPage /> },
               { path: '/settings', element: <SettingsPage /> },
               { path: '/settings/:tab', element: <SettingsPage /> },
             ],

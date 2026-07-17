@@ -13,6 +13,7 @@ from app.models.uom import Uom
 from app.models.refresh_token import RefreshToken
 from app.models.audit_log import AuditLog
 from app.models.discount_rule import DiscountRule
+from app.models.day_close import DayClose
 
 __all__ = [
     "User",
@@ -31,4 +32,5 @@ __all__ = [
     "RefreshToken",
     "AuditLog",
     "DiscountRule",
+    "DayClose",
 ]

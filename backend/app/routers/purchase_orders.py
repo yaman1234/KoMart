@@ -5,18 +5,23 @@ from datetime import datetime, timezone
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.services.po_receive import receive_purchase_order_items
+from app.services.po_payment import record_payment, remaining_balance
 from app.models.purchase_order import (
     PurchaseOrder,
     POStatus,
+    PaymentStatus,
+    compute_payment_status,
 )
 from app.schemas.purchase_order import (
     PurchaseOrderCreate,
     PurchaseOrderUpdate,
     PurchaseOrderStatusUpdate,
     PurchaseOrderReceiveRequest,
+    PurchaseOrderPaymentCreate,
     PurchaseOrderResponse,
     PurchaseOrderListResponse,
     item_to_response,
+    payment_to_response,
 )
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
@@ -71,6 +76,9 @@ def _merge_items(existing: PurchaseOrder, incoming: list) -> list:
 
 
 def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
+    amount_paid = float(getattr(po, "amount_paid", 0) or 0)
+    payment_status = getattr(po, "payment_status", None) or compute_payment_status(amount_paid, po.total_amount)
+    payments = getattr(po, "payments", None) or []
     return PurchaseOrderResponse(
         id=str(po.id),
         order_number=po.order_number,
@@ -79,6 +87,9 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         status=po.status,
         items=[item_to_response(i) for i in po.items],
         total_amount=po.total_amount,
+        amount_paid=amount_paid,
+        payment_status=payment_status if isinstance(payment_status, PaymentStatus) else PaymentStatus(payment_status),
+        payments=[payment_to_response(p) for p in payments],
         expected_delivery=po.expected_delivery,
         ordered_by=po.ordered_by,
         received_by=po.received_by,
@@ -115,17 +126,25 @@ async def list_purchase_orders(
         ]})
 
     total = await query.count()
-    received_total_amount = 0.0
-    received_orders = await query.find(PurchaseOrder.status == POStatus.received).to_list()
-    received_total_amount = round(sum(po.total_amount for po in received_orders), 2)
-    orders = await query.sort("-created_at").skip((page - 1) * page_size).limit(page_size).to_list()
+    filtered_orders = await query.to_list()
+    received_total_amount = round(
+        sum(po.total_amount for po in filtered_orders if po.status == POStatus.received),
+        2,
+    )
+    outstanding_amount = round(
+        sum(remaining_balance(po) for po in filtered_orders if po.status != POStatus.cancelled),
+        2,
+    )
+    orders = sorted(filtered_orders, key=lambda po: po.created_at, reverse=True)
+    page_orders = orders[(page - 1) * page_size: page * page_size]
     return PurchaseOrderListResponse(
-        data=[_to_response(po) for po in orders],
+        data=[_to_response(po) for po in page_orders],
         total=total,
         page=page,
         page_size=page_size,
         total_pages=ceil(total / page_size) if total else 1,
         received_total_amount=received_total_amount,
+        outstanding_amount=outstanding_amount,
     )
 
 
@@ -194,9 +213,17 @@ async def update_purchase_order(
     except HTTPException:
         raise
 
+    amount_paid = float(getattr(po, "amount_paid", 0) or 0)
+    if body.total_amount + 0.001 < amount_paid:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Total amount cannot be less than amount already paid ({amount_paid:.2f})",
+        )
+
     updates: dict = {
         **body.model_dump(),
         "items": merged_items,
+        "payment_status": compute_payment_status(amount_paid, body.total_amount),
         "updated_at": datetime.now(timezone.utc),
     }
     placing_order = body.status == POStatus.ordered
@@ -257,6 +284,22 @@ async def update_status(
         new=po_snapshot(refreshed),  # type: ignore[arg-type]
     )
     return _to_response(refreshed)  # type: ignore[arg-type]
+
+
+@router.post("/{po_id}/payments", response_model=PurchaseOrderResponse)
+async def create_payment(
+    po_id: str,
+    body: PurchaseOrderPaymentCreate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    refreshed = await record_payment(
+        po_id,
+        body,
+        current_user=current_user,
+        request=request,
+    )
+    return _to_response(refreshed)
 
 
 @router.post("/{po_id}/receive", response_model=PurchaseOrderResponse)

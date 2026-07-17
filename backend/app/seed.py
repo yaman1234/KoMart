@@ -607,7 +607,7 @@ async def seed():
             category=ExpenseCategory.equipment,
             date="2024-01-12",
             paid_to="TechHub Nepal",
-            payment_method="card",
+            payment_method="bank",
             is_setup_cost=True,
         ),
         Expense(
@@ -654,7 +654,7 @@ async def seed():
             category=ExpenseCategory.marketing,
             date="2026-02-10",
             paid_to="Digital Nepal Agency",
-            payment_method="card",
+            payment_method="bank",
             is_setup_cost=False,
         ),
         Expense(

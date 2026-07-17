@@ -12,6 +12,7 @@ class ExpenseCreate(BaseModel):
     paid_to:        Optional[str] = None
     payment_method: Optional[str] = None
     is_setup_cost:  bool = False
+    purchase_order_id: Optional[str] = None
 
 
 class ExpenseUpdate(BaseModel):
@@ -35,6 +36,7 @@ class ExpenseResponse(BaseModel):
     paid_to:        Optional[str]
     payment_method: Optional[str]
     is_setup_cost:  bool
+    purchase_order_id: Optional[str] = None
     created_at:     str
     updated_at:     str
 
@@ -43,3 +45,4 @@ class ExpenseStatsResponse(BaseModel):
     total_expenses: float
     this_month: float
     setup_investment: float
+    operating_expenses: float = 0.0

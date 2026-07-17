@@ -1,7 +1,7 @@
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import type { ProductStatus } from '@/types';
-import { reportsService } from '@/services';
+import { reportsService, dayCloseService } from '@/services';
 import { useDashboardStore } from '@/store';
 
 function useReportDateRange() {
@@ -225,4 +225,33 @@ export function useExpenseSummary(enabled = true) {
       enabled,
     ),
   );
+}
+
+export function useDailySummary(date: string, enabled = true) {
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('dailySummary'), date],
+      () => reportsService.getDailySummary(date),
+      enabled && !!date,
+    ),
+  );
+}
+
+export function useUpsertDayClose() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      date,
+      data,
+    }: {
+      date: string;
+      data: import('@/types').DayCloseUpsertPayload;
+    }) => dayCloseService.upsert(date, data),
+    onSuccess: (_, { date }) => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports('dailySummary') });
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.reports('dailySummary'), date],
+      });
+    },
+  });
 }

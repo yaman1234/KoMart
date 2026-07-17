@@ -22,10 +22,15 @@ import {
   AccordionSummary,
   AccordionDetails,
   Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import InventoryIcon from '@mui/icons-material/Inventory';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -33,14 +38,20 @@ import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
   useReceivePurchaseOrderItems,
+  useRecordPurchaseOrderPayment,
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, formatDate, canManagePurchaseOrders } from '@/utils';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
-import { PO_STATUS_LABELS, PO_LINE_STATUS_LABELS } from '@/constants';
+import { PAYMENT_METHODS, PO_LINE_STATUS_LABELS, PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
 import { useAuthStore } from '@/store';
-import type { PurchaseOrderLineStatus, PurchaseOrderReceiveItem, PurchaseOrderStatus } from '@/types';
+import type {
+  PurchaseOrderLineStatus,
+  PurchaseOrderPaymentStatus,
+  PurchaseOrderReceiveItem,
+  PurchaseOrderStatus,
+} from '@/types';
 import {
   PO_DETAIL_FLAT_COLUMNS,
   poDetailFlatColWidths,
@@ -50,6 +61,12 @@ import { PO_LABELS, PO_RECEIVE_HINT } from '@/pages/purchase-orders/poTerminolog
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
   draft: 'default', ordered: 'warning', partial: 'info', received: 'success', cancelled: 'error',
+};
+
+const PAYMENT_COLORS: Record<PurchaseOrderPaymentStatus, 'default' | 'warning' | 'success'> = {
+  unpaid: 'default',
+  partial: 'warning',
+  paid: 'success',
 };
 
 const LINE_STATUS_COLORS: Record<PurchaseOrderLineStatus, 'default' | 'warning' | 'success'> = {
@@ -63,6 +80,8 @@ const NEXT_STATUSES: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>>
   ordered: ['cancelled'],
   partial: ['cancelled'],
 };
+
+const PAYABLE_STATUSES = new Set<PurchaseOrderStatus>(['ordered', 'partial', 'received']);
 
 interface ReceiveSelection {
   selected: boolean;
@@ -82,12 +101,23 @@ export function PurchaseOrderDetailPage() {
   const [statusError, setStatusError] = useState('');
   const [receiveError, setReceiveError] = useState('');
   const [receiveSelections, setReceiveSelections] = useState<Record<string, ReceiveSelection>>({});
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentError, setPaymentError] = useState('');
 
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
   const statusMutation = useUpdatePurchaseOrderStatus();
   const receiveMutation = useReceivePurchaseOrderItems();
+  const paymentMutation = useRecordPurchaseOrderPayment();
 
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
+  const amountPaid = po?.amountPaid ?? 0;
+  const remaining = po ? Math.max(0, Math.round((po.totalAmount - amountPaid) * 100) / 100) : 0;
+  const paymentStatus: PurchaseOrderPaymentStatus = po?.paymentStatus ?? 'unpaid';
+  const canPay = Boolean(po && canManage && PAYABLE_STATUSES.has(po.status) && remaining > 0);
 
   const getReceiveSelection = (productId: string, remaining: number): ReceiveSelection =>
     receiveSelections[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
@@ -179,6 +209,49 @@ export function PurchaseOrderDetailPage() {
     }
   };
 
+  const openPaymentDialog = () => {
+    if (!po) return;
+    setPaymentAmount(String(remaining));
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentMethod('cash');
+    setPaymentNotes('');
+    setPaymentError('');
+    setPaymentOpen(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!po) return;
+    const amount = parseFloat(paymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPaymentError('Enter a valid payment amount.');
+      return;
+    }
+    if (amount > remaining + 0.001) {
+      setPaymentError(`Amount cannot exceed remaining balance (${remaining.toFixed(2)}).`);
+      return;
+    }
+    if (!paymentDate) {
+      setPaymentError('Payment date is required.');
+      return;
+    }
+    setPaymentError('');
+    try {
+      await paymentMutation.mutateAsync({
+        id: po.id,
+        data: {
+          amount,
+          date: paymentDate,
+          paymentMethod,
+          notes: paymentNotes.trim() || undefined,
+        },
+      });
+      showSuccess('Payment recorded and expense created.');
+      setPaymentOpen(false);
+    } catch (err) {
+      setPaymentError(getErrorMessage(err));
+    }
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
@@ -219,6 +292,15 @@ export function PurchaseOrderDetailPage() {
                 disabled={itemsToReceive.length === 0}
               >
                 Process Receipt
+              </Button>
+            )}
+            {canPay && (
+              <Button
+                variant="outlined"
+                startIcon={<PaymentsIcon />}
+                onClick={openPaymentDialog}
+              >
+                Record Payment
               </Button>
             )}
             {canManage && nextStatuses.length > 0 && (
@@ -263,7 +345,16 @@ export function PurchaseOrderDetailPage() {
               {po.supplierName}
             </Link>
           </Box>
-          <Chip label={PO_STATUS_LABELS[po.status]} color={STATUS_COLORS[po.status]} size="small" sx={{ fontWeight: 600, mt: 0.5 }} />
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Chip label={PO_STATUS_LABELS[po.status]} color={STATUS_COLORS[po.status]} size="small" sx={{ fontWeight: 600 }} />
+            <Chip
+              label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
+              color={PAYMENT_COLORS[paymentStatus]}
+              size="small"
+              variant="outlined"
+              sx={{ fontWeight: 600 }}
+            />
+          </Box>
           <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Order total</Typography>
             <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
@@ -315,6 +406,66 @@ export function PurchaseOrderDetailPage() {
             </Grid>
           </AccordionDetails>
         </Accordion>
+      </Paper>
+
+      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Payments</Typography>
+          {canPay && (
+            <Button size="small" startIcon={<PaymentsIcon />} onClick={openPaymentDialog}>
+              Record payment
+            </Button>
+          )}
+        </Box>
+        <Grid container spacing={2} sx={{ mb: 1.5 }}>
+          <Grid size={{ xs: 4 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Paid</Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700 }}>{formatCurrency(amountPaid)}</Typography>
+          </Grid>
+          <Grid size={{ xs: 4 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Remaining</Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, color: remaining > 0 ? 'warning.main' : 'success.main' }}>
+              {formatCurrency(remaining)}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 4 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Status</Typography>
+            <Chip
+              label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
+              color={PAYMENT_COLORS[paymentStatus]}
+              size="small"
+              sx={{ mt: 0.25 }}
+            />
+          </Grid>
+        </Grid>
+        {(po.payments?.length ?? 0) === 0 ? (
+          <Typography variant="body2" color="text.secondary">No payments recorded yet.</Typography>
+        ) : (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Recorded by</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(po.payments ?? []).map((payment, index) => (
+                  <TableRow key={`${payment.expenseId}-${index}`}>
+                    <TableCell>{formatDate(payment.date)}</TableCell>
+                    <TableCell sx={{ textTransform: 'capitalize' }}>{payment.paymentMethod}</TableCell>
+                    <TableCell align="right">{formatCurrency(payment.amount)}</TableCell>
+                    <TableCell>{payment.notes || '—'}</TableCell>
+                    <TableCell>{payment.createdBy || '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </Paper>
 
       <Paper sx={{ p: 2 }}>
@@ -504,6 +655,65 @@ export function PurchaseOrderDetailPage() {
           </Typography>
         </Box>
       </Paper>
+
+      <Dialog open={paymentOpen} onClose={() => setPaymentOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Record Payment</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          {paymentError && <Alert severity="error">{paymentError}</Alert>}
+          <Typography variant="body2" color="text.secondary">
+            Remaining balance: {formatCurrency(remaining)}. This creates a linked expense under Purchase Order.
+          </Typography>
+          <TextField
+            label="Amount"
+            type="number"
+            size="small"
+            value={paymentAmount}
+            onChange={(e) => setPaymentAmount(e.target.value)}
+            slotProps={{ htmlInput: { min: 0.01, step: 0.01, max: remaining } }}
+            fullWidth
+          />
+          <TextField
+            label="Payment date"
+            type="date"
+            size="small"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            fullWidth
+          />
+          <TextField
+            select
+            label="Payment method"
+            size="small"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            fullWidth
+          >
+            {PAYMENT_METHODS.map((method) => (
+              <MenuItem key={method.value} value={method.value}>{method.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Notes"
+            size="small"
+            value={paymentNotes}
+            onChange={(e) => setPaymentNotes(e.target.value)}
+            multiline
+            minRows={2}
+            fullWidth
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPaymentOpen(false)} disabled={paymentMutation.isPending}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => void handleRecordPayment()}
+            loading={paymentMutation.isPending}
+          >
+            Save payment
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

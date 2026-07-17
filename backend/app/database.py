@@ -20,6 +20,7 @@ from app.models import (
     RefreshToken,
     AuditLog,
     DiscountRule,
+    DayClose,
 )
 
 _motor_client: AsyncIOMotorClient | None = None
@@ -73,6 +74,7 @@ async def init_db() -> None:
             RefreshToken,
             AuditLog,
             DiscountRule,
+            DayClose,
         ],
     )
     # Backfill legacy products created before status field existed.
@@ -92,6 +94,19 @@ async def init_db() -> None:
     await Product.get_motor_collection().update_many(
         {"pack_selling_price": {"$exists": False}},
         {"$set": {"pack_selling_price": 0.0}},
+    )
+    # Rename legacy payment method card → bank.
+    await Transaction.get_motor_collection().update_many(
+        {"payment_method": "card"},
+        {"$set": {"payment_method": "bank"}},
+    )
+    await Expense.get_motor_collection().update_many(
+        {"payment_method": "card"},
+        {"$set": {"payment_method": "bank"}},
+    )
+    await StoreSettings.get_motor_collection().update_many(
+        {"default_payment_method": "card"},
+        {"$set": {"default_payment_method": "bank"}},
     )
     await _seed_default_uoms()
 

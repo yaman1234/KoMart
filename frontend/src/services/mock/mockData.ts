@@ -594,7 +594,7 @@ export const mockSalesByPaymentMethod = [
   { paymentMethod: 'cash', revenue: 145000, count: 620 },
   { paymentMethod: 'esewa', revenue: 98000, count: 340 },
   { paymentMethod: 'khalti', revenue: 62000, count: 180 },
-  { paymentMethod: 'card', revenue: 37500, count: 100 },
+  { paymentMethod: 'bank', revenue: 37500, count: 100 },
 ];
 
 export const mockInventoryReportSummary = {
@@ -673,7 +673,7 @@ export const mockExpenses: Expense[] = [
     category: 'equipment',
     date: '2024-01-12',
     paidTo: 'TechHub Nepal',
-    paymentMethod: 'card',
+    paymentMethod: 'bank',
     isSetupCost: true,
     createdAt: '2024-01-12T06:00:00Z',
     updatedAt: '2024-01-12T06:00:00Z',
@@ -747,7 +747,7 @@ export const mockExpenses: Expense[] = [
     category: 'marketing',
     date: '2026-02-10',
     paidTo: 'Digital Nepal Agency',
-    paymentMethod: 'card',
+    paymentMethod: 'bank',
     isSetupCost: false,
     createdAt: '2026-02-10T06:00:00Z',
     updatedAt: '2026-02-10T06:00:00Z',

@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
 from typing import Optional
-from app.models.purchase_order import POStatus, PurchaseOrderItem, line_status, LineStatus
+from app.models.purchase_order import (
+    POStatus,
+    PaymentStatus,
+    PurchaseOrderItem,
+    PurchaseOrderPayment,
+    line_status,
+    LineStatus,
+)
 
 
 class PurchaseOrderItemResponse(BaseModel):
@@ -64,6 +71,37 @@ class PurchaseOrderReceiveRequest(BaseModel):
     items: list[PurchaseOrderReceiveItem]
 
 
+class PurchaseOrderPaymentCreate(BaseModel):
+    amount: float = Field(gt=0)
+    date: str
+    payment_method: str = "cash"
+    notes: str = ""
+
+
+class PurchaseOrderPaymentResponse(BaseModel):
+    amount: float
+    date: str
+    payment_method: str
+    notes: str = ""
+    expense_id: str = ""
+    created_by: str = ""
+    created_at: str
+
+
+def payment_to_response(payment: PurchaseOrderPayment) -> PurchaseOrderPaymentResponse:
+    created_at = payment.created_at
+    created_at_str = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
+    return PurchaseOrderPaymentResponse(
+        amount=payment.amount,
+        date=payment.date,
+        payment_method=payment.payment_method,
+        notes=payment.notes or "",
+        expense_id=payment.expense_id or "",
+        created_by=payment.created_by or "",
+        created_at=created_at_str,
+    )
+
+
 class PurchaseOrderResponse(BaseModel):
     id: str
     order_number: str
@@ -72,6 +110,9 @@ class PurchaseOrderResponse(BaseModel):
     status: POStatus
     items: list[PurchaseOrderItemResponse]
     total_amount: float
+    amount_paid: float = 0.0
+    payment_status: PaymentStatus = PaymentStatus.unpaid
+    payments: list[PurchaseOrderPaymentResponse] = Field(default_factory=list)
     expected_delivery: Optional[str]
     ordered_by: Optional[str]
     received_by: Optional[str]
@@ -87,3 +128,4 @@ class PurchaseOrderListResponse(BaseModel):
     page_size: int
     total_pages: int
     received_total_amount: float = 0.0
+    outstanding_amount: float = 0.0

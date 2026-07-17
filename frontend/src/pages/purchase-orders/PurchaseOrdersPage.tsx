@@ -7,8 +7,8 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { formatDate, formatCurrency, canManagePurchaseOrders } from '@/utils';
-import { PO_STATUS_LABELS } from '@/constants';
-import type { PurchaseOrder, PurchaseOrderStatus } from '@/types';
+import { PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
+import type { PurchaseOrder, PurchaseOrderPaymentStatus, PurchaseOrderStatus } from '@/types';
 import { useAuthStore } from '@/store';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
@@ -17,6 +17,12 @@ const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' 
   partial: 'info',
   received: 'success',
   cancelled: 'error',
+};
+
+const PAYMENT_COLORS: Record<PurchaseOrderPaymentStatus, 'default' | 'warning' | 'success'> = {
+  unpaid: 'default',
+  partial: 'warning',
+  paid: 'success',
 };
 
 export function PurchaseOrdersPage() {
@@ -51,6 +57,21 @@ export function PurchaseOrdersPage() {
       ),
     },
     {
+      id: 'payment',
+      label: 'Payment',
+      render: (row) => {
+        const status = row.paymentStatus ?? 'unpaid';
+        return (
+          <Chip
+            label={PO_PAYMENT_STATUS_LABELS[status] ?? status}
+            color={PAYMENT_COLORS[status]}
+            size="small"
+            variant="outlined"
+          />
+        );
+      },
+    },
+    {
       id: 'items',
       label: 'Items',
       align: 'right',
@@ -61,6 +82,12 @@ export function PurchaseOrdersPage() {
       label: 'Total',
       align: 'right',
       render: (row) => formatCurrency(row.totalAmount),
+    },
+    {
+      id: 'paid',
+      label: 'Paid',
+      align: 'right',
+      render: (row) => formatCurrency(row.amountPaid ?? 0),
     },
     {
       id: 'orderedBy',
@@ -102,17 +129,30 @@ export function PurchaseOrdersPage() {
         }
       />
 
-      <Paper
-        variant="outlined"
-        sx={{ mb: 2, px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
-      >
-        <Typography variant="body2" color="text.secondary">
-          Total Received Value
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          {formatCurrency(data?.receivedTotalAmount ?? 0)}
-        </Typography>
-      </Paper>
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+        <Paper
+          variant="outlined"
+          sx={{ px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            Total Received Value
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+            {formatCurrency(data?.receivedTotalAmount ?? 0)}
+          </Typography>
+        </Paper>
+        <Paper
+          variant="outlined"
+          sx={{ px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            Outstanding Payable
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
+            {formatCurrency(data?.outstandingAmount ?? 0)}
+          </Typography>
+        </Paper>
+      </Box>
 
       <Box sx={{ mb: 3 }}>
         <SearchBar

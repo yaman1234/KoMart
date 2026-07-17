@@ -330,6 +330,8 @@ export type PurchaseOrderStatus =
   | 'received'
   | 'cancelled';
 
+export type PurchaseOrderPaymentStatus = 'unpaid' | 'partial' | 'paid';
+
 export type PurchaseOrderLineStatus = 'pending' | 'partial' | 'received';
 
 export interface PurchaseOrderItem {
@@ -344,10 +346,27 @@ export interface PurchaseOrderItem {
   lineStatus?: PurchaseOrderLineStatus;
 }
 
+export interface PurchaseOrderPayment {
+  amount: number;
+  date: string;
+  paymentMethod: string;
+  notes?: string;
+  expenseId?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface PurchaseOrderPaymentPayload {
+  amount: number;
+  date: string;
+  paymentMethod: string;
+  notes?: string;
+}
+
 /** Payload for create/update — lineStatus is computed by the API on read */
 export type PurchaseOrderWritePayload = Omit<
   PurchaseOrder,
-  'id' | 'orderNumber' | 'createdAt' | 'updatedAt' | 'items'
+  'id' | 'orderNumber' | 'createdAt' | 'updatedAt' | 'items' | 'amountPaid' | 'paymentStatus' | 'payments'
 > & {
   items: Omit<PurchaseOrderItem, 'lineStatus'>[];
 };
@@ -360,6 +379,9 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus;
   items: PurchaseOrderItem[];
   totalAmount: number;
+  amountPaid?: number;
+  paymentStatus?: PurchaseOrderPaymentStatus;
+  payments?: PurchaseOrderPayment[];
   expectedDelivery?: string;
   orderedBy?: string;
   receivedBy?: string;
@@ -375,6 +397,7 @@ export interface PurchaseOrderListResponse {
   pageSize: number;
   totalPages: number;
   receivedTotalAmount: number;
+  outstandingAmount?: number;
 }
 
 export interface PurchaseOrderReceiveItem {
@@ -398,7 +421,7 @@ export interface Customer {
   createdAt: string;
 }
 
-export type PaymentMethod = 'cash' | 'card' | 'esewa' | 'khalti';
+export type PaymentMethod = 'cash' | 'bank' | 'card' | 'esewa' | 'khalti';
 
 export interface CartItem {
   productId: string;
@@ -710,6 +733,7 @@ export interface ListQueryParams {
 
 export type ExpenseCategory =
   | 'setup_investment'
+  | 'purchase_order'
   | 'rent'
   | 'utilities'
   | 'salaries'
@@ -729,6 +753,7 @@ export interface Expense {
   paidTo?: string;
   paymentMethod?: string;
   isSetupCost: boolean;
+  purchaseOrderId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -749,6 +774,7 @@ export interface ExpenseDataPoint {
 export interface ExpenseSummary {
   totalExpenses: number;
   setupInvestment: number;
+  operatingExpenses?: number;
   byCategory: ExpenseByCategory[];
   daily: ExpenseDataPoint[];
 }
@@ -757,6 +783,51 @@ export interface ExpenseStats {
   totalExpenses: number;
   thisMonth: number;
   setupInvestment: number;
+  operatingExpenses?: number;
+}
+
+export interface DailySalesBlock {
+  totalRevenue: number;
+  transactionCount: number;
+}
+
+export interface DailyExpensesBlock {
+  total: number;
+  setupInvestment: number;
+  operating: number;
+}
+
+export interface DailyCashBlock {
+  opening: number;
+  cashSales: number;
+  cashExpenses: number;
+  expected: number;
+  closing: number;
+  variance: number;
+}
+
+export interface DayCloseRecord {
+  date: string;
+  openingCash: number;
+  closingCash: number;
+  notes?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface DailySummary {
+  date: string;
+  sales: DailySalesBlock;
+  expenses: DailyExpensesBlock;
+  byPaymentMethod: SalesByPaymentMethod[];
+  cash: DailyCashBlock;
+  dayClose?: DayCloseRecord | null;
+}
+
+export interface DayCloseUpsertPayload {
+  openingCash: number;
+  closingCash: number;
+  notes?: string;
 }
 
 export type AuditModule =

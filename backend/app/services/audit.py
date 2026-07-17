@@ -199,7 +199,26 @@ def po_snapshot(po: Any) -> dict[str, Any]:
         "supplier_name": po.supplier_name,
         "status": po.status.value if hasattr(po.status, "value") else str(po.status),
         "total_amount": po.total_amount,
+        "amount_paid": float(getattr(po, "amount_paid", 0) or 0),
+        "payment_status": (
+            po.payment_status.value
+            if hasattr(getattr(po, "payment_status", None), "value")
+            else str(getattr(po, "payment_status", "unpaid"))
+        ),
         "item_count": len(po.items),
+    }
+
+
+def expense_snapshot(expense: Any) -> dict[str, Any]:
+    category = expense.category
+    return {
+        "id": str(expense.id),
+        "title": expense.title,
+        "amount": expense.amount,
+        "category": category.value if hasattr(category, "value") else str(category),
+        "date": expense.date,
+        "is_setup_cost": bool(getattr(expense, "is_setup_cost", False)),
+        "purchase_order_id": getattr(expense, "purchase_order_id", None) or "",
     }
 
 

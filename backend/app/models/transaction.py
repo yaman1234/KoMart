@@ -8,7 +8,7 @@ from pymongo import IndexModel, ASCENDING, DESCENDING
 
 class PaymentMethod(str, Enum):
     cash = "cash"
-    card = "card"
+    bank = "bank"
     esewa = "esewa"
     khalti = "khalti"
 

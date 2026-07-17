@@ -12,12 +12,21 @@ from app.models.expense import Expense as ExpenseDoc
 from app.models.inventory import InventoryBatch
 from app.models.product import Product, ProductStatus
 from app.models.purchase_order import POStatus, PurchaseOrder
-from app.models.transaction import Transaction
+from app.models.day_close import DayClose
+from app.models.transaction import Transaction, TransactionStatus
 from app.models.user import User
+from app.services.payment_methods import normalize_payment_method
+from app.services.expense_helpers import is_setup_investment
+import re
 from app.schemas.common import PaginatedResponse
 from app.schemas.dashboard import RevenueDataPoint, SalesByCategory, TopProduct
 from app.schemas.reports import (
     DeadStockProduct,
+    DailySummary,
+    DailySalesBlock,
+    DailyExpensesBlock,
+    DailyCashBlock,
+    DayCloseBlock,
     ExpenseByCategory,
     ExpenseDataPoint,
     ExpenseSummary,
@@ -55,7 +64,6 @@ from app.services.reporting import (
     parse_date_range,
 )
 from app.services.stock import expiring_product_ids
-from app.services.expense_helpers import is_setup_investment
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -93,7 +101,9 @@ async def sales_by_payment_method(
     txns = await fetch_transactions(start, end)
     stats: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "count": 0})
     for txn in txns:
-        method = txn.payment_method.value
+        method = normalize_payment_method(
+            txn.payment_method.value if hasattr(txn.payment_method, "value") else str(txn.payment_method)
+        )
         stats[method]["revenue"] += txn.total
         stats[method]["count"] += 1
     return [
@@ -104,6 +114,98 @@ async def sales_by_payment_method(
         )
         for method, v in sorted(stats.items(), key=lambda x: x[1]["revenue"], reverse=True)
     ]
+
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+@router.get("/daily-summary", response_model=DailySummary)
+async def daily_summary_report(
+    date: str = Query(..., description="Calendar day YYYY-MM-DD"),
+    _: User = Depends(require_manager_or_above),
+):
+    if not _ISO_DATE_RE.match(date):
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+
+    start = datetime.fromisoformat(date).replace(tzinfo=timezone.utc)
+    end = start.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    txns = await Transaction.find({
+        "created_at": {"$gte": start, "$lte": end},
+        "status": {"$ne": TransactionStatus.voided.value},
+    }).to_list()
+
+    total_revenue = round(sum(t.total for t in txns), 2)
+    payment_stats: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "count": 0})
+    cash_sales = 0.0
+    for txn in txns:
+        method = normalize_payment_method(
+            txn.payment_method.value if hasattr(txn.payment_method, "value") else str(txn.payment_method)
+        )
+        payment_stats[method]["revenue"] += txn.total
+        payment_stats[method]["count"] += 1
+        if method == "cash":
+            cash_sales += txn.total
+    cash_sales = round(cash_sales, 2)
+
+    expenses = await ExpenseDoc.find({"date": date}).to_list()
+    total_expenses = round(sum(e.amount for e in expenses), 2)
+    setup_investment = round(sum(e.amount for e in expenses if is_setup_investment(e)), 2)
+    operating = round(total_expenses - setup_investment, 2)
+    cash_expenses = round(
+        sum(
+            e.amount
+            for e in expenses
+            if normalize_payment_method(e.payment_method) == "cash"
+        ),
+        2,
+    )
+
+    day_close = await DayClose.find_one(DayClose.date == date)
+    opening = float(day_close.opening_cash) if day_close else 0.0
+    closing = float(day_close.closing_cash) if day_close else 0.0
+    expected = round(opening + cash_sales - cash_expenses, 2)
+    variance = round(closing - expected, 2)
+
+    by_payment = [
+        SalesByPaymentMethod(
+            payment_method=method,
+            revenue=round(v["revenue"], 2),
+            count=v["count"],
+        )
+        for method, v in sorted(payment_stats.items(), key=lambda x: x[1]["revenue"], reverse=True)
+    ]
+
+    day_close_block = None
+    if day_close:
+        day_close_block = DayCloseBlock(
+            date=day_close.date,
+            opening_cash=day_close.opening_cash,
+            closing_cash=day_close.closing_cash,
+            notes=day_close.notes or "",
+            updated_by=day_close.updated_by or day_close.created_by or "",
+            updated_at=day_close.updated_at.isoformat(),
+        )
+
+    return DailySummary(
+        date=date,
+        sales=DailySalesBlock(total_revenue=total_revenue, transaction_count=len(txns)),
+        expenses=DailyExpensesBlock(
+            total=total_expenses,
+            setup_investment=setup_investment,
+            operating=operating,
+        ),
+        by_payment_method=by_payment,
+        cash=DailyCashBlock(
+            opening=opening,
+            cash_sales=cash_sales,
+            cash_expenses=cash_expenses,
+            expected=expected,
+            closing=closing,
+            variance=variance,
+        ),
+        day_close=day_close_block,
+    )
 
 
 @router.get("/revenue", response_model=list[RevenueDataPoint])
@@ -667,6 +769,7 @@ async def expense_summary_report(
     return ExpenseSummary(
         total_expenses=round(total_expenses, 2),
         setup_investment=round(setup_investment, 2),
+        operating_expenses=round(total_expenses - setup_investment, 2),
         by_category=[
             ExpenseByCategory(
                 category=cat,

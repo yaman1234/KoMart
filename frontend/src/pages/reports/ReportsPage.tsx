@@ -21,6 +21,8 @@ import {
   MenuItem,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
+import TodayIcon from '@mui/icons-material/Today';
+import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -81,10 +83,12 @@ type ReportTab = 'sales' | 'inventory' | 'financial' | 'purchasing' | 'customers
 const PIE_COLORS = ['#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#F4A261', '#264653'];
 
 function paymentLabel(method: string): string {
-  return PAYMENT_METHODS.find((p) => p.value === method)?.label ?? method;
+  const normalized = method === 'card' ? 'bank' : method;
+  return PAYMENT_METHODS.find((p) => p.value === normalized)?.label ?? method;
 }
 
 export function ReportsPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<ReportTab>('sales');
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState<'' | ProductStatus>('');
   const [exporting, setExporting] = useState(false);
@@ -250,7 +254,9 @@ export function ReportsPage() {
       }
 
       /* ── pre-calculate totals ── */
-      const netProfit = (profitSum?.grossProfit ?? 0) - (expenseSum?.totalExpenses ?? 0);
+      const operatingExpenses = expenseSum?.operatingExpenses
+        ?? Math.max(0, (expenseSum?.totalExpenses ?? 0) - (expenseSum?.setupInvestment ?? 0));
+      const netProfit = (profitSum?.grossProfit ?? 0) - operatingExpenses;
 
       const sumRev    = (arr: { revenue: number }[]) => arr.reduce((s, x) => s + x.revenue, 0);
       const sumAmt    = (arr: { totalAmount: number }[]) => arr.reduce((s, x) => s + x.totalAmount, 0);
@@ -350,12 +356,13 @@ export function ReportsPage() {
       ];
 
       appendSection(finAoA, 'FINANCIAL SUMMARY',
-        ['Total Revenue', 'Gross Profit', 'Gross Margin %', 'Total Expenses', 'Net Profit'],
+        ['Total Revenue', 'Gross Profit', 'Gross Margin %', 'Operating Expenses', 'Setup Investment', 'Net Profit'],
         [[
           profitSum?.totalRevenue ?? 0,
           profitSum?.grossProfit ?? 0,
           `${profitSum?.grossMarginPct ?? 0}%`,
-          expenseSum?.totalExpenses ?? 0,
+          operatingExpenses,
+          expenseSum?.setupInvestment ?? 0,
           netProfit,
         ]],
       );
@@ -473,6 +480,14 @@ export function ReportsPage() {
                 onChange={setDateRange}
               />
             )}
+            <Button
+              variant="contained"
+              startIcon={<TodayIcon />}
+              size="small"
+              onClick={() => navigate('/reports/daily')}
+            >
+              Daily Report
+            </Button>
             <Button
               variant="outlined"
               startIcon={exporting ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
@@ -910,8 +925,19 @@ export function ReportsPage() {
               <StatCard
                 title="Total Expenses"
                 value={formatCurrency(expenseSummary?.totalExpenses ?? 0)}
-                subtitle="Operational costs"
+                subtitle="All costs including setup"
                 color="error.main"
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard
+                title="Operating Expenses"
+                value={formatCurrency(
+                  expenseSummary?.operatingExpenses
+                    ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0)),
+                )}
+                subtitle="Excludes setup / investment"
+                color="warning.main"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -919,16 +945,22 @@ export function ReportsPage() {
                 title="Setup Investment"
                 value={formatCurrency(expenseSummary?.setupInvestment ?? 0)}
                 subtitle="One-time costs"
-                color="warning.main"
+                color="info.main"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="Net Profit"
-                value={formatCurrency((profitSummary?.grossProfit ?? 0) - (expenseSummary?.totalExpenses ?? 0))}
-                subtitle="Gross Profit − Expenses"
+                value={formatCurrency(
+                  (profitSummary?.grossProfit ?? 0)
+                    - (expenseSummary?.operatingExpenses
+                      ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0))),
+                )}
+                subtitle="Gross Profit − Operating Expenses"
                 color={
-                  (profitSummary?.grossProfit ?? 0) - (expenseSummary?.totalExpenses ?? 0) >= 0
+                  (profitSummary?.grossProfit ?? 0)
+                    - (expenseSummary?.operatingExpenses
+                      ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0))) >= 0
                     ? 'success.main'
                     : 'error.main'
                 }

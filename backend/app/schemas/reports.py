@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.dashboard import RevenueDataPoint, TopProduct, SalesByCategory
 
@@ -156,8 +156,53 @@ class ExpenseDataPoint(BaseModel):
 class ExpenseSummary(BaseModel):
     total_expenses: float
     setup_investment: float
+    operating_expenses: float = 0.0
     by_category: list[ExpenseByCategory]
     daily: list[ExpenseDataPoint]
+
+
+class DailySalesBlock(BaseModel):
+    total_revenue: float
+    transaction_count: int
+
+
+class DailyExpensesBlock(BaseModel):
+    total: float
+    setup_investment: float
+    operating: float
+
+
+class DailyCashBlock(BaseModel):
+    opening: float
+    cash_sales: float
+    cash_expenses: float
+    expected: float
+    closing: float
+    variance: float
+
+
+class DayCloseBlock(BaseModel):
+    date: str
+    opening_cash: float
+    closing_cash: float
+    notes: str = ""
+    updated_by: str = ""
+    updated_at: str = ""
+
+
+class DailySummary(BaseModel):
+    date: str
+    sales: DailySalesBlock
+    expenses: DailyExpensesBlock
+    by_payment_method: list[SalesByPaymentMethod]
+    cash: DailyCashBlock
+    day_close: DayCloseBlock | None = None
+
+
+class DayCloseUpsert(BaseModel):
+    opening_cash: float = Field(ge=0)
+    closing_cash: float = Field(ge=0)
+    notes: str = ""
 
 
 # Re-export dashboard shapes used by reports endpoints
@@ -183,4 +228,7 @@ __all__ = [
     "ExpenseByCategory",
     "ExpenseDataPoint",
     "ExpenseSummary",
+    "DailySummary",
+    "DayCloseUpsert",
+    "DayCloseBlock",
 ]

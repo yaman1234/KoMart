@@ -86,7 +86,7 @@ interface PaymentModalProps {
 
 const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
+  { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
   { value: 'khalti', label: 'Khalti' },
 ];

@@ -57,6 +57,7 @@ export function useDeleteExpense() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
     },
   });
 }

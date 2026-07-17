@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -24,6 +25,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { useCreateExpense, useUpdateExpense, useExpense } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, CURRENCY_SYMBOL } from '@/constants';
 import { showApiError, showSuccess } from '@/utils/toast';
+import { formatCurrency } from '@/utils';
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -129,6 +131,41 @@ export function ExpenseFormPage() {
     return (
       <Box sx={{ py: 8, textAlign: 'center' }}>
         <Typography color="text.secondary">Loading...</Typography>
+      </Box>
+    );
+  }
+
+  if (isEdit && existing?.purchaseOrderId) {
+    return (
+      <Box>
+        <PageHeader
+          title="PO-linked Expense"
+          breadcrumbs={[
+            { label: 'Expenses', path: '/expenses' },
+            { label: 'View' },
+          ]}
+          action={
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/expenses')}>
+              Back
+            </Button>
+          }
+        />
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This expense was created from a purchase order payment and cannot be edited here.
+          Delete it from the expenses list to reverse the payment, or open the purchase order to record a new payment.
+        </Alert>
+        <Paper sx={{ p: 3, maxWidth: 800 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>{existing.title}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {formatCurrency(existing.amount)} · {existing.date}
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => navigate(`/purchase-orders/${existing.purchaseOrderId}`)}
+          >
+            Open purchase order
+          </Button>
+        </Paper>
       </Box>
     );
   }

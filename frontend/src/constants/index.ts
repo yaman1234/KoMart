@@ -115,13 +115,14 @@ export const COUNTRIES = [
 
 export const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
+  { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
   { value: 'khalti', label: 'Khalti' },
 ] as const;
 
 export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
   { value: 'setup_investment', label: 'Setup / Investment' },
+  { value: 'purchase_order', label: 'Purchase Order' },
   { value: 'rent', label: 'Rent' },
   { value: 'utilities', label: 'Utilities' },
   { value: 'salaries', label: 'Salaries' },
@@ -138,6 +139,12 @@ export const PO_STATUS_LABELS: Record<string, string> = {
   partial: 'Partially Received',
   received: 'Received',
   cancelled: 'Cancelled',
+};
+
+export const PO_PAYMENT_STATUS_LABELS: Record<string, string> = {
+  unpaid: 'Unpaid',
+  partial: 'Partially Paid',
+  paid: 'Paid',
 };
 
 export const PO_LINE_STATUS_LABELS: Record<string, string> = {

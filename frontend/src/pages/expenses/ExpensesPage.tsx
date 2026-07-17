@@ -18,9 +18,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
+import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { StatCard } from '@/components/common/StatCard';
@@ -33,6 +35,7 @@ import type { Expense } from '@/types';
 
 const CATEGORY_COLOR: Record<string, 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'> = {
   setup_investment: 'secondary',
+  purchase_order: 'info',
   rent: 'primary',
   utilities: 'info',
   salaries: 'warning',
@@ -47,12 +50,24 @@ function categoryLabel(value: string) {
   return EXPENSE_CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function monthStartIso() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+}
+
 export function ExpensesPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const canManage = isAdminOrManager(user?.role);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [setupFilter, setSetupFilter] = useState('');
+  const [startDate, setStartDate] = useState(monthStartIso);
+  const [endDate, setEndDate] = useState(todayIso);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -60,6 +75,9 @@ export function ExpensesPage() {
   const listParams = {
     search: search || undefined,
     category: category || undefined,
+    isSetupCost: setupFilter || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
     page: page + 1,
     pageSize,
   };
@@ -69,6 +87,7 @@ export function ExpensesPage() {
   const deleteMutation = useDeleteExpense();
 
   const rows = data?.data ?? [];
+  const deleteTarget = deleteId ? rows.find((r) => r.id === deleteId) : undefined;
 
   const columns: Column<Expense>[] = [
     {
@@ -88,9 +107,25 @@ export function ExpensesPage() {
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {row.title}
           </Typography>
-          {row.isSetupCost && (
-            <Chip label="Setup" size="small" color="secondary" sx={{ mt: 0.25, height: 18, fontSize: '0.6rem' }} />
-          )}
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.25 }}>
+            {row.isSetupCost && (
+              <Chip label="Setup" size="small" color="secondary" sx={{ height: 18, fontSize: '0.6rem' }} />
+            )}
+            {row.purchaseOrderId && (
+              <Chip
+                label="PO payment"
+                size="small"
+                color="info"
+                variant="outlined"
+                clickable
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/purchase-orders/${row.purchaseOrderId}`);
+                }}
+                sx={{ height: 18, fontSize: '0.6rem' }}
+              />
+            )}
+          </Box>
         </Box>
       ),
     },
@@ -135,15 +170,17 @@ export function ExpensesPage() {
       minWidth: 80,
       render: (row: Expense) => (
         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-          <Tooltip title="Edit">
-            <IconButton
-              size="small"
-              onClick={(e) => { e.stopPropagation(); navigate(`/expenses/${row.id}/edit`); }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete">
+          {!row.purchaseOrderId && (
+            <Tooltip title="Edit">
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); navigate(`/expenses/${row.id}/edit`); }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title={row.purchaseOrderId ? 'Delete (reverses PO payment)' : 'Delete'}>
             <IconButton
               size="small"
               color="error"
@@ -161,7 +198,7 @@ export function ExpensesPage() {
     <Box>
       <PageHeader
         title="Expenses"
-        subtitle="Track operational costs and setup investments"
+        subtitle="Track operational costs, PO payments, and setup investments"
         action={
           canManage ? (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/expenses/new')}>
@@ -171,7 +208,6 @@ export function ExpensesPage() {
         }
       />
 
-      {/* ── Summary stat cards ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
         <StatCard
           title="Total Expenses"
@@ -180,10 +216,17 @@ export function ExpensesPage() {
           color="error.main"
         />
         <StatCard
+          title="Operating Expenses"
+          value={statsLoading ? '—' : formatCurrency(stats?.operatingExpenses ?? Math.max(0, (stats?.totalExpenses ?? 0) - (stats?.setupInvestment ?? 0)))}
+          icon={<AccountBalanceWalletIcon />}
+          color="warning.main"
+          subtitle="Excludes setup / investment"
+        />
+        <StatCard
           title="This Month"
           value={statsLoading ? '—' : formatCurrency(stats?.thisMonth ?? 0)}
           icon={<CalendarTodayIcon />}
-          color="warning.main"
+          color="info.main"
         />
         <StatCard
           title="Setup / Investment"
@@ -194,7 +237,6 @@ export function ExpensesPage() {
         />
       </Box>
 
-      {/* ── Toolbar ── */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
           <Box sx={{ flex: 1, minWidth: 220 }}>
@@ -217,10 +259,30 @@ export function ExpensesPage() {
               ))}
             </Select>
           </FormControl>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Setup filter</InputLabel>
+            <Select
+              label="Setup filter"
+              value={setupFilter}
+              onChange={(e) => { setSetupFilter(e.target.value); setPage(0); }}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="true">Setup only</MenuItem>
+              <MenuItem value="false">Operating only</MenuItem>
+            </Select>
+          </FormControl>
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(range) => {
+              setStartDate(range.startDate);
+              setEndDate(range.endDate);
+              setPage(0);
+            }}
+          />
         </Box>
       </Paper>
 
-      {/* ── Table ── */}
       <DataTable
         columns={columns}
         rows={rows}
@@ -236,7 +298,11 @@ export function ExpensesPage() {
       <ConfirmDialog
         open={!!deleteId}
         title="Delete Expense"
-        message="This will permanently delete the expense record. This action cannot be undone."
+        message={
+          deleteTarget?.purchaseOrderId
+            ? 'This expense was created from a purchase order payment. Deleting it will reverse that payment on the PO.'
+            : 'This will permanently delete the expense record. This action cannot be undone.'
+        }
         confirmLabel="Delete"
         confirmColor="error"
         loading={deleteMutation.isPending}
@@ -244,7 +310,7 @@ export function ExpensesPage() {
           if (deleteId) {
             deleteMutation.mutate(deleteId, {
               onSuccess: () => {
-                showSuccess('Expense deleted.');
+                showSuccess(deleteTarget?.purchaseOrderId ? 'Expense deleted and PO payment reversed.' : 'Expense deleted.');
                 setDeleteId(null);
               },
               onError: (err) => showApiError(err, 'Expense could not be deleted.'),
