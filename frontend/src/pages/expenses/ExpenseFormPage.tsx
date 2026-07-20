@@ -22,6 +22,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useCreateExpense, useUpdateExpense, useExpense } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, CURRENCY_SYMBOL } from '@/constants';
 import { showApiError, showSuccess } from '@/utils/toast';
@@ -246,15 +247,19 @@ export function ExpenseFormPage() {
 
             {/* Date + Paid To */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Date"
-                type="date"
-                fullWidth
-                required
-                slotProps={{ inputLabel: { shrink: true } }}
-                {...register('date')}
-                error={!!errors.date}
-                helperText={errors.date?.message}
+              <Controller
+                name="date"
+                control={control}
+                render={({ field }) => (
+                  <NepaliAwareDatePicker
+                    label="Date"
+                    value={field.value}
+                    onChange={field.onChange}
+                    size="small"
+                    fullWidth
+                    helperText={errors.date?.message}
+                  />
+                )}
               />
             </Grid>
 

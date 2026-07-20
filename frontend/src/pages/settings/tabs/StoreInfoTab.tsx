@@ -31,13 +31,16 @@ const NUMERIC_KEYS = new Set([
   'loyaltyRedeemRate',
   'defaultLowStockThreshold',
   'expiryWarningDays',
+  'fiscalYearStartMonth',
+  'fiscalYearStartDay',
+  'openingBankBalance',
+  'openingEsewaBalance',
 ]);
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
-  { value: 'khalti', label: 'Khalti' },
 ];
 
 function emptyForm(): StoreSettings {
@@ -66,6 +69,11 @@ function emptyForm(): StoreSettings {
     purchaseOrderPrefix: 'PO',
     dateFormat: 'en-US',
     timeFormat: '12h',
+    calendarSystem: 'BS',
+    fiscalYearStartMonth: 7,
+    fiscalYearStartDay: 16,
+    openingBankBalance: 0,
+    openingEsewaBalance: 0,
   };
 }
 
@@ -91,7 +99,11 @@ export function StoreInfoTab() {
 
   useEffect(() => {
     if (settings) {
-      setForm({ ...emptyForm(), ...settings });
+      const next = { ...emptyForm(), ...settings };
+      if ((next.defaultPaymentMethod as string) === 'khalti') {
+        next.defaultPaymentMethod = 'esewa';
+      }
+      setForm(next);
     }
   }, [settings]);
 
@@ -301,7 +313,7 @@ export function StoreInfoTab() {
               onChange={change('transactionPrefix')}
               fullWidth
               disabled={!canEdit}
-              helperText="e.g. TXN → TXN-2026-06-29-001"
+              helperText="e.g. TXN → TXN-260629-001"
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -311,12 +323,78 @@ export function StoreInfoTab() {
               onChange={change('purchaseOrderPrefix')}
               fullWidth
               disabled={!canEdit}
-              helperText="e.g. PO → PO-2026-06-29-001"
+              helperText="e.g. PO → PO-260629-001"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Fiscal Year Start Month"
+              type="number"
+              value={form.fiscalYearStartMonth}
+              onChange={change('fiscalYearStartMonth')}
+              fullWidth
+              disabled={!canEdit}
+              slotProps={{ htmlInput: { min: 1, max: 12 } }}
+              helperText="AD month (Nepal default 7 = July)"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Fiscal Year Start Day"
+              type="number"
+              value={form.fiscalYearStartDay}
+              onChange={change('fiscalYearStartDay')}
+              fullWidth
+              disabled={!canEdit}
+              slotProps={{ htmlInput: { min: 1, max: 31 } }}
+              helperText="AD day (Nepal default 16 ≈ Shrawan 1)"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Opening Bank Balance"
+              type="number"
+              value={form.openingBankBalance}
+              onChange={change('openingBankBalance')}
+              fullWidth
+              disabled={!canEdit}
+              helperText="Baseline for Bank dashboard KPI"
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
+              }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Opening eSewa Balance"
+              type="number"
+              value={form.openingEsewaBalance}
+              onChange={change('openingEsewaBalance')}
+              fullWidth
+              disabled={!canEdit}
+              helperText="Baseline for eSewa dashboard KPI"
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
+              }}
             />
           </Grid>
 
           <SectionTitle>Appearance</SectionTitle>
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              select
+              label="Calendar System"
+              value={form.calendarSystem}
+              onChange={change('calendarSystem')}
+              fullWidth
+              disabled={!canEdit}
+              helperText="Controls date pickers app-wide (AD stored; BS display/entry)"
+            >
+              <MenuItem value="BS">Bikram Sambat (BS)</MenuItem>
+              <MenuItem value="AD">Gregorian (AD)</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               select
               label="Date Format Locale"
@@ -330,7 +408,7 @@ export function StoreInfoTab() {
               <MenuItem value="ne-NP">ne-NP</MenuItem>
             </TextField>
           </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               select
               label="Time Format"

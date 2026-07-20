@@ -10,6 +10,7 @@ class PaymentMethod(str, Enum):
     cash = "cash"
     bank = "bank"
     esewa = "esewa"
+    # Legacy — no longer offered in UI; normalize_payment_method maps to esewa
     khalti = "khalti"
 
 

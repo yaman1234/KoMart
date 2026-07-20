@@ -13,7 +13,7 @@ export function MainLayout({ title }: MainLayoutProps) {
   const isFullWidth = isPos || pathname === '/products/bulk-add';
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default', overflow: 'hidden' }}>
       <Sidebar />
       <Box
         component="main"
@@ -23,6 +23,8 @@ export function MainLayout({ title }: MainLayoutProps) {
           flexDirection: 'column',
           minWidth: 0,
           width: 0,
+          minHeight: 0,
+          overflow: 'hidden',
         }}
       >
         <TopBar title={title} />
@@ -35,10 +37,10 @@ export function MainLayout({ title }: MainLayoutProps) {
             flexDirection: 'column',
             minHeight: 0,
             minWidth: 0,
-            overflow: 'hidden',
+            overflow: 'auto',
             py: isFullWidth ? 1.5 : 3,
             ...(isFullWidth
-              ? { pl: { xs: 1.5, sm: 2 }, pr: { xs: 1.5, sm: 2 }, overflowX: 'hidden' }
+              ? { pl: { xs: 1.5, sm: 2 }, pr: { xs: 1.5, sm: 2 } }
               : {}),
           }}
         >

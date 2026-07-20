@@ -1,5 +1,9 @@
 import { CURRENCY_SYMBOL, UOM_OPTIONS } from '@/constants';
 import type { ProductStatus, UserRole } from '@/types';
+import { formatDisplayDate, type CalendarSystem } from '@/utils/nepaliDate';
+
+export { formatDisplayDate, formatDualCalendar, adToBs, bsToAd } from '@/utils/nepaliDate';
+export type { CalendarSystem } from '@/utils/nepaliDate';
 
 export const isAdmin = (role?: UserRole): boolean => role === 'admin';
 export const isAdminOrManager = (role?: UserRole): boolean => role === 'admin' || role === 'manager';
@@ -59,12 +63,11 @@ export function formatPricePerUom(price: number, uom: string): string {
   return `${formatCurrency(price)} / ${uom}`;
 }
 
-export function formatDate(date: string | Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+export function formatDate(
+  date: string | Date,
+  calendar: CalendarSystem = 'AD',
+): string {
+  return formatDisplayDate(date, calendar);
 }
 
 export function formatDateTime(date: string | Date): string {

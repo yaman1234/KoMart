@@ -635,7 +635,7 @@ async def seed():
             category=ExpenseCategory.utilities,
             date="2026-01-20",
             paid_to="Nepal Electricity Authority",
-            payment_method="khalti",
+            payment_method="esewa",
             is_setup_cost=False,
         ),
         Expense(

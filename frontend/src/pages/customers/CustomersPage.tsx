@@ -13,10 +13,11 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers';
@@ -52,7 +53,7 @@ export function CustomersPage() {
   const { data, isLoading } = useCustomers({ search, page: page + 1, pageSize: 10 });
   const createMutation = useCreateCustomer();
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, control, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: '', birthday: '' },
   });
@@ -156,12 +157,18 @@ export function CustomersPage() {
               <TextField {...register('email')} label="Email" type="email" fullWidth />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                {...register('birthday')}
-                label="Birthday"
-                type="date"
-                fullWidth
-                slotProps={{ inputLabel: { shrink: true } }}
+              <Controller
+                name="birthday"
+                control={control}
+                render={({ field }) => (
+                  <NepaliAwareDatePicker
+                    label="Birthday"
+                    value={field.value}
+                    onChange={field.onChange}
+                    size="small"
+                    fullWidth
+                  />
+                )}
               />
             </Grid>
           </Grid>

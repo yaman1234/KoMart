@@ -3,13 +3,20 @@ import { Link as RouterLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 interface PageHeaderProps {
-  title: string;
+  /** Kept for call-site compatibility; not rendered (TopBar shows page title). */
+  title?: string;
+  /** Kept for call-site compatibility; not rendered. */
   subtitle?: string;
   breadcrumbs?: { label: string; path?: string }[];
   action?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, breadcrumbs, action }: PageHeaderProps) {
+export function PageHeader({ breadcrumbs, action }: PageHeaderProps) {
+  const hasBreadcrumbs = Boolean(breadcrumbs && breadcrumbs.length > 0);
+  if (!hasBreadcrumbs && !action) {
+    return null;
+  }
+
   return (
     <Box
       sx={{
@@ -17,14 +24,14 @@ export function PageHeader({ title, subtitle, breadcrumbs, action }: PageHeaderP
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: { sm: 'center' },
         justifyContent: 'space-between',
-        gap: 2,
-        mb: 3,
+        gap: 1.5,
+        mb: action || hasBreadcrumbs ? 2 : 0,
       }}
     >
       <Box>
-        {breadcrumbs && breadcrumbs.length > 0 && (
-          <Breadcrumbs sx={{ mb: 1 }}>
-            {breadcrumbs.map((crumb, i) =>
+        {hasBreadcrumbs && (
+          <Breadcrumbs>
+            {breadcrumbs!.map((crumb, i) =>
               crumb.path ? (
                 <Link
                   key={i}
@@ -43,14 +50,6 @@ export function PageHeader({ title, subtitle, breadcrumbs, action }: PageHeaderP
               ),
             )}
           </Breadcrumbs>
-        )}
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {subtitle}
-          </Typography>
         )}
       </Box>
       {action && <Box sx={{ flexShrink: 0 }}>{action}</Box>}

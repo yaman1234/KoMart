@@ -21,6 +21,11 @@ import type {
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
+  DashboardKpiSummary,
+  CashFlowPoint,
+  NamedAmountPoint,
+  TopProfitProduct,
+  SalesCollectionPoint,
   StoreSettings,
   User,
   DateRange,
@@ -67,6 +72,11 @@ import {
   mockDashboardStats,
   mockRevenueData,
   mockTopProducts,
+  mockDashboardKpi,
+  mockCashFlow,
+  mockOperationalExpenses,
+  mockTopProfitProducts,
+  mockSalesCollection,
   mockSalesByCategory,
   mockSalesSummary,
   mockSalesByPaymentMethod,
@@ -245,6 +255,63 @@ export const mockApi = {
   async getRecentTransactions(): Promise<Transaction[]> {
     await delay(300);
     return transactions.slice(0, 10);
+  },
+
+  async getDashboardKpiSummary(): Promise<DashboardKpiSummary> {
+    await delay(300);
+    return mockDashboardKpi;
+  },
+
+  async getDashboardCashFlow(_days = 30): Promise<CashFlowPoint[]> {
+    await delay(300);
+    return mockCashFlow;
+  },
+
+  async getDashboardPaymentMethodFlow(method: 'cash' | 'bank' | 'esewa'): Promise<CashFlowPoint[]> {
+    await delay(300);
+    const scale = method === 'cash' ? 1 : method === 'bank' ? 0.7 : 0.4;
+    return mockCashFlow.map((p) => ({
+      date: p.date,
+      inflow: Math.round(p.inflow * scale),
+      outflow: Math.round(p.outflow * scale * 0.6),
+    }));
+  },
+
+  async getDashboardKpiFlow(
+    metric: 'sales' | 'purchase' | 'receivables' | 'payables' | 'cash' | 'bank' | 'esewa',
+  ): Promise<CashFlowPoint[]> {
+    await delay(300);
+    if (metric === 'cash' || metric === 'bank' || metric === 'esewa') {
+      return this.getDashboardPaymentMethodFlow(metric);
+    }
+    if (metric === 'receivables') {
+      return mockCashFlow.map((p) => ({ date: p.date, inflow: 0, outflow: 0 }));
+    }
+    if (metric === 'sales') {
+      return mockCashFlow.map((p) => ({ date: p.date, inflow: p.inflow, outflow: 0 }));
+    }
+    // purchase / payables
+    return mockCashFlow.map((p) => ({ date: p.date, inflow: 0, outflow: Math.round(p.outflow * 0.8) }));
+  },
+
+  async getDashboardOperationalExpenses(_days = 30): Promise<NamedAmountPoint[]> {
+    await delay(300);
+    return mockOperationalExpenses;
+  },
+
+  async getDashboardTopProfitProducts(_days = 30, limit = 6): Promise<TopProfitProduct[]> {
+    await delay(300);
+    return mockTopProfitProducts.slice(0, limit);
+  },
+
+  async getDashboardTopSoldProducts(_days = 30, limit = 6): Promise<TopProduct[]> {
+    await delay(300);
+    return mockTopProducts.slice(0, limit);
+  },
+
+  async getDashboardSalesCollection(_days = 30): Promise<SalesCollectionPoint[]> {
+    await delay(300);
+    return mockSalesCollection;
   },
 
   async getSalesByCategory(): Promise<typeof mockSalesByCategory> {

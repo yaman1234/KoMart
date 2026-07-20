@@ -25,6 +25,7 @@ import {
 import TuneIcon from '@mui/icons-material/Tune';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { SearchBar } from '@/components/common/SearchBar';
 import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
@@ -470,14 +471,11 @@ export function InventoryPage() {
             slotProps={{ htmlInput: { min: 1 } }}
             helperText="Stock always increases in base units"
           />
-          <TextField
+          <NepaliAwareDatePicker
             label="Expiry Date"
             value={rcvExpiry}
-            onChange={(e) => setRcvExpiry(e.target.value)}
-            type="date"
+            onChange={setRcvExpiry}
             fullWidth
-            margin="normal"
-            slotProps={{ inputLabel: { shrink: true } }}
             helperText="Leave blank if product has no expiry"
           />
         </DialogContent>

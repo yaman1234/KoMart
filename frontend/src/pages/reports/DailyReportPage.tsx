@@ -19,6 +19,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import SaveIcon from '@mui/icons-material/Save';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
 import { useDailySummary, useUpsertDayClose } from '@/hooks/useReports';
 import { PAYMENT_METHODS } from '@/constants';
@@ -31,7 +32,8 @@ function todayIso() {
 }
 
 function paymentLabel(method: string): string {
-  const normalized = method === 'card' ? 'bank' : method;
+  const normalized =
+    method === 'card' ? 'bank' : method === 'khalti' ? 'esewa' : method;
   return PAYMENT_METHODS.find((p) => p.value === normalized)?.label ?? method;
 }
 
@@ -77,22 +79,29 @@ export function DailyReportPage() {
   const expenses = data?.expenses.total ?? 0;
   const net = sales - expenses;
   const cash = data?.cash;
-  const methods = ['cash', 'bank', 'esewa', 'khalti'] as const;
+  const methods = ['cash', 'bank', 'esewa'] as const;
   const methodRows = methods.map((method) => {
     const row = data?.byPaymentMethod.find((p) => {
-      const m = p.paymentMethod === 'card' ? 'bank' : p.paymentMethod;
+      const m = p.paymentMethod === 'card' ? 'bank' : p.paymentMethod === 'khalti' ? 'esewa' : p.paymentMethod;
       return m === method;
     });
+    // Merge legacy khalti into esewa totals
+    let revenue = row?.revenue ?? 0;
+    let count = row?.count ?? 0;
+    if (method === 'esewa') {
+      const legacy = data?.byPaymentMethod.find((p) => p.paymentMethod === 'khalti');
+      revenue += legacy?.revenue ?? 0;
+      count += legacy?.count ?? 0;
+    }
     return {
       method,
       label: paymentLabel(method),
-      revenue: row?.revenue ?? 0,
-      count: row?.count ?? 0,
+      revenue,
+      count,
     };
   });
   const bankTotal = methodRows.find((r) => r.method === 'bank')?.revenue ?? 0;
   const esewaTotal = methodRows.find((r) => r.method === 'esewa')?.revenue ?? 0;
-  const khaltiTotal = methodRows.find((r) => r.method === 'khalti')?.revenue ?? 0;
 
   return (
     <Box className="daily-report-page">
@@ -117,13 +126,11 @@ export function DailyReportPage() {
         className="no-print"
         sx={{ p: 2, mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}
       >
-        <TextField
+        <NepaliAwareDatePicker
           label="Report date"
-          type="date"
-          size="small"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
+          onChange={setDate}
+          size="small"
         />
         <Typography variant="body2" color="text.secondary">
           Select the business day, enter opening/closing cash, then print for stakeholders.
@@ -195,13 +202,9 @@ export function DailyReportPage() {
               <Typography variant="body2" color="text.secondary">Bank</Typography>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(bankTotal)}</Typography>
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="body2" color="text.secondary">eSewa</Typography>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(esewaTotal)}</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" color="text.secondary">Khalti</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(khaltiTotal)}</Typography>
             </Box>
           </Paper>
         </Grid>

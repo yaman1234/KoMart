@@ -188,6 +188,11 @@ def settings_snapshot(settings: Any) -> dict[str, Any]:
         "purchase_order_prefix": getattr(settings, "purchase_order_prefix", "PO"),
         "date_format": getattr(settings, "date_format", "en-US"),
         "time_format": getattr(settings, "time_format", "12h"),
+        "calendar_system": getattr(settings, "calendar_system", "BS"),
+        "fiscal_year_start_month": getattr(settings, "fiscal_year_start_month", 7),
+        "fiscal_year_start_day": getattr(settings, "fiscal_year_start_day", 16),
+        "opening_bank_balance": float(getattr(settings, "opening_bank_balance", 0) or 0),
+        "opening_esewa_balance": float(getattr(settings, "opening_esewa_balance", 0) or 0),
     }
 
 

@@ -9,6 +9,11 @@ import type {
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
+  DashboardKpiSummary,
+  CashFlowPoint,
+  NamedAmountPoint,
+  TopProfitProduct,
+  SalesCollectionPoint,
   StoreSettings,
   Expense,
 } from '@/types';
@@ -511,7 +516,7 @@ export const mockTransactions: Transaction[] = [
     tax: 299,
     loyaltyPointsRedeemed: 100,
     total: 2499,
-    paymentMethod: 'khalti',
+    paymentMethod: 'esewa',
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     createdBy: 'Admin User',
   },
@@ -573,6 +578,55 @@ export const mockTopProducts: TopProduct[] = [
   { productId: 'prod-11', name: 'Nissin Cup Noodle Seafood', quantitySold: 87, revenue: 15660 },
 ];
 
+export const mockDashboardKpi: DashboardKpiSummary = {
+  fiscalYearStart: '2025-07-16',
+  sales: { fiscalYear: 1850000, month: 342500, day: 12850 },
+  purchase: { fiscalYear: 920000, month: 85000, day: 12000 },
+  receivables: { fiscalYear: 0, month: 0, day: 0 },
+  payables: { outstanding: 145000, monthPaid: 85000, dayPaid: 12000 },
+  cashBank: {
+    total: 327000,
+    cash: 95000,
+    bank: 190000,
+    esewa: 42000,
+    monthNet: 125000,
+    dayNet: 8500,
+  },
+};
+
+export const mockCashFlow: CashFlowPoint[] = Array.from({ length: 30 }, (_, i) => {
+  const date = new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0];
+  return {
+    date,
+    inflow: Math.floor(Math.random() * 15000) + 5000,
+    outflow: Math.floor(Math.random() * 8000) + 2000,
+  };
+});
+
+export const mockOperationalExpenses: NamedAmountPoint[] = [
+  { name: 'rent', amount: 45000 },
+  { name: 'salaries', amount: 80000 },
+  { name: 'utilities', amount: 12000 },
+  { name: 'marketing', amount: 8000 },
+  { name: 'supplies', amount: 5500 },
+  { name: 'other', amount: 3200 },
+];
+
+export const mockTopProfitProducts: TopProfitProduct[] = [
+  { productId: 'prod-1', name: 'Shin Ramyun Black', profit: 24500, revenue: 61250, quantitySold: 245 },
+  { productId: 'prod-3', name: 'Pocky Chocolate', profit: 13728, revenue: 34320, quantitySold: 156 },
+  { productId: 'prod-2', name: 'Honey Butter Chips', profit: 12544, revenue: 31360, quantitySold: 98 },
+  { productId: 'prod-5', name: 'Milkis Original', profit: 10584, revenue: 26460, quantitySold: 189 },
+  { productId: 'prod-11', name: 'Nissin Cup Noodle Seafood', profit: 6264, revenue: 15660, quantitySold: 87 },
+  { productId: 'prod-4', name: 'Banana Milk', profit: 3800, revenue: 9500, quantitySold: 95 },
+];
+
+export const mockSalesCollection: SalesCollectionPoint[] = Array.from({ length: 30 }, (_, i) => {
+  const date = new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0];
+  const sales = Math.floor(Math.random() * 15000) + 5000;
+  return { date, sales, collection: sales };
+});
+
 export const mockSalesByCategory = [
   { category: 'Instant Noodles', revenue: 125000, count: 520 },
   { category: 'Snacks', revenue: 89000, count: 310 },
@@ -593,7 +647,7 @@ export const mockSalesSummary = {
 export const mockSalesByPaymentMethod = [
   { paymentMethod: 'cash', revenue: 145000, count: 620 },
   { paymentMethod: 'esewa', revenue: 98000, count: 340 },
-  { paymentMethod: 'khalti', revenue: 62000, count: 180 },
+  { paymentMethod: 'esewa', revenue: 62000, count: 180 },
   { paymentMethod: 'bank', revenue: 37500, count: 100 },
 ];
 
@@ -649,6 +703,11 @@ export const mockStoreSettings: StoreSettings = {
   purchaseOrderPrefix: 'PO',
   dateFormat: 'en-US',
   timeFormat: '12h',
+  calendarSystem: 'BS',
+  fiscalYearStartMonth: 7,
+  fiscalYearStartDay: 16,
+  openingBankBalance: 0,
+  openingEsewaBalance: 0,
 };
 
 export const mockExpenses: Expense[] = [
@@ -710,7 +769,7 @@ export const mockExpenses: Expense[] = [
     category: 'utilities',
     date: '2026-01-20',
     paidTo: 'Nepal Electricity Authority',
-    paymentMethod: 'khalti',
+    paymentMethod: 'esewa',
     isSetupCost: false,
     createdAt: '2026-01-20T06:00:00Z',
     updatedAt: '2026-01-20T06:00:00Z',

@@ -7,4 +7,6 @@ def normalize_payment_method(method: str | None) -> str:
     value = (method or "").strip().lower()
     if value == "card":
         return "bank"
+    if value == "khalti":
+        return "esewa"
     return value

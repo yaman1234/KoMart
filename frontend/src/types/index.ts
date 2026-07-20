@@ -421,7 +421,7 @@ export interface Customer {
   createdAt: string;
 }
 
-export type PaymentMethod = 'cash' | 'bank' | 'card' | 'esewa' | 'khalti';
+export type PaymentMethod = 'cash' | 'bank' | 'card' | 'esewa';
 
 export interface CartItem {
   productId: string;
@@ -508,6 +508,57 @@ export interface TopProduct {
   revenue: number;
 }
 
+export interface KpiPeriodAmount {
+  fiscalYear: number;
+  month: number;
+  day: number;
+}
+
+export interface DashboardKpiSummary {
+  fiscalYearStart: string;
+  sales: KpiPeriodAmount;
+  purchase: KpiPeriodAmount;
+  receivables: KpiPeriodAmount;
+  payables: {
+    outstanding: number;
+    monthPaid: number;
+    dayPaid: number;
+  };
+  cashBank: {
+    total: number;
+    cash: number;
+    bank: number;
+    esewa: number;
+    monthNet: number;
+    dayNet: number;
+  };
+}
+
+export interface CashFlowPoint {
+  date: string;
+  inflow: number;
+  outflow: number;
+}
+
+export interface NamedAmountPoint {
+  name: string;
+  amount: number;
+}
+
+export interface TopProfitProduct {
+  productId: string;
+  name: string;
+  profit: number;
+  revenue: number;
+  quantitySold: number;
+}
+
+export interface SalesCollectionPoint {
+  date: string;
+  sales: number;
+  collection: number;
+}
+
 export interface StoreSettings {
   storeName: string;
   address: string;
@@ -533,6 +584,11 @@ export interface StoreSettings {
   purchaseOrderPrefix: string;
   dateFormat: string;
   timeFormat: '12h' | '24h';
+  calendarSystem: 'AD' | 'BS';
+  fiscalYearStartMonth: number;
+  fiscalYearStartDay: number;
+  openingBankBalance: number;
+  openingEsewaBalance: number;
 }
 
 export interface ReceiptBranding {

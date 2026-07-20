@@ -74,10 +74,7 @@ import { PaymentModal, type PaymentConfirmPayload } from '@/components/pos/Payme
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
 import { DRAWER_COLLAPSED } from '@/layouts/Sidebar';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import type { Product, Transaction, CartItem } from '@/types';
 
 const CART_EXPANDED_WIDTH = 'clamp(300px, 38vw, 540px)';
@@ -540,7 +537,6 @@ export function POSPage() {
   const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
   const cartSnapshotRef = useRef<{ items: CartItem[]; customerId: string | null; saleDate: string } | null>(null);
   const [cartCollapsed, setCartCollapsed] = useState(isMobile);
-  const [saleDatePickerOpen, setSaleDatePickerOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -1016,30 +1012,15 @@ export function POSPage() {
           </Tooltip>
         </Box>
 
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <Box sx={{ flexShrink: 0, mb: 1 }}>
-            <DatePicker
-              label="Sale Date"
-              value={dayjs(saleDate)}
-              open={saleDatePickerOpen}
-              onOpen={() => setSaleDatePickerOpen(true)}
-              onClose={() => setSaleDatePickerOpen(false)}
-              onChange={(date) => {
-                if (date?.isValid()) {
-                  setSaleDate(date.format('YYYY-MM-DD'));
-                }
-              }}
-              slotProps={{
-                textField: {
-                  fullWidth: true,
-                  size: 'small',
-                  onClick: () => setSaleDatePickerOpen(true),
-                },
-                openPickerButton: { 'aria-label': 'Open calendar' },
-              }}
-            />
-          </Box>
-        </LocalizationProvider>
+        <Box sx={{ flexShrink: 0, mb: 1 }}>
+          <NepaliAwareDatePicker
+            label="Sale Date"
+            value={saleDate}
+            onChange={setSaleDate}
+            size="small"
+            fullWidth
+          />
+        </Box>
 
         {/* Cart items — scrollable middle section */}
         <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto', mb: 0.5 }}>

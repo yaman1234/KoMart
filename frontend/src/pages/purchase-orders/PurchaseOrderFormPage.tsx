@@ -11,15 +11,13 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import dayjs from 'dayjs';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { DROPDOWN_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useProductCatalog } from '@/hooks/useProductCatalog';
 import { useAssignableUsers } from '@/hooks/useAssignableUsers';
@@ -100,7 +98,6 @@ export function PurchaseOrderFormPage() {
   const [supplierId, setSupplierId] = useState('');
   const [expectedDelivery, setExpectedDelivery] = useState(() => today().format('YYYY-MM-DD'));
   const [orderedBy, setOrderedBy] = useState('');
-  const [deliveryPickerOpen, setDeliveryPickerOpen] = useState(false);
   const [lines, setLines] = useState<PoLineItem[]>(() => [emptyPoLineItem(0)]);
   const [error, setError] = useState('');
   const [pasteWarning, setPasteWarning] = useState('');
@@ -344,8 +341,7 @@ export function PurchaseOrderFormPage() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <Paper sx={{ px: 2, py: 2, mb: 2 }}>
+      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order details</Typography>
             <Chip
@@ -372,25 +368,13 @@ export function PurchaseOrderFormPage() {
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <DatePicker
+              <NepaliAwareDatePicker
                 label="Expected Delivery"
-                value={expectedDelivery ? dayjs(expectedDelivery) : null}
-                minDate={today()}
-                open={deliveryPickerOpen}
-                onOpen={() => setDeliveryPickerOpen(true)}
-                onClose={() => setDeliveryPickerOpen(false)}
-                onChange={(date) =>
-                  setExpectedDelivery(date ? date.format('YYYY-MM-DD') : '')
-                }
-                slotProps={{
-                  textField: {
-                    fullWidth: true,
-                    size: 'small',
-                    required: !isPlacedEdit,
-                    onClick: () => setDeliveryPickerOpen(true),
-                  },
-                  openPickerButton: { 'aria-label': 'Open calendar' },
-                }}
+                value={expectedDelivery}
+                onChange={setExpectedDelivery}
+                minDate={today().format('YYYY-MM-DD')}
+                size="small"
+                fullWidth
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -410,7 +394,6 @@ export function PurchaseOrderFormPage() {
             </Grid>
           </Grid>
         </Paper>
-      </LocalizationProvider>
 
       <Box sx={{ mb: 1.5 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Order Items</Typography>

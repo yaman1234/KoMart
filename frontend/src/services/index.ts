@@ -31,6 +31,11 @@ import type {
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
+  DashboardKpiSummary,
+  CashFlowPoint,
+  NamedAmountPoint,
+  TopProfitProduct,
+  SalesCollectionPoint,
   StoreSettings,
   User,
   DateRange,
@@ -144,6 +149,50 @@ export const dashboardService = {
   getStats: async (range?: DateRange): Promise<DashboardStats> => {
     if (useMock()) return mockApi.getDashboardStats(range);
     const { data } = await apiClient.get('/dashboard/stats', { params: range });
+    return data;
+  },
+  getKpiSummary: async (): Promise<DashboardKpiSummary> => {
+    if (useMock()) return mockApi.getDashboardKpiSummary();
+    const { data } = await apiClient.get('/dashboard/kpi-summary');
+    return data;
+  },
+  getCashFlow: async (days = 30): Promise<CashFlowPoint[]> => {
+    if (useMock()) return mockApi.getDashboardCashFlow(days);
+    const { data } = await apiClient.get('/dashboard/cash-flow', { params: { days } });
+    return data;
+  },
+  getPaymentMethodFlow: async (
+    method: 'cash' | 'bank' | 'esewa',
+  ): Promise<CashFlowPoint[]> => {
+    if (useMock()) return mockApi.getDashboardPaymentMethodFlow(method);
+    const { data } = await apiClient.get('/dashboard/payment-method-flow', { params: { method } });
+    return data;
+  },
+  getKpiFlow: async (
+    metric: 'sales' | 'purchase' | 'receivables' | 'payables' | 'cash' | 'bank' | 'esewa',
+  ): Promise<CashFlowPoint[]> => {
+    if (useMock()) return mockApi.getDashboardKpiFlow(metric);
+    const { data } = await apiClient.get('/dashboard/kpi-flow', { params: { metric } });
+    return data;
+  },
+  getOperationalExpenses: async (days = 30): Promise<NamedAmountPoint[]> => {
+    if (useMock()) return mockApi.getDashboardOperationalExpenses(days);
+    const { data } = await apiClient.get('/dashboard/operational-expenses', { params: { days } });
+    return data;
+  },
+  getTopProfitProducts: async (days = 30, limit = 6): Promise<TopProfitProduct[]> => {
+    if (useMock()) return mockApi.getDashboardTopProfitProducts(days, limit);
+    const { data } = await apiClient.get('/dashboard/top-profit-products', { params: { days, limit } });
+    return data;
+  },
+  getTopSoldProducts: async (days = 30, limit = 6): Promise<TopProduct[]> => {
+    if (useMock()) return mockApi.getDashboardTopSoldProducts(days, limit);
+    const { data } = await apiClient.get('/dashboard/top-sold-products', { params: { days, limit } });
+    return data;
+  },
+  getSalesCollection: async (days = 30): Promise<SalesCollectionPoint[]> => {
+    if (useMock()) return mockApi.getDashboardSalesCollection(days);
+    const { data } = await apiClient.get('/dashboard/sales-collection', { params: { days } });
     return data;
   },
   getRevenueData: async (range?: DateRange): Promise<RevenueDataPoint[]> => {

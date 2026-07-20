@@ -88,7 +88,6 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
-  { value: 'khalti', label: 'Khalti' },
 ];
 
 const noNumberSpinnerSx = {
@@ -144,6 +143,13 @@ export function PaymentModal({
   const openSessionRef = useRef(false);
   const customerIdAtOpenRef = useRef<string | null>(customerId);
 
+  const resolvedDefaultMethod: PaymentMethod =
+    defaultPaymentMethod === 'card'
+      ? 'bank'
+      : (defaultPaymentMethod as string) === 'khalti'
+        ? 'esewa'
+        : defaultPaymentMethod;
+
   const draft = useCheckoutDraft(items, productCategoryMap, cartMutators);
 
   const sellableProducts = useMemo(
@@ -165,14 +171,14 @@ export function PaymentModal({
       discountInput: initialDiscountInput,
       loyaltyPointsRedeemed: initialLoyaltyPointsRedeemed,
     });
-    setMethod(defaultPaymentMethod);
+    setMethod(resolvedDefaultMethod);
     setTendered('');
     setAddProductValue(null);
     printedTxnId.current = null;
   }, [
     open,
     transaction,
-    defaultPaymentMethod,
+    resolvedDefaultMethod,
     initialDiscountType,
     initialDiscountInput,
     initialLoyaltyPointsRedeemed,

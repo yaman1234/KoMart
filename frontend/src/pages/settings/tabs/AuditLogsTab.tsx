@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { DataTable, type Column } from '@/components/tables/DataTable';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useAuditLogs } from '@/hooks/useAuditLogs';
 import { AUDIT_MODULE_LABELS } from '@/constants';
 import { formatDateTime } from '@/utils';
@@ -136,25 +137,21 @@ export function AuditLogsTab() {
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
+            <NepaliAwareDatePicker
               label="From"
-              slotProps={{ inputLabel: { shrink: true } }}
               value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(0); }}
+              onChange={(d) => { setStartDate(d); setPage(0); }}
+              size="small"
+              fullWidth
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
+            <NepaliAwareDatePicker
               label="To"
-              slotProps={{ inputLabel: { shrink: true } }}
               value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(0); }}
+              onChange={(d) => { setEndDate(d); setPage(0); }}
+              size="small"
+              fullWidth
             />
           </Grid>
         </Grid>

@@ -40,6 +40,11 @@ class SettingsUpdate(BaseModel):
     purchase_order_prefix: Optional[str] = Field(None, alias="purchaseOrderPrefix")
     date_format: Optional[str] = Field(None, alias="dateFormat")
     time_format: Optional[Literal["12h", "24h"]] = Field(None, alias="timeFormat")
+    calendar_system: Optional[Literal["AD", "BS"]] = Field(None, alias="calendarSystem")
+    fiscal_year_start_month: Optional[int] = Field(None, alias="fiscalYearStartMonth", ge=1, le=12)
+    fiscal_year_start_day: Optional[int] = Field(None, alias="fiscalYearStartDay", ge=1, le=31)
+    opening_bank_balance: Optional[float] = Field(None, alias="openingBankBalance")
+    opening_esewa_balance: Optional[float] = Field(None, alias="openingEsewaBalance")
 
 
 @router.get("")

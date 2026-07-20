@@ -117,7 +117,6 @@ export const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash' },
   { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
-  { value: 'khalti', label: 'Khalti' },
 ] as const;
 
 export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [

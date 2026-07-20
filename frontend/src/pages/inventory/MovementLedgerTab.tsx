@@ -13,6 +13,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatCard } from '@/components/common/StatCard';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useInventoryMovements, useMovementSummary } from '@/hooks/useInventory';
 import { formatAmount, formatDateTime, downloadCsv } from '@/utils';
 import type { InventoryMovement, InventoryMovementQueryParams } from '@/types';
@@ -264,25 +265,21 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
             </TextField>
           </Grid>
           <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
+            <NepaliAwareDatePicker
               label="From"
-              slotProps={{ inputLabel: { shrink: true } }}
               value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(0); }}
+              onChange={(d) => { setStartDate(d); setPage(0); }}
+              size="small"
+              fullWidth
             />
           </Grid>
           <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
+            <NepaliAwareDatePicker
               label="To"
-              slotProps={{ inputLabel: { shrink: true } }}
               value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(0); }}
+              onChange={(d) => { setEndDate(d); setPage(0); }}
+              size="small"
+              fullWidth
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 'auto' }}>

@@ -34,6 +34,7 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
@@ -614,22 +615,18 @@ export function PurchaseOrderDetailPage() {
                     </TableCell>
                     {canReceive && (
                       <TableCell>
-                        <TextField
-                          size="small"
-                          type="date"
-                          label="Expiry"
-                          value={receiveSel.expiryDate}
-                          disabled={!receiveSel.selected}
-                          onChange={(e) =>
-                            updateReceiveSelection(item.productId, remaining, { expiryDate: e.target.value })
-                          }
-                          sx={{ width: '100%', minWidth: 120 }}
-                          slotProps={{
-                            inputLabel: { shrink: true },
-                            htmlInput: { 'aria-label': 'Expiry date optional' },
-                          }}
-                          helperText={receiveSel.selected ? 'Optional' : undefined}
-                        />
+                        <Box sx={{ width: '100%', minWidth: 120 }}>
+                          <NepaliAwareDatePicker
+                            label="Expiry"
+                            value={receiveSel.expiryDate}
+                            onChange={(d) =>
+                              updateReceiveSelection(item.productId, remaining, { expiryDate: d })
+                            }
+                            size="small"
+                            disabled={!receiveSel.selected}
+                            helperText={receiveSel.selected ? 'Optional' : undefined}
+                          />
+                        </Box>
                       </TableCell>
                     )}
                     <TableCell>
@@ -672,13 +669,11 @@ export function PurchaseOrderDetailPage() {
             slotProps={{ htmlInput: { min: 0.01, step: 0.01, max: remaining } }}
             fullWidth
           />
-          <TextField
+          <NepaliAwareDatePicker
             label="Payment date"
-            type="date"
-            size="small"
             value={paymentDate}
-            onChange={(e) => setPaymentDate(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
+            onChange={setPaymentDate}
+            size="small"
             fullWidth
           />
           <TextField

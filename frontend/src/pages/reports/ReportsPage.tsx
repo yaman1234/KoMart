@@ -83,7 +83,8 @@ type ReportTab = 'sales' | 'inventory' | 'financial' | 'purchasing' | 'customers
 const PIE_COLORS = ['#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#F4A261', '#264653'];
 
 function paymentLabel(method: string): string {
-  const normalized = method === 'card' ? 'bank' : method;
+  const normalized =
+    method === 'card' ? 'bank' : method === 'khalti' ? 'esewa' : method;
   return PAYMENT_METHODS.find((p) => p.value === normalized)?.label ?? method;
 }
 

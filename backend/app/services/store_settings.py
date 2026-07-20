@@ -39,4 +39,9 @@ def settings_to_api(settings: StoreSettings) -> dict:
         "purchaseOrderPrefix": settings.purchase_order_prefix,
         "dateFormat": settings.date_format,
         "timeFormat": settings.time_format,
+        "calendarSystem": getattr(settings, "calendar_system", "BS"),
+        "fiscalYearStartMonth": getattr(settings, "fiscal_year_start_month", 7),
+        "fiscalYearStartDay": getattr(settings, "fiscal_year_start_day", 16),
+        "openingBankBalance": float(getattr(settings, "opening_bank_balance", 0) or 0),
+        "openingEsewaBalance": float(getattr(settings, "opening_esewa_balance", 0) or 0),
     }

@@ -12,7 +12,6 @@ import {
   useTheme,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -38,8 +37,6 @@ export function TopBar({ title }: TopBarProps) {
   const { mode, toggleMode } = useThemeStore();
   const {
     toggleSidebar,
-    sidebarCollapsed,
-    toggleSidebarCollapsed,
     notificationPanelOpen,
     setNotificationPanelOpen,
   } = useUIStore();
@@ -69,13 +66,9 @@ export function TopBar({ title }: TopBarProps) {
         }}
       >
         <Toolbar sx={{ gap: 1 }}>
-          {isMobile ? (
+          {isMobile && (
             <IconButton edge="start" onClick={toggleSidebar}>
               <MenuIcon />
-            </IconButton>
-          ) : (
-            <IconButton onClick={toggleSidebarCollapsed}>
-              {sidebarCollapsed ? <MenuIcon /> : <MenuOpenIcon />}
             </IconButton>
           )}
 

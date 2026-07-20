@@ -1,11 +1,22 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from datetime import datetime, timezone, timedelta
+from typing import Literal
 
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.customer import Customer
 from app.models.transaction import Transaction
 from app.schemas.dashboard import DashboardStats, RevenueDataPoint, TopProduct, SalesByCategory
+from app.services.dashboard_kpi import (
+    build_cash_flow,
+    build_kpi_flow,
+    build_kpi_summary,
+    build_operational_expenses,
+    build_payment_method_flow,
+    build_sales_collection,
+    build_top_profit_products,
+    build_top_sold_products,
+)
 from app.services.reporting import (
     aggregate_expense_total_since,
     aggregate_operating_expense_total_since,
@@ -22,6 +33,77 @@ from app.services.reporting import (
 from app.services.stock import expiring_product_ids
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+
+@router.get("/kpi-summary")
+async def get_kpi_summary(_: User = Depends(get_current_user)):
+    return await build_kpi_summary()
+
+
+@router.get("/cash-flow")
+async def get_cash_flow(
+    days: int = Query(30, ge=1, le=366),
+    _: User = Depends(get_current_user),
+):
+    return await build_cash_flow(days)
+
+
+@router.get("/payment-method-flow")
+async def get_payment_method_flow(
+    method: Literal["cash", "bank", "esewa"] = Query(...),
+    _: User = Depends(get_current_user),
+):
+    try:
+        return await build_payment_method_flow(method)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/kpi-flow")
+async def get_kpi_flow(
+    metric: Literal[
+        "sales", "purchase", "receivables", "payables", "cash", "bank", "esewa"
+    ] = Query(...),
+    _: User = Depends(get_current_user),
+):
+    try:
+        return await build_kpi_flow(metric)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/operational-expenses")
+async def get_operational_expenses(
+    days: int = Query(30, ge=1, le=366),
+    _: User = Depends(get_current_user),
+):
+    return await build_operational_expenses(days)
+
+
+@router.get("/top-profit-products")
+async def get_top_profit_products(
+    days: int = Query(30, ge=1, le=366),
+    limit: int = Query(6, ge=1, le=50),
+    _: User = Depends(get_current_user),
+):
+    return await build_top_profit_products(days, limit)
+
+
+@router.get("/top-sold-products")
+async def get_top_sold_products(
+    days: int = Query(30, ge=1, le=366),
+    limit: int = Query(6, ge=1, le=50),
+    _: User = Depends(get_current_user),
+):
+    return await build_top_sold_products(days, limit)
+
+
+@router.get("/sales-collection")
+async def get_sales_collection(
+    days: int = Query(30, ge=1, le=366),
+    _: User = Depends(get_current_user),
+):
+    return await build_sales_collection(days)
 
 
 @router.get("/stats", response_model=DashboardStats)
