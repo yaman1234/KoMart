@@ -14,23 +14,32 @@ import {
   Link,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ImageIcon from '@mui/icons-material/Image';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
-import { useProduct } from '@/hooks/useProducts';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { useProduct, useDeleteProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { UomConversionHint } from '@/components/uom/UomUi';
-import { formatDate, isAdminOrManager, productStatusColor, productStatusLabel, uomLabel } from '@/utils';
+import { isAdminOrManager, productStatusColor, productStatusLabel, uomLabel } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
 import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
+import { showApiError, showSuccess } from '@/utils/toast';
+import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const formatDate = useFormatDate();
   const { data: product, isLoading, isError } = useProduct(id ?? '');
   const user = useAuthStore((s) => s.user);
+  const deleteMutation = useDeleteProduct();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const canSeeCostPrice = isAdminOrManager(user?.role);
   const canEdit = isAdminOrManager(user?.role);
@@ -70,15 +79,31 @@ export function ProductDetailPage() {
       href: product.supplierId ? `/suppliers/${product.supplierId}` : undefined,
     },
     { label: 'Added', value: formatDate(product.createdAt) },
-    { label: 'Buy UOM', value: uomLabel(product.buyUom ?? product.uom ?? 'pcs') },
-    { label: 'Base UOM', value: uomLabel(product.uom ?? 'pcs') },
+    { label: PRODUCT_FIELD_LABELS.buyUom, value: uomLabel(product.buyUom ?? product.uom ?? '') },
+    { label: PRODUCT_FIELD_LABELS.baseUom, value: uomLabel(product.uom ?? '') },
     {
-      label: 'Conversion',
+      label: PRODUCT_FIELD_LABELS.unitsPerPack,
       value: formatConversion(
-        product.buyUom ?? 'pcs',
-        product.uom ?? 'pcs',
+        product.buyUom ?? '',
+        product.uom ?? '',
         product.unitsPerBuyUom ?? 1,
       ) || '—',
+    },
+    {
+      label: 'Cost effective from',
+      value: product.costPriceEffectiveFrom ? formatDate(product.costPriceEffectiveFrom) : '—',
+    },
+    {
+      label: 'Selling effective from',
+      value: product.sellingPriceEffectiveFrom ? formatDate(product.sellingPriceEffectiveFrom) : '—',
+    },
+    {
+      label: 'Most Popular',
+      value: product.isPopular ? 'Yes' : 'No',
+    },
+    {
+      label: 'Trending',
+      value: product.isTrending ? 'Yes' : 'No',
     },
   ];
 
@@ -93,16 +118,46 @@ export function ProductDetailPage() {
               Back
             </Button>
             {canEdit && (
-              <Button
-                variant="contained"
-                startIcon={<EditIcon />}
-                onClick={() => navigate(`/products/${product.id}/edit`)}
-              >
-                Edit
-              </Button>
+              <>
+                <Button
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => navigate(`/products/${product.id}/edit`)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Delete
+                </Button>
+              </>
             )}
           </Box>
         }
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete Product"
+        message={`Soft-delete "${product.name}"? It will be hidden from catalog and POS but kept for history.`}
+        confirmLabel="Delete"
+        confirmColor="error"
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          deleteMutation.mutate(product.id, {
+            onSuccess: () => {
+              showSuccess('Product deleted.');
+              setConfirmDelete(false);
+              navigate('/products');
+            },
+            onError: (err) => showApiError(err, 'Product could not be deleted.'),
+          });
+        }}
+        onCancel={() => setConfirmDelete(false)}
       />
 
       {/* ── Hero: Image + Quick Info ── */}
@@ -156,7 +211,7 @@ export function ProductDetailPage() {
                     </Typography>
                     <PriceWithUom
                       price={product.sellingPrice}
-                      uom={product.uom ?? 'pcs'}
+                      uom={product.uom ?? ''}
                       priceSx={{ fontSize: '1.75rem' }}
                     />
                   </Box>
@@ -168,7 +223,7 @@ export function ProductDetailPage() {
                     </Typography>
                     <PriceWithUom
                       price={packOption.price}
-                      uom={product.buyUom ?? 'pack'}
+                      uom={product.buyUom ?? ''}
                       priceSx={{ fontSize: '1.75rem' }}
                     />
                     {packPriceIsDerived && (
@@ -181,13 +236,13 @@ export function ProductDetailPage() {
                 {!canSellAsPiece(product) && !showPackPrice && (
                   <PriceWithUom
                     price={product.sellingPrice}
-                    uom={product.uom ?? 'pcs'}
+                    uom={product.uom ?? ''}
                     priceSx={{ fontSize: '1.75rem' }}
                   />
                 )}
               </Box>
               <Chip
-                label={`Stock: ${formatStockQty(product.stock, product.uom ?? 'pcs')}`}
+                label={`Stock: ${formatStockQty(product.stock, product.uom ?? '')}`}
                 color={stockStatus.color}
                 sx={{ fontWeight: 600 }}
               />
@@ -208,7 +263,7 @@ export function ProductDetailPage() {
                   </Typography>
                   <PriceWithUom
                     price={product.costPrice}
-                    uom={product.uom ?? 'pcs'}
+                    uom={product.uom ?? ''}
                     priceSx={{ fontSize: '1rem', color: 'text.primary' }}
                   />
                 </Box>
@@ -235,8 +290,8 @@ export function ProductDetailPage() {
 
             <Divider />
             <UomConversionHint
-              buyUom={product.buyUom ?? product.uom ?? 'pcs'}
-              baseUom={product.uom ?? 'pcs'}
+              buyUom={product.buyUom ?? product.uom ?? ''}
+              baseUom={product.uom ?? ''}
               factor={product.unitsPerBuyUom ?? 1}
             />
             <Grid container spacing={0.5} sx={{ mt: 1 }}>

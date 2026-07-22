@@ -31,7 +31,7 @@ import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useInventory, useInventoryStats, useAdjustStock, useReceiveBatch } from '@/hooks/useInventory';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { formatDate, formatCurrency } from '@/utils';
+import { formatCurrency, formatExpiryDate } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { UomConversionHint } from '@/components/uom/UomUi';
 import { useAuthStore } from '@/store';
@@ -128,7 +128,7 @@ export function InventoryPage() {
       align: 'right',
       render: (row) => (
         <Chip
-          label={row.stock === 0 ? 'Out' : formatStockQty(row.stock, row.uom ?? 'pcs')}
+          label={row.stock === 0 ? 'Out' : formatStockQty(row.stock, row.uom ?? '')}
           color={row.stock === 0 ? 'error' : row.stock <= row.lowStockThreshold ? 'warning' : 'success'}
           size="small"
         />
@@ -148,7 +148,7 @@ export function InventoryPage() {
         if (!date) return '—';
         return (
           <Chip
-            label={formatDate(date)}
+            label={formatExpiryDate(date)}
             color={expiryChipColor(date)}
             size="small"
             variant="outlined"
@@ -401,7 +401,7 @@ export function InventoryPage() {
         <DialogTitle>
           Receive Stock — {receiveTarget?.name}
           <Typography variant="body2" color="text.secondary">
-            Current stock: {receiveTarget ? formatStockQty(receiveTarget.stock, receiveTarget.uom ?? 'pcs') : '—'}
+            Current stock: {receiveTarget ? formatStockQty(receiveTarget.stock, receiveTarget.uom ?? '') : '—'}
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -409,8 +409,8 @@ export function InventoryPage() {
           {receiveTarget && (
             <Box sx={{ mb: 2 }}>
               <UomConversionHint
-                buyUom={receiveTarget.buyUom ?? receiveTarget.uom ?? 'pcs'}
-                baseUom={receiveTarget.uom ?? 'pcs'}
+                buyUom={receiveTarget.buyUom ?? receiveTarget.uom ?? ''}
+                baseUom={receiveTarget.uom ?? ''}
                 factor={receiveTarget.unitsPerBuyUom ?? 1}
               />
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
@@ -461,7 +461,7 @@ export function InventoryPage() {
             slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
           />
           <TextField
-            label={`Quantity received (base: ${receiveTarget?.uom ?? 'pcs'})`}
+            label={`Quantity received (base: ${receiveTarget?.uom ?? ''})`}
             value={rcvQty}
             onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
             type="number"
@@ -476,7 +476,8 @@ export function InventoryPage() {
             value={rcvExpiry}
             onChange={setRcvExpiry}
             fullWidth
-            helperText="Leave blank if product has no expiry"
+            calendarSystem="AD"
+            helperText="Gregorian (AD) — manufacturer expiry. Leave blank if none."
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -496,7 +497,7 @@ export function InventoryPage() {
         <DialogTitle>
           Stock Adjustment — {adjustTarget?.name}
           <Typography variant="body2" color="text.secondary">
-            Current stock: {adjustTarget ? formatStockQty(adjustTarget.stock, adjustTarget.uom ?? 'pcs') : '—'}
+            Current stock: {adjustTarget ? formatStockQty(adjustTarget.stock, adjustTarget.uom ?? '') : '—'}
           </Typography>
         </DialogTitle>
         <DialogContent>

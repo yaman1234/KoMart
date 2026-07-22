@@ -239,15 +239,16 @@ const SheetCell = memo(function SheetCell({
   if (col.type === 'number') {
     const numField = field as keyof Product;
     const raw = merged[numField];
+    const numValue = typeof raw === 'number' ? raw : typeof raw === 'string' ? raw : '';
     return (
       <Box
         component="input"
         type="number"
-        value={raw ?? ''}
+        value={numValue}
         step={col.key.includes('discount') ? 0.1 : 0.01}
         sx={inputSx}
         {...inputProps}
-        onChange={(e) => {
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
           const v = e.target.value;
           onCellChange(pid, numField, v === '' ? 0 : Number(v));
         }}
@@ -311,12 +312,13 @@ const SheetCell = memo(function SheetCell({
       return (
         <Box
           component="select"
-          value={(merged[field] as string) ?? 'pcs'}
+          value={(merged[field] as string) ?? ''}
           sx={inputSx}
           title={fieldError}
           {...inputProps}
           onChange={(e) => onCellChange(pid, field, e.target.value)}
         >
+          <option value="">Select…</option>
           {options.uoms.map((u) => (
             <option key={u.value} value={u.value}>{u.label}</option>
           ))}

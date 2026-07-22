@@ -123,8 +123,9 @@ export function useCheckoutDraft(
   }, [cartMutators]);
 
   const addProduct = useCallback((product: Product, asPack = false) => {
-    if (product.sellingPrice <= 0) return;
+    if (product.stock === 0) return;
     const opt = resolveSellOption(product, asPack);
+    if (opt.price <= 0) return;
     cartMutators.addItem({
       productId: product.id,
       name: product.name,
@@ -134,7 +135,7 @@ export function useCheckoutDraft(
       discount: 0,
       sellUom: opt.sellUom,
       unitFactor: opt.unitFactor,
-      uom: opt.sellUom,
+      uom: product.uom || product.buyUom || '',
       category: product.category,
     });
   }, [cartMutators]);

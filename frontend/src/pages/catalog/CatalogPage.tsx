@@ -54,14 +54,15 @@ const CatalogCard = memo(function CatalogCard({ product, discountLabel, onClick 
     >
       <CardActionArea onClick={onClick} sx={{ flexGrow: 1 }}>
         <Box sx={{ position: 'relative' }}>
-          {product.images[0] ? (
-            <CardMedia
-              component="img"
-              image={product.images[0]}
-              alt={product.name}
-              sx={{ height: 180, objectFit: 'cover', ...(outOfStock && { filter: 'grayscale(40%)' }) }}
-            />
-          ) : (
+            {product.images[0] ? (
+              <CardMedia
+                component="img"
+                image={product.images[0]}
+                alt={product.name}
+                loading="lazy"
+                sx={{ height: 180, objectFit: 'cover', ...(outOfStock && { filter: 'grayscale(40%)' }) }}
+              />
+            ) : (
             <Box
               sx={{
                 height: 180,
@@ -170,6 +171,8 @@ export function CatalogPage() {
   const [category, setCategory] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [onSaleOnly, setOnSaleOnly] = useState(false);
+  const [popularOnly, setPopularOnly] = useState(false);
+  const [trendingOnly, setTrendingOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -182,6 +185,8 @@ export function CatalogPage() {
     search: search || undefined,
     category: category || undefined,
     tag: selectedTag || undefined,
+    isPopular: popularOnly || undefined,
+    isTrending: trendingOnly || undefined,
     sortBy: priceSort ? 'selling_price' : undefined,
     sortOrder: (priceSort || undefined) as 'asc' | 'desc' | undefined,
   };
@@ -266,6 +271,20 @@ export function CatalogPage() {
           variant={onSaleOnly ? 'filled' : 'outlined'}
           color={onSaleOnly ? 'success' : 'default'}
           onClick={() => setOnSaleOnly(!onSaleOnly)}
+          sx={{ fontWeight: 600, cursor: 'pointer' }}
+        />
+        <Chip
+          label="Most Popular"
+          variant={popularOnly ? 'filled' : 'outlined'}
+          color={popularOnly ? 'secondary' : 'default'}
+          onClick={() => setPopularOnly(!popularOnly)}
+          sx={{ fontWeight: 600, cursor: 'pointer' }}
+        />
+        <Chip
+          label="Trending"
+          variant={trendingOnly ? 'filled' : 'outlined'}
+          color={trendingOnly ? 'secondary' : 'default'}
+          onClick={() => setTrendingOnly(!trendingOnly)}
           sx={{ fontWeight: 600, cursor: 'pointer' }}
         />
 

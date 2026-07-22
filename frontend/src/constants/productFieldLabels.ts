@@ -13,7 +13,7 @@ export const PRODUCT_FIELD_LABELS = {
   category: 'Category',
   barcode: 'Barcode',
   supplier: 'Supplier',
-  baseUom: 'Base UOM',
+  baseUom: 'Secondary Unit',
   sellMode: 'Sell mode',
   unitCost: 'Unit cost',
   packCost: 'Pack cost',

@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
-import ViewListIcon from '@mui/icons-material/ViewList';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GridViewIcon from '@mui/icons-material/GridView';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -28,10 +28,10 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
-import { DataTable, type Column } from '@/components/tables/DataTable';
 import { ProductMetaChips } from '@/components/products/ProductMetaChips';
 import { DROPDOWN_PAGE_SIZE, GRID_PAGE_SIZE, PRODUCT_CATEGORIES, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import { useProducts, useInfiniteProducts } from '@/hooks/useProducts';
+import { productService } from '@/services';
 import { useDiscountRules } from '@/hooks/useDiscounts';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
@@ -42,11 +42,12 @@ import { useAuthStore } from '@/store';
 import type { Product, ProductStatus } from '@/types';
 import { ProductSheetView } from '@/pages/products/components/ProductSheetView';
 import { filterByStock, type StockFilter } from '@/pages/products/productStockFilter';
+import { exportProductsToExcel } from '@/pages/products/exportProductsExcel';
+import { showApiError, showSuccess } from '@/utils/toast';
 
-const LIST_PAGE_SIZE = 10;
 const SHEET_PAGE_SIZE = 25;
 
-type ViewMode = 'grid' | 'list' | 'sheet';
+type ViewMode = 'grid' | 'sheet';
 type ProductSortField = '' | 'name' | 'sku' | 'sellingPrice' | 'createdAt';
 
 // ── Grid card ──────────────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, 
             component="img"
             image={product.images[0]}
             alt={product.name}
+            loading="lazy"
             sx={{ height: 160, objectFit: 'cover' }}
           />
         ) : (
@@ -127,7 +129,7 @@ const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, 
             <Box sx={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
               <PriceWithUom
                 price={product.sellingPrice}
-                uom={product.uom ?? 'pcs'}
+                uom={product.uom ?? ''}
                 priceSx={{ fontSize: '0.8125rem' }}
               />
             </Box>
@@ -162,6 +164,7 @@ export function ProductsPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(GRID_PAGE_SIZE);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [exporting, setExporting] = useState(false);
 
   // sentinel ref for infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -206,10 +209,10 @@ export function ProductsPage() {
     fetchNextPage,
   } = useInfiniteProducts(sharedParams);
 
-  // ── Paged query (list) ──────────────────────────────────────────────────────
+  // ── Paged query (sheet) ─────────────────────────────────────────────────────
   const { data: pagedData, isLoading: pagedLoading } = useProducts(
     { ...sharedParams, page: page + 1, pageSize },
-    { enabled: viewMode === 'list' || viewMode === 'sheet' },
+    { enabled: viewMode === 'sheet' },
   );
 
   // ── Flatten infinite pages for grid ─────────────────────────────────────────
@@ -217,7 +220,7 @@ export function ProductsPage() {
 
   const filteredGridProducts = filterByStock(allGridProducts, stockFilter);
 
-  // ── List / sheet products (paged) ───────────────────────────────────────────
+  // ── Sheet products (paged) ──────────────────────────────────────────────────
   const listProducts = pagedData?.data ?? [];
 
   const discountMap = useMemo(
@@ -246,112 +249,42 @@ export function ProductsPage() {
     return () => observer.disconnect();
   }, [viewMode, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // ── List columns (no actions) ────────────────────────────────────────────────
-  const columns: Column<Product>[] = [
-    {
-      id: 'image',
-      label: '',
-      minWidth: 56,
-      render: (row) => (
-        <Box
-          component="img"
-          src={row.images[0]}
-          alt={row.name}
-          sx={{ width: 40, height: 40, borderRadius: 1, objectFit: 'cover', display: 'block', bgcolor: 'action.hover' }}
-          onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
-      ),
-    },
-    { id: 'name', label: 'Product Name', minWidth: 180, accessor: 'name', sortable: true, sortKey: 'name' },
-    { id: 'sku', label: 'SKU', minWidth: 130, accessor: 'sku', sortable: true, sortKey: 'sku' },
-    { id: 'category', label: 'Category', accessor: 'category' },
-    {
-      id: 'tags',
-      label: 'Tags',
-      minWidth: 140,
-      render: (row) => (
-        row.tags && row.tags.length > 0 ? (
-          <ProductMetaChips tags={row.tags} showCategory={false} maxTags={2} />
-        ) : (
-          '—'
-        )
-      ),
-    },
-    {
-      id: 'discount',
-      label: 'Discount',
-      minWidth: 120,
-      render: (row) => {
-        const label = discountMap.get(row.id);
-        return label ? (
-          <Chip label={label} size="small" color="success" sx={{ height: 22, fontSize: '0.7rem' }} />
-        ) : (
-          '—'
-        );
-      },
-    },
-    {
-      id: 'status',
-      label: 'Status',
-      render: (row) => (
-        <Chip
-          label={productStatusLabel(row.status)}
-          size="small"
-          color={productStatusColor(row.status)}
-          variant={productStatusOf(row.status) === 'active' ? 'outlined' : 'filled'}
-        />
-      ),
-    },
-    { id: 'brand', label: 'Brand', accessor: 'brand' },
-    {
-      id: 'supplier',
-      label: 'Supplier',
-      minWidth: 140,
-      render: (row) => row.supplierName ?? '—',
-    },
-    {
-      id: 'sellingPrice',
-      label: 'Price',
-      align: 'right',
-      render: (row) => (
-        <PriceWithUom price={row.sellingPrice} uom={row.uom ?? 'pcs'} priceSx={{ fontSize: '0.8125rem' }} />
-      ),
-    },
-    {
-      id: 'stock',
-      label: 'Stock',
-      align: 'right',
-      render: (row) => (
-        <Chip
-          label={
-            row.stock === 0
-              ? 'Out of Stock'
-              : row.stock <= row.lowStockThreshold
-                ? `Low: ${row.stock}`
-                : row.stock
-          }
-          color={row.stock === 0 ? 'error' : row.stock <= row.lowStockThreshold ? 'warning' : 'success'}
-          size="small"
-        />
-      ),
-    },
-  ];
-
   const resetFilters = (newViewMode?: ViewMode) => {
     setPage(0);
     if (newViewMode) {
       setViewMode(newViewMode);
-      setPageSize(
-        newViewMode === 'grid' ? GRID_PAGE_SIZE
-        : newViewMode === 'sheet' ? SHEET_PAGE_SIZE
-        : LIST_PAGE_SIZE,
-      );
+      setPageSize(newViewMode === 'grid' ? GRID_PAGE_SIZE : SHEET_PAGE_SIZE);
     }
   };
 
   const isSheetView = viewMode === 'sheet';
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const all: Product[] = [];
+      let pageNum = 1;
+      let totalPages = 1;
+      do {
+        const res = await productService.getAll({
+          ...sharedParams,
+          page: pageNum,
+          pageSize: 500,
+        });
+        all.push(...res.data);
+        totalPages = res.totalPages ?? 1;
+        pageNum += 1;
+      } while (pageNum <= totalPages);
+
+      const filtered = filterByStock(all, stockFilter);
+      exportProductsToExcel(filtered, { includeCost: canManage });
+      showSuccess(`Exported ${filtered.length} products.`);
+    } catch (err) {
+      showApiError(err, 'Could not export products.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <Box
@@ -368,6 +301,14 @@ export function ProductsPage() {
         action={
           canManage ? (
             <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<FileDownloadIcon />}
+                onClick={() => void handleExportExcel()}
+                disabled={exporting}
+              >
+                {exporting ? 'Exporting…' : 'Export Excel'}
+              </Button>
               <Button variant="outlined" startIcon={<ContentPasteIcon />} onClick={() => navigate('/products/bulk-add')}>
                 Bulk Add
               </Button>
@@ -502,11 +443,6 @@ export function ProductsPage() {
               <GridViewIcon fontSize="small" />
             </Tooltip>
           </ToggleButton>
-          <ToggleButton value="list" aria-label="List view">
-            <Tooltip title="List view">
-              <ViewListIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>
           <ToggleButton value="sheet" aria-label="Sheet view">
             <Tooltip title="Sheet view (copy for PO)">
               <TableRowsIcon fontSize="small" />
@@ -552,25 +488,6 @@ export function ProductsPage() {
             </Box>
           )}
         </Box>
-      )}
-
-      {/* ── List view (paged) ── */}
-      {viewMode === 'list' && (
-        <DataTable
-          columns={columns}
-          rows={listProducts}
-          loading={pagedLoading}
-          page={page}
-          pageSize={pageSize}
-          total={pagedData?.total}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
-          getRowId={(r) => r.id}
-          onRowClick={(r) => navigate(`/products/${r.id}`)}
-          sortBy={sortBy || undefined}
-          sortOrder={sortOrder}
-          onSort={(key) => handleSort(key as ProductSortField)}
-        />
       )}
 
       {viewMode === 'sheet' && (

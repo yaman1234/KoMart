@@ -14,6 +14,7 @@ class TransactionCreate(BaseModel):
     applied_promotions: list[AppliedPromotion] = Field(default_factory=list)
     coupon_code: str = ""
     tax: float = Field(ge=0)
+    round_off: float = 0.0
     loyalty_points_redeemed: int = Field(ge=0, default=0)
     total: float
     payment_method: PaymentMethod
@@ -35,6 +36,7 @@ class TransactionResponse(BaseModel):
     applied_promotions: list[AppliedPromotion] = Field(default_factory=list)
     coupon_code: str = ""
     tax: float
+    round_off: float = 0.0
     loyalty_points_redeemed: int
     total: float
     total_cost: float = 0.0

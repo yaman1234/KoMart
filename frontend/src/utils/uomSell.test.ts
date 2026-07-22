@@ -68,4 +68,18 @@ describe('uomSell', () => {
   it('canSellAsPack is false for piece-only products', () => {
     expect(canSellAsPack(baseProduct({ sellMode: 'piece' }))).toBe(false);
   });
+
+  it('packSellOption returns null when no conversion', () => {
+    expect(packSellOption(baseProduct({ unitsPerBuyUom: 1 }))).toBeNull();
+  });
+
+  it('pieceSellOption uses Secondary without inventing pcs', () => {
+    const opt = pieceSellOption(baseProduct({ uom: 'bottle', buyUom: 'box' }));
+    expect(opt.sellUom).toBe('bottle');
+  });
+
+  it('packSellOption uses Primary without inventing pack', () => {
+    const opt = packSellOption(baseProduct({ buyUom: 'box', packSellingPrice: 100 }));
+    expect(opt?.sellUom).toBe('box');
+  });
 });

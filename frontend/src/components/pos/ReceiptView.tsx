@@ -103,7 +103,7 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
               {item.name}
               {item.sellUom && (
                 <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.6rem' }}>
-                  {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? 'pcs')}
+                  {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '')}
                 </Box>
               )}
             </Typography>

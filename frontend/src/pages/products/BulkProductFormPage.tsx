@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -27,6 +27,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { useBulkCreateProducts } from '@/hooks/useProducts';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useUomOptions } from '@/hooks/useUoms';
+import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { DROPDOWN_PAGE_SIZE, PRODUCT_CATEGORIES } from '@/constants';
 import { productService } from '@/services';
@@ -50,14 +51,14 @@ type ProductRow = {
 
 const INITIAL_ROW_COUNT = 10;
 
-const emptyRow = (id: number): ProductRow => ({
+const emptyRow = (id: number, primaryUom = ''): ProductRow => ({
   id,
   sku: '',
   name: '',
   brand: '',
   category: '',
-  buyUom: 'pcs',
-  uom: 'pcs',
+  buyUom: primaryUom,
+  uom: primaryUom,
   unitsPerBuyUom: '1',
   costPrice: '0',
   sellingPrice: '0',
@@ -134,16 +135,28 @@ export function BulkProductFormPage() {
   const createMutation = useBulkCreateProducts();
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const uomOptions = useUomOptions();
+  const primaryUom = defaultPrimaryUom(uomOptions);
   const dbCategories = useCategoryNames();
   const categories = dbCategories.length ? dbCategories : PRODUCT_CATEGORIES;
 
   const populatedRows = rows.filter(isPopulatedRow);
 
+  useEffect(() => {
+    if (!primaryUom) return;
+    setRows((current) =>
+      current.map((row) =>
+        !row.buyUom && !isPopulatedRow(row)
+          ? { ...row, buyUom: primaryUom, uom: primaryUom }
+          : row,
+      ),
+    );
+  }, [primaryUom]);
+
   const change = (id: number, field: keyof Omit<ProductRow, 'id'>, value: string) => {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
   };
 
-  const addRow = () => setRows((current) => [...current, emptyRow(nextId.current++)]);
+  const addRow = () => setRows((current) => [...current, emptyRow(nextId.current++, primaryUom)]);
 
   const removeRow = (id: number) => {
     setRows((current) => (current.length > 1 ? current.filter((row) => row.id !== id) : current));
@@ -229,7 +242,13 @@ export function BulkProductFormPage() {
       return;
     }
 
-    const products: ProductBulkCreateItem[] = populatedRows.map((row) => ({
+    const products: ProductBulkCreateItem[] = populatedRows.map((row) => {
+      const uoms = normalizeProductUoms({
+        buyUom: row.buyUom || primaryUom,
+        uom: row.uom || row.buyUom || primaryUom,
+        unitsPerBuyUom: Number(row.unitsPerBuyUom),
+      });
+      return {
       row: rows.indexOf(row) + 1,
       sku: row.sku.trim(),
       name: row.name.trim(),
@@ -239,10 +258,10 @@ export function BulkProductFormPage() {
       category: row.category,
       supplierId,
       description: '',
-      buyUom: row.buyUom || 'pcs',
-      uom: row.uom || 'pcs',
-      unitsPerBuyUom: Number(row.unitsPerBuyUom),
-      sellMode: 'piece',
+      buyUom: uoms.buyUom,
+      uom: uoms.uom,
+      unitsPerBuyUom: uoms.unitsPerBuyUom,
+      sellMode: hasUomConversion(uoms.unitsPerBuyUom) ? 'piece' : 'unit',
       costPrice: Number(row.costPrice),
       sellingPrice: Number(row.sellingPrice),
       packSellingPrice: 0,
@@ -255,7 +274,8 @@ export function BulkProductFormPage() {
       lowStockThreshold: Number(lowStockThreshold) || 0,
       status: 'active',
       tags: [],
-    }));
+    };
+    });
 
     try {
       const result = await createMutation.mutateAsync(products);
@@ -412,7 +432,7 @@ export function BulkProductFormPage() {
           </colgroup>
           <TableHead>
             <TableRow>
-              {['SN', 'SKU', 'Product name *', 'Brand', 'Category', 'Buy UOM', 'Base UOM', 'Units/pack', 'Unit cost', 'Selling price', ''].map((label) => (
+              {['SN', 'SKU', 'Product name *', 'Brand', 'Category', 'Primary Unit', 'Secondary Unit', 'Conversion Rate', 'Unit cost', 'Selling price', ''].map((label) => (
                 <TableCell
                   key={label || 'actions'}
                   sx={{

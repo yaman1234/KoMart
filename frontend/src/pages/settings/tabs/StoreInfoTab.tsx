@@ -13,6 +13,8 @@ import {
   CircularProgress,
   MenuItem,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import StoreIcon from '@mui/icons-material/Store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -313,7 +315,7 @@ export function StoreInfoTab() {
               onChange={change('transactionPrefix')}
               fullWidth
               disabled={!canEdit}
-              helperText="e.g. TXN → TXN-260629-001"
+              helperText="e.g. TXN → TXN-0001"
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -323,7 +325,7 @@ export function StoreInfoTab() {
               onChange={change('purchaseOrderPrefix')}
               fullWidth
               disabled={!canEdit}
-              helperText="e.g. PO → PO-260629-001"
+              helperText="e.g. PO → PO-0001"
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
@@ -381,18 +383,27 @@ export function StoreInfoTab() {
 
           <SectionTitle>Appearance</SectionTitle>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              select
-              label="Calendar System"
-              value={form.calendarSystem}
-              onChange={change('calendarSystem')}
+            <Typography variant="body2" sx={{ mb: 0.75, fontWeight: 500 }}>
+              Calendar System
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
               fullWidth
+              size="small"
+              color="primary"
+              value={form.calendarSystem}
               disabled={!canEdit}
-              helperText="Controls date pickers app-wide (AD stored; BS display/entry)"
+              onChange={(_, value: 'AD' | 'BS' | null) => {
+                if (value) setForm((prev) => ({ ...prev, calendarSystem: value }));
+              }}
+              aria-label="Calendar system"
             >
-              <MenuItem value="BS">Bikram Sambat (BS)</MenuItem>
-              <MenuItem value="AD">Gregorian (AD)</MenuItem>
-            </TextField>
+              <ToggleButton value="AD">AD (Gregorian)</ToggleButton>
+              <ToggleButton value="BS">BS (Bikram Sambat)</ToggleButton>
+            </ToggleButtonGroup>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              Controls date pickers app-wide (AD stored; BS display/entry). Expiry dates always use AD.
+            </Typography>
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <TextField

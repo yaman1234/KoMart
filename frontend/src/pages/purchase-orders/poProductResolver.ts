@@ -53,7 +53,7 @@ export function applyProductToLine(line: PoLineItem, product: Product): PoLineIt
     skuInput: product.sku || product.name,
     product,
     productNameFallback: product.name,
-    buyUom: line.buyUom || product.buyUom || product.uom || 'pcs',
+    buyUom: line.buyUom || product.buyUom || product.uom || '',
     unitsPerBuyUom: line.unitsPerBuyUom || product.unitsPerBuyUom || 1,
     unitCost: line.unitCost > 0
       ? line.unitCost

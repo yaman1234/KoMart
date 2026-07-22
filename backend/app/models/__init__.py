@@ -14,6 +14,8 @@ from app.models.refresh_token import RefreshToken
 from app.models.audit_log import AuditLog
 from app.models.discount_rule import DiscountRule
 from app.models.day_close import DayClose
+from app.models.price_history import PriceHistory
+from app.models.wallet_ledger import WalletLedgerEntry
 
 __all__ = [
     "User",
@@ -33,4 +35,6 @@ __all__ = [
     "AuditLog",
     "DiscountRule",
     "DayClose",
+    "PriceHistory",
+    "WalletLedgerEntry",
 ]

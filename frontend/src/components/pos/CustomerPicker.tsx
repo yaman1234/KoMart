@@ -85,15 +85,15 @@ export const CustomerPicker = memo(function CustomerPicker({
   ];
 
   return (
-    <Box sx={{ mb: 1, flexShrink: 0, pt: 0.25 }}>
+    <Box sx={{ mb: 0.5, flexShrink: 0 }}>
       <Typography
         variant="caption"
         component="label"
-        sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.5, lineHeight: 1.2 }}
+        sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.25, lineHeight: 1.2, fontSize: '0.7rem' }}
       >
         Customer
       </Typography>
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
         <Autocomplete
           sx={{ flex: 1, minWidth: 0 }}
           size="small"
@@ -118,7 +118,11 @@ export const CustomerPicker = memo(function CustomerPicker({
           renderInput={(params) => (
             <TextField
               {...params}
-              placeholder="Search name or phone (e.g. 984…)"
+              placeholder="Search name or phone"
+              sx={{
+                '& .MuiInputBase-root': { py: 0.15 },
+                '& .MuiInputBase-input': { py: 0.5, fontSize: '0.8125rem' },
+              }}
             />
           )}
           noOptionsText={
@@ -138,14 +142,20 @@ export const CustomerPicker = memo(function CustomerPicker({
         </Tooltip>
       </Box>
       {selectedCustomer.id !== '__walkin__' && (
-        <Box sx={{ display: 'flex', gap: 1, mt: 0.75 }}>
+        <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5 }}>
           <Chip
             label={`${selectedCustomer.loyaltyPoints} pts`}
             size="small"
             color="primary"
             variant="outlined"
+            sx={{ height: 22, fontSize: '0.7rem' }}
           />
-          <Chip label={selectedCustomer.membershipTier} size="small" color="secondary" />
+          <Chip
+            label={selectedCustomer.membershipTier}
+            size="small"
+            color="secondary"
+            sx={{ height: 22, fontSize: '0.7rem' }}
+          />
         </Box>
       )}
     </Box>

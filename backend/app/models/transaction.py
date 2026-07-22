@@ -58,6 +58,7 @@ class Transaction(Document):
     applied_promotions: list[AppliedPromotion] = Field(default_factory=list)
     coupon_code: str = ""
     tax: float = Field(ge=0)
+    round_off: float = 0.0
     loyalty_points_redeemed: int = Field(default=0, ge=0)
     total: float = Field(ge=0)
     total_cost: float = Field(default=0.0, ge=0)

@@ -5,6 +5,7 @@ from math import ceil
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
+from app.models.price_history import PriceHistory
 from app.models.supplier import Supplier
 from app.schemas.product import (
     ProductCreate,
@@ -19,6 +20,7 @@ from app.schemas.product import (
     SkuSuggestRequest,
     SkuSuggestResponse,
     pack_selling_price_required,
+    normalize_product_uoms,
 )
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
@@ -74,6 +76,17 @@ async def _apply_product_update(
     fields = body_field_names or {k for k, v in body.model_dump().items() if v is not None}
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
 
+    buy = update_data.get("buy_uom", product.buy_uom)
+    uom = update_data.get("uom", product.uom)
+    units = update_data.get("units_per_buy_uom", product.units_per_buy_uom)
+    mode = update_data.get("sell_mode", product.sell_mode)
+    buy, uom, units, mode = normalize_product_uoms(buy, uom, units, mode)
+    update_data["buy_uom"] = buy
+    update_data["uom"] = uom
+    update_data["units_per_buy_uom"] = units
+    if mode is not None:
+        update_data["sell_mode"] = mode
+
     eff_sell_mode = update_data.get("sell_mode", product.sell_mode)
     eff_units = update_data.get("units_per_buy_uom", product.units_per_buy_uom)
     eff_pack_price = update_data.get("pack_selling_price", product.pack_selling_price)
@@ -111,7 +124,10 @@ async def _apply_product_update(
     return update_data
 
 
-def _to_response(p: Product) -> ProductResponse:
+def _to_response(p: Product, *, lean_images: bool = False) -> ProductResponse:
+    images = list(p.images or [])
+    if lean_images and len(images) > 1:
+        images = images[:1]
     return ProductResponse(
         id=str(p.id),
         name=p.name,
@@ -124,8 +140,8 @@ def _to_response(p: Product) -> ProductResponse:
         supplier_id=p.supplier_id,
         supplier_name=p.supplier_name,
         description=p.description,
-        buy_uom=getattr(p, "buy_uom", None) or p.uom or "pcs",
-        uom=p.uom if hasattr(p, "uom") and p.uom else "pcs",
+        buy_uom=getattr(p, "buy_uom", None) or p.uom or "",
+        uom=getattr(p, "uom", None) or getattr(p, "buy_uom", None) or "",
         units_per_buy_uom=getattr(p, "units_per_buy_uom", None) or 1,
         sell_mode=getattr(p, "sell_mode", None) or SellMode.unit,
         cost_price=p.cost_price,
@@ -137,13 +153,17 @@ def _to_response(p: Product) -> ProductResponse:
         offered_price=getattr(p, "offered_price", 0.0) or 0.0,
         pack_discount_percent=getattr(p, "pack_discount_percent", 0.0) or 0.0,
         pack_offered_price=getattr(p, "pack_offered_price", 0.0) or 0.0,
-        images=p.images,
+        images=images,
         nutrition_info=p.nutrition_info,
         allergen_info=p.allergen_info,
         stock=p.stock,
         low_stock_threshold=p.low_stock_threshold,
         status=p.status if hasattr(p, "status") and p.status else ProductStatus.active,
         tags=p.tags if hasattr(p, "tags") and p.tags else [],
+        is_popular=bool(getattr(p, "is_popular", False)),
+        is_trending=bool(getattr(p, "is_trending", False)),
+        cost_price_effective_from=getattr(p, "cost_price_effective_from", None),
+        selling_price_effective_from=getattr(p, "selling_price_effective_from", None),
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat(),
     )
@@ -158,6 +178,8 @@ async def list_products(
     supplier_id: str = Query(""),
     status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     sellable_only: bool = Query(False),
+    is_popular: bool | None = Query(None),
+    is_trending: bool | None = Query(None),
     sort_by: str = Query("", pattern="^(|name|sku|selling_price|sellingPrice|created_at|createdAt)$"),
     sort_order: str = Query("", pattern="^(|asc|desc)$"),
     _: User = Depends(get_current_user),
@@ -186,6 +208,10 @@ async def list_products(
         query = query.find(Product.category == category)
     if supplier_id:
         query = query.find(Product.supplier_id == supplier_id)
+    if is_popular is True:
+        query = query.find(Product.is_popular == True)  # noqa: E712
+    if is_trending is True:
+        query = query.find(Product.is_trending == True)  # noqa: E712
 
     if sort_by and sort_order:
         direction = 1 if sort_order == "asc" else -1
@@ -199,7 +225,7 @@ async def list_products(
     products = await query.skip((page - 1) * page_size).limit(page_size).to_list()
 
     return PaginatedResponse(
-        data=[_to_response(p) for p in products],
+        data=[_to_response(p, lean_images=True) for p in products],
         total=total,
         page=page,
         page_size=page_size,
@@ -263,6 +289,32 @@ async def create_product(
     for key, value in pricing.items():
         setattr(product, key, value)
     await product.insert()
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cost_eff = (body.cost_price_effective_from or "").strip() or today
+    sell_eff = (body.selling_price_effective_from or "").strip() or today
+    history_rows = []
+    if body.cost_price > 0:
+        history_rows.append(PriceHistory(
+            product_id=str(product.id),
+            field="cost_price",
+            old_value=0.0,
+            new_value=body.cost_price,
+            effective_from=cost_eff,
+            changed_by=str(current_user.id),
+        ))
+    if body.selling_price > 0:
+        history_rows.append(PriceHistory(
+            product_id=str(product.id),
+            field="selling_price",
+            old_value=0.0,
+            new_value=body.selling_price,
+            effective_from=sell_eff,
+            changed_by=str(current_user.id),
+        ))
+    if history_rows:
+        await PriceHistory.insert_many(history_rows)
+
     await log_audit(
         module=AuditModule.products,
         action="create",
@@ -412,10 +464,48 @@ async def update_product(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
     before = product_snapshot(product)
     body_fields = {k for k, v in body.model_dump().items() if v is not None}
+
+    if "cost_price" in body_fields and body.cost_price is not None and body.cost_price != product.cost_price:
+        if not (body.cost_price_effective_from or "").strip():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Cost price effective from date is required when changing cost price.",
+            )
+    if "selling_price" in body_fields and body.selling_price is not None and body.selling_price != product.selling_price:
+        if not (body.selling_price_effective_from or "").strip():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Selling price effective from date is required when changing selling price.",
+            )
+
+    old_cost = product.cost_price
+    old_sell = product.selling_price
     update_data = await _apply_product_update(product, body, body_field_names=body_fields)
     await product.set(update_data)
     refreshed = await Product.get(product_id)
     after = product_snapshot(refreshed)  # type: ignore[arg-type]
+
+    history_rows = []
+    if "cost_price" in body_fields and body.cost_price is not None and body.cost_price != old_cost:
+        history_rows.append(PriceHistory(
+            product_id=product_id,
+            field="cost_price",
+            old_value=old_cost,
+            new_value=body.cost_price,
+            effective_from=(body.cost_price_effective_from or "").strip(),
+            changed_by=str(current_user.id),
+        ))
+    if "selling_price" in body_fields and body.selling_price is not None and body.selling_price != old_sell:
+        history_rows.append(PriceHistory(
+            product_id=product_id,
+            field="selling_price",
+            old_value=old_sell,
+            new_value=body.selling_price,
+            effective_from=(body.selling_price_effective_from or "").strip(),
+            changed_by=str(current_user.id),
+        ))
+    if history_rows:
+        await PriceHistory.insert_many(history_rows)
 
     price_changed = (
         before.get("cost_price") != after.get("cost_price")
@@ -436,6 +526,8 @@ async def update_product(
             new={
                 "cost_price": after.get("cost_price"),
                 "selling_price": after.get("selling_price"),
+                "cost_price_effective_from": getattr(refreshed, "cost_price_effective_from", None),
+                "selling_price_effective_from": getattr(refreshed, "selling_price_effective_from", None),
             },
         )
 

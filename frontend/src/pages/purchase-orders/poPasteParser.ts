@@ -56,7 +56,7 @@ function parseRowCells(cells: string[], layout: PasteLayout): ParsedPasteRow {
     return {
       sku: cells[0] ?? '',
       quantity: parseIntSafe(cells[2] ?? '1', 1),
-      buyUom: (cells[3] ?? 'pcs').trim() || 'pcs',
+      buyUom: (cells[3] ?? '').trim(),
       unitsPerBuyUom: parseIntSafe(cells[4] ?? '1', 1),
       unitCost: parseFloatSafe(cells[5] ?? '0', 0),
     };
@@ -64,7 +64,7 @@ function parseRowCells(cells: string[], layout: PasteLayout): ParsedPasteRow {
   return {
     sku: cells[0] ?? '',
     quantity: parseIntSafe(cells[1] ?? '1', 1),
-    buyUom: (cells[2] ?? 'pcs').trim() || 'pcs',
+    buyUom: (cells[2] ?? '').trim(),
     unitCost: parseFloatSafe(cells[3] ?? '0', 0),
     unitsPerBuyUom: parseIntSafe(cells[4] ?? '1', 1),
   };

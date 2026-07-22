@@ -46,6 +46,7 @@ export function NotificationsPage() {
   const { data: notifications = [], isLoading, isError, refetch, isFetching } = useNotifications({
     unreadOnly: readFilter === 'unread',
     type: typeFilter,
+    sync: true,
   });
 
   const markReadMutation = useMarkNotificationRead();

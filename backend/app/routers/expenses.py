@@ -136,6 +136,8 @@ async def create_expense(
         pass
     expense = Expense(**data)
     await expense.insert()
+    from app.services.wallet_ledger import post_expense
+    await post_expense(expense, created_by=current_user.name)
     await log_audit(
         module=AuditModule.expenses,
         action="create",
@@ -187,6 +189,14 @@ async def update_expense(
         await expense.set(update_data)
 
     refreshed = await Expense.get(expense_id)
+    # Re-post wallet movement when payment wallet or amount changes
+    money_keys = {"amount", "payment_method", "date", "category", "title"}
+    if money_keys & set(update_data.keys()):
+        from app.services.wallet_ledger import delete_reference, post_expense
+        await delete_reference("expense", expense_id)
+        if refreshed:
+            await post_expense(refreshed, created_by=current_user.name)
+
     await log_audit(
         module=AuditModule.expenses,
         action="update",
@@ -212,6 +222,13 @@ async def delete_expense(
 
     before = expense_snapshot(expense)
     await reverse_payment_for_expense(expense, current_user=current_user, request=request)
+    from app.services.wallet_ledger import reverse_reference
+    await reverse_reference(
+        reference_type="expense",
+        reference_id=expense_id,
+        reason="Expense deleted",
+        created_by=current_user.name,
+    )
     await expense.delete()
     await log_audit(
         module=AuditModule.expenses,

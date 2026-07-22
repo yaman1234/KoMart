@@ -15,6 +15,22 @@ def pack_selling_price_required(
     return True
 
 
+def normalize_product_uoms(
+    buy_uom: str,
+    uom: str,
+    units_per_buy_uom: int,
+    sell_mode: SellMode | None = None,
+) -> tuple[str, str, int, SellMode | None]:
+    """When no conversion, Secondary mirrors Primary and factor is 1."""
+    buy = (buy_uom or "").strip()
+    units = max(1, int(units_per_buy_uom or 1))
+    if units <= 1:
+        mode = SellMode.unit if sell_mode is not None else None
+        return buy, buy, 1, mode
+    secondary = (uom or "").strip() or buy
+    return buy, secondary, units, sell_mode
+
+
 class ProductCreate(BaseModel):
     name: str
     sku: str = ""
@@ -25,8 +41,8 @@ class ProductCreate(BaseModel):
     category_id: str = ""
     supplier_id: str = ""
     description: str = ""
-    buy_uom: str = "pcs"
-    uom: str = "pcs"
+    buy_uom: str = ""
+    uom: str = ""
     units_per_buy_uom: int = Field(default=1, ge=1)
     sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
@@ -43,6 +59,10 @@ class ProductCreate(BaseModel):
     low_stock_threshold: int = Field(ge=0, default=10)
     status: ProductStatus = ProductStatus.active
     tags: list[str] = Field(default_factory=list)
+    is_popular: bool = False
+    is_trending: bool = False
+    cost_price_effective_from: Optional[str] = None
+    selling_price_effective_from: Optional[str] = None
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -60,6 +80,25 @@ class ProductCreate(BaseModel):
         return out
 
     @model_validator(mode="after")
+    def normalize_uoms(self) -> "ProductCreate":
+        buy, secondary, units, mode = normalize_product_uoms(
+            self.buy_uom,
+            self.uom,
+            self.units_per_buy_uom,
+            self.sell_mode,
+        )
+        if not buy:
+            raise ValueError("Primary Unit is required.")
+        if units > 1 and not secondary:
+            raise ValueError("Secondary Unit is required when conversion is used.")
+        self.buy_uom = buy
+        self.uom = secondary
+        self.units_per_buy_uom = units
+        if mode is not None:
+            self.sell_mode = mode
+        return self
+
+    @model_validator(mode="after")
     def validate_pack_price(self) -> "ProductCreate":
         if not pack_selling_price_required(
             self.sell_mode,
@@ -67,6 +106,17 @@ class ProductCreate(BaseModel):
             self.pack_selling_price,
         ):
             raise ValueError("Pack selling price is required when selling whole packs/boxes.")
+        return self
+
+    @model_validator(mode="after")
+    def default_effective_from(self) -> "ProductCreate":
+        from datetime import datetime, timezone
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if self.cost_price > 0 and not (self.cost_price_effective_from or "").strip():
+            self.cost_price_effective_from = today
+        if self.selling_price > 0 and not (self.selling_price_effective_from or "").strip():
+            self.selling_price_effective_from = today
         return self
 
 
@@ -96,6 +146,10 @@ class ProductUpdate(BaseModel):
     low_stock_threshold: Optional[int] = Field(default=None, ge=0)
     status: Optional[ProductStatus] = None
     tags: Optional[list[str]] = None
+    is_popular: Optional[bool] = None
+    is_trending: Optional[bool] = None
+    cost_price_effective_from: Optional[str] = None
+    selling_price_effective_from: Optional[str] = None
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -145,6 +199,10 @@ class ProductResponse(BaseModel):
     low_stock_threshold: int
     status: ProductStatus
     tags: list[str] = Field(default_factory=list)
+    is_popular: bool = False
+    is_trending: bool = False
+    cost_price_effective_from: Optional[str] = None
+    selling_price_effective_from: Optional[str] = None
     created_at: str
     updated_at: str
 

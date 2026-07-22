@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
-import { formatDate, formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
 import type { PurchaseOrder, PurchaseOrderPaymentStatus, PurchaseOrderStatus } from '@/types';
 import { useAuthStore } from '@/store';
@@ -27,6 +28,7 @@ const PAYMENT_COLORS: Record<PurchaseOrderPaymentStatus, 'default' | 'warning' |
 
 export function PurchaseOrdersPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canManage = canManagePurchaseOrders(user?.role);
   const [search, setSearch] = useState('');

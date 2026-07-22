@@ -70,6 +70,11 @@ export function formatDate(
   return formatDisplayDate(date, calendar);
 }
 
+/** Manufacturer / batch expiry — always Gregorian (AD). */
+export function formatExpiryDate(date: string | Date): string {
+  return formatDisplayDate(date, 'AD');
+}
+
 export function formatDateTime(date: string | Date): string {
   return new Date(date).toLocaleString('en-US', {
     year: 'numeric',

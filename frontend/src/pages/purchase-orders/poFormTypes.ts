@@ -13,14 +13,14 @@ export interface PoLineItem {
   resolveError?: string;
 }
 
-export function emptyPoLineItem(id: number): PoLineItem {
+export function emptyPoLineItem(id: number, primaryUom = ''): PoLineItem {
   return {
     id,
     skuInput: '',
     product: null,
     productNameFallback: '',
     quantityInput: '1',
-    buyUom: 'pcs',
+    buyUom: primaryUom,
     unitsPerBuyUom: 1,
     unitCost: 0,
     receivedQuantity: 0,

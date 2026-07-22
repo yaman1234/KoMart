@@ -26,6 +26,7 @@ from app.schemas.reports import (
     DailySalesBlock,
     DailyExpensesBlock,
     DailyCashBlock,
+    WalletDayBookBlock,
     DayCloseBlock,
     ExpenseByCategory,
     ExpenseDataPoint,
@@ -162,10 +163,28 @@ async def daily_summary_report(
     )
 
     day_close = await DayClose.find_one(DayClose.date == date)
-    opening = float(day_close.opening_cash) if day_close else 0.0
-    closing = float(day_close.closing_cash) if day_close else 0.0
-    expected = round(opening + cash_sales - cash_expenses, 2)
-    variance = round(closing - expected, 2)
+
+    from app.services.wallet_ledger import ensure_backfill, build_day_book
+    await ensure_backfill()
+    wallet_blocks = await build_day_book(date)
+    cash_block_data = next((b for b in wallet_blocks if b["wallet"] == "cash"), None)
+    if cash_block_data:
+        opening = cash_block_data["opening"]
+        cash_sales = cash_block_data["sales_in"]
+        cash_expenses = cash_block_data["expenses_out"]
+        expected = cash_block_data["expected"]
+        closing = float(cash_block_data["closing"] or 0)
+        variance = float(cash_block_data["variance"] or 0) if cash_block_data["variance"] is not None else round(closing - expected, 2)
+        transfers_in = cash_block_data["transfers_in"]
+        transfers_out = cash_block_data["transfers_out"]
+        adjustments_in = cash_block_data["adjustments_in"]
+        adjustments_out = cash_block_data["adjustments_out"]
+    else:
+        opening = float(day_close.opening_cash) if day_close else 0.0
+        closing = float(day_close.closing_cash) if day_close else 0.0
+        expected = round(opening + cash_sales - cash_expenses, 2)
+        variance = round(closing - expected, 2)
+        transfers_in = transfers_out = adjustments_in = adjustments_out = 0.0
 
     by_payment = [
         SalesByPaymentMethod(
@@ -200,10 +219,15 @@ async def daily_summary_report(
             opening=opening,
             cash_sales=cash_sales,
             cash_expenses=cash_expenses,
+            transfers_in=transfers_in,
+            transfers_out=transfers_out,
+            adjustments_in=adjustments_in,
+            adjustments_out=adjustments_out,
             expected=expected,
             closing=closing,
             variance=variance,
         ),
+        wallets=[WalletDayBookBlock(**b) for b in wallet_blocks],
         day_close=day_close_block,
     )
 

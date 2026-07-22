@@ -24,17 +24,18 @@ export function invalidateCommerceQueries(
   options: InvalidateCommerceOptions = {},
 ): void {
   const scopes = options.scopes?.length ? options.scopes : (['stock'] as CommerceInvalidationScope[]);
-  const needsStock = scopes.some((s) => s === 'stock' || s === 'price' || s === 'sale');
-  const needsPrice = scopes.includes('price') || scopes.includes('sale');
+  const needsStock = scopes.includes('stock') || scopes.includes('price');
+  const needsPrice = scopes.includes('price');
   const needsSale = scopes.includes('sale');
 
   if (needsStock) {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.notifications });
-    // Dashboard and reports use product.stock × cost_price — must refresh after stock/price mutations.
     void queryClient.invalidateQueries({ queryKey: ['reports'] });
+    void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.inventory, 'history'] });
+    void queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
+    void queryClient.invalidateQueries({ queryKey: ['inventory', 'movementSummary'] });
   }
 
   if (needsPrice) {
@@ -42,14 +43,15 @@ export function invalidateCommerceQueries(
   }
 
   if (needsSale) {
+    // Sale updates stock + wallets; refresh those without blanket reports/notifications sync.
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.customers });
-    void queryClient.invalidateQueries({ queryKey: ['reports'] });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports('dailySummary') });
   }
-
-  void queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.inventory, 'history'] });
-  void queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
-  void queryClient.invalidateQueries({ queryKey: ['inventory', 'movementSummary'] });
 
   if (options.productId) {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(options.productId) });

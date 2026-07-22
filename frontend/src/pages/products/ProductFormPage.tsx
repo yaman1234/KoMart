@@ -14,6 +14,8 @@ import {
   Tooltip,
   Autocomplete,
   Alert,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -26,6 +28,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProducts';
 import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
@@ -36,8 +39,13 @@ import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
 import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
 import { formatCurrency } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
+import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess } from '@/utils/toast';
 import { productService } from '@/services';
+
+function todayAd(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // ── SKU generator (server-backed) ─────────────────────────────────────────────
 const schema = z.object({
@@ -48,8 +56,8 @@ const schema = z.object({
   countryOfOrigin: z.string(),
   category:        z.string(),
   supplierId:      z.string(),
-  buyUom:          z.string().min(1, 'Buy UOM is required'),
-  uom:             z.string().min(1, 'Sell UOM is required'),
+  buyUom:          z.string().min(1, 'Primary Unit is required'),
+  uom:             z.string(),
   unitsPerBuyUom:  z.number().int().min(1, 'Must be at least 1'),
   sellMode:        z.enum(['unit', 'piece', 'both']),
   description:     z.string(),
@@ -64,16 +72,42 @@ const schema = z.object({
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
   status:            z.enum(['active', 'discontinued', 'seasonal']),
   tags:              z.array(z.string().min(1)),
+  isPopular:         z.boolean(),
+  isTrending:        z.boolean(),
+  costPriceEffectiveFrom: z.string(),
+  sellingPriceEffectiveFrom: z.string(),
   nutritionInfo:   z.string(),
   allergenInfo:    z.string(),
 }).superRefine((data, ctx) => {
+  const converting = hasUomConversion(data.unitsPerBuyUom);
+  if (converting && !data.uom.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Secondary Unit is required when conversion is used',
+      path: ['uom'],
+    });
+  }
   const packSellEnabled =
-    (data.sellMode === 'unit' || data.sellMode === 'both') && data.unitsPerBuyUom > 1;
+    (data.sellMode === 'unit' || data.sellMode === 'both') && converting;
   if (packSellEnabled && data.packSellingPrice <= 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Pack price is required when selling whole packs/boxes',
       path: ['packSellingPrice'],
+    });
+  }
+  if (data.costPrice > 0 && !data.costPriceEffectiveFrom) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Effective from is required',
+      path: ['costPriceEffectiveFrom'],
+    });
+  }
+  if (data.sellingPrice > 0 && !data.sellingPriceEffectiveFrom) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Effective from is required',
+      path: ['sellingPriceEffectiveFrom'],
     });
   }
 });
@@ -131,8 +165,8 @@ export function ProductFormPage() {
     defaultValues: {
       description: '',
       imageUrl: '',
-      buyUom: 'pcs',
-      uom: 'pcs',
+      buyUom: '',
+      uom: '',
       barcode: '',
       brand: '',
       countryOfOrigin: '',
@@ -150,13 +184,32 @@ export function ProductFormPage() {
       lowStockThreshold: 10,
       status: 'active',
       tags: [],
+      isPopular: false,
+      isTrending: false,
+      costPriceEffectiveFrom: todayAd(),
+      sellingPriceEffectiveFrom: todayAd(),
       nutritionInfo: '',
       allergenInfo: '',
     },
   });
 
   useEffect(() => {
+    if (isEditing) return;
+    const primary = defaultPrimaryUom(uomOptions);
+    if (!primary) return;
+    const current = watch('buyUom');
+    if (!current) {
+      setValue('buyUom', primary);
+      setValue('uom', primary);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only seed once options arrive
+  }, [isEditing, uomOptions, setValue]);
+
+  useEffect(() => {
     if (product) {
+      const factor = product.unitsPerBuyUom ?? 1;
+      const buy = product.buyUom ?? product.uom ?? '';
+      const secondary = hasUomConversion(factor) ? (product.uom ?? '') : buy;
       reset({
         name:             product.name,
         sku:              product.sku,
@@ -165,9 +218,9 @@ export function ProductFormPage() {
         countryOfOrigin:  product.countryOfOrigin,
         category:         product.category,
         supplierId:       product.supplierId,
-        buyUom:           product.buyUom ?? product.uom ?? 'pcs',
-        uom:              product.uom ?? 'pcs',
-        unitsPerBuyUom:   product.unitsPerBuyUom ?? 1,
+        buyUom:           buy,
+        uom:              secondary,
+        unitsPerBuyUom:   factor,
         sellMode:           product.sellMode ?? 'unit',
         description:      product.description,
         imageUrl:         product.images[0] ?? '',
@@ -181,6 +234,10 @@ export function ProductFormPage() {
         lowStockThreshold: product.lowStockThreshold,
         status:            product.status ?? 'active',
         tags:              product.tags ?? [],
+        isPopular:         product.isPopular ?? false,
+        isTrending:        product.isTrending ?? false,
+        costPriceEffectiveFrom: product.costPriceEffectiveFrom || todayAd(),
+        sellingPriceEffectiveFrom: product.sellingPriceEffectiveFrom || todayAd(),
         nutritionInfo:    product.nutritionInfo ?? '',
         allergenInfo:     product.allergenInfo ?? '',
       });
@@ -207,8 +264,16 @@ export function ProductFormPage() {
   const packDiscountPercent = watch('packDiscountPercent');
   const packOfferedPrice = watch('packOfferedPrice');
   const packSellEnabled =
-    (sellMode === 'unit' || sellMode === 'both') && unitsPerBuyUom > 1;
+    (sellMode === 'unit' || sellMode === 'both') && hasUomConversion(unitsPerBuyUom);
+  const usesConversion = hasUomConversion(unitsPerBuyUom);
   const suggestedPackPrice = sellingPrice * unitsPerBuyUom;
+
+  useEffect(() => {
+    if (!usesConversion && buyUom) {
+      setValue('uom', buyUom);
+      setValue('unitsPerBuyUom', 1);
+    }
+  }, [buyUom, usesConversion, setValue]);
 
   const derivedPricing = computeProductPricing({
     costPrice: costPrice ?? 0,
@@ -264,10 +329,17 @@ export function ProductFormPage() {
   const onSubmit = async (values: FormValues) => {
     try {
       const { imageUrl, ...rest } = values;
+      const uoms = normalizeProductUoms({
+        buyUom: rest.buyUom,
+        uom: rest.uom,
+        unitsPerBuyUom: rest.unitsPerBuyUom,
+      });
       const images = imageUrl ? [imageUrl] : [];
       const supplier = suppliers.find((s) => s.id === values.supplierId);
       const payload = {
         ...rest,
+        ...uoms,
+        sellMode: hasUomConversion(uoms.unitsPerBuyUom) ? rest.sellMode : 'unit',
         images,
         stock: product?.stock ?? 0,
         supplierName: supplier?.name ?? product?.supplierName ?? '',
@@ -493,7 +565,7 @@ export function ProductFormPage() {
 
               <Grid size={{ xs: 12 }}>
                 <Divider sx={{ my: 1 }} />
-                <UomSectionTitle>Buy (supplier)</UomSectionTitle>
+                <UomSectionTitle>Primary Unit (purchase)</UomSectionTitle>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 4 }}>
@@ -504,11 +576,12 @@ export function ProductFormPage() {
                     <TextField
                       {...field}
                       select
-                      label="Buy UOM"
+                      label="Primary Unit"
                       fullWidth
                       error={!!errors.buyUom}
                       helperText={errors.buyUom?.message ?? 'How the supplier bills (pack, box)'}
                     >
+                      {!buyUom && <MenuItem value="">Select…</MenuItem>}
                       {uomOptions.map((u) => (
                         <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
                       ))}
@@ -517,76 +590,104 @@ export function ProductFormPage() {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  {...register('unitsPerBuyUom', { valueAsNumber: true })}
-                  label="Units per buy"
-                  type="number"
-                  fullWidth
-                  error={!!errors.unitsPerBuyUom}
-                  helperText={
-                    errors.unitsPerBuyUom?.message
-                    ?? 'Pieces (or base units) inside one buy unit'
+              <Grid size={{ xs: 12, sm: 8 }} sx={{ display: 'flex', alignItems: 'center' }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={usesConversion}
+                      onChange={(_, checked) => {
+                        if (checked) {
+                          setValue('unitsPerBuyUom', Math.max(2, unitsPerBuyUom || 2), { shouldValidate: true });
+                          if (!sellUom || sellUom === buyUom) {
+                            setValue('uom', '', { shouldValidate: true });
+                          }
+                        } else {
+                          setValue('unitsPerBuyUom', 1, { shouldValidate: true });
+                          setValue('uom', buyUom || '', { shouldValidate: true });
+                          setValue('sellMode', 'unit');
+                          setValue('packSellingPrice', 0);
+                        }
+                      }}
+                    />
                   }
-                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                  label="Uses conversion (Secondary Unit)"
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 4 }} sx={{ display: 'flex', alignItems: 'center' }}>
-                <UomConversionHint
-                  buyUom={buyUom}
-                  baseUom={sellUom}
-                  factor={unitsPerBuyUom}
-                  uomOptions={uomOptions}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <Divider sx={{ my: 1 }} />
-                <UomSectionTitle>Base (stock &amp; sell)</UomSectionTitle>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="uom"
-                  control={control}
-                  render={({ field }) => (
+              {usesConversion && (
+                <>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
-                      {...field}
-                      select
-                      label="Base UOM"
+                      {...register('unitsPerBuyUom', { valueAsNumber: true })}
+                      label="Conversion Rate"
+                      type="number"
                       fullWidth
-                      error={!!errors.uom}
-                      helperText={errors.uom?.message ?? 'Stock is counted in this unit'}
-                    >
-                      {uomOptions.map((u) => (
-                        <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
-                      ))}
-                    </TextField>
-                  )}
-                />
-              </Grid>
+                      error={!!errors.unitsPerBuyUom}
+                      helperText={
+                        errors.unitsPerBuyUom?.message
+                        ?? 'Secondary units inside one Primary Unit (e.g. 24 pcs per box)'
+                      }
+                      slotProps={{ htmlInput: { min: 2, step: 1 } }}
+                    />
+                  </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="sellMode"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      select
-                      label="Sell mode"
-                      fullWidth
-                      error={!!errors.sellMode}
-                      helperText={errors.sellMode?.message ?? 'How cashiers sell at POS'}
-                    >
-                      {SELL_MODE_OPTIONS.map((o) => (
-                        <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                      ))}
-                    </TextField>
-                  )}
-                />
-              </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }} sx={{ display: 'flex', alignItems: 'center' }}>
+                    <UomConversionHint
+                      buyUom={buyUom}
+                      baseUom={sellUom}
+                      factor={unitsPerBuyUom}
+                      uomOptions={uomOptions}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12 }}>
+                    <Divider sx={{ my: 1 }} />
+                    <UomSectionTitle>Secondary Unit (stock &amp; sell)</UomSectionTitle>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Controller
+                      name="uom"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          label="Secondary Unit"
+                          fullWidth
+                          error={!!errors.uom}
+                          helperText={errors.uom?.message ?? 'Stock is counted in this unit'}
+                        >
+                          {uomOptions.map((u) => (
+                            <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Controller
+                      name="sellMode"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          label="Sell mode"
+                          fullWidth
+                          error={!!errors.sellMode}
+                          helperText={errors.sellMode?.message ?? 'How cashiers sell at POS'}
+                        >
+                          {SELL_MODE_OPTIONS.map((o) => (
+                            <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    />
+                  </Grid>
+                </>
+              )}
 
               <Grid size={{ xs: 12 }}>
                 <TextField
@@ -692,8 +793,23 @@ export function ProductFormPage() {
                   type="number"
                   fullWidth
                   error={!!errors.costPrice}
-                  helperText={errors.costPrice?.message ?? 'Per base unit'}
+                  helperText={errors.costPrice?.message ?? 'Per secondary unit'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                />
+              </Grid>
+              <Grid size={12}>
+                <Controller
+                  name="costPriceEffectiveFrom"
+                  control={control}
+                  render={({ field }) => (
+                    <NepaliAwareDatePicker
+                      label="Cost effective from"
+                      value={field.value}
+                      onChange={field.onChange}
+                      fullWidth
+                      helperText={errors.costPriceEffectiveFrom?.message}
+                    />
+                  )}
                 />
               </Grid>
               <Grid size={12}>
@@ -703,8 +819,45 @@ export function ProductFormPage() {
                   type="number"
                   fullWidth
                   error={!!errors.sellingPrice}
-                  helperText={errors.sellingPrice?.message ?? 'Per base unit · NPR 0 hides product from POS'}
+                  helperText={errors.sellingPrice?.message ?? 'Per secondary unit · NPR 0 hides product from POS'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                />
+              </Grid>
+              <Grid size={12}>
+                <Controller
+                  name="sellingPriceEffectiveFrom"
+                  control={control}
+                  render={({ field }) => (
+                    <NepaliAwareDatePicker
+                      label="Selling effective from"
+                      value={field.value}
+                      onChange={field.onChange}
+                      fullWidth
+                      helperText={errors.sellingPriceEffectiveFrom?.message}
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={12}>
+                <Controller
+                  name="isPopular"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControlLabel
+                      control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
+                      label="Most Popular"
+                    />
+                  )}
+                />
+                <Controller
+                  name="isTrending"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControlLabel
+                      control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
+                      label="Trending"
+                    />
+                  )}
                 />
               </Grid>
               <Grid size={6}>

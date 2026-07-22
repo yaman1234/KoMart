@@ -19,7 +19,8 @@ import { useSupplier } from '@/hooks/useSuppliers';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { useProducts } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatDate, getInitials, canManageSuppliers } from '@/utils';
+import { formatCurrency, getInitials, canManageSuppliers } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { PO_STATUS_LABELS, DROPDOWN_PAGE_SIZE } from '@/constants';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
 
@@ -55,11 +56,6 @@ const basePoColumns: Column<PurchaseOrder>[] = [
     label: 'Total',
     align: 'right',
     render: (row) => formatCurrency(row.totalAmount),
-  },
-  {
-    id: 'delivery',
-    label: 'Expected Delivery',
-    render: (row) => (row.expectedDelivery ? formatDate(row.expectedDelivery) : '—'),
   },
 ];
 
@@ -101,6 +97,7 @@ export function SupplierDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
+  const formatDate = useFormatDate();
   const canManage = canManageSuppliers(user?.role);
 
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
@@ -127,7 +124,14 @@ export function SupplierDetailPage() {
 
   const purchaseOrders = poData?.data ?? [];
   const catalogProducts = productsData?.data ?? [];
-  const poColumns = withSnColumn(purchaseOrders, basePoColumns);
+  const poColumns = withSnColumn(purchaseOrders, [
+    ...basePoColumns,
+    {
+      id: 'delivery',
+      label: 'Expected Delivery',
+      render: (row) => (row.expectedDelivery ? formatDate(row.expectedDelivery) : '—'),
+    },
+  ]);
   const productColumns = withSnColumn(catalogProducts, baseProductColumns);
 
   return (

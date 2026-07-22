@@ -176,9 +176,27 @@ class DailyCashBlock(BaseModel):
     opening: float
     cash_sales: float
     cash_expenses: float
+    transfers_in: float = 0.0
+    transfers_out: float = 0.0
+    adjustments_in: float = 0.0
+    adjustments_out: float = 0.0
     expected: float
     closing: float
     variance: float
+
+
+class WalletDayBookBlock(BaseModel):
+    wallet: str
+    opening: float
+    sales_in: float = 0.0
+    expenses_out: float = 0.0
+    transfers_in: float = 0.0
+    transfers_out: float = 0.0
+    adjustments_in: float = 0.0
+    adjustments_out: float = 0.0
+    expected: float
+    closing: float | None = None
+    variance: float | None = None
 
 
 class DayCloseBlock(BaseModel):
@@ -196,6 +214,7 @@ class DailySummary(BaseModel):
     expenses: DailyExpensesBlock
     by_payment_method: list[SalesByPaymentMethod]
     cash: DailyCashBlock
+    wallets: list[WalletDayBookBlock] = Field(default_factory=list)
     day_close: DayCloseBlock | None = None
 
 

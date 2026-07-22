@@ -7,11 +7,13 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useAuthStore } from '@/store';
-import { formatDate, canManageSuppliers } from '@/utils';
+import { canManageSuppliers } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import type { Supplier } from '@/types';
 
 export function SuppliersPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);

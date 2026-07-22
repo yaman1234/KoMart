@@ -23,7 +23,7 @@ export function productToPoPasteCells(product: Product): string[] {
     product.sku ?? '',
     product.name,
     '1',
-    product.buyUom ?? product.uom ?? 'pcs',
+    product.buyUom ?? product.uom ?? '',
     String(product.unitsPerBuyUom ?? 1),
     formatCost(buyUnitCost(product)),
   ];

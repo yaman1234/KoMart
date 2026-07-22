@@ -30,7 +30,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import BlockIcon from '@mui/icons-material/Block';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useUsers, useCreateUser, useUpdateUser, useDeactivateUser } from '@/hooks/useUsers';
-import { formatDate } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import type { UserRole, UserListItem } from '@/types';
@@ -59,6 +59,7 @@ interface UserFormState {
 const emptyForm: UserFormState = { name: '', email: '', password: '', role: 'cashier' };
 
 export function UsersTab() {
+  const formatDate = useFormatDate();
   const { data: users = [], isLoading, isError, error: loadError } = useUsers();
   const createMutation = useCreateUser();
   const updateMutation = useUpdateUser();

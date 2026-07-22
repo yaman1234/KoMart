@@ -45,7 +45,7 @@ import { StatCard } from '@/components/common/StatCard';
 import { useDashboardStore, useAuthStore } from '@/store';
 import {
   formatCurrency,
-  formatDate,
+  formatExpiryDate,
   canViewAdminReports,
   productStatusColor,
   productStatusLabel,
@@ -55,6 +55,7 @@ import { showApiError, showSuccess } from '@/utils/toast';
 import { reportsService } from '@/services';
 import { PAYMENT_METHODS, PO_STATUS_LABELS, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import type { ProductStatus } from '@/types';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import {
   useSalesSummary,
   useSalesByPaymentMethod,
@@ -90,6 +91,7 @@ function paymentLabel(method: string): string {
 
 export function ReportsPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const [tab, setTab] = useState<ReportTab>('sales');
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState<'' | ProductStatus>('');
   const [exporting, setExporting] = useState(false);
@@ -487,7 +489,14 @@ export function ReportsPage() {
               size="small"
               onClick={() => navigate('/reports/daily')}
             >
-              Daily Report
+              Day Cash Book
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => navigate('/accounts')}
+            >
+              Accounts
             </Button>
             <Button
               variant="outlined"
@@ -874,7 +883,7 @@ export function ReportsPage() {
                     <TableCell>{row.productName}</TableCell>
                     <TableCell>{row.batchNumber}</TableCell>
                     <TableCell align="right">{row.quantity}</TableCell>
-                    <TableCell>{formatDate(row.expiryDate)}</TableCell>
+                    <TableCell>{formatExpiryDate(row.expiryDate)}</TableCell>
                     <TableCell align="right">
                       <Chip
                         label={`${row.daysUntilExpiry}d`}

@@ -33,6 +33,7 @@ import {
   ToggleButton,
   Chip,
   CircularProgress,
+  Autocomplete,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
@@ -41,7 +42,6 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PaymentIcon from '@mui/icons-material/Payment';
@@ -53,7 +53,7 @@ import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 import { useInfiniteProducts } from '@/hooks/useProducts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useEvaluateDiscounts, useDiscountRules } from '@/hooks/useDiscounts';
+import { useEvaluateDiscounts } from '@/hooks/useDiscounts';
 import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useIsMobile } from '@/hooks/useMediaQuery';
@@ -65,11 +65,9 @@ import { formatAmount, formatCurrency } from '@/utils';
 import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE, PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
-import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { cartLineKey } from '@/utils/cartLine';
-import { formatSellLineSubtitle } from '@/utils/uomDisplay';
 import { uomLabel } from '@/utils';
-import { canSellAsPack, canSellAsPiece, packSellOption, pieceSellOption, resolveSellOption } from '@/utils/uomSell';
+import { canSellAsPack, canSellAsPiece, isPosSellableProduct, packSellOption, pieceSellOption, resolveSellOption } from '@/utils/uomSell';
 import { PaymentModal, type PaymentConfirmPayload } from '@/components/pos/PaymentModal';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
@@ -77,7 +75,7 @@ import { DRAWER_COLLAPSED } from '@/layouts/Sidebar';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import type { Product, Transaction, CartItem } from '@/types';
 
-const CART_EXPANDED_WIDTH = 'clamp(300px, 38vw, 540px)';
+const CART_EXPANDED_WIDTH = 'clamp(340px, 42vw, 600px)';
 
 const qtyBadgeSx = {
   '& .MuiBadge-badge': {
@@ -108,7 +106,6 @@ interface CollapsedCartRailProps {
 interface ProductCardProps {
   product: Product;
   qtyInCart: number;
-  discountLabel?: string | null;
   onAdd: (product: Product, asPack?: boolean) => void;
   onViewDetails: (product: Product) => void;
 }
@@ -125,7 +122,7 @@ const POS_IMAGE_CHIP_SX = {
   maxWidth: '100%',
 } as const;
 
-const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd, onViewDetails }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, qtyInCart, onAdd, onViewDetails }: ProductCardProps) {
   const [sellAsPack, setSellAsPack] = useState(false);
   const dualSell = canSellAsPack(product) && canSellAsPiece(product);
   const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
@@ -149,15 +146,15 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
   const handleAdd = () => onAdd(product, packOnly || (dualSell && sellAsPack));
 
   const sellAsToggleSx = {
-    flex: '1 1 auto',
-    minWidth: 0,
+    width: '100%',
     '& .MuiToggleButton-root': {
-      px: 0.75,
-      py: 0.15,
-      fontSize: '0.6rem',
-      lineHeight: 1.2,
+      px: 1,
+      py: 0.4,
+      fontSize: '0.75rem',
+      lineHeight: 1.25,
       flex: 1,
       textTransform: 'none',
+      fontWeight: 600,
       bgcolor: 'action.hover',
     },
     '& .MuiToggleButton-root.Mui-selected': {
@@ -198,10 +195,13 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
               component="img"
               src={product.images[0]}
               alt={product.name}
+              loading="lazy"
+              decoding="async"
               sx={{
                 width: '100%',
                 height: 110,
-                objectFit: 'cover',
+                objectFit: 'contain',
+                objectPosition: 'center',
                 display: 'block',
                 bgcolor: 'action.hover',
               }}
@@ -278,16 +278,6 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
               {hiddenTagCount > 0 && (
                 <Chip label={`+${hiddenTagCount}`} size="small" sx={POS_IMAGE_CHIP_SX} />
               )}
-              {discountLabel && (
-                <Tooltip title={discountLabel}>
-                  <Chip
-                    icon={<LocalOfferIcon sx={{ fontSize: '0.7rem !important', color: 'inherit !important' }} />}
-                    label={discountLabel}
-                    size="small"
-                    sx={{ ...POS_IMAGE_CHIP_SX, bgcolor: 'rgba(46,125,50,0.85)' }}
-                  />
-                </Tooltip>
-              )}
             </Box>
             <IconButton
               size="small"
@@ -332,7 +322,7 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
           sx={{
             fontWeight: 600,
             lineHeight: 1.3,
-            fontSize: '0.75rem',
+            fontSize: '0.8rem',
             display: '-webkit-box',
             WebkitBoxOrient: 'vertical',
             WebkitLineClamp: 2,
@@ -342,6 +332,35 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
         >
           {product.name}
         </Typography>
+        {dualSell && (
+          <Box sx={{ width: '100%' }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block', mb: 0.35 }}
+            >
+              Sell as
+            </Typography>
+            <ToggleButtonGroup
+              value={sellAsPack ? 'pack' : 'piece'}
+              exclusive
+              size="small"
+              fullWidth
+              onChange={(_, v: 'piece' | 'pack' | null) => {
+                if (v) setSellAsPack(v === 'pack');
+              }}
+              sx={sellAsToggleSx}
+            >
+              <ToggleButton value="piece">{uomLabel(product.uom || product.buyUom || '')}</ToggleButton>
+              <ToggleButton value="pack">{uomLabel(product.buyUom || '')}</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        )}
+        {packOnly && !dualSell && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem', fontWeight: 600 }}>
+            Sell as: {uomLabel(product.buyUom || '')}
+          </Typography>
+        )}
         <Box
           sx={{
             display: 'flex',
@@ -353,50 +372,17 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
           }}
         >
           <Box sx={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
-            {dualSell && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, minWidth: 0 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: '0.6rem', flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  Sell as
-                </Typography>
-                <ToggleButtonGroup
-                  value={sellAsPack ? 'pack' : 'piece'}
-                  exclusive
-                  size="small"
-                  onChange={(_, v: 'piece' | 'pack' | null) => {
-                    if (v) setSellAsPack(v === 'pack');
-                  }}
-                  sx={sellAsToggleSx}
-                >
-                  <ToggleButton value="piece">{uomLabel(product.uom || 'pcs')}</ToggleButton>
-                  <ToggleButton value="pack">{uomLabel(product.buyUom || 'pack')}</ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
-            )}
-            {packOnly && !dualSell && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.6rem', mb: 0.25 }}>
-                Sell: {uomLabel(product.buyUom || 'pack')}
-              </Typography>
-            )}
             <PriceWithUom
               price={displayOption.price}
               uom={displayOption.sellUom}
-              priceSx={{ fontSize: { xs: '0.7rem', sm: '0.8125rem' } }}
+              priceSx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             />
-            {dualSell && sellAsPack && (product.packSellingPrice ?? 0) > 0 && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.55rem' }}>
-                Pack bundle price
-              </Typography>
-            )}
           </Box>
           <Chip
             label={stockLabel}
             color={stockColor}
             size="small"
-            sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, flexShrink: 0 }}
+            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, flexShrink: 0 }}
           />
         </Box>
       </CardContent>
@@ -533,6 +519,8 @@ export function POSPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [supplierIdFilter, setSupplierIdFilter] = useState('');
+  const [popularOnly, setPopularOnly] = useState(false);
+  const [trendingOnly, setTrendingOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
   const cartSnapshotRef = useRef<{ items: CartItem[]; customerId: string | null; saleDate: string } | null>(null);
@@ -548,6 +536,8 @@ export function POSPage() {
   const [custForm, setCustForm] = useState<CreateCustForm>(EMPTY_FORM);
   const [custFormError, setCustFormError] = useState('');
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [cartAddProduct, setCartAddProduct] = useState<Product | null>(null);
+  const [cartAddInput, setCartAddInput] = useState('');
 
   const queryClient = useQueryClient();
   const { items, addItem, removeItem, updateQuantity, customerId, setCustomer, clearCart, replaceCart, saleDate, setSaleDate } = useCartStore();
@@ -585,10 +575,11 @@ export function POSPage() {
     search: debouncedSearch || undefined,
     category: categoryFilter || undefined,
     supplierId: supplierIdFilter || undefined,
+    isPopular: popularOnly || undefined,
+    isTrending: trendingOnly || undefined,
     sellableOnly: true,
     pageSize: POS_PRODUCTS_PAGE_SIZE,
   });
-  const { data: discountRules = [] } = useDiscountRules(true);
   const { data: paymentCustomer } = useCustomer(customerId ?? '');
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const suppliers = suppliersData?.data ?? [];
@@ -611,11 +602,6 @@ export function POSPage() {
     return () => observer.disconnect();
   }, [productsLoading, hasNextPage, isFetchingNextPage, fetchNextPage, products.length]);
 
-  const productDiscountMap = useMemo(
-    () => buildProductDiscountMap(products, discountRules),
-    [products, discountRules],
-  );
-
   const productCategoryMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const p of products) map[p.id] = p.category;
@@ -632,29 +618,22 @@ export function POSPage() {
 
   const { data: discountEval } = useEvaluateDiscounts(cartItemsForDiscount, '');
 
-  const displayedProducts = useMemo(() => products
+  const addableProducts = useMemo(
+    () => products.filter(isPosSellableProduct),
+    [products],
+  );
+
+  const displayedProducts = useMemo(() => addableProducts
     .filter((p) => {
-      if (p.stock === 0) return false;
-      const mode = p.sellMode ?? 'unit';
-      const units = p.unitsPerBuyUom ?? 1;
-      const packPrice = packSellOption(p)?.price ?? 0;
-      const piecePrice = p.sellingPrice;
-      const billable =
-        mode === 'piece'
-          ? piecePrice > 0
-          : mode === 'unit'
-            ? (units <= 1 ? piecePrice > 0 : packPrice > 0)
-            : piecePrice > 0 || packPrice > 0;
-      if (!billable) return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
       if (supplierIdFilter && p.supplierId !== supplierIdFilter) return false;
       return true;
-      })
+    })
     .sort((a, b) => {
       if (priceSort === 'asc') return a.sellingPrice - b.sellingPrice;
       if (priceSort === 'desc') return b.sellingPrice - a.sellingPrice;
       return 0;
-    }), [products, categoryFilter, supplierIdFilter, priceSort]);
+    }), [addableProducts, categoryFilter, supplierIdFilter, priceSort]);
 
   const cartQuantities = useMemo(() => {
     const map = new Map<string, number>();
@@ -714,7 +693,7 @@ export function POSPage() {
       discount: 0,
       sellUom: opt.sellUom,
       unitFactor: opt.unitFactor,
-      uom: opt.sellUom,
+      uom: product.uom || product.buyUom || '',
       category: product.category,
     });
   }, [addItem]);
@@ -750,6 +729,7 @@ export function POSPage() {
         notes: payload.notes || undefined,
         saleDate,
         createdBy: user?.name ?? 'Cashier',
+        roundOff: payload.roundOff || undefined,
       });
       setReceipt(txn);
       showSuccess('Sale completed — POS and Dashboard will reflect changes shortly.');
@@ -882,6 +862,23 @@ export function POSPage() {
             </Select>
           </FormControl>
 
+          <Chip
+            label="Most Popular"
+            size="small"
+            variant={popularOnly ? 'filled' : 'outlined'}
+            color={popularOnly ? 'secondary' : 'default'}
+            onClick={() => setPopularOnly((v) => !v)}
+            sx={{ fontWeight: 600 }}
+          />
+          <Chip
+            label="Trending"
+            size="small"
+            variant={trendingOnly ? 'filled' : 'outlined'}
+            color={trendingOnly ? 'secondary' : 'default'}
+            onClick={() => setTrendingOnly((v) => !v)}
+            sx={{ fontWeight: 600 }}
+          />
+
           <ToggleButtonGroup
             value={priceSort}
             exclusive
@@ -901,34 +898,33 @@ export function POSPage() {
         </Box>
 
         <Box sx={{ flex: 1, overflow: 'auto' }}>
-          <Grid container spacing={1.5} columns={{ xs: 2, sm: 3, md: 5 }}>
+          <Grid container spacing={1.5} columns={{ xs: 1, sm: 2, md: 3 }}>
             {displayedProducts.map((product) => (
               <Grid key={product.id} size={1}>
                 <ProductCard
                   product={product}
                   qtyInCart={cartQuantities.get(product.id) ?? 0}
-                  discountLabel={productDiscountMap.get(product.id)}
                   onAdd={handleAddProduct}
                   onViewDetails={setDetailProduct}
                 />
               </Grid>
             ))}
             {displayedProducts.length === 0 && !productsLoading && (
-              <Grid size={{ xs: 2, sm: 3, md: 5 }}>
+              <Grid size={{ xs: 1, sm: 2, md: 3 }}>
                 <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                   No products found
                 </Typography>
               </Grid>
             )}
             {productsLoading && (
-              <Grid size={{ xs: 2, sm: 3, md: 5 }}>
+              <Grid size={{ xs: 1, sm: 2, md: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress size={28} />
                 </Box>
               </Grid>
             )}
             {!productsLoading && hasNextPage && (
-              <Grid size={{ xs: 2, sm: 3, md: 5 }}>
+              <Grid size={{ xs: 1, sm: 2, md: 3 }}>
                 <Box ref={productGridSentinelRef} sx={{ py: 2, textAlign: 'center' }}>
                   {isFetchingNextPage && <CircularProgress size={24} />}
                 </Box>
@@ -1047,18 +1043,20 @@ export function POSPage() {
                 }}
               >
                 <colgroup>
-                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '6%' }} />
                   <col style={{ width: 'auto' }} />
-                  <col style={{ width: '26%' }} />
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '8%' }} />
                 </colgroup>
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
                     <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>SN</TableCell>
                     <TableCell sx={{ fontWeight: 700, pl: 0, pr: 0.5, fontSize: '0.7rem' }}>Item</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Qty</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>UOM</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Price</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Total</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 700, px: 0, width: 32 }} />
@@ -1086,11 +1084,6 @@ export function POSPage() {
                           >
                             {item.name}
                           </Typography>
-                          {item.sellUom && (
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                              {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? 'pcs')}
-                            </Typography>
-                          )}
                         </TableCell>
 
                         <TableCell align="center" sx={{ px: 0.25 }}>
@@ -1099,6 +1092,12 @@ export function POSPage() {
                             onDecrement={() => handleQtyChange(item.productId, item.quantity - 1, item.sellUom)}
                             onIncrement={() => handleQtyChange(item.productId, item.quantity + 1, item.sellUom)}
                           />
+                        </TableCell>
+
+                        <TableCell align="center" sx={{ px: 0.25 }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                            {uomLabel(item.sellUom || item.uom || '')}
+                          </Typography>
                         </TableCell>
 
                         <TableCell align="right" sx={{ px: 0.25 }}>
@@ -1147,6 +1146,32 @@ export function POSPage() {
               </Table>
             </TableContainer>
           )}
+        </Box>
+
+        <Box sx={{ flexShrink: 0, mb: 1 }}>
+          <Autocomplete
+            size="small"
+            options={addableProducts}
+            value={cartAddProduct}
+            inputValue={cartAddInput}
+            onInputChange={(_, value, reason) => {
+              if (reason === 'reset') return;
+              setCartAddInput(value);
+            }}
+            onChange={(_, product) => {
+              if (!product) return;
+              handleAddProduct(product);
+              setCartAddProduct(null);
+              setCartAddInput('');
+            }}
+            getOptionLabel={(p) => `${p.name} (${p.sku})`}
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            clearOnBlur
+            blurOnSelect
+            renderInput={(params) => (
+              <TextField {...params} label="Add product" placeholder="Search products…" />
+            )}
+          />
         </Box>
 
         {/* Footer: totals + pay — always visible */}
@@ -1209,6 +1234,7 @@ export function POSPage() {
         onCustomerChange={setCustomer}
         onAddCustomer={() => { setCustForm(EMPTY_FORM); setCustFormError(''); setCreateOpen(true); }}
         customer={paymentCustomerInfo}
+        saleDate={saleDate}
         loading={processing}
         error={paymentError}
         transaction={receipt}
@@ -1279,7 +1305,6 @@ export function POSPage() {
         product={detailProduct}
         open={!!detailProduct}
         onClose={() => setDetailProduct(null)}
-        discountLabel={detailProduct ? productDiscountMap.get(detailProduct.id) : null}
       />
     </Box>
   );

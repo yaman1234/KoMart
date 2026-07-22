@@ -65,13 +65,13 @@ export function ProductQuickViewDialog({
     { label: 'Category', value: product.category },
     { label: 'Country', value: product.countryOfOrigin },
     { label: 'Supplier', value: product.supplierName ?? '—' },
-    { label: 'Buy UOM', value: uomLabel(product.buyUom ?? product.uom ?? 'pcs') },
-    { label: 'Base UOM', value: uomLabel(product.uom ?? 'pcs') },
+    { label: 'Primary Unit', value: uomLabel(product.buyUom ?? product.uom ?? '') || '—' },
+    { label: 'Secondary Unit', value: uomLabel(product.uom ?? '') || '—' },
     {
       label: 'Conversion',
       value: formatConversion(
-        product.buyUom ?? 'pcs',
-        product.uom ?? 'pcs',
+        product.buyUom ?? '',
+        product.uom ?? '',
         product.unitsPerBuyUom ?? 1,
       ) || '—',
     },
@@ -117,6 +117,8 @@ export function ProductQuickViewDialog({
                 component="img"
                 src={product.images[0]}
                 alt={product.name}
+                loading="lazy"
+                decoding="async"
                 sx={{
                   width: '100%',
                   maxHeight: { xs: 220, sm: 360 },
@@ -156,7 +158,7 @@ export function ProductQuickViewDialog({
                     </Typography>
                     <PriceWithUom
                       price={product.sellingPrice}
-                      uom={product.uom ?? 'pcs'}
+                      uom={product.uom ?? ''}
                       priceSx={{ fontSize: '1.25rem' }}
                     />
                   </Box>
@@ -168,7 +170,7 @@ export function ProductQuickViewDialog({
                     </Typography>
                     <PriceWithUom
                       price={packOption.price}
-                      uom={product.buyUom ?? 'pack'}
+                      uom={product.buyUom ?? ''}
                       priceSx={{ fontSize: '1.25rem' }}
                     />
                     {packPriceIsDerived && (
@@ -181,13 +183,13 @@ export function ProductQuickViewDialog({
                 {!canSellAsPiece(product) && !showPackPrice && (
                   <PriceWithUom
                     price={product.sellingPrice}
-                    uom={product.uom ?? 'pcs'}
+                    uom={product.uom ?? ''}
                     priceSx={{ fontSize: '1.25rem' }}
                   />
                 )}
               </Box>
               <Chip
-                label={formatStockQty(product.stock, product.uom ?? 'pcs')}
+                label={formatStockQty(product.stock, product.uom ?? '')}
                 color={stockStatus.color}
                 size="small"
                 sx={{ fontWeight: 600 }}
@@ -208,15 +210,15 @@ export function ProductQuickViewDialog({
                   Cost Price (per base)
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {formatCurrency(product.costPrice)} / {product.uom ?? 'pcs'}
+                  {formatCurrency(product.costPrice)} / {product.uom || product.buyUom || '—'}
                 </Typography>
               </Box>
             )}
 
             <Box sx={{ mb: 2 }}>
               <UomConversionHint
-                buyUom={product.buyUom ?? product.uom ?? 'pcs'}
-                baseUom={product.uom ?? 'pcs'}
+                buyUom={product.buyUom ?? product.uom ?? ''}
+                baseUom={product.uom ?? ''}
                 factor={product.unitsPerBuyUom ?? 1}
               />
             </Box>

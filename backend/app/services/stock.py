@@ -113,12 +113,18 @@ async def deduct_stock_fefo(product_id: str, quantity: int) -> list[BatchDeducti
     for batch in sort_batches_fefo(batches):
         if remaining <= 0:
             break
+        # Re-read quantity from the in-memory batch; race may have depleted it.
         deduct = min(batch.quantity, remaining)
+        if deduct <= 0:
+            continue
         col = InventoryBatch.get_motor_collection()
-        await col.update_one(
+        result = await col.update_one(
             {"_id": batch.id, "quantity": {"$gte": deduct}},
             {"$inc": {"quantity": -deduct}},
         )
+        if result.matched_count != 1:
+            # Concurrent sale won this batch — skip and try next / re-check at end.
+            continue
         deductions.append(BatchDeduction(
             product_id=product_id,
             batch_id=str(batch.id),
@@ -126,6 +132,15 @@ async def deduct_stock_fefo(product_id: str, quantity: int) -> list[BatchDeducti
             unit_cost=batch_unit_cost(batch, product),
         ))
         remaining -= deduct
+
+    if remaining > 0:
+        # Roll back any successful deductions from this attempt, then fail.
+        if deductions:
+            await restock_from_deductions(deductions)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient stock (concurrent update). Could not allocate {remaining} unit(s).",
+        )
 
     await refresh_product_stock(product)
     return deductions

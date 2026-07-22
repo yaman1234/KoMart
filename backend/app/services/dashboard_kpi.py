@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from app.models.day_close import DayClose
 from app.models.expense import Expense, ExpenseCategory
 from app.models.purchase_order import POStatus, PurchaseOrder
 from app.models.settings import StoreSettings
@@ -48,6 +48,25 @@ async def _expense_sum(
         match["date"]["$lte"] = date_lte
     if category:
         match["category"] = category
+    if payment_method:
+        # Normalized methods may still have legacy values in DB — match common aliases.
+        aliases = {payment_method}
+        if payment_method == "bank":
+            aliases.add("card")
+        if payment_method == "esewa":
+            aliases.add("khalti")
+        match["payment_method"] = {"$in": list(aliases)}
+
+    # Prefer aggregation when we don't need Python-side exclude filters.
+    if not exclude_setup and not exclude_purchase_order:
+        col = Expense.get_motor_collection()
+        pipeline = [
+            {"$match": match},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+        ]
+        rows = await col.aggregate(pipeline).to_list(1)
+        return float(rows[0]["total"]) if rows else 0.0
+
     expenses = await Expense.find(match).to_list()
     total = 0.0
     for e in expenses:
@@ -73,32 +92,26 @@ async def _sales_by_payment(
     }
     if end is not None:
         match["created_at"]["$lte"] = end
-    txns = await Transaction.find(match).to_list()
-    total = 0.0
-    for t in txns:
-        method = normalize_payment_method(
-            t.payment_method.value if hasattr(t.payment_method, "value") else str(t.payment_method)
-        )
-        if payment_method and method != payment_method:
-            continue
-        total += float(t.total or 0)
-    return total
+    if payment_method:
+        aliases = {payment_method}
+        if payment_method == "bank":
+            aliases.add("card")
+        if payment_method == "esewa":
+            aliases.add("khalti")
+        match["payment_method"] = {"$in": list(aliases)}
+
+    col = Transaction.get_motor_collection()
+    pipeline = [
+        {"$match": match},
+        {"$group": {"_id": None, "total": {"$sum": "$total"}}},
+    ]
+    rows = await col.aggregate(pipeline).to_list(1)
+    return float(rows[0]["total"]) if rows else 0.0
 
 
 async def current_cash_balance(today: date | None = None) -> float:
-    today = today or date.today()
-    day_str = today.isoformat()
-    day_close = await DayClose.find_one(DayClose.date == day_str)
-    opening = float(day_close.opening_cash) if day_close else 0.0
-
-    start, end = day_bounds(today)
-    cash_sales = await _sales_by_payment(start, end, payment_method="cash")
-    cash_expenses = await _expense_sum(day_str, day_str, payment_method="cash")
-    expected = round(opening + cash_sales - cash_expenses, 2)
-
-    if day_close is not None:
-        return round(float(day_close.closing_cash or 0), 2)
-    return expected
+    from app.services.wallet_ledger import current_wallet_balance, Wallet
+    return await current_wallet_balance(Wallet.cash, today=today)
 
 
 async def current_wallet_balance(
@@ -107,16 +120,13 @@ async def current_wallet_balance(
     *,
     method: str,
 ) -> float:
-    """Opening + FY sales − FY expenses for bank/esewa (and similar wallets)."""
-    opening_attr = {
-        "bank": "opening_bank_balance",
-        "esewa": "opening_esewa_balance",
-    }.get(method)
-    opening = float(getattr(settings, opening_attr, 0) or 0) if opening_attr else 0.0
-    sales = await _sales_by_payment(fy_start, payment_method=method)
-    fy_date = fy_start.date().isoformat()
-    expenses = await _expense_sum(fy_date, payment_method=method)
-    return round(opening + sales - expenses, 2)
+    """Opening + ledger net for bank/esewa (settings baseline + all movements)."""
+    from app.services.wallet_ledger import current_wallet_balance as ledger_balance, Wallet
+    try:
+        w = Wallet(method)
+    except ValueError:
+        return 0.0
+    return await ledger_balance(w)
 
 
 async def current_bank_balance(settings: StoreSettings, fy_start: datetime) -> float:
@@ -128,6 +138,17 @@ async def total_payables() -> float:
         {"status": {"$ne": POStatus.cancelled.value}}
     ).to_list()
     return round(sum(remaining_balance(po) for po in orders), 2)
+
+
+async def _wallet_period_net(date_gte: str, date_lte: str) -> float:
+    """Sum signed ledger net across cash/bank/esewa for a date range."""
+    from app.services.wallet_ledger import ledger_net, Wallet
+    cash, bank, esewa = await asyncio.gather(
+        ledger_net(Wallet.cash, date_gte=date_gte, date_lte=date_lte),
+        ledger_net(Wallet.bank, date_gte=date_gte, date_lte=date_lte),
+        ledger_net(Wallet.esewa, date_gte=date_gte, date_lte=date_lte),
+    )
+    return round(cash + bank + esewa, 2)
 
 
 async def build_kpi_summary() -> dict[str, Any]:
@@ -144,36 +165,33 @@ async def build_kpi_summary() -> dict[str, Any]:
     month_str = month_start_d.isoformat()
     fy_str = fy_start_d.isoformat()
 
-    sales_fy = await _sales_in_range(fy_start)
-    sales_month = await _sales_in_range(month_start)
-    sales_day = await _sales_in_range(day_start, day_end)
-
-    purchase_fy = await _expense_sum(fy_str, category=ExpenseCategory.purchase_order.value)
-    purchase_month = await _expense_sum(
-        month_str, today_str, category=ExpenseCategory.purchase_order.value
+    (
+        sales_fy,
+        sales_month,
+        sales_day,
+        purchase_fy,
+        purchase_month,
+        purchase_day,
+        payables,
+        cash,
+        bank,
+        esewa,
+        month_net,
+        day_net,
+    ) = await asyncio.gather(
+        _sales_in_range(fy_start),
+        _sales_in_range(month_start),
+        _sales_in_range(day_start, day_end),
+        _expense_sum(fy_str, category=ExpenseCategory.purchase_order.value),
+        _expense_sum(month_str, today_str, category=ExpenseCategory.purchase_order.value),
+        _expense_sum(today_str, today_str, category=ExpenseCategory.purchase_order.value),
+        total_payables(),
+        current_cash_balance(today),
+        current_wallet_balance(settings, fy_start, method="bank"),
+        current_wallet_balance(settings, fy_start, method="esewa"),
+        _wallet_period_net(month_str, today_str),
+        _wallet_period_net(today_str, today_str),
     )
-    purchase_day = await _expense_sum(
-        today_str, today_str, category=ExpenseCategory.purchase_order.value
-    )
-
-    payables = await total_payables()
-    payables_month_paid = purchase_month
-    payables_day_paid = purchase_day
-
-    cash = await current_cash_balance(today)
-    bank = await current_wallet_balance(settings, fy_start, method="bank")
-    esewa = await current_wallet_balance(settings, fy_start, method="esewa")
-
-    # Month/day net for cash+bank+esewa movement
-    async def net_wallets(start_dt: datetime, end_dt: datetime | None, gte: str, lte: str) -> float:
-        total = 0.0
-        for method in ("cash", "bank", "esewa"):
-            total += await _sales_by_payment(start_dt, end_dt, payment_method=method)
-            total -= await _expense_sum(gte, lte, payment_method=method)
-        return round(total, 2)
-
-    month_net = await net_wallets(month_start, None, month_str, today_str)
-    day_net = await net_wallets(day_start, day_end, today_str, today_str)
 
     return {
         "fiscalYearStart": fy_str,
@@ -194,8 +212,8 @@ async def build_kpi_summary() -> dict[str, Any]:
         },
         "payables": {
             "outstanding": payables,
-            "monthPaid": round(payables_month_paid, 2),
-            "dayPaid": round(payables_day_paid, 2),
+            "monthPaid": round(purchase_month, 2),
+            "dayPaid": round(purchase_day, 2),
         },
         "cashBank": {
             "total": round(cash + bank + esewa, 2),

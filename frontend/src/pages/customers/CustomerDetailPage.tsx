@@ -16,7 +16,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useCustomer, useCustomerTransactions } from '@/hooks/useCustomers';
-import { formatCurrency, formatDate, getInitials } from '@/utils';
+import { formatCurrency, getInitials } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { MEMBERSHIP_TIER_LABELS } from '@/constants';
 import type { Transaction, MembershipTier } from '@/types';
 
@@ -32,19 +33,20 @@ const TIER_THRESHOLDS: Record<MembershipTier, number> = {
   bronze: 10000, silver: 25000, gold: 50000, platinum: 100000,
 };
 
-const txnColumns: Column<Transaction>[] = [
-  { id: 'number', label: 'Transaction', accessor: 'transactionNumber' },
-  { id: 'items', label: 'Items', render: (r) => `${r.items.length} item(s)` },
-  { id: 'total', label: 'Total', align: 'right', render: (r) => formatCurrency(r.total) },
-  { id: 'payment', label: 'Payment', render: (r) => r.paymentMethod.toUpperCase() },
-  { id: 'date', label: 'Date', render: (r) => formatDate(r.createdAt) },
-];
-
 export function CustomerDetailPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const { id } = useParams<{ id: string }>();
   const { data: customer, isLoading, isError } = useCustomer(id ?? '');
   const { data: transactions = [] } = useCustomerTransactions(id ?? '');
+
+  const txnColumns: Column<Transaction>[] = [
+    { id: 'number', label: 'Transaction', accessor: 'transactionNumber' },
+    { id: 'items', label: 'Items', render: (r) => `${r.items.length} item(s)` },
+    { id: 'total', label: 'Total', align: 'right', render: (r) => formatCurrency(r.total) },
+    { id: 'payment', label: 'Payment', render: (r) => r.paymentMethod.toUpperCase() },
+    { id: 'date', label: 'Date', render: (r) => formatDate(r.createdAt) },
+  ];
 
   if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
   if (isError || !customer) return <Alert severity="error">Customer not found.</Alert>;

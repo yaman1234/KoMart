@@ -27,6 +27,7 @@ import {
   useUpdatePurchaseOrder,
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
@@ -35,6 +36,7 @@ import type { Product, PurchaseOrderItem, PurchaseOrderStatus } from '@/types';
 import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsGrid';
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
+import { useUomOptions } from '@/hooks/useUoms';
 
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
@@ -107,6 +109,8 @@ export function PurchaseOrderFormPage() {
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const { index: catalogIndex, products: catalogProducts, isLoading: catalogLoading } = useProductCatalog();
   const { data: assignableUsers = [] } = useAssignableUsers();
+  const uomOptions = useUomOptions();
+  const primaryUom = defaultPrimaryUom(uomOptions);
   const createMutation = useCreatePurchaseOrder();
   const updateMutation = useUpdatePurchaseOrder();
 
@@ -128,6 +132,14 @@ export function PurchaseOrderFormPage() {
   }, [currentUser, isEdit, orderedBy]);
 
   useEffect(() => {
+    if (isEdit) return;
+    setLines((prev) => {
+      if (prev.length !== 1 || prev[0].skuInput || prev[0].buyUom) return prev;
+      return [emptyPoLineItem(0, primaryUom)];
+    });
+  }, [isEdit, primaryUom]);
+
+  useEffect(() => {
     if (isEdit || prefillApplied.current) return;
     const state = location.state as { prefillProducts?: Product[] } | null;
     const prefill = state?.prefillProducts;
@@ -137,7 +149,7 @@ export function PurchaseOrderFormPage() {
     const loaded = productsToPoLines(prefill, nextLineId.current);
     nextLineId.current += loaded.length;
     nextLineId.current += 1;
-    setLines([...loaded, emptyPoLineItem(nextLineId.current)]);
+    setLines([...loaded, emptyPoLineItem(nextLineId.current, primaryUom)]);
     navigate(location.pathname, { replace: true, state: null });
   }, [isEdit, location.pathname, location.state, navigate]);
 
@@ -155,10 +167,10 @@ export function PurchaseOrderFormPage() {
         return poItemToLine(item, nextLineId.current, catalogProducts);
       });
       nextLineId.current += 1;
-      setLines([...loaded, emptyPoLineItem(nextLineId.current)]);
+      setLines([...loaded, emptyPoLineItem(nextLineId.current, primaryUom)]);
     } else {
       nextLineId.current += 1;
-      setLines([emptyPoLineItem(nextLineId.current)]);
+      setLines([emptyPoLineItem(nextLineId.current, primaryUom)]);
     }
     setFormLoaded(true);
   }, [isEdit, existingPo, formLoaded, catalogLoading, catalogProducts, currentUser?.name]);

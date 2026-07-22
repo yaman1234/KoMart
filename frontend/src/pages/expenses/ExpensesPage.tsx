@@ -28,7 +28,8 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { StatCard } from '@/components/common/StatCard';
 import { useExpenses, useExpenseStats, useDeleteExpense } from '@/hooks/useExpenses';
 import { EXPENSE_CATEGORIES } from '@/constants';
-import { formatCurrency, formatDate, isAdminOrManager } from '@/utils';
+import { formatCurrency, isAdminOrManager } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { showApiError, showSuccess } from '@/utils/toast';
 import { useAuthStore } from '@/store';
 import type { Expense } from '@/types';
@@ -61,6 +62,7 @@ function monthStartIso() {
 
 export function ExpensesPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canManage = isAdminOrManager(user?.role);
   const [search, setSearch] = useState('');

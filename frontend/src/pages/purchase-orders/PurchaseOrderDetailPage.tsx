@@ -41,7 +41,8 @@ import {
   useReceivePurchaseOrderItems,
   useRecordPurchaseOrderPayment,
 } from '@/hooks/usePurchaseOrders';
-import { formatCurrency, formatDate, canManagePurchaseOrders } from '@/utils';
+import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
@@ -97,6 +98,7 @@ export function PurchaseOrderDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
+  const formatDate = useFormatDate();
   const canManage = canManagePurchaseOrders(user?.role);
   const [statusValue, setStatusValue] = useState('');
   const [statusError, setStatusError] = useState('');
@@ -581,13 +583,15 @@ export function PurchaseOrderDetailPage() {
                           type="number"
                           value={receiveSel.receiveQuantity}
                           disabled={!receiveSel.selected}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const raw = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            const capped = remaining > 0 ? Math.min(raw, remaining) : raw;
                             updateReceiveSelection(item.productId, remaining, {
-                              receiveQuantity: Math.max(1, parseInt(e.target.value, 10) || 1),
-                            })
-                          }
+                              receiveQuantity: capped,
+                            });
+                          }}
                           sx={{ width: '100%', minWidth: 72 }}
-                          slotProps={{ htmlInput: { min: 1 } }}
+                          slotProps={{ htmlInput: { min: 1, max: Math.max(remaining, 1) } }}
                         />
                       </TableCell>
                     )}
@@ -624,7 +628,8 @@ export function PurchaseOrderDetailPage() {
                             }
                             size="small"
                             disabled={!receiveSel.selected}
-                            helperText={receiveSel.selected ? 'Optional' : undefined}
+                            calendarSystem="AD"
+                            helperText={receiveSel.selected ? 'AD — optional' : undefined}
                           />
                         </Box>
                       </TableCell>

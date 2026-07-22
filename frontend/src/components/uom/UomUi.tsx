@@ -114,8 +114,8 @@ export function UomGroupedTableHead({
   buyColumns,
   baseColumns,
   trailingColumns,
-  buyGroupLabel = 'Buy (supplier)',
-  baseGroupLabel = 'Base (stock)',
+  buyGroupLabel = 'Primary Unit (purchase)',
+  baseGroupLabel = 'Secondary Unit (stock & sell)',
 }: UomGroupedTableHeadProps) {
   return (
     <TableHead>

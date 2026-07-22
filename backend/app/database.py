@@ -21,6 +21,8 @@ from app.models import (
     AuditLog,
     DiscountRule,
     DayClose,
+    PriceHistory,
+    WalletLedgerEntry,
 )
 
 _motor_client: AsyncIOMotorClient | None = None
@@ -75,6 +77,8 @@ async def init_db() -> None:
             AuditLog,
             DiscountRule,
             DayClose,
+            PriceHistory,
+            WalletLedgerEntry,
         ],
     )
     # Backfill legacy products created before status field existed.
@@ -109,6 +113,9 @@ async def init_db() -> None:
         {"$set": {"default_payment_method": "bank"}},
     )
     await _seed_default_uoms()
+    # Seed wallet ledger from historical sales/expenses once (idempotent).
+    from app.services.wallet_ledger import ensure_backfill
+    await ensure_backfill(created_by="system")
 
 
 DEFAULT_UOMS: list[tuple[str, str]] = [

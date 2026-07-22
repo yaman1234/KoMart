@@ -33,6 +33,8 @@ export function useCreateExpense() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     },
   });
 }
@@ -46,6 +48,8 @@ export function useUpdateExpense() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expense(id) });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     },
   });
 }
@@ -58,6 +62,8 @@ export function useDeleteExpense() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     },
   });
 }

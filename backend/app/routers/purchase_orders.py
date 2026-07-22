@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.services.po_receive import receive_purchase_order_items
-from app.services.po_payment import record_payment, remaining_balance
+from app.services.po_payment import record_payment
 from app.models.purchase_order import (
     PurchaseOrder,
     POStatus,
@@ -102,10 +102,9 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
 async def _next_po_number() -> str:
     settings = await get_store_settings()
     prefix_base = (settings.purchase_order_prefix or "PO").strip().upper()
-    today = datetime.now(timezone.utc).strftime("%y%m%d")
-    prefix = f"{prefix_base}-{today}-"
+    prefix = f"{prefix_base}-"
     count = await PurchaseOrder.find({"order_number": {"$regex": f"^{prefix}"}}).count()
-    return f"{prefix}{str(count + 1).zfill(3)}"
+    return f"{prefix}{str(count + 1).zfill(4)}"
 
 
 @router.get("", response_model=PurchaseOrderListResponse)
@@ -126,17 +125,62 @@ async def list_purchase_orders(
         ]})
 
     total = await query.count()
-    filtered_orders = await query.to_list()
-    received_total_amount = round(
-        sum(po.total_amount for po in filtered_orders if po.status == POStatus.received),
-        2,
+
+    # Aggregate summary totals without loading every document into Python first.
+    match: dict = {}
+    if supplier_id:
+        match["supplier_id"] = supplier_id
+    if search:
+        match["$or"] = [
+            {"order_number": {"$regex": search, "$options": "i"}},
+            {"supplier_name": {"$regex": search, "$options": "i"}},
+        ]
+    col = PurchaseOrder.get_motor_collection()
+    summary_rows = await col.aggregate([
+        {"$match": match} if match else {"$match": {}},
+        {
+            "$group": {
+                "_id": None,
+                "received_total_amount": {
+                    "$sum": {
+                        "$cond": [
+                            {"$eq": ["$status", POStatus.received.value]},
+                            "$total_amount",
+                            0,
+                        ]
+                    }
+                },
+                "outstanding_amount": {
+                    "$sum": {
+                        "$cond": [
+                            {"$ne": ["$status", POStatus.cancelled.value]},
+                            {
+                                "$max": [
+                                    0,
+                                    {
+                                        "$subtract": [
+                                            "$total_amount",
+                                            {"$ifNull": ["$amount_paid", 0]},
+                                        ]
+                                    },
+                                ]
+                            },
+                            0,
+                        ]
+                    }
+                },
+            }
+        },
+    ]).to_list(1)
+    received_total_amount = round(float(summary_rows[0]["received_total_amount"]), 2) if summary_rows else 0.0
+    outstanding_amount = round(float(summary_rows[0]["outstanding_amount"]), 2) if summary_rows else 0.0
+
+    page_orders = (
+        await query.sort("-created_at")
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list()
     )
-    outstanding_amount = round(
-        sum(remaining_balance(po) for po in filtered_orders if po.status != POStatus.cancelled),
-        2,
-    )
-    orders = sorted(filtered_orders, key=lambda po: po.created_at, reverse=True)
-    page_orders = orders[(page - 1) * page_size: page * page_size]
     return PurchaseOrderListResponse(
         data=[_to_response(po) for po in page_orders],
         total=total,

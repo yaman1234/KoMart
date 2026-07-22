@@ -17,15 +17,18 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
 import SaveIcon from '@mui/icons-material/Save';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
 import { useDailySummary, useUpsertDayClose } from '@/hooks/useReports';
 import { PAYMENT_METHODS } from '@/constants';
-import { formatCurrency, formatDate } from '@/utils';
+import { formatCurrency } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
+import type { WalletDayBookBlock } from '@/types';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -37,8 +40,171 @@ function paymentLabel(method: string): string {
   return PAYMENT_METHODS.find((p) => p.value === normalized)?.label ?? method;
 }
 
+function WalletSection({
+  title,
+  block,
+  showCountInputs,
+  openingCash,
+  closingCash,
+  notes,
+  onOpeningChange,
+  onClosingChange,
+  onNotesChange,
+  onSave,
+  saving,
+}: {
+  title: string;
+  block?: WalletDayBookBlock | null;
+  showCountInputs?: boolean;
+  openingCash?: string;
+  closingCash?: string;
+  notes?: string;
+  onOpeningChange?: (v: string) => void;
+  onClosingChange?: (v: string) => void;
+  onNotesChange?: (v: string) => void;
+  onSave?: () => void;
+  saving?: boolean;
+}) {
+  const opening = block?.opening ?? 0;
+  const salesIn = block?.salesIn ?? 0;
+  const expensesOut = block?.expensesOut ?? 0;
+  const transfersIn = block?.transfersIn ?? 0;
+  const transfersOut = block?.transfersOut ?? 0;
+  const adjustmentsIn = block?.adjustmentsIn ?? 0;
+  const adjustmentsOut = block?.adjustmentsOut ?? 0;
+  const expected = block?.expected ?? 0;
+  const closing = block?.closing;
+  const variance = block?.variance;
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+        {title}
+      </Typography>
+
+      {showCountInputs && (
+        <>
+          <Grid container spacing={1.5} className="no-print">
+            <Grid size={{ xs: 6 }}>
+              <TextField
+                label="Opening cash"
+                type="number"
+                size="small"
+                fullWidth
+                value={openingCash}
+                onChange={(e) => onOpeningChange?.(e.target.value)}
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField
+                label="Closing cash (counted)"
+                type="number"
+                size="small"
+                fullWidth
+                value={closingCash}
+                onChange={(e) => onClosingChange?.(e.target.value)}
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                label="Notes"
+                size="small"
+                fullWidth
+                value={notes}
+                onChange={(e) => onNotesChange?.(e.target.value)}
+                multiline
+                minRows={2}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Button
+                variant="contained"
+                startIcon={<SaveIcon />}
+                onClick={() => onSave?.()}
+                loading={saving}
+              >
+                Save day close
+              </Button>
+            </Grid>
+          </Grid>
+
+          <Box className="print-only-block" sx={{ display: 'none', mb: 1 }}>
+            <Typography variant="body2">Opening: {formatCurrency(opening)}</Typography>
+            <Typography variant="body2">
+              Closing: {formatCurrency(closing ?? (Number(closingCash) || 0))}
+            </Typography>
+            {notes && <Typography variant="body2">Notes: {notes}</Typography>}
+          </Box>
+          <Divider sx={{ my: 1.5 }} />
+        </>
+      )}
+
+      <Line label="Opening" value={opening} bold={!showCountInputs} />
+      <Line label="Sales in" value={salesIn} />
+      <Line label="Expenses out" value={expensesOut} />
+      <Line label="Transfers in" value={transfersIn} />
+      <Line label="Transfers out" value={transfersOut} />
+      <Line label="Adjustments in" value={adjustmentsIn} />
+      <Line label="Adjustments out" value={adjustmentsOut} />
+      <Divider sx={{ my: 1 }} />
+      <Line label="Expected closing" value={expected} bold />
+      {closing != null && <Line label="Closing" value={closing} />}
+      {variance != null && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">
+            Variance
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 700,
+              color:
+                variance === 0
+                  ? 'text.primary'
+                  : variance > 0
+                    ? 'success.main'
+                    : 'error.main',
+            }}
+          >
+            {formatCurrency(variance)}
+          </Typography>
+        </Box>
+      )}
+      {showCountInputs && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+          Expected = Opening + sales − expenses ± transfers ± adjustments
+        </Typography>
+      )}
+    </Paper>
+  );
+}
+
+function Line({
+  label,
+  value,
+  bold,
+}: {
+  label: string;
+  value: number;
+  bold?: boolean;
+}) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: bold ? 700 : 400 }}>
+        {formatCurrency(value)}
+      </Typography>
+    </Box>
+  );
+}
+
 export function DailyReportPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const [date, setDate] = useState(todayIso);
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
@@ -79,13 +245,31 @@ export function DailyReportPage() {
   const expenses = data?.expenses.total ?? 0;
   const net = sales - expenses;
   const cash = data?.cash;
+  const wallets = data?.wallets ?? [];
+
+  const cashBook: WalletDayBookBlock = wallets.find((w) => w.wallet === 'cash') ?? {
+    wallet: 'cash',
+    opening: cash?.opening ?? 0,
+    salesIn: cash?.cashSales ?? 0,
+    expensesOut: cash?.cashExpenses ?? 0,
+    transfersIn: cash?.transfersIn ?? 0,
+    transfersOut: cash?.transfersOut ?? 0,
+    adjustmentsIn: cash?.adjustmentsIn ?? 0,
+    adjustmentsOut: cash?.adjustmentsOut ?? 0,
+    expected: cash?.expected ?? 0,
+    closing: cash?.closing ?? 0,
+    variance: cash?.variance ?? 0,
+  };
+  const bankBook = wallets.find((w) => w.wallet === 'bank');
+  const esewaBook = wallets.find((w) => w.wallet === 'esewa');
+
   const methods = ['cash', 'bank', 'esewa'] as const;
   const methodRows = methods.map((method) => {
     const row = data?.byPaymentMethod.find((p) => {
-      const m = p.paymentMethod === 'card' ? 'bank' : p.paymentMethod === 'khalti' ? 'esewa' : p.paymentMethod;
+      const m =
+        p.paymentMethod === 'card' ? 'bank' : p.paymentMethod === 'khalti' ? 'esewa' : p.paymentMethod;
       return m === method;
     });
-    // Merge legacy khalti into esewa totals
     let revenue = row?.revenue ?? 0;
     let count = row?.count ?? 0;
     if (method === 'esewa') {
@@ -100,19 +284,24 @@ export function DailyReportPage() {
       count,
     };
   });
-  const bankTotal = methodRows.find((r) => r.method === 'bank')?.revenue ?? 0;
-  const esewaTotal = methodRows.find((r) => r.method === 'esewa')?.revenue ?? 0;
 
   return (
     <Box className="daily-report-page">
       <PageHeader
-        title="Daily Report"
-        subtitle="End-of-day summary for stakeholders"
-        breadcrumbs={[{ label: 'Reports', path: '/reports' }, { label: 'Daily Report' }]}
+        title="Day Cash Book"
+        subtitle="Per-wallet movements and cash till reconciliation"
+        breadcrumbs={[{ label: 'Reports', path: '/reports' }, { label: 'Day Cash Book' }]}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }} className="no-print">
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/reports')}>
               Back
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<AccountBalanceWalletIcon />}
+              onClick={() => navigate('/accounts')}
+            >
+              Accounts
             </Button>
             <Button variant="outlined" startIcon={<PrintIcon />} onClick={() => window.print()}>
               Print
@@ -127,24 +316,24 @@ export function DailyReportPage() {
         sx={{ p: 2, mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}
       >
         <NepaliAwareDatePicker
-          label="Report date"
+          label="Business date"
           value={date}
           onChange={setDate}
           size="small"
         />
         <Typography variant="body2" color="text.secondary">
-          Select the business day, enter opening/closing cash, then print for stakeholders.
+          Review Cash / Bank / eSewa for the day, count the till, then print.
         </Typography>
       </Paper>
 
       {(error || isError) && (
         <Alert severity="error" sx={{ mb: 2 }} className="no-print">
-          {error || 'Could not load daily summary.'}
+          {error || 'Could not load day cash book.'}
         </Alert>
       )}
 
       <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }} className="print-only-block">
-        KoMart Daily Report — {formatDate(date)}
+        KoMart Day Cash Book — {formatDate(date)}
       </Typography>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -174,135 +363,56 @@ export function DailyReportPage() {
       </Grid>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-              Payments received
-            </Typography>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>Txns</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {methodRows.map((row) => (
-                  <TableRow key={row.method}>
-                    <TableCell>{row.label}</TableCell>
-                    <TableCell align="right">{row.count}</TableCell>
-                    <TableCell align="right">{formatCurrency(row.revenue)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <Divider sx={{ my: 1.5 }} />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="body2" color="text.secondary">Bank</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(bankTotal)}</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" color="text.secondary">eSewa</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(esewaTotal)}</Typography>
-            </Box>
-          </Paper>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <WalletSection
+            title="Cash till"
+            block={cashBook}
+            showCountInputs
+            openingCash={openingCash}
+            closingCash={closingCash}
+            notes={notes}
+            onOpeningChange={setOpeningCash}
+            onClosingChange={setClosingCash}
+            onNotesChange={setNotes}
+            onSave={() => void handleSaveCash()}
+            saving={upsertMutation.isPending}
+          />
         </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-              Cash on counter
-            </Typography>
-            <Grid container spacing={1.5} className="no-print">
-              <Grid size={{ xs: 6 }}>
-                <TextField
-                  label="Opening cash"
-                  type="number"
-                  size="small"
-                  fullWidth
-                  value={openingCash}
-                  onChange={(e) => setOpeningCash(e.target.value)}
-                  slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 6 }}>
-                <TextField
-                  label="Closing cash (counted)"
-                  type="number"
-                  size="small"
-                  fullWidth
-                  value={closingCash}
-                  onChange={(e) => setClosingCash(e.target.value)}
-                  slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Notes"
-                  size="small"
-                  fullWidth
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  multiline
-                  minRows={2}
-                />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  onClick={() => void handleSaveCash()}
-                  loading={upsertMutation.isPending}
-                >
-                  Save day close
-                </Button>
-              </Grid>
-            </Grid>
-
-            <Box className="print-only-block" sx={{ display: 'none', mb: 1 }}>
-              <Typography variant="body2">Opening: {formatCurrency(cash?.opening ?? 0)}</Typography>
-              <Typography variant="body2">Closing: {formatCurrency(cash?.closing ?? 0)}</Typography>
-              {notes && <Typography variant="body2">Notes: {notes}</Typography>}
-            </Box>
-
-            <Divider sx={{ my: 1.5 }} />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-              <Typography variant="body2" color="text.secondary">Cash sales</Typography>
-              <Typography variant="body2">{formatCurrency(cash?.cashSales ?? 0)}</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-              <Typography variant="body2" color="text.secondary">Cash expenses</Typography>
-              <Typography variant="body2">{formatCurrency(cash?.cashExpenses ?? 0)}</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-              <Typography variant="body2" color="text.secondary">Expected cash</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {formatCurrency(cash?.expected ?? 0)}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Typography variant="body2" color="text.secondary">Variance</Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 700,
-                  color: (cash?.variance ?? 0) === 0
-                    ? 'text.primary'
-                    : (cash?.variance ?? 0) > 0
-                      ? 'success.main'
-                      : 'error.main',
-                }}
-              >
-                {formatCurrency(cash?.variance ?? 0)}
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Expected = Opening + Cash sales − Cash expenses
-            </Typography>
-          </Paper>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <WalletSection title="Bank" block={bankBook} />
+        </Grid>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <WalletSection title="eSewa" block={esewaBook} />
         </Grid>
       </Grid>
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+          Payments received
+        </Typography>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700 }}>
+                Txns
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700 }}>
+                Amount
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {methodRows.map((row) => (
+              <TableRow key={row.method}>
+                <TableCell>{row.label}</TableCell>
+                <TableCell align="right">{row.count}</TableCell>
+                <TableCell align="right">{formatCurrency(row.revenue)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
 
       <style>{`
         @media print {

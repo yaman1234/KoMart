@@ -6,13 +6,15 @@ import { SearchBar } from '@/components/common/SearchBar';
 import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useTransactions } from '@/hooks/useTransactions';
-import { formatCurrency, formatDate } from '@/utils';
+import { formatCurrency } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { PAYMENT_METHODS } from '@/constants';
 import type { PaymentMethod, Transaction } from '@/types';
 import dayjs from 'dayjs';
 
 export function SalesPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);

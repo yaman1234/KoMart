@@ -560,13 +560,12 @@ export const mockApi = {
 
   async createPurchaseOrder(data: PurchaseOrderWritePayload): Promise<PurchaseOrder> {
     await delay(600);
-    const today = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-    const todayCount = purchaseOrders.filter((p) => p.orderNumber.startsWith(`PO-${today}-`)).length;
+    const poCount = purchaseOrders.filter((p) => p.orderNumber.startsWith('PO-')).length;
     const po: PurchaseOrder = {
       ...data,
       items: data.items.map((item) => ({ ...item, lineStatus: 'pending' as const })),
       id: `po-${generateId().slice(0, 8)}`,
-      orderNumber: `PO-${today}-${String(todayCount + 1).padStart(3, '0')}`,
+      orderNumber: `PO-${String(poCount + 1).padStart(4, '0')}`,
       amountPaid: 0,
       paymentStatus: 'unpaid',
       payments: [],
@@ -827,11 +826,11 @@ export const mockApi = {
     data: Omit<Transaction, 'id' | 'transactionNumber' | 'createdAt'>,
   ): Promise<Transaction> {
     await delay(700);
-    const today = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+    const txnCount = transactions.filter((t) => t.transactionNumber.startsWith('TXN-')).length;
     const txn: Transaction = {
       ...data,
       id: `txn-${generateId().slice(0, 8)}`,
-      transactionNumber: `TXN-${today}-${String(transactions.length + 1).padStart(3, '0')}`,
+      transactionNumber: `TXN-${String(txnCount + 1).padStart(4, '0')}`,
       createdAt: data.saleDate
         ? new Date(`${data.saleDate}T12:00:00`).toISOString()
         : new Date().toISOString(),
@@ -1248,10 +1247,63 @@ export const mockApi = {
         opening,
         cashSales: Math.round(cashSales * 100) / 100,
         cashExpenses: Math.round(cashExpenses * 100) / 100,
+        transfersIn: 0,
+        transfersOut: 0,
+        adjustmentsIn: 0,
+        adjustmentsOut: 0,
         expected,
         closing,
         variance: Math.round((closing - expected) * 100) / 100,
       },
+      wallets: [
+        {
+          wallet: 'cash',
+          opening,
+          salesIn: Math.round(cashSales * 100) / 100,
+          expensesOut: Math.round(cashExpenses * 100) / 100,
+          transfersIn: 0,
+          transfersOut: 0,
+          adjustmentsIn: 0,
+          adjustmentsOut: 0,
+          expected,
+          closing,
+          variance: Math.round((closing - expected) * 100) / 100,
+        },
+        {
+          wallet: 'bank',
+          opening: 0,
+          salesIn: Math.round((paymentMap.bank?.revenue ?? 0) * 100) / 100,
+          expensesOut: Math.round(
+            dayExpenses
+              .filter((e) => normalize(e.paymentMethod ?? '') === 'bank')
+              .reduce((s, e) => s + e.amount, 0) * 100,
+          ) / 100,
+          transfersIn: 0,
+          transfersOut: 0,
+          adjustmentsIn: 0,
+          adjustmentsOut: 0,
+          expected: 0,
+          closing: 0,
+          variance: null,
+        },
+        {
+          wallet: 'esewa',
+          opening: 0,
+          salesIn: Math.round((paymentMap.esewa?.revenue ?? 0) * 100) / 100,
+          expensesOut: Math.round(
+            dayExpenses
+              .filter((e) => normalize(e.paymentMethod ?? '') === 'esewa')
+              .reduce((s, e) => s + e.amount, 0) * 100,
+          ) / 100,
+          transfersIn: 0,
+          transfersOut: 0,
+          adjustmentsIn: 0,
+          adjustmentsOut: 0,
+          expected: 0,
+          closing: 0,
+          variance: null,
+        },
+      ],
       dayClose,
     };
   },

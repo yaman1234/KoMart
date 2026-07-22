@@ -19,6 +19,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import { useUomOptions } from '@/hooks/useUoms';
 import { formatCurrency } from '@/utils';
+import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { showSuccess } from '@/utils/toast';
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
 import {
@@ -115,7 +116,7 @@ function lineFromPaste(
     product,
     productNameFallback: product?.name ?? '',
     quantityInput: String(row.quantity),
-    buyUom: row.buyUom || product?.buyUom || product?.uom || 'pcs',
+    buyUom: row.buyUom || product?.buyUom || product?.uom || '',
     unitsPerBuyUom: row.unitsPerBuyUom || product?.unitsPerBuyUom || 1,
     unitCost,
     receivedQuantity,
@@ -134,11 +135,15 @@ function resolveLineSku(line: PoLineItem, index: ProductCatalogIndex): PoLineIte
   return applyProductToLine(line, product);
 }
 
-function ensureTrailingEmptyRow(lines: PoLineItem[], nextId: () => number): PoLineItem[] {
-  if (lines.length === 0) return [emptyPoLineItem(nextId())];
+function ensureTrailingEmptyRow(
+  lines: PoLineItem[],
+  nextId: () => number,
+  primaryUom = '',
+): PoLineItem[] {
+  if (lines.length === 0) return [emptyPoLineItem(nextId(), primaryUom)];
   const last = lines[lines.length - 1];
   if (last.skuInput.trim() || last.product) {
-    return [...lines, emptyPoLineItem(nextId())];
+    return [...lines, emptyPoLineItem(nextId(), primaryUom)];
   }
   return lines;
 }
@@ -172,6 +177,7 @@ export function PoLineItemsGrid({
   onPasteWarning,
 }: PoLineItemsGridProps) {
   const uomOptions = useUomOptions();
+  const primaryUom = defaultPrimaryUom(uomOptions);
   const nextIdRef = useRef(Math.max(0, ...lines.map((l) => l.id)) + 1);
   const [focusedRow, setFocusedRow] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -181,17 +187,19 @@ export function PoLineItemsGrid({
     return nextIdRef.current;
   };
 
+  const emptyLine = () => emptyPoLineItem(nextId(), primaryUom);
+
   const updateLine = (index: number, patch: Partial<PoLineItem>) => {
     onChange(lines.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   };
 
   const removeLine = (index: number) => {
     const next = lines.filter((_, i) => i !== index);
-    onChange(ensureTrailingEmptyRow(next.length ? next : [emptyPoLineItem(nextId())], nextId));
+    onChange(ensureTrailingEmptyRow(next.length ? next : [emptyLine()], nextId, primaryUom));
   };
 
   const addLine = () => {
-    onChange([...lines, emptyPoLineItem(nextId())]);
+    onChange([...lines, emptyLine()]);
   };
 
   const applyPaste = useCallback(
@@ -222,7 +230,7 @@ export function PoLineItemsGrid({
         }
       });
 
-      onChange(ensureTrailingEmptyRow(next, nextId));
+      onChange(ensureTrailingEmptyRow(next, nextId, primaryUom));
       const msg = notFound > 0
         ? `Pasted ${parsed.length} row(s) · ${notFound} SKU(s) not found`
         : `Pasted ${parsed.length} row(s)`;
@@ -233,7 +241,7 @@ export function PoLineItemsGrid({
         onPasteWarning?.('');
       }
     },
-    [lines, onChange, catalogIndex, onPasteWarning],
+    [lines, onChange, catalogIndex, onPasteWarning, primaryUom],
   );
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -246,7 +254,7 @@ export function PoLineItemsGrid({
   const handleProductChange = (index: number, updatedLine: PoLineItem) => {
     let next = lines.map((l, i) => (i === index ? updatedLine : l));
     if (updatedLine.product && index === lines.length - 1) {
-      next = [...next, emptyPoLineItem(nextId())];
+      next = [...next, emptyLine()];
     }
     onChange(next);
   };
@@ -255,7 +263,7 @@ export function PoLineItemsGrid({
     const resolved = resolveLineSku(lines[index], catalogIndex);
     let next = lines.map((l, i) => (i === index ? resolved : l));
     if (resolved.product && index === lines.length - 1) {
-      next = [...next, emptyPoLineItem(nextId())];
+      next = [...next, emptyLine()];
     }
     onChange(next);
   };

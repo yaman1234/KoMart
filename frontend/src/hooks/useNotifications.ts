@@ -10,7 +10,8 @@ export interface NotificationFilters {
 }
 
 export function useNotifications(filters: NotificationFilters = {}) {
-  const { unreadOnly = false, type = '', sync = true } = filters;
+  // TopBar / default: read stored alerts only. Sync runs on Notifications page or explicit sync.
+  const { unreadOnly = false, type = '', sync = false } = filters;
   return useQuery({
     queryKey: [...QUERY_KEYS.notifications, { unreadOnly, type, sync }],
     queryFn: () =>

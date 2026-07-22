@@ -31,6 +31,8 @@ class CatalogProductResponse(BaseModel):
     allergen_info: Optional[str]
     status: ProductStatus
     tags: list[str] = Field(default_factory=list)
+    is_popular: bool = False
+    is_trending: bool = False
     in_stock: bool = True
 
 
@@ -56,7 +58,10 @@ class CatalogOfferResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _to_catalog(p: Product) -> CatalogProductResponse:
+def _to_catalog(p: Product, *, lean_images: bool = False) -> CatalogProductResponse:
+    images = list(p.images or [])
+    if lean_images and len(images) > 1:
+        images = images[:1]
     return CatalogProductResponse(
         id=str(p.id),
         name=p.name,
@@ -68,11 +73,13 @@ def _to_catalog(p: Product) -> CatalogProductResponse:
         description=p.description,
         uom=p.uom if hasattr(p, "uom") and p.uom else "pcs",
         selling_price=p.selling_price,
-        images=p.images,
+        images=images,
         nutrition_info=p.nutrition_info,
         allergen_info=p.allergen_info,
         status=p.status if hasattr(p, "status") and p.status else ProductStatus.active,
         tags=p.tags if hasattr(p, "tags") and p.tags else [],
+        is_popular=bool(getattr(p, "is_popular", False)),
+        is_trending=bool(getattr(p, "is_trending", False)),
         in_stock=p.stock > 0,
     )
 
@@ -147,6 +154,8 @@ async def list_catalog(
     search: str = Query(""),
     category: str = Query(""),
     tag: str = Query(""),
+    is_popular: bool | None = Query(None),
+    is_trending: bool | None = Query(None),
     sort_by: str = Query("", pattern="^(|selling_price)$"),
     sort_order: str = Query("", pattern="^(|asc|desc)$"),
 ):
@@ -167,6 +176,10 @@ async def list_catalog(
         query = query.find(Product.category == category)
     if tag:
         query = query.find({"tags": tag})
+    if is_popular is True:
+        query = query.find(Product.is_popular == True)  # noqa: E712
+    if is_trending is True:
+        query = query.find(Product.is_trending == True)  # noqa: E712
 
     total = await query.count()
 
@@ -177,7 +190,7 @@ async def list_catalog(
     products = await query.skip((page - 1) * page_size).limit(page_size).to_list()
 
     return PaginatedResponse(
-        data=[_to_catalog(p) for p in products],
+        data=[_to_catalog(p, lean_images=True) for p in products],
         total=total,
         page=page,
         page_size=page_size,

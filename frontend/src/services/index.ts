@@ -844,3 +844,31 @@ export const expenseService = {
     await apiClient.delete(`/expenses/${id}`);
   },
 };
+
+export const walletService = {
+  getBalances: async (): Promise<import('@/types').WalletBalances> => {
+    const { data } = await apiClient.get('/wallets/balances');
+    return data as import('@/types').WalletBalances;
+  },
+  getLedger: async (params?: {
+    wallet?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+  }): Promise<import('@/types').WalletLedgerEntry[]> => {
+    const { data } = await apiClient.get('/wallets/ledger', { params });
+    return ensureArray(data) as import('@/types').WalletLedgerEntry[];
+  },
+  transfer: async (
+    payload: import('@/types').WalletTransferPayload,
+  ): Promise<import('@/types').WalletLedgerEntry[]> => {
+    const { data } = await apiClient.post('/wallets/transfers', payload);
+    return ensureArray(data) as import('@/types').WalletLedgerEntry[];
+  },
+  adjust: async (
+    payload: import('@/types').WalletAdjustmentPayload,
+  ): Promise<import('@/types').WalletLedgerEntry> => {
+    const { data } = await apiClient.post('/wallets/adjustments', payload);
+    return data as import('@/types').WalletLedgerEntry;
+  },
+};

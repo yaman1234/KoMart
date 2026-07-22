@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from beanie import PydanticObjectId
 from fastapi import HTTPException, Request, status
+from pymongo import ReturnDocument
 
 from app.models.audit_log import AuditModule
 from app.models.expense import Expense, ExpenseCategory
@@ -17,7 +19,6 @@ from app.models.purchase_order import (
 from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderPaymentCreate
 from app.services.audit import log_audit, po_snapshot
-
 
 PAYABLE_STATUSES = {POStatus.ordered, POStatus.partial, POStatus.received}
 
@@ -67,6 +68,10 @@ async def record_payment(
     )
     await expense.insert()
 
+    from app.services.wallet_ledger import delete_reference, post_expense
+    await post_expense(expense, created_by=current_user.name)
+
+    now = datetime.now(timezone.utc)
     payment = PurchaseOrderPayment(
         amount=amount,
         date=body.date,
@@ -74,19 +79,48 @@ async def record_payment(
         notes=body.notes.strip(),
         expense_id=str(expense.id),
         created_by=current_user.name,
-        created_at=datetime.now(timezone.utc),
+        created_at=now,
     )
-    payments = list(getattr(po, "payments", None) or [])
-    payments.append(payment)
-    amount_paid = round(float(getattr(po, "amount_paid", 0) or 0) + amount, 2)
-    payment_status = compute_payment_status(amount_paid, po.total_amount)
+    payment_doc = payment.model_dump()
+    # Ensure datetime is BSON-friendly
+    payment_doc["created_at"] = now
 
-    await po.set({
-        "payments": payments,
-        "amount_paid": amount_paid,
-        "payment_status": payment_status,
-        "updated_at": datetime.now(timezone.utc),
-    })
+    col = PurchaseOrder.get_motor_collection()
+    # Atomic claim: only succeed if amount_paid + amount still ≤ total.
+    updated = await col.find_one_and_update(
+        {
+            "_id": PydanticObjectId(po_id),
+            "$expr": {
+                "$lte": [
+                    {"$add": [{"$ifNull": ["$amount_paid", 0]}, amount]},
+                    {"$add": ["$total_amount", 0.001]},
+                ]
+            },
+        },
+        {
+            "$inc": {"amount_paid": amount},
+            "$push": {"payments": payment_doc},
+            "$set": {"updated_at": now},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+
+    if not updated:
+        await delete_reference("expense", str(expense.id))
+        await expense.delete()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Payment no longer fits remaining balance (concurrent payment). Retry.",
+        )
+
+    amount_paid = round(float(updated.get("amount_paid") or 0), 2)
+    total_amount = float(updated.get("total_amount") or po.total_amount)
+    payment_status = compute_payment_status(amount_paid, total_amount)
+    await col.update_one(
+        {"_id": PydanticObjectId(po_id)},
+        {"$set": {"payment_status": payment_status.value if hasattr(payment_status, "value") else payment_status}},
+    )
+
     refreshed = await PurchaseOrder.get(po_id)
     assert refreshed is not None
 

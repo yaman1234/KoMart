@@ -89,8 +89,8 @@ class Product(Document):
     supplier_id: str = ""
     supplier_name: str = ""
     description: str = ""
-    buy_uom: str = "pcs"          # how purchased from supplier
-    uom: str = "pcs"              # sell UOM: pcs, pack, box, kg, g, ml, L …
+    buy_uom: str = ""             # Primary Unit (purchase)
+    uom: str = ""                 # Secondary Unit (stock); mirrors Primary when no conversion
     units_per_buy_uom: int = Field(default=1, ge=1)
     sell_mode: SellMode = SellMode.unit
     cost_price: float = Field(ge=0)
@@ -109,6 +109,10 @@ class Product(Document):
     low_stock_threshold: int = 10
     status: ProductStatus = ProductStatus.active
     tags: list[str] = Field(default_factory=list)
+    is_popular: bool = False
+    is_trending: bool = False
+    cost_price_effective_from: Optional[str] = None  # AD YYYY-MM-DD
+    selling_price_effective_from: Optional[str] = None  # AD YYYY-MM-DD
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

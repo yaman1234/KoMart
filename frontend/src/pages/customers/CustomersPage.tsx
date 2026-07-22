@@ -21,7 +21,8 @@ import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers';
-import { formatDate, formatCurrency } from '@/utils';
+import { formatCurrency } from '@/utils';
+import { useFormatDate } from '@/hooks/useFormatDate';
 import { MEMBERSHIP_TIER_LABELS } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
@@ -45,6 +46,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function CustomersPage() {
   const navigate = useNavigate();
+  const formatDate = useFormatDate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [addOpen, setAddOpen] = useState(false);

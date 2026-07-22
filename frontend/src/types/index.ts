@@ -137,6 +137,8 @@ export interface CatalogProduct {
   allergenInfo?: string;
   status?: ProductStatus;
   tags?: string[];
+  isPopular?: boolean;
+  isTrending?: boolean;
   inStock?: boolean;
 }
 
@@ -171,6 +173,10 @@ export interface Product {
   lowStockThreshold: number;
   status?: ProductStatus;
   tags?: string[];
+  isPopular?: boolean;
+  isTrending?: boolean;
+  costPriceEffectiveFrom?: string;
+  sellingPriceEffectiveFrom?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -463,6 +469,7 @@ export interface Transaction {
   voidReason?: string;
   notes?: string;
   saleDate?: string;
+  roundOff?: number;
   createdAt: string;
   createdBy: string;
 }
@@ -857,9 +864,27 @@ export interface DailyCashBlock {
   opening: number;
   cashSales: number;
   cashExpenses: number;
+  transfersIn?: number;
+  transfersOut?: number;
+  adjustmentsIn?: number;
+  adjustmentsOut?: number;
   expected: number;
   closing: number;
   variance: number;
+}
+
+export interface WalletDayBookBlock {
+  wallet: string;
+  opening: number;
+  salesIn: number;
+  expensesOut: number;
+  transfersIn: number;
+  transfersOut: number;
+  adjustmentsIn: number;
+  adjustmentsOut: number;
+  expected: number;
+  closing?: number | null;
+  variance?: number | null;
 }
 
 export interface DayCloseRecord {
@@ -877,6 +902,7 @@ export interface DailySummary {
   expenses: DailyExpensesBlock;
   byPaymentMethod: SalesByPaymentMethod[];
   cash: DailyCashBlock;
+  wallets?: WalletDayBookBlock[];
   dayClose?: DayCloseRecord | null;
 }
 
@@ -884,6 +910,46 @@ export interface DayCloseUpsertPayload {
   openingCash: number;
   closingCash: number;
   notes?: string;
+}
+
+export type WalletCode = 'cash' | 'bank' | 'esewa';
+
+export interface WalletBalances {
+  cash: number;
+  bank: number;
+  esewa: number;
+  asOf: string;
+}
+
+export interface WalletLedgerEntry {
+  id: string;
+  date: string;
+  wallet: WalletCode | string;
+  direction: 'in' | 'out' | string;
+  amount: number;
+  entryType: string;
+  remarks: string;
+  referenceType?: string;
+  referenceId?: string;
+  transferId?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
+export interface WalletTransferPayload {
+  fromWallet: WalletCode | string;
+  toWallet: WalletCode | string;
+  amount: number;
+  date: string;
+  remarks: string;
+}
+
+export interface WalletAdjustmentPayload {
+  wallet: WalletCode | string;
+  amount: number;
+  direction: 'in' | 'out';
+  date: string;
+  remarks: string;
 }
 
 export type AuditModule =

@@ -359,7 +359,8 @@ export function DashboardPage() {
     { label: 'Add Product', icon: <AddIcon />, path: '/products/new', adminOnly: true },
     { label: 'Expenses', icon: <ReceiptLongIcon />, path: '/expenses', adminOnly: true },
     { label: 'Purchase Orders', icon: <LocalShippingIcon />, path: '/purchase-orders', adminOnly: true },
-    { label: 'Daily Report', icon: <AccountBalanceWalletIcon />, path: '/reports/daily', adminOnly: true },
+    { label: 'Day Cash Book', icon: <AccountBalanceWalletIcon />, path: '/reports/daily', adminOnly: true },
+    { label: 'Accounts', icon: <AccountBalanceWalletIcon />, path: '/accounts', adminOnly: true },
     { label: 'View Reports', icon: <AssessmentIcon />, path: '/reports', adminOnly: true },
   ];
   const quickActions = allQuickActions.filter((a) => !a.adminOnly || isAdminOrManager);

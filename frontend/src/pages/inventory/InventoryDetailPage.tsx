@@ -39,11 +39,12 @@ import {
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatDate } from '@/utils';
+import { formatCurrency, formatExpiryDate } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { UomConversionHint } from '@/components/uom/UomUi';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch, StockAdjustmentType } from '@/types';
+import { useFormatDate } from '@/hooks/useFormatDate';
 
 const ADJUSTMENT_TYPES: { value: StockAdjustmentType; label: string }[] = [
   { value: 'adjustment', label: 'Stock Adjustment' },
@@ -58,6 +59,7 @@ export function InventoryDetailPage() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.user);
   const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const formatDate = useFormatDate();
 
   const [tab, setTab] = useState<DetailTab>('batches');
 
@@ -108,7 +110,7 @@ export function InventoryDetailPage() {
     {
       id: 'expiry',
       label: 'Expiry',
-      render: (row) => (row.expiryDate ? formatDate(row.expiryDate) : '—'),
+      render: (row) => (row.expiryDate ? formatExpiryDate(row.expiryDate) : '—'),
     },
     {
       id: 'received',
@@ -240,7 +242,7 @@ export function InventoryDetailPage() {
         <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Current Stock"
-            value={formatStockQty(item.stock, item.uom ?? 'pcs')}
+            value={formatStockQty(item.stock, item.uom ?? '')}
             color={stockColor === 'success' ? undefined : `${stockColor}.main`}
             subtitle={item.stock === 0 ? 'Out of stock' : item.stock <= item.lowStockThreshold ? 'Low stock' : undefined}
           />
@@ -257,7 +259,7 @@ export function InventoryDetailPage() {
         <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Nearest Expiry"
-            value={item.nearestExpiry ? formatDate(item.nearestExpiry) : '—'}
+            value={item.nearestExpiry ? formatExpiryDate(item.nearestExpiry) : '—'}
           />
         </Grid>
       </Grid>
@@ -303,15 +305,15 @@ export function InventoryDetailPage() {
         <DialogTitle>
           Receive Stock — {item.name}
           <Typography variant="body2" color="text.secondary">
-            Current: {formatStockQty(item.stock, item.uom ?? 'pcs')}
+            Current: {formatStockQty(item.stock, item.uom ?? '')}
           </Typography>
         </DialogTitle>
         <DialogContent>
           {rcvError && <Alert severity="error" sx={{ mb: 2 }}>{rcvError}</Alert>}
           <Box sx={{ mb: 2 }}>
             <UomConversionHint
-              buyUom={item.buyUom ?? item.uom ?? 'pcs'}
-              baseUom={item.uom ?? 'pcs'}
+              buyUom={item.buyUom ?? item.uom ?? ''}
+              baseUom={item.uom ?? ''}
               factor={item.unitsPerBuyUom ?? 1}
             />
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
@@ -360,7 +362,7 @@ export function InventoryDetailPage() {
             slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
           />
           <TextField
-            label={`Quantity received (base: ${item.uom ?? 'pcs'})`}
+            label={`Quantity received (base: ${item.uom ?? ''})`}
             value={rcvQty}
             onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
             type="number"
@@ -375,7 +377,8 @@ export function InventoryDetailPage() {
             value={rcvExpiry}
             onChange={setRcvExpiry}
             fullWidth
-            helperText="Leave blank if product has no expiry"
+            calendarSystem="AD"
+            helperText="Gregorian (AD) — manufacturer expiry. Leave blank if none."
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

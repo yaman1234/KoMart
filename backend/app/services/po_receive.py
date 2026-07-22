@@ -60,6 +60,7 @@ class _ReceiveWriteContext:
     updated_items: list[PurchaseOrderItem]
     created_by: str
     now: datetime
+    expected_updated_at: datetime
     po_revert: dict[str, Any] = field(default_factory=dict)
     product_revert: dict[str, dict[str, Any]] = field(default_factory=dict)
     inserted_batch_ids: list[Any] = field(default_factory=list)
@@ -139,8 +140,8 @@ async def _commit_writes(ctx: _ReceiveWriteContext, *, session: Any | None) -> N
     ctx.inserted_adj_ids = list(adj_result.inserted_ids)
 
     new_status = compute_po_status(ctx.updated_items)
-    await po_col.update_one(
-        {"_id": ctx.po_id},
+    result = await po_col.update_one(
+        {"_id": ctx.po_id, "updated_at": ctx.expected_updated_at},
         {
             "$set": {
                 "items": [i.model_dump() for i in ctx.updated_items],
@@ -152,6 +153,11 @@ async def _commit_writes(ctx: _ReceiveWriteContext, *, session: Any | None) -> N
         },
         **kwargs,
     )
+    if result.matched_count != 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Purchase order was updated by another receive. Refresh and try again.",
+        )
 
 
 async def _rollback_writes(ctx: _ReceiveWriteContext) -> None:
@@ -222,6 +228,16 @@ async def receive_purchase_order_items(
         buy_delta = receive.receive_quantity
         if buy_delta <= 0:
             continue
+
+        remaining_ordered = item.quantity - item.received_quantity
+        if buy_delta > remaining_ordered:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot receive {buy_delta} of {item.product_name}; "
+                    f"only {remaining_ordered} remaining on order"
+                ),
+            )
 
         units = receive.units_per_buy_uom or getattr(item, "units_per_buy_uom", None) or 1
         base_delta = buy_delta * units
@@ -352,6 +368,7 @@ async def receive_purchase_order_items(
         updated_items=updated_items,
         created_by=created_by,
         now=now,
+        expected_updated_at=po.updated_at,
         po_revert={
             "items": [i.model_dump() for i in po.items],
             "status": po.status.value,
@@ -368,6 +385,9 @@ async def receive_purchase_order_items(
         async with await client.start_session() as session:
             async with session.start_transaction():
                 await _commit_writes(ctx, session=session)
+    except HTTPException:
+        # Transaction aborted — do not compensating-rollback (would race with other receives).
+        raise
     except OperationFailure as exc:
         if exc.code != 20:
             raise HTTPException(
@@ -376,14 +396,15 @@ async def receive_purchase_order_items(
             ) from exc
         try:
             await _commit_writes(ctx, session=None)
+        except HTTPException:
+            await _rollback_writes(ctx)
+            raise
         except Exception as inner:
             await _rollback_writes(ctx)
             raise HTTPException(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Receive failed and was rolled back.",
             ) from inner
-    except HTTPException:
-        raise
     except Exception as exc:
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
