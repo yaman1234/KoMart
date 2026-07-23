@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
   Box,
@@ -8,47 +8,40 @@ import {
   Chip,
   Tabs,
   Tab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   MenuItem,
+  ToggleButton,
+  ToggleButtonGroup,
+  IconButton,
+  Tooltip,
   Typography,
-  Alert,
-  FormControl,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
-  Collapse,
+  Paper,
 } from '@mui/material';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddBoxIcon from '@mui/icons-material/AddBox';
+import DownloadIcon from '@mui/icons-material/Download';
 import { PageHeader } from '@/components/common/PageHeader';
-import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { SearchBar } from '@/components/common/SearchBar';
 import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
+import { ReceiveStockDialog } from '@/components/inventory/ReceiveStockDialog';
+import { AdjustStockDialog } from '@/components/inventory/AdjustStockDialog';
 import { useInventory, useInventoryStats, useAdjustStock, useReceiveBatch } from '@/hooks/useInventory';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { formatCurrency, formatExpiryDate } from '@/utils';
+import { downloadCsv, formatCurrency, formatExpiryDate } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
-import { UomConversionHint } from '@/components/uom/UomUi';
 import { useAuthStore } from '@/store';
 import { PRODUCT_CATEGORIES, DROPDOWN_PAGE_SIZE } from '@/constants';
-import type { InventoryItem, StockAdjustmentType } from '@/types';
-import type { InventoryQueryParams } from '@/services';
+import type { InventoryItem } from '@/types';
+import { inventoryService, type InventoryQueryParams } from '@/services';
 import { showApiError, showSuccess } from '@/utils/toast';
 import { MovementLedgerTab } from './MovementLedgerTab';
 
 type StockFilter = 'all' | 'low' | 'out' | 'expiring';
 type PageView = 'stock' | 'ledger';
 
-const ADJUSTMENT_TYPES: { value: StockAdjustmentType; label: string }[] = [
-  { value: 'adjustment', label: 'Stock Adjustment' },
-  { value: 'damaged', label: 'Damaged / Expired' },
-  { value: 'correction', label: 'Manual Correction' },
-];
+const STOCK_FILTERS: StockFilter[] = ['all', 'low', 'out', 'expiring'];
+const PAGE_VIEWS: PageView[] = ['stock', 'ledger'];
 
 function nearestActiveBatch(item: InventoryItem) {
   return item.batches.find((b) => b.quantity > 0);
@@ -62,36 +55,58 @@ function expiryChipColor(date?: string): 'error' | 'warning' | 'default' {
   return 'default';
 }
 
+function stockStatus(item: InventoryItem): 'out' | 'low' | 'ok' {
+  if (item.stock === 0) return 'out';
+  if (item.stock <= item.lowStockThreshold) return 'low';
+  return 'ok';
+}
+
+function parsePageView(raw: string | null): PageView {
+  return PAGE_VIEWS.includes(raw as PageView) ? (raw as PageView) : 'stock';
+}
+
+function parseStockFilter(raw: string | null): StockFilter {
+  return STOCK_FILTERS.includes(raw as StockFilter) ? (raw as StockFilter) : 'all';
+}
+
 export function InventoryPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useAuthStore((s) => s.user);
   const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
+  const pageView = parsePageView(searchParams.get('tab'));
+  const filter = parseStockFilter(searchParams.get('filter'));
+
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StockFilter>('all');
   const [supplierId, setSupplierId] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const [pageView, setPageView] = useState<PageView>('stock');
-  const [opsGuideOpen, setOpsGuideOpen] = useState(false);
-
-  const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
-  const [adjBatchId, setAdjBatchId] = useState('');
-  const [adjQty, setAdjQty] = useState('');
-  const [adjType, setAdjType] = useState<StockAdjustmentType>('adjustment');
-  const [adjReason, setAdjReason] = useState('');
-  const [adjMode, setAdjMode] = useState<'delta' | 'target'>('target');
-  const [adjAdvancedOpen, setAdjAdvancedOpen] = useState(false);
-  const [adjError, setAdjError] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
-  const [rcvBatch, setRcvBatch] = useState('');
-  const [rcvQty, setRcvQty] = useState('');
-  const [rcvExpiry, setRcvExpiry] = useState('');
-  const [rcvCostPrice, setRcvCostPrice] = useState('');
-  const [rcvSellingPrice, setRcvSellingPrice] = useState('');
-  const [rcvSupplierId, setRcvSupplierId] = useState('');
-  const [rcvError, setRcvError] = useState('');
+  const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
+
+  const setTab = useCallback((tab: PageView) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'stock') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setFilter = useCallback((nextFilter: StockFilter) => {
+    setPage(0);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('tab');
+      if (nextFilter === 'all') next.delete('filter');
+      else next.set('filter', nextFilter);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const inventoryParams: InventoryQueryParams = {
     search,
@@ -102,17 +117,36 @@ export function InventoryPage() {
     ...(category ? { category } : {}),
   };
 
-  const { data, isLoading } = useInventory(inventoryParams);
+  const { data, isLoading } = useInventory(inventoryParams, pageView === 'stock');
   const { data: stats } = useInventoryStats();
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
 
   const suppliers = suppliersData?.data ?? [];
-
   const items = data?.data ?? [];
 
+  const filterLabels = useMemo(
+    () => ({
+      all: 'All',
+      low: `Low (${stats?.lowStock ?? 0})`,
+      out: `Out (${stats?.outOfStock ?? 0})`,
+      expiring: `Expiring (${stats?.expiring ?? 0})`,
+    }),
+    [stats],
+  );
+
   const columns: Column<InventoryItem>[] = [
+    {
+      id: 'sn',
+      label: 'SN',
+      align: 'right',
+      minWidth: 48,
+      render: (row) => {
+        const idx = items.findIndex((i) => i.id === row.id);
+        return idx >= 0 ? page * pageSize + idx + 1 : '—';
+      },
+    },
     { id: 'name', label: 'Product', minWidth: 180, accessor: 'name' },
     { id: 'sku', label: 'SKU', minWidth: 120, accessor: 'sku' },
     { id: 'category', label: 'Category', accessor: 'category' },
@@ -149,8 +183,8 @@ export function InventoryPage() {
         return (
           <Chip
             label={formatExpiryDate(date)}
-            color={expiryChipColor(date)}
             size="small"
+            color={expiryChipColor(date)}
             variant="outlined"
           />
         );
@@ -165,167 +199,147 @@ export function InventoryPage() {
     {
       id: 'actions',
       label: '',
+      align: 'right',
       render: (row) => (
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 0.25, justifyContent: 'flex-end' }}>
           {canManage && (
-            <Button
-              size="small"
-              variant="contained"
-              color="success"
-              startIcon={<AddBoxIcon />}
-              onClick={(e) => { e.stopPropagation(); openReceive(row); }}
-            >
-              Receive
-            </Button>
+            <Tooltip title="Add stock">
+              <IconButton
+                size="small"
+                color="success"
+                onClick={(e) => { e.stopPropagation(); setReceiveTarget(row); }}
+                aria-label="Add stock"
+              >
+                <AddBoxIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           )}
           {canManage && (
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<TuneIcon />}
-              onClick={(e) => { e.stopPropagation(); openAdjust(row); }}
-            >
-              Adjust
-            </Button>
+            <Tooltip title="Correct stock">
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); setAdjustTarget(row); }}
+                aria-label="Correct stock"
+              >
+                <TuneIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           )}
         </Box>
       ),
     },
   ];
 
-  const openReceive = (item: InventoryItem) => {
-    setReceiveTarget(item);
-    setRcvBatch(dayjs().format('YYYY-MM-DD'));
-    setRcvQty('');
-    setRcvExpiry('');
-    setRcvCostPrice(String(item.costPrice));
-    setRcvSellingPrice(String(item.sellingPrice));
-    setRcvSupplierId(item.supplierId);
-    setRcvError('');
-  };
+  const handleExportStockLevels = async () => {
+    setExporting(true);
+    try {
+      const pageLimit = 500;
+      const baseParams: InventoryQueryParams = {
+        search: search || undefined,
+        filter,
+        pageSize: pageLimit,
+        ...(supplierId ? { supplierId } : {}),
+        ...(category ? { category } : {}),
+      };
+      const all: InventoryItem[] = [];
+      let pageNum = 1;
+      let totalPages = 1;
+      do {
+        const res = await inventoryService.getAll({ ...baseParams, page: pageNum });
+        all.push(...(res.data ?? []));
+        totalPages = res.totalPages ?? 1;
+        pageNum += 1;
+      } while (pageNum <= totalPages);
 
-  const handleReceive = () => {
-    const qty = parseInt(rcvQty, 10);
-    const unitCost = parseFloat(rcvCostPrice);
-    const sellingPrice = parseFloat(rcvSellingPrice);
-    if (isNaN(qty) || qty < 1) { setRcvError('Enter a quantity ≥ 1'); return; }
-    if (!rcvBatch.trim()) { setRcvError('Batch number is required'); return; }
-    if (!rcvSupplierId) { setRcvError('Select a supplier'); return; }
-    if (isNaN(unitCost) || unitCost < 0) { setRcvError('Enter a valid cost price'); return; }
-    if (isNaN(sellingPrice) || sellingPrice < 0) { setRcvError('Enter a valid selling price'); return; }
-    if (!receiveTarget) return;
-    receiveMutation.mutate(
-      {
-        productId: receiveTarget.id,
-        batchNumber: rcvBatch,
-        quantity: qty,
-        expiryDate: rcvExpiry || undefined,
-        unitCost,
-        sellingPrice,
-        supplierId: rcvSupplierId,
-      },
-      {
-        onSuccess: () => {
-          showSuccess('Inventory received.');
-          setReceiveTarget(null);
-        },
-        onError: (err) => showApiError(err, 'Inventory receive failed.'),
-      },
-    );
-  };
-
-  const openAdjust = (item: InventoryItem) => {
-    setAdjustTarget(item);
-    const firstBatch = item.batches.find((b) => b.quantity > 0);
-    setAdjBatchId(firstBatch?.id ?? '');
-    setAdjQty('');
-    setAdjType('adjustment');
-    setAdjReason('');
-    setAdjError('');
-    setAdjMode('target');
-    setAdjAdvancedOpen(false);
-  };
-
-  const handleAdjust = () => {
-    if (!adjustTarget) return;
-    let qty: number;
-    if (adjMode === 'target') {
-      const target = parseInt(adjQty, 10);
-      if (isNaN(target) || target < 0) { setAdjError('Enter a valid target stock (≥ 0)'); return; }
-      qty = target - adjustTarget.stock;
-      if (qty === 0) { setAdjError('Target matches current stock'); return; }
-    } else {
-      qty = parseInt(adjQty, 10);
+      downloadCsv(
+        `inventory-stock-levels-${dayjs().format('YYYY-MM-DD')}.csv`,
+        [
+          'Product',
+          'SKU',
+          'Category',
+          'Supplier',
+          'Stock',
+          'Low threshold',
+          'Batch count',
+          'Nearest expiry',
+          'Cost',
+          'Selling',
+          'Stock value',
+          'Status',
+        ],
+        all.map((row) => {
+          const expiry = row.nearestExpiry ?? nearestActiveBatch(row)?.expiryDate;
+          const batchCount = row.batchCount ?? row.batches.filter((b) => b.quantity > 0).length;
+          return [
+            row.name,
+            row.sku,
+            row.category,
+            row.supplierName || '',
+            row.stock,
+            row.lowStockThreshold,
+            batchCount,
+            expiry ? formatExpiryDate(expiry) : '',
+            row.costPrice,
+            row.sellingPrice,
+            Math.round(row.stock * row.costPrice * 100) / 100,
+            stockStatus(row),
+          ];
+        }),
+      );
+      showSuccess(`Exported ${all.length} product${all.length === 1 ? '' : 's'}.`);
+    } catch (err) {
+      showApiError(err, 'Failed to export stock levels.');
+    } finally {
+      setExporting(false);
     }
-    if (isNaN(qty) || qty === 0) { setAdjError('Enter a non-zero quantity'); return; }
-    if (!adjReason.trim()) { setAdjError('Reason is required'); return; }
-    adjustMutation.mutate(
-      {
-        productId: adjustTarget.id,
-        batchId: adjBatchId || undefined,
-        type: adjType,
-        quantity: qty,
-        reason: adjReason,
-        createdBy: currentUser?.name ?? 'User',
-      },
-      {
-        onSuccess: () => {
-          showSuccess('Inventory adjusted.');
-          setAdjustTarget(null);
-        },
-        onError: (err) => showApiError(err, 'Inventory update failed.'),
-      },
-    );
   };
-
-  const activeBatches = (item: InventoryItem) => item.batches.filter((b) => b.quantity > 0);
 
   return (
     <Box>
-      <PageHeader title="Inventory" subtitle="Stock is tracked per batch; product stock is synced automatically" />
-
-      <Alert
-        severity="info"
-        sx={{ mb: 2 }}
-        action={
-          <Button color="inherit" size="small" onClick={() => setOpsGuideOpen((o) => !o)}>
-            {opsGuideOpen ? 'Hide' : 'Show'} guide
-          </Button>
-        }
-      >
-        Quick guide: change quantity here (Receive / Adjust); change sell price on Product Edit; bulk updates via PO receive or Excel scripts.
-      </Alert>
-      <Collapse in={opsGuideOpen}>
-        <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
-          <Typography variant="body2" component="div">
-            <strong>Quantity</strong> — Receive adds a batch; Adjust sets stock to a physical count (target mode) or a +/- delta.<br />
-            <strong>Sell price</strong> — Product Edit form (not here).<br />
-            <strong>Bulk stock</strong> — Purchase Order receive or <code>update_products_from_excel.py</code>.
-          </Typography>
-        </Alert>
-      </Collapse>
+      <PageHeader
+        title="Inventory"
+        subtitle="Check stock levels, add new batches, or correct counts. Pack receives go through Purchase Orders."
+      />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard title="Total SKUs" value={stats?.totalSkus ?? '—'} />
+          <StatCard
+            title="Total SKUs"
+            value={stats?.totalSkus ?? '—'}
+            onClick={() => setFilter('all')}
+            subtitle="Show all"
+          />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard title="Low Stock" value={stats?.lowStock ?? '—'} color="warning.main" />
+          <StatCard
+            title="Low Stock"
+            value={stats?.lowStock ?? '—'}
+            color="warning.main"
+            onClick={() => setFilter('low')}
+            subtitle="Filter low stock"
+          />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard title="Out of Stock" value={stats?.outOfStock ?? '—'} color="error.main" />
+          <StatCard
+            title="Out of Stock"
+            value={stats?.outOfStock ?? '—'}
+            color="error.main"
+            onClick={() => setFilter('out')}
+            subtitle="Filter out of stock"
+          />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Inventory Value"
             value={stats ? formatCurrency(stats.inventoryValue) : '—'}
+            subtitle="Batch qty × unit cost (or stock × cost if no batches)"
           />
         </Grid>
       </Grid>
 
       <Tabs
         value={pageView}
-        onChange={(_, v: PageView) => setPageView(v)}
+        onChange={(_, v: PageView) => setTab(v)}
         sx={{ mb: 2 }}
       >
         <Tab value="stock" label="Stock Levels" />
@@ -333,261 +347,137 @@ export function InventoryPage() {
       </Tabs>
 
       {pageView === 'stock' && (
-      <>
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Box sx={{ flex: 1, minWidth: 200 }}>
-          <SearchBar
-            value={search}
-            onChange={(v) => { setSearch(v); setPage(0); }}
-            placeholder="Search products..."
-          />
-        </Box>
-        <TextField
-          select
-          label="Supplier"
-          value={supplierId}
-          onChange={(e) => { setSupplierId(e.target.value); setPage(0); }}
-          size="small"
-          sx={{ minWidth: 200 }}
-        >
-          <MenuItem value="">All Suppliers</MenuItem>
-          {suppliers.map((s) => (
-            <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label="Category"
-          value={category}
-          onChange={(e) => { setCategory(e.target.value); setPage(0); }}
-          size="small"
-          sx={{ minWidth: 180 }}
-        >
-          <MenuItem value="">All Categories</MenuItem>
-          {PRODUCT_CATEGORIES.map((c) => (
-            <MenuItem key={c} value={c}>{c}</MenuItem>
-          ))}
-        </TextField>
-        <Tabs
-          value={filter}
-          onChange={(_, v: StockFilter) => { setFilter(v); setPage(0); }}
-          sx={{ flexShrink: 0 }}
-        >
-          <Tab value="all" label="All" />
-          <Tab value="low" label={`Low (${stats?.lowStock ?? 0})`} />
-          <Tab value="out" label={`Out (${stats?.outOfStock ?? 0})`} />
-          <Tab value="expiring" label={`Expiring (${stats?.expiring ?? 0})`} />
-        </Tabs>
-      </Box>
+        <>
+          <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Box sx={{ flex: 1, minWidth: 200 }}>
+              <SearchBar
+                value={search}
+                onChange={(v) => { setSearch(v); setPage(0); }}
+                placeholder="Search products..."
+              />
+            </Box>
+            <TextField
+              select
+              label="Supplier"
+              value={supplierId}
+              onChange={(e) => { setSupplierId(e.target.value); setPage(0); }}
+              size="small"
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value="">All Suppliers</MenuItem>
+              {suppliers.map((s) => (
+                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Category"
+              value={category}
+              onChange={(e) => { setCategory(e.target.value); setPage(0); }}
+              size="small"
+              sx={{ minWidth: 180 }}
+            >
+              <MenuItem value="">All Categories</MenuItem>
+              {PRODUCT_CATEGORIES.map((c) => (
+                <MenuItem key={c} value={c}>{c}</MenuItem>
+              ))}
+            </TextField>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={filter}
+              onChange={(_, v: StockFilter | null) => {
+                if (v) setFilter(v);
+              }}
+            >
+              {STOCK_FILTERS.map((f) => (
+                <ToggleButton key={f} value={f}>
+                  {filterLabels[f]}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={() => void handleExportStockLevels()}
+              loading={exporting}
+              disabled={exporting || (data?.total ?? 0) === 0}
+            >
+              Export CSV
+            </Button>
+          </Box>
 
-      <DataTable
-        columns={columns}
-        rows={items}
-        loading={isLoading}
-        page={page}
-        pageSize={pageSize}
-        total={data?.total}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
-        onRowClick={(row) => navigate(`/inventory/${row.id}`)}
-        getRowId={(r) => r.id}
-      />
-      </>
+          <DataTable
+            columns={columns}
+            rows={items}
+            loading={isLoading}
+            page={page}
+            pageSize={pageSize}
+            total={data?.total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+            onRowClick={(row) => navigate(`/inventory/${row.id}`)}
+            getRowId={(r) => r.id}
+          />
+
+          <Paper
+            variant="outlined"
+            sx={{
+              mt: 1.5,
+              px: 2,
+              py: 1.25,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Filtered total ({data?.total ?? 0} product{(data?.total ?? 0) === 1 ? '' : 's'})
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              {formatCurrency(data?.totalStockValue ?? 0)}
+            </Typography>
+          </Paper>
+        </>
       )}
 
       {pageView === 'ledger' && <MovementLedgerTab />}
 
-      <Dialog open={!!receiveTarget} onClose={() => setReceiveTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          Receive Stock — {receiveTarget?.name}
-          <Typography variant="body2" color="text.secondary">
-            Current stock: {receiveTarget ? formatStockQty(receiveTarget.stock, receiveTarget.uom ?? '') : '—'}
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          {rcvError && <Alert severity="error" sx={{ mb: 2 }}>{rcvError}</Alert>}
-          {receiveTarget && (
-            <Box sx={{ mb: 2 }}>
-              <UomConversionHint
-                buyUom={receiveTarget.buyUom ?? receiveTarget.uom ?? ''}
-                baseUom={receiveTarget.uom ?? ''}
-                factor={receiveTarget.unitsPerBuyUom ?? 1}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                Manual receive counts in base units. For pack receive, use Purchase Orders.
-              </Typography>
-            </Box>
-          )}
-          <TextField
-            label="Batch Number"
-            value={rcvBatch}
-            onChange={(e) => { setRcvBatch(e.target.value); setRcvError(''); }}
-            fullWidth
-            margin="normal"
-            required
-          />
-          <TextField
-            select
-            label="Supplier"
-            value={rcvSupplierId}
-            onChange={(e) => { setRcvSupplierId(e.target.value); setRcvError(''); }}
-            fullWidth
-            margin="normal"
-            required
-            helperText={rcvSupplierId ? undefined : 'Select the planned supplier for this product'}
-          >
-            {suppliers.map((s) => (
-              <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="Cost Price (per base)"
-            value={rcvCostPrice}
-            onChange={(e) => { setRcvCostPrice(e.target.value); setRcvError(''); }}
-            type="number"
-            fullWidth
-            margin="normal"
-            required
-            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-          />
-          <TextField
-            label="Selling Price (per base)"
-            value={rcvSellingPrice}
-            onChange={(e) => { setRcvSellingPrice(e.target.value); setRcvError(''); }}
-            type="number"
-            fullWidth
-            margin="normal"
-            required
-            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-          />
-          <TextField
-            label={`Quantity received (base: ${receiveTarget?.uom ?? ''})`}
-            value={rcvQty}
-            onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
-            type="number"
-            required
-            fullWidth
-            margin="normal"
-            slotProps={{ htmlInput: { min: 1 } }}
-            helperText="Stock always increases in base units"
-          />
-          <NepaliAwareDatePicker
-            label="Expiry Date"
-            value={rcvExpiry}
-            onChange={setRcvExpiry}
-            fullWidth
-            calendarSystem="AD"
-            helperText="Gregorian (AD) — manufacturer expiry. Leave blank if none."
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setReceiveTarget(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleReceive}
-            loading={receiveMutation.isPending}
-          >
-            Confirm Receipt
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ReceiveStockDialog
+        open={!!receiveTarget}
+        item={receiveTarget}
+        suppliers={suppliers}
+        loading={receiveMutation.isPending}
+        onClose={() => setReceiveTarget(null)}
+        onSubmit={(payload) => {
+          receiveMutation.mutate(payload, {
+            onSuccess: () => {
+              showSuccess('Stock received.');
+              setReceiveTarget(null);
+            },
+            onError: (err) => showApiError(err, 'Inventory receive failed.'),
+          });
+        }}
+      />
 
-      <Dialog open={!!adjustTarget} onClose={() => setAdjustTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          Stock Adjustment — {adjustTarget?.name}
-          <Typography variant="body2" color="text.secondary">
-            Current stock: {adjustTarget ? formatStockQty(adjustTarget.stock, adjustTarget.uom ?? '') : '—'}
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          {adjError && <Alert severity="error" sx={{ mb: 2 }}>{adjError}</Alert>}
-          <FormControl component="fieldset" sx={{ mt: 1, mb: 1 }}>
-            <RadioGroup
-              row
-              value={adjMode}
-              onChange={(e) => { setAdjMode(e.target.value as 'delta' | 'target'); setAdjQty(''); setAdjError(''); }}
-            >
-              <FormControlLabel value="target" control={<Radio size="small" />} label="Set target stock" />
-              <FormControlLabel value="delta" control={<Radio size="small" />} label="Adjust by +/- delta" />
-            </RadioGroup>
-          </FormControl>
-          <TextField
-            select
-            label="Type"
-            value={adjType}
-            onChange={(e) => setAdjType(e.target.value as StockAdjustmentType)}
-            fullWidth
-            margin="normal"
-          >
-            {ADJUSTMENT_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
-          </TextField>
-          <Button
-            size="small"
-            onClick={() => setAdjAdvancedOpen((o) => !o)}
-            sx={{ mb: 1 }}
-          >
-            {adjAdvancedOpen ? 'Hide' : 'Show'} advanced batch options
-          </Button>
-          <Collapse in={adjAdvancedOpen}>
-          {adjustTarget && activeBatches(adjustTarget).length > 0 && (
-            <TextField
-              select
-              label="Batch (optional)"
-              value={adjBatchId}
-              onChange={(e) => setAdjBatchId(e.target.value)}
-              fullWidth
-              margin="normal"
-              helperText="Leave blank to apply FEFO across batches when reducing stock"
-            >
-              <MenuItem value="">Auto (FEFO)</MenuItem>
-              {activeBatches(adjustTarget).map((b) => (
-                <MenuItem key={b.id} value={b.id}>
-                  {b.batchNumber} ({b.quantity} units)
-                </MenuItem>
-              ))}
-            </TextField>
-          )}
-          </Collapse>
-          <TextField
-            label={adjMode === 'target' ? 'Target stock' : 'Quantity (use negative to reduce)'}
-            value={adjQty}
-            onChange={(e) => { setAdjQty(e.target.value); setAdjError(''); }}
-            type="number"
-            fullWidth
-            margin="normal"
-            helperText={
-              adjQty && adjustTarget
-                ? adjMode === 'target'
-                  ? (() => {
-                      const target = parseInt(adjQty, 10);
-                      if (isNaN(target)) return '';
-                      const delta = target - adjustTarget.stock;
-                      return delta === 0
-                        ? 'No change needed'
-                        : `Will adjust by ${delta > 0 ? '+' : ''}${delta} → new stock ${target}`;
-                    })()
-                  : `New stock: ${adjustTarget.stock + (parseInt(adjQty, 10) || 0)}`
-                : ''
-            }
-          />
-          <TextField
-            label="Reason"
-            value={adjReason}
-            onChange={(e) => setAdjReason(e.target.value)}
-            fullWidth
-            margin="normal"
-            multiline
-            rows={2}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setAdjustTarget(null)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAdjust} loading={adjustMutation.isPending}>
-            Apply Adjustment
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <AdjustStockDialog
+        open={!!adjustTarget}
+        item={adjustTarget}
+        createdBy={currentUser?.name ?? 'User'}
+        loading={adjustMutation.isPending}
+        onClose={() => setAdjustTarget(null)}
+        onSubmit={(payload) => {
+          adjustMutation.mutate(payload, {
+            onSuccess: () => {
+              showSuccess('Stock corrected.');
+              setAdjustTarget(null);
+            },
+            onError: (err) => showApiError(err, 'Inventory update failed.'),
+          });
+        }}
+      />
     </Box>
   );
 }

@@ -435,9 +435,44 @@ export const mockApi = {
   },
 
   // ── Inventory ─────────────────────────────────────────────────────────────
-  async getInventory(params: ListQueryParams = {}): Promise<PaginatedResponse<InventoryItem>> {
+  async getInventory(params: ListQueryParams = {}): Promise<import('@/types').InventoryListResponse> {
     await delay(400);
-    return paginate(inventory, params);
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 10;
+    let filtered = [...inventory];
+    if (params.search) {
+      const q = String(params.search).toLowerCase();
+      filtered = filtered.filter(
+        (i) => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q),
+      );
+    }
+    if (params.category) {
+      filtered = filtered.filter((i) => i.category === params.category);
+    }
+    if (params.supplierId) {
+      filtered = filtered.filter((i) => i.supplierId === params.supplierId);
+    }
+    const stockFilter = params.filter as string | undefined;
+    if (stockFilter === 'low') {
+      filtered = filtered.filter((i) => i.stock > 0 && i.stock <= i.lowStockThreshold);
+    } else if (stockFilter === 'out') {
+      filtered = filtered.filter((i) => i.stock === 0);
+    } else if (stockFilter === 'expiring') {
+      filtered = filtered.filter((i) => Boolean(i.nearestExpiry));
+    }
+    const totalStockValue =
+      Math.round(filtered.reduce((s, i) => s + i.stock * i.costPrice, 0) * 100) / 100;
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (page - 1) * pageSize;
+    return {
+      data: filtered.slice(start, start + pageSize),
+      total,
+      page,
+      pageSize,
+      totalPages,
+      totalStockValue,
+    };
   },
 
   async getInventoryStats(): Promise<InventoryStats> {
@@ -485,11 +520,6 @@ export const mockApi = {
       expiryDate: payload.expiryDate,
       receivedAt: new Date().toISOString(),
     };
-  },
-
-  async getInventoryHistory(params?: import('@/services').InventoryHistoryParams): Promise<PaginatedResponse<StockAdjustment>> {
-    await delay(400);
-    return { data: [], total: 0, page: params?.page ?? 1, pageSize: params?.pageSize ?? 25, totalPages: 1 };
   },
 
   // ── Suppliers ─────────────────────────────────────────────────────────────

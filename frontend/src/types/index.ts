@@ -629,6 +629,11 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+/** Inventory list includes filtered stock×cost total for the Value footer. */
+export interface InventoryListResponse extends PaginatedResponse<InventoryItem> {
+  totalStockValue?: number;
+}
+
 export interface ApiError {
   message: string;
   code?: string;

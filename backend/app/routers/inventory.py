@@ -12,6 +12,7 @@ from app.schemas.inventory import (
     StockAdjustmentCreate,
     StockAdjustmentResponse,
     InventoryItemResponse,
+    InventoryListResponse,
     InventoryStatsResponse,
     InventoryMovementResponse,
     MovementSummaryResponse,
@@ -119,7 +120,7 @@ async def inventory_stats(_: User = Depends(get_current_user)):
     )
 
 
-@router.get("", response_model=PaginatedResponse[InventoryItemResponse])
+@router.get("", response_model=InventoryListResponse)
 async def list_inventory(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=500),
@@ -129,37 +130,48 @@ async def list_inventory(
     category: str = Query(""),
     _: User = Depends(get_current_user),
 ):
-    query = Product.find(Product.is_active == True)  # noqa: E712
+    match: dict = {"is_active": True}
     if supplier_id:
-        query = query.find({"supplier_id": supplier_id})
+        match["supplier_id"] = supplier_id
     if category:
-        query = query.find({"category": category})
+        match["category"] = category
     if search:
-        query = query.find({"$or": [
+        match["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},
             {"sku": {"$regex": search, "$options": "i"}},
-        ]})
+        ]
 
     if stock_filter == "low":
-        query = query.find({"$expr": {
+        match["$expr"] = {
             "$and": [
                 {"$gt": ["$stock", 0]},
                 {"$lte": ["$stock", "$low_stock_threshold"]},
             ],
-        }})
+        }
     elif stock_filter == "out":
-        query = query.find(Product.stock == 0)
+        match["stock"] = 0
     elif stock_filter == "expiring":
         expiring_ids = await expiring_product_ids()
         if not expiring_ids:
-            return PaginatedResponse(
+            return InventoryListResponse(
                 data=[], total=0, page=page, page_size=page_size, total_pages=1,
+                total_stock_value=0.0,
             )
         from beanie import PydanticObjectId
-        query = query.find({"_id": {"$in": [PydanticObjectId(pid) for pid in expiring_ids]}})
+        match["_id"] = {"$in": [PydanticObjectId(pid) for pid in expiring_ids]}
 
-    total = await query.count()
-    products = await query.sort("name").skip((page - 1) * page_size).limit(page_size).to_list()
+    col = Product.get_motor_collection()
+    total = await col.count_documents(match)
+    value_rows = await col.aggregate([
+        {"$match": match},
+        {"$group": {
+            "_id": None,
+            "total_stock_value": {"$sum": {"$multiply": ["$stock", "$cost_price"]}},
+        }},
+    ]).to_list(1)
+    total_stock_value = round(float(value_rows[0]["total_stock_value"]), 2) if value_rows else 0.0
+
+    products = await Product.find(match).sort("name").skip((page - 1) * page_size).limit(page_size).to_list()
 
     product_ids = [str(product.id) for product in products]
     batches_by_product = await get_batches_for_products(product_ids)
@@ -168,12 +180,13 @@ async def list_inventory(
         for product in products
     ]
 
-    return PaginatedResponse(
+    return InventoryListResponse(
         data=items,
         total=total,
         page=page,
         page_size=page_size,
         total_pages=ceil(total / page_size) if total else 1,
+        total_stock_value=total_stock_value,
     )
 
 

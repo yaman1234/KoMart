@@ -301,19 +301,12 @@ function buildInventoryParams(params?: InventoryQueryParams): Record<string, str
   return out;
 }
 
-export interface InventoryHistoryParams {
-  page?: number;
-  pageSize?: number;
-  productId?: string;
-  source?: '' | 'manual' | 'sale';
-}
-
 export const inventoryService = {
-  getAll: async (params?: InventoryQueryParams): Promise<PaginatedResponse<InventoryItem>> => {
+  getAll: async (params?: InventoryQueryParams): Promise<import('@/types').InventoryListResponse> => {
     const query = buildInventoryParams(params);
     if (useMock()) return mockApi.getInventory(query);
     const { data } = await apiClient.get('/inventory', { params: query });
-    return data;
+    return data as import('@/types').InventoryListResponse;
   },
   getStats: async (): Promise<InventoryStats> => {
     if (useMock()) return mockApi.getInventoryStats();
@@ -328,11 +321,6 @@ export const inventoryService = {
   adjustStock: async (adjustment: Omit<StockAdjustment, 'id' | 'createdAt'>): Promise<void> => {
     if (useMock()) return mockApi.adjustStock(adjustment);
     await apiClient.post('/inventory/adjust', adjustment);
-  },
-  getHistory: async (params?: InventoryHistoryParams) => {
-    if (useMock()) return mockApi.getInventoryHistory(params);
-    const { data } = await apiClient.get('/inventory/history', { params });
-    return data as PaginatedResponse<StockAdjustment>;
   },
   getItem: async (productId: string): Promise<InventoryItem> => {
     const { data } = await apiClient.get(`/inventory/items/${productId}`);

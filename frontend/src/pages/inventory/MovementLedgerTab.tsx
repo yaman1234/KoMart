@@ -9,13 +9,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import DownloadIcon from '@mui/icons-material/Download';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatCard } from '@/components/common/StatCard';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useInventoryMovements, useMovementSummary } from '@/hooks/useInventory';
-import { formatAmount, formatDateTime, downloadCsv } from '@/utils';
+import { formatAmount, formatDateTime } from '@/utils';
 import type { InventoryMovement, InventoryMovementQueryParams } from '@/types';
 import dayjs from 'dayjs';
 
@@ -172,29 +171,6 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
     { id: 'reason', label: 'Reason', minWidth: 140, render: (row) => row.reason },
   ];
 
-  const handleExport = () => {
-    const rows = data?.data ?? [];
-    downloadCsv(
-      `inventory-movements-${dayjs().format('YYYY-MM-DD')}.csv`,
-      ['Date', 'Product', 'SKU', 'Movement', 'Direction', 'Qty', 'Unit Cost', 'Ext. Cost', 'Before', 'After', 'Reference', 'By', 'Reason'],
-      rows.map((r) => [
-        formatDateTime(r.createdAt),
-        r.productName,
-        r.productSku,
-        r.movementLabel,
-        r.direction.toUpperCase(),
-        r.quantity,
-        r.unitCost ?? '',
-        r.extendedCost ?? '',
-        r.stockBefore,
-        r.stockAfter,
-        r.transactionNumber || r.referenceLabel,
-        r.createdBy,
-        r.reason,
-      ]),
-    );
-  };
-
   return (
     <Box>
       <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -281,16 +257,6 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
               size="small"
               fullWidth
             />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 'auto' }}>
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={handleExport}
-              disabled={!data?.data.length}
-            >
-              Export CSV
-            </Button>
           </Grid>
         </Grid>
       </Paper>

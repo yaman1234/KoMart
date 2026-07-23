@@ -52,6 +52,16 @@ class InventoryItemResponse(BaseModel):
     nearest_expiry: Optional[str] = None
 
 
+class InventoryListResponse(BaseModel):
+    """Paginated stock levels plus filtered stock×cost total (matches table Value column)."""
+    data: list[InventoryItemResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    total_stock_value: float = 0.0
+
+
 class StockAdjustmentCreate(BaseModel):
     product_id: str
     batch_id: Optional[str] = None

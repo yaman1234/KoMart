@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import dayjs from 'dayjs';
+import { useCallback, useState } from 'react';
 import {
   Box,
   Button,
@@ -10,27 +9,17 @@ import {
   Typography,
   Alert,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  FormControl,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
-  Collapse,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import TuneIcon from '@mui/icons-material/Tune';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
-import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
+import { ReceiveStockDialog } from '@/components/inventory/ReceiveStockDialog';
+import { AdjustStockDialog } from '@/components/inventory/AdjustStockDialog';
 import {
   useInventoryItem,
   useAdjustStock,
@@ -41,52 +30,44 @@ import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatExpiryDate } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
-import { UomConversionHint } from '@/components/uom/UomUi';
 import { showApiError, showSuccess } from '@/utils/toast';
-import type { InventoryBatch, StockAdjustmentType } from '@/types';
+import type { InventoryBatch } from '@/types';
 import { useFormatDate } from '@/hooks/useFormatDate';
-
-const ADJUSTMENT_TYPES: { value: StockAdjustmentType; label: string }[] = [
-  { value: 'adjustment', label: 'Stock Adjustment' },
-  { value: 'damaged', label: 'Damaged / Expired' },
-  { value: 'correction', label: 'Manual Correction' },
-];
+import { DROPDOWN_PAGE_SIZE } from '@/constants';
 
 type DetailTab = 'batches' | 'ledger';
+
+function parseDetailTab(raw: string | null): DetailTab {
+  return raw === 'ledger' ? 'ledger' : 'batches';
+}
 
 export function InventoryDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useAuthStore((s) => s.user);
   const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
   const formatDate = useFormatDate();
 
-  const [tab, setTab] = useState<DetailTab>('batches');
+  const tab = parseDetailTab(searchParams.get('tab'));
+  const setTab = useCallback((next: DetailTab) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'batches') params.delete('tab');
+      else params.set('tab', next);
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const { data: item, isLoading, isError } = useInventoryItem(productId ?? '');
-  const { data: suppliersData } = useSuppliers({ pageSize: 50 });
+  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const suppliers = suppliersData?.data ?? [];
 
   const adjustMutation = useAdjustStock();
   const receiveMutation = useReceiveBatch();
 
   const [receiveOpen, setReceiveOpen] = useState(false);
-  const [rcvBatch, setRcvBatch] = useState('');
-  const [rcvQty, setRcvQty] = useState('');
-  const [rcvExpiry, setRcvExpiry] = useState('');
-  const [rcvCostPrice, setRcvCostPrice] = useState('');
-  const [rcvSellingPrice, setRcvSellingPrice] = useState('');
-  const [rcvSupplierId, setRcvSupplierId] = useState('');
-  const [rcvError, setRcvError] = useState('');
-
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjBatchId, setAdjBatchId] = useState('');
-  const [adjQty, setAdjQty] = useState('');
-  const [adjType, setAdjType] = useState<StockAdjustmentType>('adjustment');
-  const [adjReason, setAdjReason] = useState('');
-  const [adjError, setAdjError] = useState('');
-  const [adjMode, setAdjMode] = useState<'delta' | 'target'>('target');
-  const [adjAdvancedOpen, setAdjAdvancedOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -119,89 +100,6 @@ export function InventoryDetailPage() {
     },
   ];
 
-  const openReceive = () => {
-    setRcvBatch(dayjs().format('YYYY-MM-DD'));
-    setRcvQty('');
-    setRcvExpiry('');
-    setRcvCostPrice(String(item.costPrice));
-    setRcvSellingPrice(String(item.sellingPrice));
-    setRcvSupplierId(item.supplierId);
-    setRcvError('');
-    setReceiveOpen(true);
-  };
-
-  const handleReceive = () => {
-    const qty = parseInt(rcvQty, 10);
-    const unitCost = parseFloat(rcvCostPrice);
-    const sellingPrice = parseFloat(rcvSellingPrice);
-    if (isNaN(qty) || qty < 1) { setRcvError('Enter a quantity ≥ 1'); return; }
-    if (!rcvBatch.trim()) { setRcvError('Batch number is required'); return; }
-    if (!rcvSupplierId) { setRcvError('Select a supplier'); return; }
-    if (isNaN(unitCost) || unitCost < 0) { setRcvError('Enter a valid cost price'); return; }
-    if (isNaN(sellingPrice) || sellingPrice < 0) { setRcvError('Enter a valid selling price'); return; }
-    receiveMutation.mutate(
-      {
-        productId: item.id,
-        batchNumber: rcvBatch,
-        quantity: qty,
-        expiryDate: rcvExpiry || undefined,
-        unitCost,
-        sellingPrice,
-        supplierId: rcvSupplierId,
-      },
-      {
-        onSuccess: () => {
-          showSuccess('Inventory received.');
-          setReceiveOpen(false);
-        },
-        onError: (err) => showApiError(err, 'Inventory receive failed.'),
-      },
-    );
-  };
-
-  const openAdjust = () => {
-    const firstBatch = activeBatches[0];
-    setAdjBatchId(firstBatch?.id ?? '');
-    setAdjQty('');
-    setAdjType('adjustment');
-    setAdjReason('');
-    setAdjError('');
-    setAdjMode('target');
-    setAdjAdvancedOpen(false);
-    setAdjustOpen(true);
-  };
-
-  const handleAdjust = () => {
-    let qty: number;
-    if (adjMode === 'target') {
-      const target = parseInt(adjQty, 10);
-      if (isNaN(target) || target < 0) { setAdjError('Enter a valid target stock (≥ 0)'); return; }
-      qty = target - item.stock;
-      if (qty === 0) { setAdjError('Target matches current stock'); return; }
-    } else {
-      qty = parseInt(adjQty, 10);
-    }
-    if (isNaN(qty) || qty === 0) { setAdjError('Enter a non-zero quantity'); return; }
-    if (!adjReason.trim()) { setAdjError('Reason is required'); return; }
-    adjustMutation.mutate(
-      {
-        productId: item.id,
-        batchId: adjBatchId || undefined,
-        type: adjType,
-        quantity: qty,
-        reason: adjReason,
-        createdBy: currentUser?.name ?? 'User',
-      },
-      {
-        onSuccess: () => {
-          showSuccess('Inventory adjusted.');
-          setAdjustOpen(false);
-        },
-        onError: (err) => showApiError(err, 'Inventory update failed.'),
-      },
-    );
-  };
-
   return (
     <Box>
       <PageHeader
@@ -222,16 +120,27 @@ export function InventoryDetailPage() {
               Product
             </Button>
             {canManage && (
-              <Button variant="contained" color="success" startIcon={<AddBoxIcon />} onClick={openReceive}>
-                Receive
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                startIcon={<AddBoxIcon />}
+                onClick={() => setReceiveOpen(true)}
+              >
+                Add stock
               </Button>
             )}
             {canManage && (
-              <Button variant="outlined" startIcon={<TuneIcon />} onClick={openAdjust}>
-                Adjust
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<TuneIcon />}
+                onClick={() => setAdjustOpen(true)}
+              >
+                Correct stock
               </Button>
             )}
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/inventory')}>
+            <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/inventory')}>
               Back
             </Button>
           </Box>
@@ -301,158 +210,39 @@ export function InventoryDetailPage() {
         <MovementLedgerTab productId={productId} hideProductColumn />
       )}
 
-      <Dialog open={receiveOpen} onClose={() => setReceiveOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          Receive Stock — {item.name}
-          <Typography variant="body2" color="text.secondary">
-            Current: {formatStockQty(item.stock, item.uom ?? '')}
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          {rcvError && <Alert severity="error" sx={{ mb: 2 }}>{rcvError}</Alert>}
-          <Box sx={{ mb: 2 }}>
-            <UomConversionHint
-              buyUom={item.buyUom ?? item.uom ?? ''}
-              baseUom={item.uom ?? ''}
-              factor={item.unitsPerBuyUom ?? 1}
-            />
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Manual receive counts in base units. For pack receive, use Purchase Orders.
-            </Typography>
-          </Box>
-          <TextField
-            label="Batch Number"
-            value={rcvBatch}
-            onChange={(e) => { setRcvBatch(e.target.value); setRcvError(''); }}
-            fullWidth
-            margin="normal"
-            required
-          />
-          <TextField
-            select
-            label="Supplier"
-            value={rcvSupplierId}
-            onChange={(e) => { setRcvSupplierId(e.target.value); setRcvError(''); }}
-            fullWidth
-            margin="normal"
-            required
-          >
-            {suppliers.map((s) => (
-              <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="Cost Price (per base)"
-            value={rcvCostPrice}
-            onChange={(e) => { setRcvCostPrice(e.target.value); setRcvError(''); }}
-            type="number"
-            fullWidth
-            margin="normal"
-            required
-            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-          />
-          <TextField
-            label="Selling Price (per base)"
-            value={rcvSellingPrice}
-            onChange={(e) => { setRcvSellingPrice(e.target.value); setRcvError(''); }}
-            type="number"
-            fullWidth
-            margin="normal"
-            required
-            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-          />
-          <TextField
-            label={`Quantity received (base: ${item.uom ?? ''})`}
-            value={rcvQty}
-            onChange={(e) => { setRcvQty(e.target.value); setRcvError(''); }}
-            type="number"
-            required
-            fullWidth
-            margin="normal"
-            slotProps={{ htmlInput: { min: 1 } }}
-            helperText="Stock always increases in base units"
-          />
-          <NepaliAwareDatePicker
-            label="Expiry Date"
-            value={rcvExpiry}
-            onChange={setRcvExpiry}
-            fullWidth
-            calendarSystem="AD"
-            helperText="Gregorian (AD) — manufacturer expiry. Leave blank if none."
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setReceiveOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="success" onClick={handleReceive} loading={receiveMutation.isPending}>
-            Confirm Receipt
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ReceiveStockDialog
+        open={receiveOpen}
+        item={item}
+        suppliers={suppliers}
+        loading={receiveMutation.isPending}
+        onClose={() => setReceiveOpen(false)}
+        onSubmit={(payload) => {
+          receiveMutation.mutate(payload, {
+            onSuccess: () => {
+              showSuccess('Stock received.');
+              setReceiveOpen(false);
+            },
+            onError: (err) => showApiError(err, 'Inventory receive failed.'),
+          });
+        }}
+      />
 
-      <Dialog open={adjustOpen} onClose={() => setAdjustOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          Adjust Stock — {item.name}
-          <Typography variant="body2" color="text.secondary">
-            Current stock: {item.stock}
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          {adjError && <Alert severity="error" sx={{ mb: 2 }}>{adjError}</Alert>}
-          <FormControl component="fieldset" sx={{ mt: 1, mb: 1 }}>
-            <RadioGroup
-              row
-              value={adjMode}
-              onChange={(e) => { setAdjMode(e.target.value as 'delta' | 'target'); setAdjQty(''); setAdjError(''); }}
-            >
-              <FormControlLabel value="target" control={<Radio size="small" />} label="Set target stock" />
-              <FormControlLabel value="delta" control={<Radio size="small" />} label="Adjust by +/- delta" />
-            </RadioGroup>
-          </FormControl>
-          <TextField select label="Type" value={adjType} onChange={(e) => setAdjType(e.target.value as StockAdjustmentType)} fullWidth margin="normal">
-            {ADJUSTMENT_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
-          </TextField>
-          <Button size="small" onClick={() => setAdjAdvancedOpen((o) => !o)} sx={{ mb: 1 }}>
-            {adjAdvancedOpen ? 'Hide' : 'Show'} advanced batch options
-          </Button>
-          <Collapse in={adjAdvancedOpen}>
-          {activeBatches.length > 0 && (
-            <TextField select label="Batch (optional)" value={adjBatchId} onChange={(e) => setAdjBatchId(e.target.value)} fullWidth margin="normal">
-              <MenuItem value="">Auto (FEFO)</MenuItem>
-              {activeBatches.map((b) => (
-                <MenuItem key={b.id} value={b.id}>{b.batchNumber} ({b.quantity} units)</MenuItem>
-              ))}
-            </TextField>
-          )}
-          </Collapse>
-          <TextField
-            label={adjMode === 'target' ? 'Target stock' : 'Quantity (negative to reduce)'}
-            value={adjQty}
-            onChange={(e) => setAdjQty(e.target.value)}
-            type="number"
-            fullWidth
-            margin="normal"
-            helperText={
-              adjQty
-                ? adjMode === 'target'
-                  ? (() => {
-                      const target = parseInt(adjQty, 10);
-                      if (isNaN(target)) return '';
-                      const delta = target - item.stock;
-                      return delta === 0 ? 'No change needed' : `Will adjust by ${delta > 0 ? '+' : ''}${delta}`;
-                    })()
-                  : `New stock: ${item.stock + (parseInt(adjQty, 10) || 0)}`
-                : ''
-            }
-          />
-          <TextField label="Reason" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} fullWidth margin="normal" multiline rows={2} />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setAdjustOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAdjust} loading={adjustMutation.isPending}>
-            Apply Adjustment
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <AdjustStockDialog
+        open={adjustOpen}
+        item={item}
+        createdBy={currentUser?.name ?? 'User'}
+        loading={adjustMutation.isPending}
+        onClose={() => setAdjustOpen(false)}
+        onSubmit={(payload) => {
+          adjustMutation.mutate(payload, {
+            onSuccess: () => {
+              showSuccess('Stock corrected.');
+              setAdjustOpen(false);
+            },
+            onError: (err) => showApiError(err, 'Inventory update failed.'),
+          });
+        }}
+      />
     </Box>
   );
 }
