@@ -165,6 +165,7 @@ export function PaymentModal({
         : defaultPaymentMethod;
 
   const draft = useCheckoutDraft(items, productCategoryMap, cartMutators);
+  const formatDate = useFormatDate();
 
   const sellableProducts = useMemo(
     () => products.filter(isPosSellableProduct),
@@ -280,7 +281,6 @@ export function PaymentModal({
 
   const totalUnits = draft.items.reduce((sum, item) => sum + item.quantity, 0);
   const customerLoyalty = customer?.loyaltyPoints ?? 0;
-  const formatDate = useFormatDate();
   const orderCols = '28px minmax(0, 1.4fr) 84px 52px 68px 56px 72px 32px';
 
   return (
