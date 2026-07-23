@@ -22,7 +22,8 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
-import { useDailySummary, useUpsertDayClose } from '@/hooks/useReports';
+import { useDailySummary, useUpsertDayClose, usePostDayCloseVariance } from '@/hooks/useReports';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { PAYMENT_METHODS } from '@/constants';
 import { formatCurrency } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
@@ -43,27 +44,32 @@ function paymentLabel(method: string): string {
 function WalletSection({
   title,
   block,
-  showCountInputs,
+  mode,
   openingCash,
-  closingCash,
+  closingValue,
   notes,
   onOpeningChange,
   onClosingChange,
   onNotesChange,
   onSave,
   saving,
+  onPostVariance,
+  postingVariance,
 }: {
   title: string;
   block?: WalletDayBookBlock | null;
-  showCountInputs?: boolean;
+  /** cash = till count + notes + save; statement = statement closing only */
+  mode?: 'cash' | 'statement';
   openingCash?: string;
-  closingCash?: string;
+  closingValue?: string;
   notes?: string;
   onOpeningChange?: (v: string) => void;
   onClosingChange?: (v: string) => void;
   onNotesChange?: (v: string) => void;
   onSave?: () => void;
   saving?: boolean;
+  onPostVariance?: () => void;
+  postingVariance?: boolean;
 }) {
   const opening = block?.opening ?? 0;
   const salesIn = block?.salesIn ?? 0;
@@ -75,6 +81,10 @@ function WalletSection({
   const expected = block?.expected ?? 0;
   const closing = block?.closing;
   const variance = block?.variance;
+  const variancePosted = Boolean(block?.variancePosted);
+  const showInputs = mode === 'cash' || mode === 'statement';
+  const canPostVariance =
+    variance != null && Math.abs(variance) >= 0.01 && closing != null && !variancePosted;
 
   return (
     <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
@@ -82,66 +92,80 @@ function WalletSection({
         {title}
       </Typography>
 
-      {showCountInputs && (
+      {showInputs && (
         <>
           <Grid container spacing={1.5} className="no-print">
-            <Grid size={{ xs: 6 }}>
+            {mode === 'cash' && (
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  label="Opening cash"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={openingCash}
+                  onChange={(e) => onOpeningChange?.(e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                />
+              </Grid>
+            )}
+            <Grid size={{ xs: mode === 'cash' ? 6 : 12 }}>
               <TextField
-                label="Opening cash"
+                label={mode === 'cash' ? 'Closing cash (counted)' : 'Closing (statement)'}
                 type="number"
                 size="small"
                 fullWidth
-                value={openingCash}
-                onChange={(e) => onOpeningChange?.(e.target.value)}
-                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-              />
-            </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Closing cash (counted)"
-                type="number"
-                size="small"
-                fullWidth
-                value={closingCash}
+                value={closingValue}
                 onChange={(e) => onClosingChange?.(e.target.value)}
+                placeholder={mode === 'statement' ? 'Leave blank if not reconciled' : undefined}
                 slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               />
             </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                label="Notes"
-                size="small"
-                fullWidth
-                value={notes}
-                onChange={(e) => onNotesChange?.(e.target.value)}
-                multiline
-                minRows={2}
-              />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={() => onSave?.()}
-                loading={saving}
-              >
-                Save day close
-              </Button>
-            </Grid>
+            {mode === 'cash' && (
+              <>
+                <Grid size={{ xs: 12 }}>
+                  <TextField
+                    label="Notes"
+                    size="small"
+                    fullWidth
+                    value={notes}
+                    onChange={(e) => onNotesChange?.(e.target.value)}
+                    multiline
+                    minRows={2}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={() => onSave?.()}
+                    loading={saving}
+                  >
+                    Save day close
+                  </Button>
+                </Grid>
+              </>
+            )}
           </Grid>
 
           <Box className="print-only-block" sx={{ display: 'none', mb: 1 }}>
-            <Typography variant="body2">Opening: {formatCurrency(opening)}</Typography>
+            {mode === 'cash' && (
+              <Typography variant="body2">Opening: {formatCurrency(opening)}</Typography>
+            )}
             <Typography variant="body2">
-              Closing: {formatCurrency(closing ?? (Number(closingCash) || 0))}
+              Closing:{' '}
+              {formatCurrency(
+                closing ?? (closingValue !== undefined && closingValue !== '' ? Number(closingValue) || 0 : 0),
+              )}
             </Typography>
-            {notes && <Typography variant="body2">Notes: {notes}</Typography>}
+            {mode === 'cash' && notes && (
+              <Typography variant="body2">Notes: {notes}</Typography>
+            )}
           </Box>
           <Divider sx={{ my: 1.5 }} />
         </>
       )}
 
-      <Line label="Opening" value={opening} bold={!showCountInputs} />
+      <Line label="Opening" value={opening} bold={mode !== 'cash'} />
       <Line label="Sales in" value={salesIn} />
       <Line label="Expenses out" value={expensesOut} />
       <Line label="Transfers in" value={transfersIn} />
@@ -152,29 +176,60 @@ function WalletSection({
       <Line label="Expected closing" value={expected} bold />
       {closing != null && <Line label="Closing" value={closing} />}
       {variance != null && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1,
+            mt: 0.5,
+            flexWrap: 'wrap',
+          }}
+        >
           <Typography variant="body2" color="text.secondary">
             Variance
           </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 700,
-              color:
-                variance === 0
-                  ? 'text.primary'
-                  : variance > 0
-                    ? 'success.main'
-                    : 'error.main',
-            }}
-          >
-            {formatCurrency(variance)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 700,
+                color:
+                  variance === 0
+                    ? 'text.primary'
+                    : variance > 0
+                      ? 'success.main'
+                      : 'error.main',
+              }}
+            >
+              {formatCurrency(variance)}
+            </Typography>
+            {variancePosted ? (
+              <Typography variant="caption" color="text.secondary" className="no-print">
+                Posted
+              </Typography>
+            ) : canPostVariance ? (
+              <Button
+                size="small"
+                variant="outlined"
+                className="no-print"
+                loading={postingVariance}
+                onClick={() => onPostVariance?.()}
+              >
+                Post variance
+              </Button>
+            ) : null}
+          </Box>
         </Box>
       )}
-      {showCountInputs && (
+      {mode === 'cash' && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
           Expected = Opening + sales − expenses ± transfers ± adjustments
+        </Typography>
+      )}
+      {mode === 'statement' && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+          Enter statement closing, then Save day close on Cash till. Variance = statement − expected.
         </Typography>
       )}
     </Paper>
@@ -208,18 +263,36 @@ export function DailyReportPage() {
   const [date, setDate] = useState(todayIso);
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
+  const [closingBank, setClosingBank] = useState('');
+  const [closingEsewa, setClosingEsewa] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [postWallet, setPostWallet] = useState<'cash' | 'bank' | 'esewa' | null>(null);
 
   const { data, isLoading, isError, refetch } = useDailySummary(date);
   const upsertMutation = useUpsertDayClose();
+  const postVarianceMutation = usePostDayCloseVariance();
 
   useEffect(() => {
     if (!data) return;
     setOpeningCash(String(data.cash.opening ?? 0));
     setClosingCash(String(data.cash.closing ?? 0));
+    setClosingBank(
+      data.dayClose?.closingBank != null ? String(data.dayClose.closingBank) : '',
+    );
+    setClosingEsewa(
+      data.dayClose?.closingEsewa != null ? String(data.dayClose.closingEsewa) : '',
+    );
     setNotes(data.dayClose?.notes ?? '');
   }, [data]);
+
+  const parseOptionalClosing = (raw: string): number | null | 'invalid' => {
+    const trimmed = raw.trim();
+    if (trimmed === '') return null;
+    const value = parseFloat(trimmed);
+    if (!Number.isFinite(value) || value < 0) return 'invalid';
+    return value;
+  };
 
   const handleSaveCash = async () => {
     setError('');
@@ -229,12 +302,24 @@ export function DailyReportPage() {
       setError('Opening and closing cash must be valid non-negative amounts.');
       return;
     }
+    const bank = parseOptionalClosing(closingBank);
+    const esewa = parseOptionalClosing(closingEsewa);
+    if (bank === 'invalid' || esewa === 'invalid') {
+      setError('Bank and eSewa statement closings must be blank or valid non-negative amounts.');
+      return;
+    }
     try {
       await upsertMutation.mutateAsync({
         date,
-        data: { openingCash: opening, closingCash: closing, notes: notes.trim() || undefined },
+        data: {
+          openingCash: opening,
+          closingCash: closing,
+          closingBank: bank,
+          closingEsewa: esewa,
+          notes: notes.trim() || undefined,
+        },
       });
-      showSuccess('Day close cash saved.');
+      showSuccess('Day close saved.');
       await refetch();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -263,6 +348,34 @@ export function DailyReportPage() {
   const bankBook = wallets.find((w) => w.wallet === 'bank');
   const esewaBook = wallets.find((w) => w.wallet === 'esewa');
 
+  const walletLabel = (wallet: string) =>
+    wallet === 'cash' ? 'Cash till' : wallet === 'bank' ? 'Bank' : 'eSewa';
+
+  const blockForWallet = (wallet: 'cash' | 'bank' | 'esewa') => {
+    if (wallet === 'cash') return cashBook;
+    if (wallet === 'bank') return bankBook;
+    return esewaBook;
+  };
+
+  const handleConfirmPostVariance = async () => {
+    if (!postWallet) return;
+    setError('');
+    try {
+      await postVarianceMutation.mutateAsync({ date, wallet: postWallet });
+      showSuccess(`Variance posted to ${walletLabel(postWallet)} ledger.`);
+      setPostWallet(null);
+      await refetch();
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setPostWallet(null);
+    }
+  };
+
+  const pendingPostBlock = postWallet ? blockForWallet(postWallet) : null;
+  const pendingPostAmount = Math.abs(pendingPostBlock?.variance ?? 0);
+  const pendingPostDirection =
+    (pendingPostBlock?.variance ?? 0) > 0 ? 'surplus (in)' : 'deficit (out)';
+
   const methods = ['cash', 'bank', 'esewa'] as const;
   const methodRows = methods.map((method) => {
     const row = data?.byPaymentMethod.find((p) => {
@@ -289,7 +402,7 @@ export function DailyReportPage() {
     <Box className="daily-report-page">
       <PageHeader
         title="Day Cash Book"
-        subtitle="Per-wallet movements and cash till reconciliation"
+        subtitle="Per-wallet movements and end-of-day reconciliation"
         breadcrumbs={[{ label: 'Reports', path: '/reports' }, { label: 'Day Cash Book' }]}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }} className="no-print">
@@ -322,7 +435,7 @@ export function DailyReportPage() {
           size="small"
         />
         <Typography variant="body2" color="text.secondary">
-          Review Cash / Bank / eSewa for the day, count the till, then print.
+          Review Cash / Bank / eSewa for the day, enter counted/statement closings, then print.
         </Typography>
       </Paper>
 
@@ -367,22 +480,40 @@ export function DailyReportPage() {
           <WalletSection
             title="Cash till"
             block={cashBook}
-            showCountInputs
+            mode="cash"
             openingCash={openingCash}
-            closingCash={closingCash}
+            closingValue={closingCash}
             notes={notes}
             onOpeningChange={setOpeningCash}
             onClosingChange={setClosingCash}
             onNotesChange={setNotes}
             onSave={() => void handleSaveCash()}
             saving={upsertMutation.isPending}
+            onPostVariance={() => setPostWallet('cash')}
+            postingVariance={postVarianceMutation.isPending && postWallet === 'cash'}
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
-          <WalletSection title="Bank" block={bankBook} />
+          <WalletSection
+            title="Bank"
+            block={bankBook}
+            mode="statement"
+            closingValue={closingBank}
+            onClosingChange={setClosingBank}
+            onPostVariance={() => setPostWallet('bank')}
+            postingVariance={postVarianceMutation.isPending && postWallet === 'bank'}
+          />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
-          <WalletSection title="eSewa" block={esewaBook} />
+          <WalletSection
+            title="eSewa"
+            block={esewaBook}
+            mode="statement"
+            closingValue={closingEsewa}
+            onClosingChange={setClosingEsewa}
+            onPostVariance={() => setPostWallet('esewa')}
+            postingVariance={postVarianceMutation.isPending && postWallet === 'esewa'}
+          />
         </Grid>
       </Grid>
 
@@ -413,6 +544,20 @@ export function DailyReportPage() {
           </TableBody>
         </Table>
       </Paper>
+
+      <ConfirmDialog
+        open={postWallet != null}
+        title="Post variance to ledger"
+        message={
+          postWallet
+            ? `Post ${formatCurrency(pendingPostAmount)} as a ${walletLabel(postWallet)} adjustment (${pendingPostDirection}) for ${formatDate(date)}? This updates Accounts.`
+            : ''
+        }
+        confirmLabel="Post variance"
+        loading={postVarianceMutation.isPending}
+        onConfirm={() => void handleConfirmPostVariance()}
+        onCancel={() => setPostWallet(null)}
+      />
 
       <style>{`
         @media print {

@@ -255,3 +255,20 @@ export function useUpsertDayClose() {
     },
   });
 }
+
+export function usePostDayCloseVariance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ date, wallet }: { date: string; wallet: string }) =>
+      dayCloseService.postVariance(date, wallet),
+    onSuccess: (_, { date }) => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports('dailySummary') });
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.reports('dailySummary'), date],
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.walletBalances });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
+    },
+  });
+}

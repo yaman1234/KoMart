@@ -256,6 +256,8 @@ async def create_adjustment(
     date: str,
     remarks: str,
     created_by: str = "",
+    reference_type: str = "",
+    reference_id: str = "",
 ) -> WalletLedgerEntry:
     remarks = (remarks or "").strip()
     if not remarks:
@@ -270,7 +272,64 @@ async def create_adjustment(
         entry_type=WalletEntryType.adjustment,
         date=date,
         remarks=remarks,
+        reference_type=reference_type,
+        reference_id=reference_id,
         created_by=created_by,
+    )
+
+
+DAY_CLOSE_VARIANCE_REF = "day_close_variance"
+
+
+def day_close_variance_ref_id(day: str, wallet: str) -> str:
+    return f"{day}:{wallet}"
+
+
+async def find_day_close_variance_entry(day: str, wallet: str) -> WalletLedgerEntry | None:
+    rows = await find_by_reference(DAY_CLOSE_VARIANCE_REF, day_close_variance_ref_id(day, wallet))
+    return rows[0] if rows else None
+
+
+async def post_day_close_variance(
+    *,
+    day: str,
+    wallet: str,
+    created_by: str = "",
+) -> WalletLedgerEntry:
+    """Post |variance| as an adjustment so Expected aligns with counted/statement Closing."""
+    _require_date(day)
+    w = _parse_wallet(wallet)
+    existing = await find_day_close_variance_entry(day, w.value)
+    if existing:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Variance already posted for this wallet/day. Reverse the adjustment in Accounts to re-post.",
+        )
+
+    blocks = await build_day_book(day)
+    block = next((b for b in blocks if b["wallet"] == w.value), None)
+    if not block:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Wallet day book not found")
+    if block.get("closing") is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Save closing (counted/statement) before posting variance",
+        )
+    variance = block.get("variance")
+    if variance is None or abs(float(variance)) < 0.01:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No variance to post")
+
+    amount = abs(round(float(variance), 2))
+    direction = "in" if float(variance) > 0 else "out"
+    return await create_adjustment(
+        wallet=w.value,
+        amount=amount,
+        direction=direction,
+        date=day,
+        remarks=f"Day close variance {day} ({w.value})",
+        created_by=created_by,
+        reference_type=DAY_CLOSE_VARIANCE_REF,
+        reference_id=day_close_variance_ref_id(day, w.value),
     )
 
 
@@ -459,9 +518,16 @@ async def build_day_book(day: str) -> list[dict[str, Any]]:
             baseline = await opening_baseline(w, settings)
             opening = round(baseline + await _ledger_net_before(w, day), 2)
             expected = round(opening + totals["net"], 2)
-            closing = expected
-            variance = None
+            statement = None
+            if day_close:
+                if w == Wallet.bank:
+                    statement = getattr(day_close, "closing_bank", None)
+                elif w == Wallet.esewa:
+                    statement = getattr(day_close, "closing_esewa", None)
+            closing = float(statement) if statement is not None else None
+            variance = round(closing - expected, 2) if closing is not None else None
 
+        posted = await find_day_close_variance_entry(day, w.value)
         blocks.append({
             "wallet": w.value,
             "opening": opening,
@@ -474,6 +540,7 @@ async def build_day_book(day: str) -> list[dict[str, Any]]:
             "expected": expected,
             "closing": closing,
             "variance": variance,
+            "variance_posted": posted is not None,
         })
     return blocks
 

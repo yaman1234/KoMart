@@ -62,3 +62,4 @@ class WalletDayBookBlock(BaseModel):
     expected: float
     closing: float | None = None
     variance: float | None = None
+    variance_posted: bool = False

@@ -95,6 +95,8 @@ let customers = [...mockCustomers];
 let transactions = [...mockTransactions];
 let expenses = [...mockExpenses];
 let dayCloses: import('@/types').DayCloseRecord[] = [];
+/** Keys: `${date}:${wallet}` for posted day-close variance adjustments */
+let dayCloseVariancePosted = new Set<string>();
 
 function isSetupInvestmentExpense(e: Expense): boolean {
   return e.isSetupCost || e.category === 'setup_investment';
@@ -1224,7 +1226,60 @@ export const mockApi = {
     const dayClose = dayCloses.find((d) => d.date === date) ?? null;
     const opening = dayClose?.openingCash ?? 0;
     const closing = dayClose?.closingCash ?? 0;
-    const expected = Math.round((opening + cashSales - cashExpenses) * 100) / 100;
+    let cashExpected = Math.round((opening + cashSales - cashExpenses) * 100) / 100;
+    const cashPosted = dayCloseVariancePosted.has(`${date}:cash`);
+    let cashVariance = Math.round((closing - cashExpected) * 100) / 100;
+    let cashAdjIn = 0;
+    let cashAdjOut = 0;
+    if (cashPosted && Math.abs(cashVariance) >= 0.01) {
+      if (cashVariance > 0) cashAdjIn = Math.abs(cashVariance);
+      else cashAdjOut = Math.abs(cashVariance);
+      cashExpected = closing;
+      cashVariance = 0;
+    }
+
+    const bankSales = Math.round((paymentMap.bank?.revenue ?? 0) * 100) / 100;
+    const bankExpenses =
+      Math.round(
+        dayExpenses
+          .filter((e) => normalize(e.paymentMethod ?? '') === 'bank')
+          .reduce((s, e) => s + e.amount, 0) * 100,
+      ) / 100;
+    let bankExpected = Math.round((bankSales - bankExpenses) * 100) / 100;
+    const bankClosing = dayClose?.closingBank ?? null;
+    const bankPosted = dayCloseVariancePosted.has(`${date}:bank`);
+    let bankVariance =
+      bankClosing != null ? Math.round((bankClosing - bankExpected) * 100) / 100 : null;
+    let bankAdjIn = 0;
+    let bankAdjOut = 0;
+    if (bankPosted && bankClosing != null && bankVariance != null && Math.abs(bankVariance) >= 0.01) {
+      if (bankVariance > 0) bankAdjIn = Math.abs(bankVariance);
+      else bankAdjOut = Math.abs(bankVariance);
+      bankExpected = bankClosing;
+      bankVariance = 0;
+    }
+
+    const esewaSales = Math.round((paymentMap.esewa?.revenue ?? 0) * 100) / 100;
+    const esewaExpenses =
+      Math.round(
+        dayExpenses
+          .filter((e) => normalize(e.paymentMethod ?? '') === 'esewa')
+          .reduce((s, e) => s + e.amount, 0) * 100,
+      ) / 100;
+    let esewaExpected = Math.round((esewaSales - esewaExpenses) * 100) / 100;
+    const esewaClosing = dayClose?.closingEsewa ?? null;
+    const esewaPosted = dayCloseVariancePosted.has(`${date}:esewa`);
+    let esewaVariance =
+      esewaClosing != null ? Math.round((esewaClosing - esewaExpected) * 100) / 100 : null;
+    let esewaAdjIn = 0;
+    let esewaAdjOut = 0;
+    if (esewaPosted && esewaClosing != null && esewaVariance != null && Math.abs(esewaVariance) >= 0.01) {
+      if (esewaVariance > 0) esewaAdjIn = Math.abs(esewaVariance);
+      else esewaAdjOut = Math.abs(esewaVariance);
+      esewaExpected = esewaClosing;
+      esewaVariance = 0;
+    }
+
     return {
       date,
       sales: {
@@ -1249,11 +1304,11 @@ export const mockApi = {
         cashExpenses: Math.round(cashExpenses * 100) / 100,
         transfersIn: 0,
         transfersOut: 0,
-        adjustmentsIn: 0,
-        adjustmentsOut: 0,
-        expected,
+        adjustmentsIn: cashAdjIn,
+        adjustmentsOut: cashAdjOut,
+        expected: cashExpected,
         closing,
-        variance: Math.round((closing - expected) * 100) / 100,
+        variance: cashVariance,
       },
       wallets: [
         {
@@ -1263,45 +1318,40 @@ export const mockApi = {
           expensesOut: Math.round(cashExpenses * 100) / 100,
           transfersIn: 0,
           transfersOut: 0,
-          adjustmentsIn: 0,
-          adjustmentsOut: 0,
-          expected,
+          adjustmentsIn: cashAdjIn,
+          adjustmentsOut: cashAdjOut,
+          expected: cashExpected,
           closing,
-          variance: Math.round((closing - expected) * 100) / 100,
+          variance: cashVariance,
+          variancePosted: cashPosted,
         },
         {
           wallet: 'bank',
           opening: 0,
-          salesIn: Math.round((paymentMap.bank?.revenue ?? 0) * 100) / 100,
-          expensesOut: Math.round(
-            dayExpenses
-              .filter((e) => normalize(e.paymentMethod ?? '') === 'bank')
-              .reduce((s, e) => s + e.amount, 0) * 100,
-          ) / 100,
+          salesIn: bankSales,
+          expensesOut: bankExpenses,
           transfersIn: 0,
           transfersOut: 0,
-          adjustmentsIn: 0,
-          adjustmentsOut: 0,
-          expected: 0,
-          closing: 0,
-          variance: null,
+          adjustmentsIn: bankAdjIn,
+          adjustmentsOut: bankAdjOut,
+          expected: bankExpected,
+          closing: bankClosing,
+          variance: bankVariance,
+          variancePosted: bankPosted,
         },
         {
           wallet: 'esewa',
           opening: 0,
-          salesIn: Math.round((paymentMap.esewa?.revenue ?? 0) * 100) / 100,
-          expensesOut: Math.round(
-            dayExpenses
-              .filter((e) => normalize(e.paymentMethod ?? '') === 'esewa')
-              .reduce((s, e) => s + e.amount, 0) * 100,
-          ) / 100,
+          salesIn: esewaSales,
+          expensesOut: esewaExpenses,
           transfersIn: 0,
           transfersOut: 0,
-          adjustmentsIn: 0,
-          adjustmentsOut: 0,
-          expected: 0,
-          closing: 0,
-          variance: null,
+          adjustmentsIn: esewaAdjIn,
+          adjustmentsOut: esewaAdjOut,
+          expected: esewaExpected,
+          closing: esewaClosing,
+          variance: esewaVariance,
+          variancePosted: esewaPosted,
         },
       ],
       dayClose,
@@ -1317,6 +1367,8 @@ export const mockApi = {
       date,
       openingCash: payload.openingCash,
       closingCash: payload.closingCash,
+      closingBank: payload.closingBank ?? null,
+      closingEsewa: payload.closingEsewa ?? null,
       notes: payload.notes,
       updatedBy: 'Admin User',
       updatedAt: new Date().toISOString(),
@@ -1325,6 +1377,40 @@ export const mockApi = {
     if (idx === -1) dayCloses = [record, ...dayCloses];
     else dayCloses[idx] = record;
     return record;
+  },
+
+  async postDayCloseVariance(
+    date: string,
+    wallet: string,
+  ): Promise<import('@/types').WalletLedgerEntry> {
+    await delay(250);
+    const key = `${date}:${wallet}`;
+    if (dayCloseVariancePosted.has(key)) {
+      throw new Error('Variance already posted for this wallet/day. Reverse the adjustment in Accounts to re-post.');
+    }
+    const summary = await this.getDailySummary(date);
+    const block = summary.wallets?.find((w) => w.wallet === wallet);
+    if (!block || block.closing == null) {
+      throw new Error('Save closing (counted/statement) before posting variance');
+    }
+    const variance = block.variance ?? 0;
+    if (Math.abs(variance) < 0.01) {
+      throw new Error('No variance to post');
+    }
+    dayCloseVariancePosted.add(key);
+    return {
+      id: `adj-var-${date}-${wallet}`,
+      date,
+      wallet: wallet as import('@/types').WalletCode,
+      direction: variance > 0 ? 'in' : 'out',
+      amount: Math.abs(variance),
+      entryType: 'adjustment',
+      remarks: `Day close variance ${date} (${wallet})`,
+      referenceType: 'day_close_variance',
+      referenceId: key,
+      createdBy: 'Admin User',
+      createdAt: new Date().toISOString(),
+    };
   },
 
   // ── Discounts ─────────────────────────────────────────────────────────────

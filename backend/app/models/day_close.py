@@ -11,6 +11,9 @@ class DayClose(Document):
     date: str  # YYYY-MM-DD unique
     opening_cash: float = Field(default=0.0, ge=0)
     closing_cash: float = Field(default=0.0, ge=0)
+    # Statement closings for digital wallets (None = not reconciled yet)
+    closing_bank: Optional[float] = Field(default=None, ge=0)
+    closing_esewa: Optional[float] = Field(default=None, ge=0)
     notes: str = ""
     created_by: str = ""
     updated_by: str = ""

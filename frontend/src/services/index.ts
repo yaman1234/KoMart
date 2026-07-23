@@ -685,6 +685,14 @@ export const dayCloseService = {
     const { data } = await apiClient.put(`/day-closes/${date}`, payload);
     return data;
   },
+  postVariance: async (
+    date: string,
+    wallet: string,
+  ): Promise<import('@/types').WalletLedgerEntry> => {
+    if (useMock()) return mockApi.postDayCloseVariance(date, wallet);
+    const { data } = await apiClient.post(`/day-closes/${date}/post-variance`, { wallet });
+    return data as import('@/types').WalletLedgerEntry;
+  },
 };
 
 export const categoryService = {

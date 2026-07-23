@@ -201,6 +201,8 @@ async def daily_summary_report(
             date=day_close.date,
             opening_cash=day_close.opening_cash,
             closing_cash=day_close.closing_cash,
+            closing_bank=getattr(day_close, "closing_bank", None),
+            closing_esewa=getattr(day_close, "closing_esewa", None),
             notes=day_close.notes or "",
             updated_by=day_close.updated_by or day_close.created_by or "",
             updated_at=day_close.updated_at.isoformat(),

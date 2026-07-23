@@ -885,12 +885,15 @@ export interface WalletDayBookBlock {
   expected: number;
   closing?: number | null;
   variance?: number | null;
+  variancePosted?: boolean;
 }
 
 export interface DayCloseRecord {
   date: string;
   openingCash: number;
   closingCash: number;
+  closingBank?: number | null;
+  closingEsewa?: number | null;
   notes?: string;
   updatedBy?: string;
   updatedAt?: string;
@@ -909,6 +912,8 @@ export interface DailySummary {
 export interface DayCloseUpsertPayload {
   openingCash: number;
   closingCash: number;
+  closingBank?: number | null;
+  closingEsewa?: number | null;
   notes?: string;
 }
 

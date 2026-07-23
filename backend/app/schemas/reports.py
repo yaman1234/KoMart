@@ -197,12 +197,15 @@ class WalletDayBookBlock(BaseModel):
     expected: float
     closing: float | None = None
     variance: float | None = None
+    variance_posted: bool = False
 
 
 class DayCloseBlock(BaseModel):
     date: str
     opening_cash: float
     closing_cash: float
+    closing_bank: float | None = None
+    closing_esewa: float | None = None
     notes: str = ""
     updated_by: str = ""
     updated_at: str = ""
@@ -221,6 +224,8 @@ class DailySummary(BaseModel):
 class DayCloseUpsert(BaseModel):
     opening_cash: float = Field(ge=0)
     closing_cash: float = Field(ge=0)
+    closing_bank: float | None = Field(default=None, ge=0)
+    closing_esewa: float | None = Field(default=None, ge=0)
     notes: str = ""
 
 
