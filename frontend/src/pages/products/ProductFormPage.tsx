@@ -16,6 +16,7 @@ import {
   Alert,
   Checkbox,
   FormControlLabel,
+  InputAdornment,
 } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -23,6 +24,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -151,6 +153,7 @@ export function ProductFormPage() {
   const uomOptions = useUomOptions();
 
   const suppliers = suppliersData?.data ?? [];
+  const barcodeInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -192,6 +195,8 @@ export function ProductFormPage() {
       allergenInfo: '',
     },
   });
+
+  const { ref: barcodeRegRef, ...barcodeField } = register('barcode');
 
   useEffect(() => {
     if (isEditing) return;
@@ -454,11 +459,37 @@ export function ProductFormPage() {
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
-                  {...register('barcode')}
+                  {...barcodeField}
+                  inputRef={(el: HTMLInputElement | null) => {
+                    barcodeRegRef(el);
+                    barcodeInputRef.current = el;
+                  }}
                   label="Barcode (optional)"
                   fullWidth
                   error={!!errors.barcode}
-                  helperText={errors.barcode?.message}
+                  helperText={errors.barcode?.message || 'Click here, then scan — scanner types into this field.'}
+                  onFocus={(e) => e.target.select()}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Tooltip title="Focus for barcode scanner">
+                            <IconButton
+                              size="small"
+                              aria-label="Focus for barcode scanner"
+                              tabIndex={-1}
+                              onClick={() => {
+                                barcodeInputRef.current?.focus();
+                                barcodeInputRef.current?.select();
+                              }}
+                            >
+                              <QrCodeScannerIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
                 />
               </Grid>
 

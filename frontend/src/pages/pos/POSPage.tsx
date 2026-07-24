@@ -58,9 +58,9 @@ import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useCartStore, useAuthStore } from '@/store';
-import { transactionService } from '@/services';
+import { transactionService, productService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showWarning, showApiError } from '@/utils/toast';
 import { formatAmount, formatCurrency } from '@/utils';
 import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE, PRODUCT_CATEGORIES } from '@/constants';
 import { useStoreSettings } from '@/hooks/useSettings';
@@ -523,6 +523,7 @@ export function POSPage() {
   const [trendingOnly, setTrendingOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const cartSnapshotRef = useRef<{ items: CartItem[]; customerId: string | null; saleDate: string } | null>(null);
   const [cartCollapsed, setCartCollapsed] = useState(isMobile);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -530,6 +531,7 @@ export function POSPage() {
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [tenderedAmount, setTenderedAmount] = useState<number | undefined>(undefined);
+  const [barcodeLookupBusy, setBarcodeLookupBusy] = useState(false);
 
   // Quick-create customer dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -698,6 +700,81 @@ export function POSPage() {
     });
   }, [addItem]);
 
+  const findExactBarcodeOrSku = useCallback((list: Product[], code: string): Product | undefined => {
+    const key = code.trim().toLowerCase();
+    if (!key) return undefined;
+    const byBarcode = list.filter((p) => (p.barcode ?? '').trim().toLowerCase() === key);
+    if (byBarcode.length > 0) {
+      if (byBarcode.length > 1) {
+        showWarning(`Multiple products share barcode ${code}; added first match.`);
+      }
+      return byBarcode[0];
+    }
+    const bySku = list.filter((p) => (p.sku ?? '').trim().toLowerCase() === key);
+    if (bySku.length > 0) {
+      if (bySku.length > 1) {
+        showWarning(`Multiple products share SKU ${code}; added first match.`);
+      }
+      return bySku[0];
+    }
+    return undefined;
+  }, []);
+
+  const handleBarcodeScan = useCallback(async () => {
+    const code = search.trim();
+    if (!code || barcodeLookupBusy || paymentOpen) return;
+
+    setBarcodeLookupBusy(true);
+    try {
+      let product = findExactBarcodeOrSku(products, code);
+      if (!product) {
+        const res = await productService.getAll({
+          search: code,
+          sellableOnly: true,
+          pageSize: 10,
+          includeImages: false,
+        });
+        product = findExactBarcodeOrSku(res.data, code);
+      }
+
+      if (!product) {
+        showWarning(`No product for barcode “${code}”.`);
+        return;
+      }
+
+      if (!isPosSellableProduct(product)) {
+        showWarning(`“${product.name}” cannot be sold.`);
+        return;
+      }
+
+      const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
+      const opt = resolveSellOption(product, packOnly);
+      if (product.stock === 0) {
+        showWarning(`“${product.name}” is out of stock.`);
+        return;
+      }
+      if (opt.price <= 0) {
+        showWarning(`“${product.name}” has no selling price.`);
+        return;
+      }
+
+      handleAddProduct(product, packOnly);
+      setSearch('');
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    } catch (err) {
+      showApiError(err, 'Could not look up barcode.');
+    } finally {
+      setBarcodeLookupBusy(false);
+    }
+  }, [
+    search,
+    barcodeLookupBusy,
+    paymentOpen,
+    products,
+    findExactBarcodeOrSku,
+    handleAddProduct,
+  ]);
+
   const handleQtyChange = useCallback((productId: string, newQty: number, sellUom?: string) => {
     if (isNaN(newQty) || newQty < 1) {
       updateQuantity(productId, 0, sellUom);
@@ -806,10 +883,18 @@ export function POSPage() {
         <Paper sx={{ p: 2, mb: 2 }}>
           <TextField
             fullWidth
+            inputRef={searchInputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              void handleBarcodeScan();
+            }}
+            autoFocus={!isMobile && !paymentOpen}
             placeholder="Search products or scan barcode..."
             size="small"
+            disabled={barcodeLookupBusy}
             slotProps={{
               input: {
                 startAdornment: (
@@ -817,7 +902,19 @@ export function POSPage() {
                 ),
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton size="small"><QrCodeScannerIcon /></IconButton>
+                    {barcodeLookupBusy ? (
+                      <CircularProgress size={18} sx={{ mr: 0.5 }} />
+                    ) : (
+                      <Tooltip title="Focus for barcode scanner">
+                        <IconButton
+                          size="small"
+                          aria-label="Focus for barcode scanner"
+                          onClick={() => searchInputRef.current?.focus()}
+                        >
+                          <QrCodeScannerIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </InputAdornment>
                 ),
               },
