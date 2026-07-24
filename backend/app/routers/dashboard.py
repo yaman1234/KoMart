@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from datetime import datetime, timezone, timedelta
 from typing import Literal
 
@@ -31,6 +31,11 @@ from app.services.reporting import (
     parse_date_range,
 )
 from app.services.stock import expiring_product_ids
+from app.services.response_cache import (
+    DASHBOARD_STATS_KEY,
+    get_cached,
+    set_cached,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -107,7 +112,12 @@ async def get_sales_collection(
 
 
 @router.get("/stats", response_model=DashboardStats)
-async def get_stats(_: User = Depends(get_current_user)):
+async def get_stats(response: Response, _: User = Depends(get_current_user)):
+    cached = await get_cached(DASHBOARD_STATS_KEY)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return DashboardStats(**cached)
+
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=7)
@@ -124,7 +134,7 @@ async def get_stats(_: User = Depends(get_current_user)):
     monthly_expenses = await aggregate_expense_total_since(month_start_str)
     monthly_operating = await aggregate_operating_expense_total_since(month_start_str)
 
-    return DashboardStats(
+    result = DashboardStats(
         today_sales=round(today_sales, 2),
         weekly_sales=round(weekly_sales, 2),
         monthly_sales=round(monthly_sales, 2),
@@ -136,6 +146,9 @@ async def get_stats(_: User = Depends(get_current_user)):
         monthly_expenses=round(monthly_expenses, 2),
         net_revenue=round(monthly_sales - monthly_operating, 2),
     )
+    await set_cached(DASHBOARD_STATS_KEY, result.model_dump())
+    response.headers["X-Cache"] = "MISS"
+    return result
 
 
 @router.get("/revenue", response_model=list[RevenueDataPoint])

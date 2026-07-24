@@ -313,6 +313,8 @@ async def receive_stock(
         unit_cost=landed_cost,
         unit_selling_price=selling_price,
     )
+    from app.services.response_cache import bump_commerce_caches
+    await bump_commerce_caches()
     return batch
 
 
@@ -379,6 +381,8 @@ async def adjust_stock(
         unit_cost=product.cost_price,
     )
 
+    from app.services.response_cache import bump_commerce_caches
+    await bump_commerce_caches()
     return stock_after
 
 

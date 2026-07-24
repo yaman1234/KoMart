@@ -16,6 +16,7 @@ from app.models.discount_rule import DiscountRule
 from app.models.day_close import DayClose
 from app.models.price_history import PriceHistory
 from app.models.wallet_ledger import WalletLedgerEntry
+from app.models.cache_entry import CacheEntry
 
 __all__ = [
     "User",
@@ -37,4 +38,5 @@ __all__ = [
     "DayClose",
     "PriceHistory",
     "WalletLedgerEntry",
+    "CacheEntry",
 ]

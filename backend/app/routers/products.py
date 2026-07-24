@@ -29,6 +29,7 @@ from app.services.category_sync import resolve_category_fields, propagate_catego
 from app.services.product_pricing import compute_product_pricing, apply_pricing_to_dict
 from app.services.sku import generate_unique_sku
 from app.services.store_settings import get_store_settings
+from app.services.product_list import to_list_lean
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -124,10 +125,18 @@ async def _apply_product_update(
     return update_data
 
 
-def _to_response(p: Product, *, lean_images: bool = False) -> ProductResponse:
-    images = list(p.images or [])
-    if lean_images and len(images) > 1:
-        images = images[:1]
+def _to_response(p: Product, *, lean: bool = False, include_images: bool = True) -> ProductResponse:
+    # List endpoints omit long text; optionally keep first image for POS/Products cards.
+    if lean:
+        images = list(p.images or [])[:1] if include_images else []
+        description = ""
+        nutrition_info = ""
+        allergen_info = ""
+    else:
+        images = list(p.images or [])
+        description = p.description
+        nutrition_info = p.nutrition_info
+        allergen_info = p.allergen_info
     return ProductResponse(
         id=str(p.id),
         name=p.name,
@@ -139,7 +148,7 @@ def _to_response(p: Product, *, lean_images: bool = False) -> ProductResponse:
         category_id=getattr(p, "category_id", "") or "",
         supplier_id=p.supplier_id,
         supplier_name=p.supplier_name,
-        description=p.description,
+        description=description,
         buy_uom=getattr(p, "buy_uom", None) or p.uom or "",
         uom=getattr(p, "uom", None) or getattr(p, "buy_uom", None) or "",
         units_per_buy_uom=getattr(p, "units_per_buy_uom", None) or 1,
@@ -154,8 +163,8 @@ def _to_response(p: Product, *, lean_images: bool = False) -> ProductResponse:
         pack_discount_percent=getattr(p, "pack_discount_percent", 0.0) or 0.0,
         pack_offered_price=getattr(p, "pack_offered_price", 0.0) or 0.0,
         images=images,
-        nutrition_info=p.nutrition_info,
-        allergen_info=p.allergen_info,
+        nutrition_info=nutrition_info,
+        allergen_info=allergen_info,
         stock=p.stock,
         low_stock_threshold=p.low_stock_threshold,
         status=p.status if hasattr(p, "status") and p.status else ProductStatus.active,
@@ -172,7 +181,7 @@ def _to_response(p: Product, *, lean_images: bool = False) -> ProductResponse:
 @router.get("", response_model=PaginatedResponse[ProductResponse])
 async def list_products(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=500),
+    page_size: int = Query(10, ge=1, le=100),
     search: str = Query(""),
     category: str = Query(""),
     supplier_id: str = Query(""),
@@ -182,6 +191,7 @@ async def list_products(
     is_trending: bool | None = Query(None),
     sort_by: str = Query("", pattern="^(|name|sku|selling_price|sellingPrice|created_at|createdAt)$"),
     sort_order: str = Query("", pattern="^(|asc|desc)$"),
+    include_images: bool = Query(True),
     _: User = Depends(get_current_user),
 ):
     query = Product.find(Product.is_active == True)  # noqa: E712
@@ -222,10 +232,15 @@ async def list_products(
         query = query.sort((db_sort_field, direction))
 
     total = await query.count()
-    products = await query.skip((page - 1) * page_size).limit(page_size).to_list()
+    products = await to_list_lean(
+        query,
+        skip=(page - 1) * page_size,
+        limit=page_size,
+        include_images=include_images,
+    )
 
     return PaginatedResponse(
-        data=[_to_response(p, lean_images=True) for p in products],
+        data=[_to_response(p, lean=True, include_images=include_images) for p in products],
         total=total,
         page=page,
         page_size=page_size,

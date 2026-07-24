@@ -80,6 +80,7 @@ export function useDeleteProduct() {
 
 export function useInfiniteProducts(
   params?: Omit<ListQueryParams, 'page'> & { pageSize?: number },
+  options?: { enabled?: boolean },
 ) {
   const { pageSize = GRID_PAGE_SIZE, ...rest } = params ?? {};
   return useInfiniteQuery({
@@ -89,5 +90,7 @@ export function useInfiniteProducts(
     initialPageParam: 1,
     getNextPageParam: (last) =>
       (last.page < last.totalPages ? last.page + 1 : undefined),
+    enabled: options?.enabled ?? true,
+    staleTime: STALE_TIME.realtime,
   });
 }

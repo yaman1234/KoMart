@@ -49,7 +49,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useQueryClient } from '@tanstack/react-query';
-import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
+import { invalidateCommerceQueries, patchProductStockInCache } from '@/hooks/invalidateCommerce';
 
 import { useInfiniteProducts } from '@/hooks/useProducts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -62,7 +62,7 @@ import { transactionService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { formatAmount, formatCurrency } from '@/utils';
-import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE, PRODUCT_CATEGORIES, QUERY_KEYS } from '@/constants';
+import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE, PRODUCT_CATEGORIES } from '@/constants';
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { cartLineKey } from '@/utils/cartLine';
@@ -733,24 +733,16 @@ export function POSPage() {
       });
       setReceipt(txn);
       showSuccess('Sale completed — POS and Dashboard will reflect changes shortly.');
+      const soldIds: string[] = [];
       for (const item of payload.items) {
         const baseQty = item.quantity * (item.unitFactor ?? 1);
-        queryClient.setQueriesData<{ data: { id: string; stock: number }[] }>(
-          { queryKey: QUERY_KEYS.products },
-          (old) => {
-            if (!old?.data) return old;
-            return {
-              ...old,
-              data: old.data.map((p) =>
-                p.id === item.productId
-                  ? { ...p, stock: Math.max(0, p.stock - baseQty) }
-                  : p,
-              ),
-            };
-          },
-        );
+        soldIds.push(item.productId);
+        patchProductStockInCache(queryClient, item.productId, baseQty);
       }
-      invalidateCommerceQueries(queryClient, { scopes: ['sale'] });
+      invalidateCommerceQueries(queryClient, {
+        scopes: ['sale'],
+        productIds: [...new Set(soldIds)],
+      });
     } catch (err) {
       setPaymentError(getErrorMessage(err));
     } finally {

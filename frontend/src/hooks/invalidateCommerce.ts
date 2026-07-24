@@ -1,13 +1,67 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
+import type { PaginatedResponse, Product } from '@/types';
 
 /** Which commerce caches to refresh after a mutation. */
 export type CommerceInvalidationScope = 'stock' | 'price' | 'sale';
 
 export interface InvalidateCommerceOptions {
   productId?: string;
+  /** Sold / touched product IDs (sale scope — targeted detail invalidation). */
+  productIds?: string[];
   /** Defaults to stock when omitted. */
   scopes?: CommerceInvalidationScope[];
+}
+
+type ProductListCache =
+  | PaginatedResponse<Product>
+  | InfiniteData<PaginatedResponse<Product>>;
+
+/** Optimistically decrement stock on cached product list / infinite pages. */
+export function patchProductStockInCache(
+  queryClient: QueryClient,
+  productId: string,
+  qtyDelta: number,
+): void {
+  if (!productId || qtyDelta === 0) return;
+  queryClient.setQueriesData<ProductListCache>(
+    { queryKey: QUERY_KEYS.products },
+    (old) => {
+      if (!old || typeof old !== 'object') return old;
+
+      if ('pages' in old && Array.isArray(old.pages)) {
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((p) =>
+              p.id === productId
+                ? { ...p, stock: Math.max(0, p.stock - qtyDelta) }
+                : p,
+            ),
+          })),
+        };
+      }
+
+      if ('data' in old && Array.isArray(old.data)) {
+        return {
+          ...old,
+          data: old.data.map((p) =>
+            p.id === productId
+              ? { ...p, stock: Math.max(0, p.stock - qtyDelta) }
+              : p,
+          ),
+        };
+      }
+
+      return old;
+    },
+  );
+
+  queryClient.setQueryData<Product>(QUERY_KEYS.product(productId), (old) => {
+    if (!old) return old;
+    return { ...old, stock: Math.max(0, old.stock - qtyDelta) };
+  });
 }
 
 /**
@@ -17,7 +71,7 @@ export interface InvalidateCommerceOptions {
  * Scopes:
  * - stock: receive, adjust, void restock
  * - price: product edit, receive with new prices, discount rules
- * - sale: POS checkout, void, transaction edit
+ * - sale: POS checkout, void, transaction edit — narrow (no full products/inventory refetch)
  */
 export function invalidateCommerceQueries(
   queryClient: QueryClient,
@@ -29,6 +83,7 @@ export function invalidateCommerceQueries(
   const needsSale = scopes.includes('sale');
 
   if (needsStock) {
+    // Product create/edit/receive: refresh lists including PO catalog index.
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
@@ -43,17 +98,23 @@ export function invalidateCommerceQueries(
   }
 
   if (needsSale) {
-    // Sale updates stock + wallets; refresh those without blanket reports/notifications sync.
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
+    // Stock already patched on POS lists; avoid full products/inventory refetch storm.
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactions });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.customers });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports('dailySummary') });
+
+    const ids = new Set<string>([
+      ...(options.productId ? [options.productId] : []),
+      ...(options.productIds ?? []),
+    ]);
+    for (const id of ids) {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(id) });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryItem(id) });
+    }
   }
 
-  if (options.productId) {
+  if (options.productId && !needsSale) {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.product(options.productId) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryItem(options.productId) });
   }

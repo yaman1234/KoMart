@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, Response, status, Query
 from math import ceil
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -9,6 +9,8 @@ from app.models.product import Product, ProductStatus
 from app.models.discount_rule import DiscountRule, DiscountRuleType
 from app.schemas.common import PaginatedResponse
 from app.services.store_settings import get_store_settings
+from app.services.product_list import to_list_lean
+from app.http_cache import set_public_cache
 
 router = APIRouter(prefix="/catalog", tags=["Catalog (Public)"])
 
@@ -58,10 +60,18 @@ class CatalogOfferResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _to_catalog(p: Product, *, lean_images: bool = False) -> CatalogProductResponse:
-    images = list(p.images or [])
-    if lean_images and len(images) > 1:
-        images = images[:1]
+def _to_catalog(p: Product, *, lean: bool = False) -> CatalogProductResponse:
+    # List keeps first image for cards; omits long text. Detail keeps full fields.
+    if lean:
+        images = list(p.images or [])[:1]
+        description = ""
+        nutrition_info = None
+        allergen_info = None
+    else:
+        images = list(p.images or [])
+        description = p.description
+        nutrition_info = p.nutrition_info
+        allergen_info = p.allergen_info
     return CatalogProductResponse(
         id=str(p.id),
         name=p.name,
@@ -70,12 +80,12 @@ def _to_catalog(p: Product, *, lean_images: bool = False) -> CatalogProductRespo
         brand=p.brand,
         country_of_origin=p.country_of_origin,
         category=p.category,
-        description=p.description,
+        description=description,
         uom=p.uom if hasattr(p, "uom") and p.uom else "pcs",
         selling_price=p.selling_price,
         images=images,
-        nutrition_info=p.nutrition_info,
-        allergen_info=p.allergen_info,
+        nutrition_info=nutrition_info,
+        allergen_info=allergen_info,
         status=p.status if hasattr(p, "status") and p.status else ProductStatus.active,
         tags=p.tags if hasattr(p, "tags") and p.tags else [],
         is_popular=bool(getattr(p, "is_popular", False)),
@@ -87,8 +97,9 @@ def _to_catalog(p: Product, *, lean_images: bool = False) -> CatalogProductRespo
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/store-info", response_model=StoreInfoResponse)
-async def get_store_info():
+async def get_store_info(response: Response):
     """Public store info — no authentication required."""
+    set_public_cache(response, max_age=60, s_maxage=300)
     settings = await get_store_settings()
     return StoreInfoResponse(
         store_name=settings.store_name,
@@ -100,8 +111,9 @@ async def get_store_info():
 
 
 @router.get("/offers", response_model=list[CatalogOfferResponse])
-async def list_offers():
+async def list_offers(response: Response):
     """Public active offers — no authentication required."""
+    set_public_cache(response, max_age=30, s_maxage=60)
     now = datetime.now(timezone.utc)
     rules = await DiscountRule.find(
         DiscountRule.is_active == True,  # noqa: E712
@@ -135,8 +147,9 @@ async def list_offers():
 
 
 @router.get("/tags", response_model=list[str])
-async def list_tags():
+async def list_tags(response: Response):
     """Public distinct product tags — no authentication required."""
+    set_public_cache(response, max_age=60, s_maxage=300)
     pipeline = [
         {"$match": {"is_active": True, "status": {"$ne": ProductStatus.discontinued.value}}},
         {"$unwind": "$tags"},
@@ -149,6 +162,7 @@ async def list_tags():
 
 @router.get("", response_model=PaginatedResponse[CatalogProductResponse])
 async def list_catalog(
+    response: Response,
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=200),
     search: str = Query(""),
@@ -160,6 +174,7 @@ async def list_catalog(
     sort_order: str = Query("", pattern="^(|asc|desc)$"),
 ):
     """Public product catalog — no authentication required."""
+    set_public_cache(response, max_age=30, s_maxage=60)
     query = Product.find(
         Product.is_active == True,  # noqa: E712
         Product.status != ProductStatus.discontinued,
@@ -187,10 +202,14 @@ async def list_catalog(
         direction = 1 if sort_order == "asc" else -1
         query = query.sort((sort_by, direction))
 
-    products = await query.skip((page - 1) * page_size).limit(page_size).to_list()
+    products = await to_list_lean(
+        query,
+        skip=(page - 1) * page_size,
+        limit=page_size,
+    )
 
     return PaginatedResponse(
-        data=[_to_catalog(p, lean_images=True) for p in products],
+        data=[_to_catalog(p, lean=True) for p in products],
         total=total,
         page=page,
         page_size=page_size,
@@ -199,8 +218,9 @@ async def list_catalog(
 
 
 @router.get("/{product_id}", response_model=CatalogProductResponse)
-async def get_catalog_product(product_id: str):
+async def get_catalog_product(product_id: str, response: Response):
     """Public product detail — no authentication required."""
+    set_public_cache(response, max_age=60)
     product = await Product.get(product_id)
     if not product or not product.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")

@@ -111,7 +111,7 @@ async def test_list_products_includes_status(
     token = await _login(client, manager_user.email, "managerpass123")
     res = await client.get(
         "/api/v1/products",
-        params={"page_size": 200, "search": "STATUS-"},
+        params={"page_size": 100, "search": "STATUS-"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res.status_code == 200

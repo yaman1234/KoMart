@@ -362,6 +362,8 @@ async def record_sale(body: TransactionCreate, cashier_id: str | None = None) ->
                     "membership_tier": new_tier,
                 })
 
+        from app.services.response_cache import bump_commerce_caches
+        await bump_commerce_caches()
         return _to_response(txn)
 
     except Exception:
@@ -468,6 +470,8 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
         # Rewrite ledger so wallet balances match the edited sale.
         await delete_reference("transaction", txn_id)
         await post_sale(refreshed, created_by=refreshed.created_by or "")
+        from app.services.response_cache import bump_commerce_caches
+        await bump_commerce_caches()
 
     return _to_response(refreshed)
 
@@ -538,4 +542,6 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
     )
 
     refreshed = await Transaction.get(txn_id)
+    from app.services.response_cache import bump_commerce_caches
+    await bump_commerce_caches()
     return _to_response(refreshed)  # type: ignore[arg-type]

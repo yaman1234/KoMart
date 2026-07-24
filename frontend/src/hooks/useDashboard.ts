@@ -10,7 +10,7 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: QUERY_KEYS.dashboardStats(JSON.stringify(dateRange)),
     queryFn: () => dashboardService.getStats(dateRange),
-    staleTime: STALE_TIME.realtime,
+    staleTime: STALE_TIME.standard,
   });
 }
 
@@ -18,7 +18,7 @@ export function useDashboardKpi() {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'kpi'],
     queryFn: () => dashboardService.getKpiSummary(),
-    staleTime: STALE_TIME.realtime,
+    staleTime: STALE_TIME.standard,
   });
 }
 
@@ -112,6 +112,6 @@ export function useRecentTransactions() {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'transactions'],
     queryFn: () => dashboardService.getRecentTransactions(),
-    staleTime: STALE_TIME.realtime,
+    staleTime: STALE_TIME.standard,
   });
 }

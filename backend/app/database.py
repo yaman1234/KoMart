@@ -1,5 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
+import os
 
 from app.config import settings
 from app.models.product import ProductStatus
@@ -23,6 +24,7 @@ from app.models import (
     DayClose,
     PriceHistory,
     WalletLedgerEntry,
+    CacheEntry,
 )
 
 _motor_client: AsyncIOMotorClient | None = None
@@ -49,38 +51,8 @@ async def _drop_conflicting_indexes(db) -> None:
             pass  # index doesn't exist or already dropped
 
 
-async def init_db() -> None:
-    global _motor_client
-    _motor_client = AsyncIOMotorClient(settings.mongo_url)
-    client = _motor_client
-    db = client[settings.mongo_db_name]
-
-    await _drop_conflicting_indexes(db)
-
-    await init_beanie(
-        database=db,
-        document_models=[
-            User,
-            Product,
-            InventoryBatch,
-            StockAdjustment,
-            Supplier,
-            PurchaseOrder,
-            Customer,
-            Transaction,
-            Notification,
-            StoreSettings,
-            Expense,
-            Category,
-            Uom,
-            RefreshToken,
-            AuditLog,
-            DiscountRule,
-            DayClose,
-            PriceHistory,
-            WalletLedgerEntry,
-        ],
-    )
+async def _run_startup_migrations() -> None:
+    """One-time data backfills — run via CLI/local start, not every Vercel cold start."""
     # Backfill legacy products created before status field existed.
     await Product.get_motor_collection().update_many(
         {"$or": [{"status": {"$exists": False}}, {"status": None}]},
@@ -116,6 +88,58 @@ async def init_db() -> None:
     # Seed wallet ledger from historical sales/expenses once (idempotent).
     from app.services.wallet_ledger import ensure_backfill
     await ensure_backfill(created_by="system")
+
+
+async def init_db() -> None:
+    """Connect Motor + Beanie. Heavy migrations are skipped on Vercel cold starts."""
+    global _motor_client
+    on_vercel = bool(os.getenv("VERCEL"))
+    motor_kwargs: dict = {
+        "serverSelectionTimeoutMS": 5_000,
+        "connectTimeoutMS": 10_000,
+        "socketTimeoutMS": 20_000,
+        # Serverless: small pool; local/dev can use a larger pool.
+        "maxPoolSize": 10 if on_vercel else 50,
+        "minPoolSize": 0,
+    }
+    if on_vercel:
+        motor_kwargs["maxIdleTimeMS"] = 30_000
+    _motor_client = AsyncIOMotorClient(settings.mongo_url, **motor_kwargs)
+    client = _motor_client
+    db = client[settings.mongo_db_name]
+
+    run_migrations = not settings.skip_startup_migrations
+    if run_migrations:
+        await _drop_conflicting_indexes(db)
+
+    await init_beanie(
+        database=db,
+        document_models=[
+            User,
+            Product,
+            InventoryBatch,
+            StockAdjustment,
+            Supplier,
+            PurchaseOrder,
+            Customer,
+            Transaction,
+            Notification,
+            StoreSettings,
+            Expense,
+            Category,
+            Uom,
+            RefreshToken,
+            AuditLog,
+            DiscountRule,
+            DayClose,
+            PriceHistory,
+            WalletLedgerEntry,
+            CacheEntry,
+        ],
+    )
+
+    if run_migrations:
+        await _run_startup_migrations()
 
 
 DEFAULT_UOMS: list[tuple[str, str]] = [

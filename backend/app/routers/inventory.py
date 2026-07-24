@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from math import ceil
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
@@ -30,6 +30,11 @@ from app.services.stock import (
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit
 from app.services.reporting import aggregate_product_inventory_stats
+from app.services.response_cache import (
+    INVENTORY_STATS_KEY,
+    get_cached,
+    set_cached,
+)
 from app.services.inventory_sync import apply_receive_product_updates, log_receive_price_change
 from app.services.inventory_movements import (
     aggregate_movement_summary,
@@ -107,17 +112,25 @@ def _item_response(product: Product, batches: list[InventoryBatch]) -> Inventory
 
 
 @router.get("/stats", response_model=InventoryStatsResponse)
-async def inventory_stats(_: User = Depends(get_current_user)):
+async def inventory_stats(response: Response, _: User = Depends(get_current_user)):
+    cached = await get_cached(INVENTORY_STATS_KEY)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return InventoryStatsResponse(**cached)
+
     stats = await aggregate_product_inventory_stats()
     expiring_ids = await expiring_product_ids()
 
-    return InventoryStatsResponse(
+    result = InventoryStatsResponse(
         total_skus=int(stats["total_products"]),
         low_stock=int(stats["low_stock"]),
         out_of_stock=int(stats["out_of_stock"]),
         expiring=len(expiring_ids),
         inventory_value=round(float(stats["inventory_value"]), 2),
     )
+    await set_cached(INVENTORY_STATS_KEY, result.model_dump())
+    response.headers["X-Cache"] = "MISS"
+    return result
 
 
 @router.get("", response_model=InventoryListResponse)

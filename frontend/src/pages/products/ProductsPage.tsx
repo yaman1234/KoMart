@@ -38,6 +38,7 @@ import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { isAdminOrManager, canManagePurchaseOrders, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
 import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { useCategoryNames } from '@/hooks/useCategories';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useAuthStore } from '@/store';
 import type { Product, ProductStatus } from '@/types';
 import { ProductSheetView } from '@/pages/products/components/ProductSheetView';
@@ -155,6 +156,7 @@ export function ProductsPage() {
   const dbCategories = useCategoryNames();
   const categoryOptions = dbCategories.length > 0 ? dbCategories : [...PRODUCT_CATEGORIES];
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [category, setCategory] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
@@ -175,7 +177,7 @@ export function ProductsPage() {
 
   // Shared query params (no page — used for infinite + list)
   const sharedParams = {
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     category: category || undefined,
     supplierId: supplierId || undefined,
     status: statusFilter || undefined,
@@ -207,7 +209,7 @@ export function ProductsPage() {
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useInfiniteProducts(sharedParams);
+  } = useInfiniteProducts(sharedParams, { enabled: viewMode === 'grid' });
 
   // ── Paged query (sheet) ─────────────────────────────────────────────────────
   const { data: pagedData, isLoading: pagedLoading } = useProducts(
@@ -269,7 +271,8 @@ export function ProductsPage() {
         const res = await productService.getAll({
           ...sharedParams,
           page: pageNum,
-          pageSize: 500,
+          pageSize: 100,
+          includeImages: false,
         });
         all.push(...res.data);
         totalPages = res.totalPages ?? 1;

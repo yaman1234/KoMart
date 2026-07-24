@@ -47,7 +47,8 @@ export function useVoidTransaction() {
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       transactionService.void(id, reason),
     onSuccess: () => {
-      invalidateCommerceQueries(queryClient, { scopes: ['sale'] });
+      // Void restocks inventory — refresh product/inventory lists as well as sale caches.
+      invalidateCommerceQueries(queryClient, { scopes: ['sale', 'stock'] });
     },
   });
 }
