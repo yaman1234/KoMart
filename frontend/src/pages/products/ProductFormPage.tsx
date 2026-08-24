@@ -317,17 +317,68 @@ export function ProductFormPage() {
   }, [watch, setValue]);
 
   // ── Image file picker ────────────────────────────────────────────────────
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setValue('imageUrl', reader.result as string, { shouldValidate: true });
-    };
-    reader.readAsDataURL(file);
-    // reset the input so the same file can be re-selected
+  const handleFileChange = async (
+  e: React.ChangeEvent<HTMLInputElement>,
+) => {
+  const file = e.target.files?.[0];
+
+  if (!file) return;
+
+  try {
+const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || !uploadPreset) {
+      throw new Error('Cloudinary configuration is missing.');
+    }
+
+    // Optional client-side validation
+    if (!file.type.startsWith('image/')) {
+      showWarning('Please select an image file.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showWarning('Image must be smaller than 5 MB.');
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'Image upload failed.');
+    }
+
+    // Cloudinary URL
+    const imageUrl = data.secure_url;
+
+    setValue('imageUrl', imageUrl, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    showSuccess('Image uploaded successfully.');
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    showApiError(error, 'Image upload failed.');
+  } finally {
+    // Allow selecting the same file again
     e.target.value = '';
-  };
+  }
+};
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = async (values: FormValues) => {
