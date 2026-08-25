@@ -19,6 +19,7 @@ import type {
   Transaction,
   AppNotification,
   DashboardStats,
+  DayWiseTransactions,
   RevenueDataPoint,
   TopProduct,
   DashboardKpiSummary,
@@ -262,6 +263,27 @@ export const mockApi = {
   async getDashboardKpiSummary(): Promise<DashboardKpiSummary> {
     await delay(300);
     return mockDashboardKpi;
+  },
+
+  async getDashboardDayWiseTransactions(): Promise<DayWiseTransactions> {
+    await delay(300);
+    const today = new Date().toISOString().slice(0, 10);
+    const todaysSales = transactions.filter(
+      (transaction) => transaction.createdAt.slice(0, 10) === today && transaction.status !== 'voided',
+    );
+    const salesByMethod = (method: Transaction['paymentMethod']) =>
+      todaysSales
+        .filter((transaction) => transaction.paymentMethod === method)
+        .reduce((total, transaction) => total + transaction.total, 0);
+    return {
+      todaySale: todaysSales.reduce((total, transaction) => total + transaction.total, 0),
+      todayCashSale: salesByMethod('cash'),
+      todayBankSale: salesByMethod('bank'),
+      todayEsewaSale: salesByMethod('esewa'),
+      todayExpense: expenses
+        .filter((expense) => expense.date === today)
+        .reduce((total, expense) => total + expense.amount, 0),
+    };
   },
 
   async getDashboardCashFlow(_days = 30): Promise<CashFlowPoint[]> {

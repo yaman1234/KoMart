@@ -35,6 +35,7 @@ import type {
   AppNotification,
   NotificationType,
   DashboardStats,
+  DayWiseTransactions,
   RevenueDataPoint,
   TopProduct,
   DashboardKpiSummary,
@@ -161,6 +162,11 @@ export const dashboardService = {
   getKpiSummary: async (): Promise<DashboardKpiSummary> => {
     if (useMock()) return mockApi.getDashboardKpiSummary();
     const { data } = await apiClient.get('/dashboard/kpi-summary');
+    return data;
+  },
+  getDayWiseTransactions: async (): Promise<DayWiseTransactions> => {
+    if (useMock()) return mockApi.getDashboardDayWiseTransactions();
+    const { data } = await apiClient.get('/dashboard/day-wise-transactions');
     return data;
   },
   getCashFlow: async (days = 30): Promise<CashFlowPoint[]> => {

@@ -11,7 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DateRangePicker } from '@/components/common/DateRangePicker';
@@ -26,16 +26,23 @@ import dayjs from 'dayjs';
 
 export function SalesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
-  const [status, setStatus] = useState<'all' | 'completed' | 'voided'>('all');
-  const [dateRange, setDateRange] = useState({
-    startDate: dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
-    endDate: dayjs().format('YYYY-MM-DD'),
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>(() => {
+    const value = searchParams.get('paymentMethod');
+    return value === 'cash' || value === 'bank' || value === 'card' || value === 'esewa' ? value : '';
   });
+  const [status, setStatus] = useState<'all' | 'completed' | 'voided'>(() => {
+    const value = searchParams.get('status');
+    return value === 'completed' || value === 'voided' ? value : 'all';
+  });
+  const [dateRange, setDateRange] = useState(() => ({
+    startDate: searchParams.get('startDate') ?? dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
+    endDate: searchParams.get('endDate') ?? dayjs().format('YYYY-MM-DD'),
+  }));
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);

@@ -594,6 +594,14 @@ export interface DashboardStats {
   netRevenue: number;
 }
 
+export interface DayWiseTransactions {
+  todaySale: number;
+  todayCashSale: number;
+  todayBankSale: number;
+  todayEsewaSale: number;
+  todayExpense: number;
+}
+
 export interface RevenueDataPoint {
   date: string;
   revenue: number;

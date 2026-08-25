@@ -19,7 +19,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DateRangePicker } from '@/components/common/DateRangePicker';
@@ -59,6 +59,7 @@ function monthStartIso() {
 
 export function ExpensesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canManage = isAdminOrManager(user?.role);
@@ -67,8 +68,8 @@ export function ExpensesPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [setupFilter, setSetupFilter] = useState('');
-  const [startDate, setStartDate] = useState(monthStartIso);
-  const [endDate, setEndDate] = useState(todayIso);
+  const [startDate, setStartDate] = useState(() => searchParams.get('startDate') ?? monthStartIso());
+  const [endDate, setEndDate] = useState(() => searchParams.get('endDate') ?? todayIso());
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [deleteId, setDeleteId] = useState<string | null>(null);
