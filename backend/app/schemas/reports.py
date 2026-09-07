@@ -3,6 +3,18 @@ from pydantic import BaseModel, Field
 from app.schemas.dashboard import RevenueDataPoint, TopProduct, SalesByCategory
 
 
+class SoldProduct(BaseModel):
+    """Product-level sales aggregate for the Items Sold report (all sold SKUs in range)."""
+
+    product_id: str
+    name: str
+    quantity_sold: float
+    unit_selling_price: float
+    discount_given: float
+    line_total: float
+    revenue: float
+
+
 class SalesSummary(BaseModel):
     total_revenue: float
     transaction_count: int
@@ -240,6 +252,7 @@ __all__ = [
     "SalesByPaymentMethod",
     "RevenueDataPoint",
     "TopProduct",
+    "SoldProduct",
     "SalesByCategory",
     "InventoryReportSummary",
     "ExpiringProductRow",

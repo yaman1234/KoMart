@@ -37,6 +37,7 @@ import type {
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
+  SoldProduct,
   DashboardKpiSummary,
   CashFlowPoint,
   NamedAmountPoint,
@@ -575,10 +576,10 @@ export const reportsService = {
     const { data } = await apiClient.get('/reports/revenue', { params: withRange(range) });
     return ensureArray(data);
   },
-  getTopProducts: async (range?: DateRange, limit = 10): Promise<TopProduct[]> => {
+  getTopProducts: async (range?: DateRange, limit = 5000): Promise<SoldProduct[]> => {
     if (useMock()) return mockApi.getReportsTopProducts(range);
     const { data } = await apiClient.get('/reports/top-products', { params: { ...withRange(range), limit } });
-    return ensureArray(data);
+    return ensureArray(data) as SoldProduct[];
   },
   getSalesByCategory: async (range?: DateRange): Promise<SalesByCategory[]> => {
     if (useMock()) return mockApi.getReportsSalesByCategory(range);

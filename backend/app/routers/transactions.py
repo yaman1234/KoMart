@@ -50,6 +50,7 @@ async def list_transactions(
     status: Optional[TransactionStatus] = Query(None),
     start_date: str = Query(""),
     end_date: str = Query(""),
+    product_id: str = Query(""),
     sort_by: str = Query("", pattern=f"^(|{'|'.join(sorted(ALLOWED_SORT_FIELDS))})$"),
     sort_order: str = Query("desc", pattern="^(|asc|desc)$"),
     current_user: User = Depends(get_current_user),
@@ -64,6 +65,8 @@ async def list_transactions(
         filters["payment_method"] = payment_method
     if status:
         filters["status"] = status
+    if product_id.strip():
+        filters["items.product_id"] = product_id.strip()
     if start_date:
         try:
             start = npt_day_start_utc(start_date[:10])

@@ -13,6 +13,8 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TableContainer,
+  TablePagination,
   Divider,
   Chip,
   Alert,
@@ -78,6 +80,7 @@ import {
   useExpenseSummary,
 } from '@/hooks/useReports';
 import { useStoreSettings } from '@/hooks/useSettings';
+import { ProductSalesDialog } from '@/pages/reports/ProductSalesDialog';
 
 type ReportTab = 'sales' | 'inventory' | 'financial' | 'purchasing' | 'customers';
 
@@ -95,6 +98,12 @@ export function ReportsPage() {
   const [tab, setTab] = useState<ReportTab>('sales');
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState<'' | ProductStatus>('');
   const [exporting, setExporting] = useState(false);
+  const [itemsSoldPage, setItemsSoldPage] = useState(0);
+  const [itemsSoldPageSize, setItemsSoldPageSize] = useState(25);
+  const [productSalesTarget, setProductSalesTarget] = useState<{
+    productId: string;
+    name: string;
+  } | null>(null);
   const { dateRange, setDateRange } = useDashboardStore();
   const user = useAuthStore((s) => s.user);
   const canViewCashier = canViewAdminReports(user?.role);
@@ -125,13 +134,24 @@ export function ReportsPage() {
   const salesByHourQuery = useSalesByHour(salesTab);
   const salesByDayQuery = useSalesByDayOfWeek(salesTab);
   const salesByCashierQuery = useSalesByCashier(salesTab && canViewCashier);
-  const deadStockQuery = useDeadStock(salesTab);
+  const deadStockQuery = useDeadStock(inventoryTab);
 
   const salesSummary = salesSummaryQuery.data;
   const paymentMethods = paymentMethodsQuery.data ?? [];
   const revenue = revenueQuery.data ?? [];
   const revenueLoading = revenueQuery.isLoading;
   const topProducts = topProductsQuery.data ?? [];
+  const itemsSoldTotals = {
+    discountGiven: topProducts.reduce((s, p) => s + (p.discountGiven ?? 0), 0),
+    lineTotal: topProducts.reduce((s, p) => s + (p.lineTotal ?? p.revenue ?? 0), 0),
+    revenue: topProducts.reduce((s, p) => s + (p.revenue ?? 0), 0),
+    unitsSold: topProducts.reduce((s, p) => s + (p.quantitySold ?? 0), 0),
+  };
+  const itemsSoldTotalAmount = itemsSoldTotals.revenue;
+  const pagedItemsSold = topProducts.slice(
+    itemsSoldPage * itemsSoldPageSize,
+    itemsSoldPage * itemsSoldPageSize + itemsSoldPageSize,
+  );
   const salesByCategory = salesByCategoryQuery.data ?? [];
   const inventorySummary = inventorySummaryQuery.data;
   const expiringData = expiringQuery.data;
@@ -210,7 +230,7 @@ export function ReportsPage() {
         loyaltySum,
       ] = await Promise.all([
         reportsService.getSalesSummary(range).catch(() => null),
-        reportsService.getTopProducts(range, 50).catch(() => [] as typeof topProducts),
+        reportsService.getTopProducts(range, 5000).catch(() => [] as typeof topProducts),
         reportsService.getSalesByPaymentMethod(range).catch(() => [] as typeof paymentMethods),
         reportsService.getSalesByCategory(range).catch(() => [] as typeof salesByCategory),
         canViewCashier ? reportsService.getSalesByCashier(range).catch(() => [] as typeof salesByCashier) : Promise.resolve([] as typeof salesByCashier),
@@ -279,10 +299,24 @@ export function ReportsPage() {
       ]);
 
       appendSection(
-        salesAoA, 'TOP SELLING PRODUCTS',
-        ['#', 'Product', 'Units Sold', 'Revenue'],
-        topProds.map((p, i) => [i + 1, p.name, p.quantitySold, p.revenue]),
-        ['TOTAL', '', topProds.reduce((s, p) => s + p.quantitySold, 0), sumRev(topProds)],
+        salesAoA, 'ITEMS SOLD',
+        ['Product', 'Unit Selling Price', 'Units Sold', 'Discount Given', 'Line Total', 'Revenue'],
+        topProds.map((p) => [
+          p.name,
+          p.unitSellingPrice ?? 0,
+          p.quantitySold,
+          p.discountGiven ?? 0,
+          p.lineTotal ?? p.revenue,
+          p.revenue,
+        ]),
+        [
+          'TOTAL AMOUNT',
+          '',
+          topProds.reduce((s, p) => s + p.quantitySold, 0),
+          topProds.reduce((s, p) => s + (p.discountGiven ?? 0), 0),
+          topProds.reduce((s, p) => s + (p.lineTotal ?? p.revenue), 0),
+          sumRev(topProds),
+        ],
       );
 
       appendSection(
@@ -305,15 +339,6 @@ export function ReportsPage() {
           ['Cashier', 'Transactions', 'Revenue'],
           cashiers.map((c) => [c.cashier, c.transactionCount, c.revenue]),
           ['TOTAL', cashiers.reduce((s, c) => s + c.transactionCount, 0), sumRev(cashiers)],
-        );
-      }
-
-      if (deadStockItems.length > 0) {
-        appendSection(
-          salesAoA, 'DEAD STOCK (no sales in last 30 days)',
-          ['Product', 'Category', 'Days Without Sale', 'Stock', 'Stock Value'],
-          deadStockItems.map((d) => [d.productName, d.category, d.daysWithoutSale ?? '', d.stock, d.stockValue]),
-          ['TOTAL', '', '', deadStockItems.reduce((s, d) => s + d.stock, 0), deadStockItems.reduce((s, d) => s + d.stockValue, 0)],
         );
       }
 
@@ -347,6 +372,15 @@ export function ReportsPage() {
           row.productName, row.batchNumber, row.quantity, row.expiryDate, row.daysUntilExpiry,
         ]),
       );
+
+      if (deadStockItems.length > 0) {
+        appendSection(
+          invAoA, 'DEAD STOCK (no sales in last 30 days)',
+          ['Product', 'Category', 'Days Without Sale', 'Stock', 'Stock Value'],
+          deadStockItems.map((d) => [d.productName, d.category, d.daysWithoutSale ?? '', d.stock, d.stockValue]),
+          ['TOTAL', '', '', deadStockItems.reduce((s, d) => s + d.stock, 0), deadStockItems.reduce((s, d) => s + d.stockValue, 0)],
+        );
+      }
 
       /* ═══════════════════════════════════════════
          SHEET 3 — FINANCIAL
@@ -576,8 +610,8 @@ export function ReportsPage() {
                     <Area
                       type="monotone"
                       dataKey="revenue"
-                      stroke="#E63946"
-                      fill="#E63946"
+                      stroke="#2A9D8F"
+                      fill="#2A9D8F"
                       fillOpacity={0.15}
                       strokeWidth={2}
                     />
@@ -663,30 +697,152 @@ export function ReportsPage() {
           </Grid>
 
           <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-              Top Selling Products
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Items Sold
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                Total Amount: {formatCurrency(itemsSoldTotalAmount)}
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              All products with sales in the selected period
             </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell>Product</TableCell>
-                  <TableCell align="right">Units Sold</TableCell>
-                  <TableCell align="right">Revenue</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {topProducts.map((p, i) => (
-                  <TableRow key={p.productId}>
-                    <TableCell>{i + 1}</TableCell>
-                    <TableCell>{p.name}</TableCell>
-                    <TableCell align="right">{p.quantitySold.toLocaleString()}</TableCell>
-                    <TableCell align="right">{formatCurrency(p.revenue)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <Paper
+              variant="outlined"
+              sx={{ width: '100%', overflow: 'hidden', border: 1, borderColor: 'divider', borderRadius: 1 }}
+            >
+              <TableContainer sx={{ maxHeight: 1100, borderTop: 1, borderColor: 'divider' }}>
+                <Table stickyHeader size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell align="center" sx={{ fontWeight: 600, minWidth: 56, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        S.N
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        Product
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        Unit Selling Price
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        Units Sold
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        Discount Given
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        Line Total
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        Revenue
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pagedItemsSold.map((p, i) => (
+                      <TableRow
+                        key={p.productId}
+                        hover
+                        sx={{
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          '&:nth-of-type(even)': { backgroundColor: 'rgba(0, 0, 0, 0.02)' },
+                        }}
+                      >
+                        <TableCell align="center" sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                          {itemsSoldPage * itemsSoldPageSize + i + 1}
+                        </TableCell>
+                        <TableCell sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                          {p.name}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(p.unitSellingPrice ?? 0)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          <Typography
+                            component="button"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setProductSalesTarget({ productId: p.productId, name: p.name });
+                            }}
+                            sx={{
+                              background: 'transparent',
+                              border: 'none',
+                              padding: 0,
+                              cursor: 'pointer',
+                              color: 'primary.main',
+                              textDecoration: 'underline',
+                              fontWeight: 600,
+                              fontFamily: 'inherit',
+                              fontSize: 'inherit',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {Number(p.quantitySold).toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(p.discountGiven ?? 0)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(p.lineTotal ?? p.revenue)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(p.revenue)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {topProducts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                          <Typography color="text.secondary">No products sold in this period</Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {topProducts.length > 0 && (
+                      <TableRow
+                        sx={{
+                          backgroundColor: 'action.hover',
+                          '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'divider' },
+                        }}
+                      >
+                        <TableCell colSpan={3} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                          Total
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {itemsSoldTotals.unitsSold.toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(itemsSoldTotals.discountGiven)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(itemsSoldTotals.lineTotal)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(itemsSoldTotals.revenue)}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {topProducts.length > 0 && (
+                <TablePagination
+                  component="div"
+                  count={topProducts.length}
+                  page={itemsSoldPage}
+                  onPageChange={(_, page) => setItemsSoldPage(page)}
+                  rowsPerPage={itemsSoldPageSize}
+                  onRowsPerPageChange={(e) => {
+                    setItemsSoldPageSize(parseInt(e.target.value, 10));
+                    setItemsSoldPage(0);
+                  }}
+                  rowsPerPageOptions={[10, 25, 50]}
+                />
+              )}
+            </Paper>
           </Paper>
 
           {canViewCashier && salesByCashier.length > 0 && (
@@ -709,38 +865,6 @@ export function ReportsPage() {
                       <TableCell>{row.cashier}</TableCell>
                       <TableCell align="right">{row.transactionCount}</TableCell>
                       <TableCell align="right">{formatCurrency(row.revenue)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Paper>
-          )}
-
-          {deadStock.length > 0 && (
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                Dead Stock
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Products with stock but no sales in the last 30 days
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Product</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell align="right">Stock</TableCell>
-                    <TableCell align="right">Stock Value</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {deadStock.map((p) => (
-                    <TableRow key={p.productId}>
-                      <TableCell>{p.productName}</TableCell>
-                      <TableCell>{p.category}</TableCell>
-                      <TableCell align="right">{p.stock}</TableCell>
-                      <TableCell align="right">{formatCurrency(p.stockValue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -897,6 +1021,45 @@ export function ReportsPage() {
                   <TableRow>
                     <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                       No products expiring within 30 days
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Paper>
+
+          <Paper sx={{ p: 3, mt: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              Dead Stock
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Products with stock but no sales in the last 30 days
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Product</TableCell>
+                  <TableCell>Category</TableCell>
+                  <TableCell align="right">Days Without Sale</TableCell>
+                  <TableCell align="right">Stock</TableCell>
+                  <TableCell align="right">Stock Value</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {deadStock.map((p) => (
+                  <TableRow key={p.productId}>
+                    <TableCell>{p.productName}</TableCell>
+                    <TableCell>{p.category}</TableCell>
+                    <TableCell align="right">{p.daysWithoutSale ?? '—'}</TableCell>
+                    <TableCell align="right">{p.stock}</TableCell>
+                    <TableCell align="right">{formatCurrency(p.stockValue)}</TableCell>
+                  </TableRow>
+                ))}
+                {deadStock.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                      No dead stock in the last 30 days
                     </TableCell>
                   </TableRow>
                 )}
@@ -1219,6 +1382,14 @@ export function ReportsPage() {
           </Paper>
         </Box>
       )}
+
+      <ProductSalesDialog
+        open={!!productSalesTarget}
+        onClose={() => setProductSalesTarget(null)}
+        productId={productSalesTarget?.productId ?? ''}
+        productName={productSalesTarget?.name ?? ''}
+        dateRange={dateRange}
+      />
     </Box>
   );
 }

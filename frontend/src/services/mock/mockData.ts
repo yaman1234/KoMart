@@ -9,6 +9,7 @@ import type {
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
+  SoldProduct,
   DashboardKpiSummary,
   CashFlowPoint,
   NamedAmountPoint,
@@ -577,6 +578,16 @@ export const mockTopProducts: TopProduct[] = [
   { productId: 'prod-2', name: 'Honey Butter Chips', quantitySold: 98, revenue: 31360 },
   { productId: 'prod-11', name: 'Nissin Cup Noodle Seafood', quantitySold: 87, revenue: 15660 },
 ];
+
+export const mockSoldProducts: SoldProduct[] = mockTopProducts.map((p) => ({
+  productId: p.productId,
+  name: p.name,
+  quantitySold: p.quantitySold,
+  unitSellingPrice: p.quantitySold ? Math.round((p.revenue / p.quantitySold) * 100) / 100 : 0,
+  discountGiven: 0,
+  lineTotal: p.revenue,
+  revenue: p.revenue,
+}));
 
 export const mockDashboardKpi: DashboardKpiSummary = {
   fiscalYearStart: '2025-07-16',

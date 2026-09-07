@@ -37,6 +37,16 @@ def line_revenue(item: TransactionItem) -> float:
     return item.price * item.quantity - item.discount * item.quantity
 
 
+def line_gross(item: TransactionItem) -> float:
+    """Gross line amount before discount: price × quantity."""
+    return float(item.price) * float(item.quantity)
+
+
+def line_discount(item: TransactionItem) -> float:
+    """Total discount on the line: discount × quantity."""
+    return float(item.discount) * float(item.quantity)
+
+
 def line_cogs(item: TransactionItem, product: Product | None) -> float:
     unit_cost = getattr(item, "unit_cost", 0.0) or 0.0
     if unit_cost > 0:

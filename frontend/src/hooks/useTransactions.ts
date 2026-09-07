@@ -15,6 +15,7 @@ export function useTransactions(params?: ListQueryParams) {
     queryKey: [...QUERY_KEYS.transactions, params],
     queryFn: () => transactionService.getAll(params),
     placeholderData: keepPreviousData,
+    enabled: params !== undefined,
   });
 }
 

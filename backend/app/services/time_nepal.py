@@ -17,6 +17,11 @@ def ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def to_npt(dt: datetime) -> datetime:
+    """Convert a stored instant to Asia/Kathmandu wall time."""
+    return ensure_utc(dt).astimezone(NPT)
+
+
 def to_utc_iso(dt: datetime | None) -> str:
     """Serialize datetime as UTC ISO-8601 with trailing Z."""
     if dt is None:

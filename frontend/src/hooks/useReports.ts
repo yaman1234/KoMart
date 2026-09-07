@@ -60,7 +60,7 @@ export function useReportsTopProducts(enabled = true) {
   return useQuery(
     reportQueryOptions(
       [...QUERY_KEYS.reports('topProducts'), dateRange],
-      () => reportsService.getTopProducts(dateRange),
+      () => reportsService.getTopProducts(dateRange, 5000),
       enabled,
     ),
   );

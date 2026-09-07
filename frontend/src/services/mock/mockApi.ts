@@ -21,6 +21,7 @@ import type {
   DashboardStats,
   RevenueDataPoint,
   TopProduct,
+  SoldProduct,
   DashboardKpiSummary,
   CashFlowPoint,
   NamedAmountPoint,
@@ -72,6 +73,7 @@ import {
   mockDashboardStats,
   mockRevenueData,
   mockTopProducts,
+  mockSoldProducts,
   mockDashboardKpi,
   mockCashFlow,
   mockOperationalExpenses,
@@ -851,6 +853,11 @@ export const mockApi = {
       filtered = filtered.filter((t) => t.paymentMethod === params.paymentMethod);
     }
 
+    if (params.productId) {
+      const productId = String(params.productId);
+      filtered = filtered.filter((t) => t.items.some((item) => item.productId === productId));
+    }
+
     if (params.startDate) {
       const start = new Date(params.startDate as string).getTime();
       filtered = filtered.filter((t) => new Date(t.createdAt).getTime() >= start);
@@ -1007,9 +1014,9 @@ export const mockApi = {
     return mockRevenueData;
   },
 
-  async getReportsTopProducts(_range?: DateRange): Promise<TopProduct[]> {
+  async getReportsTopProducts(_range?: DateRange): Promise<SoldProduct[]> {
     await delay(300);
-    return mockTopProducts;
+    return mockSoldProducts;
   },
 
   async getReportsSalesByCategory(_range?: DateRange): Promise<SalesByCategory[]> {

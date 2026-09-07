@@ -19,7 +19,7 @@ from app.services.payment_methods import normalize_payment_method
 from app.services.expense_helpers import is_setup_investment
 import re
 from app.schemas.common import PaginatedResponse
-from app.schemas.dashboard import RevenueDataPoint, SalesByCategory, TopProduct
+from app.schemas.dashboard import RevenueDataPoint, SalesByCategory
 from app.schemas.reports import (
     DeadStockProduct,
     DailySummary,
@@ -38,6 +38,7 @@ from app.schemas.reports import (
     LoyaltySummary,
     MarginByCategory,
     ProfitDataPoint,
+    SoldProduct,
     ProfitSummary,
     PurchaseOrderStatusCount,
     PurchaseOrdersSummary,
@@ -61,10 +62,13 @@ from app.services.reporting import (
     fetch_transactions,
     fill_daily_revenue,
     line_cogs,
+    line_discount,
+    line_gross,
     line_revenue,
     parse_date_range,
 )
 from app.services.stock import expiring_product_ids, get_current_stock, get_current_stock_batch
+from app.services.time_nepal import to_npt
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -254,13 +258,14 @@ async def revenue_report(
     ]
 
 
-@router.get("/top-products", response_model=list[TopProduct])
+@router.get("/top-products", response_model=list[SoldProduct])
 async def top_products_report(
     start_date: str = Query(""),
     end_date: str = Query(""),
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(5000, ge=1, le=5000),
     _: User = Depends(require_manager_or_above),
 ):
+    """All products sold in range (Items Sold), not top-N only."""
     start, end = parse_date_range(start_date, end_date)
     txns = await fetch_transactions(start, end)
     product_stats: dict[str, dict] = {}
@@ -268,22 +273,36 @@ async def top_products_report(
         for item in txn.items:
             pid = item.product_id
             if pid not in product_stats:
-                product_stats[pid] = {"name": item.name, "qty": 0, "revenue": 0.0}
-            product_stats[pid]["qty"] += item.quantity
+                product_stats[pid] = {
+                    "name": item.name,
+                    "qty": 0.0,
+                    "gross": 0.0,
+                    "discount": 0.0,
+                    "revenue": 0.0,
+                }
+            product_stats[pid]["qty"] += float(item.quantity)
+            product_stats[pid]["gross"] += line_gross(item)
+            product_stats[pid]["discount"] += line_discount(item)
             product_stats[pid]["revenue"] += line_revenue(item)
-    return sorted(
-        [
-            TopProduct(
+
+    rows = []
+    for pid, v in product_stats.items():
+        qty = float(v["qty"])
+        gross = float(v["gross"])
+        unit_price = round(gross / qty, 2) if qty else 0.0
+        rows.append(
+            SoldProduct(
                 product_id=pid,
                 name=v["name"],
-                quantity_sold=v["qty"],
-                revenue=round(v["revenue"], 2),
+                quantity_sold=round(qty, 2),
+                unit_selling_price=unit_price,
+                discount_given=round(float(v["discount"]), 2),
+                line_total=round(gross, 2),
+                revenue=round(float(v["revenue"]), 2),
             )
-            for pid, v in product_stats.items()
-        ],
-        key=lambda x: x.revenue,
-        reverse=True,
-    )[:limit]
+        )
+    rows.sort(key=lambda x: x.revenue, reverse=True)
+    return rows[:limit]
 
 
 @router.get("/sales-by-category", response_model=list[SalesByCategory])
@@ -651,7 +670,7 @@ async def sales_by_hour_report(
     txns = await fetch_transactions(start, end)
     stats: dict[int, dict] = {h: {"revenue": 0.0, "count": 0} for h in range(24)}
     for txn in txns:
-        hour = txn.created_at.hour
+        hour = to_npt(txn.created_at).hour
         stats[hour]["revenue"] += txn.total
         stats[hour]["count"] += 1
     return [
@@ -675,7 +694,7 @@ async def sales_by_day_of_week_report(
     txns = await fetch_transactions(start, end)
     stats: dict[int, dict] = {d: {"revenue": 0.0, "count": 0} for d in range(7)}
     for txn in txns:
-        day = txn.created_at.weekday()
+        day = to_npt(txn.created_at).weekday()
         stats[day]["revenue"] += txn.total
         stats[day]["count"] += 1
     return [

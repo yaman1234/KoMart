@@ -606,6 +606,17 @@ export interface TopProduct {
   revenue: number;
 }
 
+/** Reports Items Sold — product-level aggregate for the selected period */
+export interface SoldProduct {
+  productId: string;
+  name: string;
+  quantitySold: number;
+  unitSellingPrice: number;
+  discountGiven: number;
+  lineTotal: number;
+  revenue: number;
+}
+
 export interface KpiPeriodAmount {
   fiscalYear: number;
   month: number;
@@ -889,6 +900,11 @@ export interface ListQueryParams {
   search?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  productId?: string;
+  paymentMethod?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
   [key: string]: string | number | boolean | undefined;
 }
 
