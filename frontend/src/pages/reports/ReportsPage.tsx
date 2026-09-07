@@ -620,16 +620,16 @@ export function ReportsPage() {
               </ChartCard>
             </Grid>
             <Grid size={{ xs: 12, lg: 4 }}>
-              <ChartCard title="Sales by Payment Method" height={280}>
+              <ChartCard title="Sales by Payment Method" height={320}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
                     <Pie
                       data={paymentChartData}
                       dataKey="revenue"
                       nameKey="label"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
+                      cx="36%"
+                      cy="52%"
+                      outerRadius={100}
                       label={false}
                     >
                       {paymentChartData.map((_, i) => (
@@ -637,7 +637,25 @@ export function ReportsPage() {
                       ))}
                     </Pie>
                     <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                    <Legend formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} />
+                    <Legend
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="top"
+                      formatter={(value, entry) => {
+                        const payload = entry.payload as { count?: number; revenue?: number } | undefined;
+                        const count = Number(payload?.count ?? 0);
+                        const revenue = Number(payload?.revenue ?? 0);
+                        return (
+                          <span style={{ fontSize: 11, color: 'inherit', lineHeight: 1.35 }}>
+                            {value}
+                            <br />
+                            <span style={{ opacity: 0.7 }}>
+                              {count.toLocaleString()} · {formatCurrency(revenue)}
+                            </span>
+                          </span>
+                        );
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -850,25 +868,73 @@ export function ReportsPage() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 Sales by Cashier
               </Typography>
-              <Divider sx={{ mb: 2 }} />
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Cashier</TableCell>
-                    <TableCell align="right">Transactions</TableCell>
-                    <TableCell align="right">Revenue</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {salesByCashier.map((row) => (
-                    <TableRow key={row.cashier}>
-                      <TableCell>{row.cashier}</TableCell>
-                      <TableCell align="right">{row.transactionCount}</TableCell>
-                      <TableCell align="right">{formatCurrency(row.revenue)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <Paper
+                variant="outlined"
+                sx={{ width: '100%', overflow: 'hidden', border: 1, borderColor: 'divider', borderRadius: 1 }}
+              >
+                <TableContainer sx={{ borderTop: 1, borderColor: 'divider' }}>
+                  <Table size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell align="center" sx={{ fontWeight: 600, minWidth: 56, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          S.N
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          Cashier
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          Transactions
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          Revenue
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {salesByCashier.map((row, i) => (
+                        <TableRow
+                          key={row.cashier}
+                          hover
+                          sx={{
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            '&:nth-of-type(even)': { backgroundColor: 'rgba(0, 0, 0, 0.02)' },
+                          }}
+                        >
+                          <TableCell align="center" sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                            {i + 1}
+                          </TableCell>
+                          <TableCell sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                            {row.cashier}
+                          </TableCell>
+                          <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                            {row.transactionCount.toLocaleString()}
+                          </TableCell>
+                          <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                            {formatCurrency(row.revenue)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow
+                        sx={{
+                          backgroundColor: 'action.hover',
+                          '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'divider' },
+                        }}
+                      >
+                        <TableCell colSpan={2} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                          Total
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {salesByCashier.reduce((s, r) => s + r.transactionCount, 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(salesByCashier.reduce((s, r) => s + r.revenue, 0))}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
             </Paper>
           )}
         </Box>
