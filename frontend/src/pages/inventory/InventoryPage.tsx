@@ -18,17 +18,15 @@ import {
   Paper,
 } from '@mui/material';
 import TuneIcon from '@mui/icons-material/Tune';
-import AddBoxIcon from '@mui/icons-material/AddBox';
 import DownloadIcon from '@mui/icons-material/Download';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
-import { ReceiveStockDialog } from '@/components/inventory/ReceiveStockDialog';
 import { AdjustStockDialog } from '@/components/inventory/AdjustStockDialog';
-import { useInventory, useInventoryStats, useAdjustStock, useReceiveBatch } from '@/hooks/useInventory';
+import { useInventory, useInventoryStats, useAdjustStock } from '@/hooks/useInventory';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { downloadCsv, formatCurrency, formatExpiryDate } from '@/utils';
+import { downloadCsv, formatCurrency, formatExpiryDate, isAdmin } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { useAuthStore } from '@/store';
 import { DROPDOWN_PAGE_SIZE } from '@/constants';
@@ -74,7 +72,7 @@ export function InventoryPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useAuthStore((s) => s.user);
-  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const canCorrectStock = isAdmin(currentUser?.role);
 
   const pageView = parsePageView(searchParams.get('tab'));
   const filter = parseStockFilter(searchParams.get('filter'));
@@ -87,7 +85,6 @@ export function InventoryPage() {
   const [pageSize, setPageSize] = useState(25);
   const [exporting, setExporting] = useState(false);
 
-  const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
 
   const setTab = useCallback((tab: PageView) => {
@@ -123,7 +120,6 @@ export function InventoryPage() {
   const { data: stats } = useInventoryStats();
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const adjustMutation = useAdjustStock();
-  const receiveMutation = useReceiveBatch();
 
   const suppliers = suppliersData?.data ?? [];
   const items = data?.data ?? [];
@@ -198,38 +194,26 @@ export function InventoryPage() {
       align: 'right',
       render: (row) => formatCurrency(row.stock * row.costPrice),
     },
-    {
-      id: 'actions',
-      label: '',
-      align: 'right',
-      render: (row) => (
-        <Box sx={{ display: 'flex', gap: 0.25, justifyContent: 'flex-end' }}>
-          {canManage && (
-            <Tooltip title="Add stock">
-              <IconButton
-                size="small"
-                color="success"
-                onClick={(e) => { e.stopPropagation(); setReceiveTarget(row); }}
-                aria-label="Add stock"
-              >
-                <AddBoxIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          {canManage && (
-            <Tooltip title="Correct stock">
-              <IconButton
-                size="small"
-                onClick={(e) => { e.stopPropagation(); setAdjustTarget(row); }}
-                aria-label="Correct stock"
-              >
-                <TuneIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Box>
-      ),
-    },
+    ...(canCorrectStock
+      ? [{
+          id: 'actions',
+          label: '',
+          align: 'right' as const,
+          render: (row: InventoryItem) => (
+            <Box sx={{ display: 'flex', gap: 0.25, justifyContent: 'flex-end' }}>
+              <Tooltip title="Correct stock">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); setAdjustTarget(row); }}
+                  aria-label="Correct stock"
+                >
+                  <TuneIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          ),
+        } satisfies Column<InventoryItem>]
+      : []),
   ];
 
   const handleExportStockLevels = async () => {
@@ -300,7 +284,7 @@ export function InventoryPage() {
     <Box>
       <PageHeader
         title="Inventory"
-        subtitle="Check stock levels, add new batches, or correct counts. Pack receives go through Purchase Orders."
+        subtitle="Check stock levels and movements. Pack receives go through Purchase Orders. Admins can correct counts."
       />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -446,23 +430,6 @@ export function InventoryPage() {
       )}
 
       {pageView === 'ledger' && <MovementLedgerTab />}
-
-      <ReceiveStockDialog
-        open={!!receiveTarget}
-        item={receiveTarget}
-        suppliers={suppliers}
-        loading={receiveMutation.isPending}
-        onClose={() => setReceiveTarget(null)}
-        onSubmit={(payload) => {
-          receiveMutation.mutate(payload, {
-            onSuccess: () => {
-              showSuccess('Stock received.');
-              setReceiveTarget(null);
-            },
-            onError: (err) => showApiError(err, 'Inventory receive failed.'),
-          });
-        }}
-      />
 
       <AdjustStockDialog
         open={!!adjustTarget}

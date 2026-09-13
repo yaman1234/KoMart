@@ -495,35 +495,6 @@ export const mockApi = {
     applyMockStockDelta(adjustment.productId, adjustment.quantity);
   },
 
-  async receiveBatch(payload: import('@/services').ReceiveBatchPayload): Promise<import('@/types').InventoryBatch> {
-    await delay(500);
-    applyMockStockDelta(payload.productId, payload.quantity);
-    const prodIdx = products.findIndex((p) => p.id === payload.productId);
-    if (prodIdx !== -1 && payload.unitCost != null) {
-      products[prodIdx] = { ...products[prodIdx], costPrice: payload.unitCost };
-    }
-    if (prodIdx !== -1 && payload.sellingPrice != null) {
-      products[prodIdx] = { ...products[prodIdx], sellingPrice: payload.sellingPrice };
-    }
-    const invIdx = inventory.findIndex((i) => i.id === payload.productId);
-    if (invIdx !== -1) {
-      inventory[invIdx] = {
-        ...inventory[invIdx],
-        costPrice: payload.unitCost ?? inventory[invIdx].costPrice,
-        sellingPrice: payload.sellingPrice ?? inventory[invIdx].sellingPrice,
-      };
-    }
-    return {
-      id: `batch-${generateId().slice(0, 8)}`,
-      productId: payload.productId,
-      batchNumber: payload.batchNumber,
-      quantity: payload.quantity,
-      unitCost: payload.unitCost ?? 0,
-      expiryDate: payload.expiryDate,
-      receivedAt: new Date().toISOString(),
-    };
-  },
-
   // ── Suppliers ─────────────────────────────────────────────────────────────
   async getSuppliers(params: ListQueryParams = {}): Promise<PaginatedResponse<Supplier>> {
     await delay(400);

@@ -16,7 +16,6 @@ import type {
   ProductStatus,
   InventoryItem,
   InventoryStats,
-  InventoryBatch,
   Supplier,
   PurchaseOrder,
   PurchaseOrderListResponse,
@@ -280,16 +279,6 @@ export const productService = {
   },
 };
 
-export interface ReceiveBatchPayload {
-  productId: string;
-  batchNumber: string;
-  quantity: number;
-  expiryDate?: string;   // ISO date string e.g. "2026-12-31"
-  unitCost?: number;
-  sellingPrice?: number;
-  supplierId?: string;
-}
-
 export interface InventoryQueryParams extends ListQueryParams {
   filter?: 'all' | 'low' | 'out' | 'expiring';
   supplierId?: string;
@@ -320,11 +309,6 @@ export const inventoryService = {
     if (useMock()) return mockApi.getInventoryStats();
     const { data } = await apiClient.get('/inventory/stats');
     return data;
-  },
-  receiveBatch: async (payload: ReceiveBatchPayload): Promise<InventoryBatch> => {
-    if (useMock()) return mockApi.receiveBatch(payload);
-    const { data } = await apiClient.post('/inventory/batches', payload);
-    return data as InventoryBatch;
   },
   adjustStock: async (adjustment: Omit<StockAdjustment, 'id' | 'createdAt'>): Promise<void> => {
     if (useMock()) return mockApi.adjustStock(adjustment);

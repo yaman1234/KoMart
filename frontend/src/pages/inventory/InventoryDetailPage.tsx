@@ -11,29 +11,21 @@ import {
   CircularProgress,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AddBoxIcon from '@mui/icons-material/AddBox';
 import TuneIcon from '@mui/icons-material/Tune';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
-import { ReceiveStockDialog } from '@/components/inventory/ReceiveStockDialog';
 import { AdjustStockDialog } from '@/components/inventory/AdjustStockDialog';
-import {
-  useInventoryItem,
-  useAdjustStock,
-  useReceiveBatch,
-} from '@/hooks/useInventory';
-import { useSuppliers } from '@/hooks/useSuppliers';
+import { useInventoryItem, useAdjustStock } from '@/hooks/useInventory';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatExpiryDate } from '@/utils';
+import { formatCurrency, formatExpiryDate, isAdmin } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch } from '@/types';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { DROPDOWN_PAGE_SIZE } from '@/constants';
 
 type DetailTab = 'batches' | 'ledger';
 
@@ -46,7 +38,7 @@ export function InventoryDetailPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useAuthStore((s) => s.user);
-  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const canCorrectStock = isAdmin(currentUser?.role);
   const formatDate = useFormatDate();
 
   const tab = parseDetailTab(searchParams.get('tab'));
@@ -60,13 +52,8 @@ export function InventoryDetailPage() {
   }, [setSearchParams]);
 
   const { data: item, isLoading, isError } = useInventoryItem(productId ?? '');
-  const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
-  const suppliers = suppliersData?.data ?? [];
 
   const adjustMutation = useAdjustStock();
-  const receiveMutation = useReceiveBatch();
-
-  const [receiveOpen, setReceiveOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
 
   if (isLoading) {
@@ -119,18 +106,7 @@ export function InventoryDetailPage() {
             >
               Product
             </Button>
-            {canManage && (
-              <Button
-                size="small"
-                variant="contained"
-                color="success"
-                startIcon={<AddBoxIcon />}
-                onClick={() => setReceiveOpen(true)}
-              >
-                Add stock
-              </Button>
-            )}
-            {canManage && (
+            {canCorrectStock && (
               <Button
                 size="small"
                 variant="outlined"
@@ -209,23 +185,6 @@ export function InventoryDetailPage() {
       {tab === 'ledger' && productId && (
         <MovementLedgerTab productId={productId} hideProductColumn />
       )}
-
-      <ReceiveStockDialog
-        open={receiveOpen}
-        item={item}
-        suppliers={suppliers}
-        loading={receiveMutation.isPending}
-        onClose={() => setReceiveOpen(false)}
-        onSubmit={(payload) => {
-          receiveMutation.mutate(payload, {
-            onSuccess: () => {
-              showSuccess('Stock received.');
-              setReceiveOpen(false);
-            },
-            onError: (err) => showApiError(err, 'Inventory receive failed.'),
-          });
-        }}
-      />
 
       <AdjustStockDialog
         open={adjustOpen}

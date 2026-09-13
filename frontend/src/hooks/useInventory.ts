@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
-import { inventoryService, type ReceiveBatchPayload, type InventoryQueryParams } from '@/services';
+import { inventoryService, type InventoryQueryParams } from '@/services';
 import type { StockAdjustment, InventoryMovementQueryParams } from '@/types';
 import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
@@ -30,19 +30,6 @@ export function useInventoryStats() {
     queryKey: [...QUERY_KEYS.inventory, 'stats'],
     queryFn: () => inventoryService.getStats(),
     staleTime: STALE_TIME.realtime,
-  });
-}
-
-export function useReceiveBatch() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: ReceiveBatchPayload) => inventoryService.receiveBatch(payload),
-    onSuccess: (_, payload) => {
-      invalidateCommerceQueries(queryClient, {
-        productId: payload.productId,
-        scopes: ['stock', 'price'],
-      });
-    },
   });
 }
 

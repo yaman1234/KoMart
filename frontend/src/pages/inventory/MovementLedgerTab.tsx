@@ -40,7 +40,7 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
   const [search, setSearch] = useState('');
   const [direction, setDirection] = useState<'' | 'in' | 'out'>('');
   const [movementType, setMovementType] = useState<InventoryMovementQueryParams['movementType']>('');
-  const [startDate, setStartDate] = useState(dayjs().subtract(30, 'day').format('YYYY-MM-DD'));
+  const [startDate, setStartDate] = useState(dayjs().subtract(3, 'month').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
 
   const filterParams = useMemo(

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from math import ceil
 
-from app.auth.dependencies import get_current_user, require_manager_or_above
+from app.auth.dependencies import get_current_user, require_admin_only, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
@@ -222,7 +222,7 @@ async def get_inventory_item(
 async def receive_batch(
     body: BatchCreate,
     request: Request,
-    current_user: User = Depends(require_manager_or_above),
+    current_user: User = Depends(require_admin_only),
 ):
     """Receive a new stock batch (sets expiry date and quantity)."""
     product = await Product.get(body.product_id)
@@ -460,7 +460,7 @@ async def movement_summary(
 async def adjust_stock_endpoint(
     body: StockAdjustmentCreate,
     request: Request,
-    current_user: User = Depends(require_manager_or_above),
+    current_user: User = Depends(require_admin_only),
 ):
     product = await Product.get(body.product_id)
     stock_before = await get_current_stock(body.product_id) if product else 0
