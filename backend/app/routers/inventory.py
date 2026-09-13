@@ -8,9 +8,12 @@ from app.models.user import User
 from app.models.product import Product
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
 from app.schemas.inventory import (
+    AlignLedgerRequest,
     BatchCreate,
     StockAdjustmentCreate,
     StockAdjustmentResponse,
+    InventoryIntegrityItem,
+    InventoryIntegrityResponse,
     InventoryItemResponse,
     InventoryListResponse,
     InventoryStatsResponse,
@@ -21,6 +24,7 @@ from app.schemas.inventory import (
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.services.stock import (
     adjust_stock,
+    classify_on_hand_stock,
     expiring_product_ids,
     get_batches_for_products,
     get_current_stock,
@@ -40,19 +44,23 @@ from app.services.response_cache import (
 from app.services.inventory_sync import apply_receive_product_updates, log_receive_price_change
 from app.services.inventory_movements import (
     aggregate_movement_summary,
+    align_ledger_to_on_hand,
     build_movement_row,
-    load_batch_po_map,
+    count_out_of_sync_skus,
+    list_integrity_rows,
+    load_batch_lookups,
     load_sku_cache,
     load_txn_numbers,
     parse_movement_date_filters,
     product_ids_for_search,
+    product_stock_rollforward,
 )
 
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
 def _adjustment_source(adj_type: AdjustmentType) -> str:
-    return "sale" if adj_type == AdjustmentType.sale else "manual"
+    return "sale" if adj_type in (AdjustmentType.sale, AdjustmentType.void) else "manual"
 
 
 def _adjustment_response(adj: StockAdjustment) -> StockAdjustmentResponse:
@@ -157,16 +165,7 @@ async def list_inventory(
             {"sku": {"$regex": search, "$options": "i"}},
         ]
 
-    if stock_filter == "low":
-        match["$expr"] = {
-            "$and": [
-                {"$gt": ["$stock", 0]},
-                {"$lte": ["$stock", "$low_stock_threshold"]},
-            ],
-        }
-    elif stock_filter == "out":
-        match["stock"] = 0
-    elif stock_filter == "expiring":
+    if stock_filter == "expiring":
         expiring_ids = await expiring_product_ids()
         if not expiring_ids:
             return InventoryListResponse(
@@ -176,9 +175,29 @@ async def list_inventory(
         from beanie import PydanticObjectId
         match["_id"] = {"$in": [PydanticObjectId(pid) for pid in expiring_ids]}
 
-    col = Product.get_motor_collection()
-    total = await col.count_documents(match)
-    products = await Product.find(match).sort("name").skip((page - 1) * page_size).limit(page_size).to_list()
+    if stock_filter in ("low", "out"):
+        products = await Product.find(match).sort("name").to_list()
+        stock_map = await get_current_stock_batch([str(product.id) for product in products])
+        products = [
+            product
+            for product in products
+            if classify_on_hand_stock(
+                stock_map.get(str(product.id), 0),
+                product.low_stock_threshold,
+            ) == stock_filter
+        ]
+        total = len(products)
+        products = products[(page - 1) * page_size: page * page_size]
+    else:
+        col = Product.get_motor_collection()
+        total = await col.count_documents(match)
+        products = (
+            await Product.find(match)
+            .sort("name")
+            .skip((page - 1) * page_size)
+            .limit(page_size)
+            .to_list()
+        )
 
     product_ids = [str(product.id) for product in products]
     batches_by_product = await get_batches_for_products(product_ids)
@@ -340,6 +359,8 @@ def _build_movement_filters(
             filters["reference_type"] = "purchase_order"
         elif movement_type == "sale":
             filters["type"] = AdjustmentType.sale
+        elif movement_type == "void":
+            filters["type"] = AdjustmentType.void
         else:
             try:
                 filters["type"] = AdjustmentType(movement_type)
@@ -377,11 +398,16 @@ async def _query_movements(
     )
 
     batch_ids = {r.batch_id for r in rows if r.batch_id}
+    batch_ids.update(
+        r.reference_id
+        for r in rows
+        if r.reference_id and r.reference_type not in ("sale", "purchase_order")
+    )
     txn_ids = {r.transaction_id for r in rows if r.transaction_id}
     txn_ids.update({r.reference_id for r in rows if r.reference_type == "sale" and r.reference_id})
     product_ids_set = {r.product_id for r in rows if not r.product_sku}
 
-    batch_po_map = await load_batch_po_map(batch_ids)
+    batch_po_map, batch_numbers = await load_batch_lookups(batch_ids)
     txn_numbers = await load_txn_numbers(txn_ids)
     sku_cache = await load_sku_cache(product_ids_set)
 
@@ -390,6 +416,7 @@ async def _query_movements(
             row,
             txn_numbers=txn_numbers,
             batch_po_map=batch_po_map,
+            batch_numbers=batch_numbers,
             sku_cache=sku_cache,
         ))
         for row in rows
@@ -404,7 +431,7 @@ async def list_movements(
     product_id: str = Query(""),
     search: str = Query(""),
     direction: str = Query("", pattern="^(|in|out)$"),
-    movement_type: str = Query("", pattern="^(|sale|receive|purchase_order|adjustment|damaged|correction)$"),
+    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|adjustment|damaged|correction)$"),
     start_date: str = Query(""),
     end_date: str = Query(""),
     _: User = Depends(require_manager_or_above),
@@ -433,7 +460,7 @@ async def movement_summary(
     product_id: str = Query(""),
     search: str = Query(""),
     direction: str = Query("", pattern="^(|in|out)$"),
-    movement_type: str = Query("", pattern="^(|sale|receive|purchase_order|adjustment|damaged|correction)$"),
+    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|adjustment|damaged|correction)$"),
     start_date: str = Query(""),
     end_date: str = Query(""),
     _: User = Depends(require_manager_or_above),
@@ -453,7 +480,71 @@ async def movement_summary(
                 return MovementSummaryResponse(movement_count=0, total_in=0, total_out=0)
             filters = {**filters, "product_id": {"$in": product_ids}}
     summary = await aggregate_movement_summary(filters)
-    return MovementSummaryResponse(**summary)  # type: ignore[arg-type]
+    extra: dict = {}
+    if product_id:
+        extra = await product_stock_rollforward(product_id, start_date, end_date)
+    else:
+        extra["out_of_sync_count"] = await count_out_of_sync_skus()
+    return MovementSummaryResponse(**summary, **extra)
+
+
+@router.get("/integrity", response_model=InventoryIntegrityResponse)
+async def inventory_integrity(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=200),
+    only_out_of_sync: bool = Query(True),
+    product_id: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    rows = await list_integrity_rows(
+        only_out_of_sync=only_out_of_sync,
+        product_id=product_id,
+    )
+    out_of_sync_count = (
+        len(rows) if only_out_of_sync
+        else sum(1 for row in rows if int(row["variance"]) != 0)
+    )
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start:start + page_size]
+    return InventoryIntegrityResponse(
+        out_of_sync_count=out_of_sync_count,
+        data=[InventoryIntegrityItem(**row) for row in page_rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 1,
+    )
+
+
+@router.post("/integrity/align", response_model=MessageResponse)
+async def align_ledger_endpoint(
+    body: AlignLedgerRequest,
+    request: Request,
+    current_user: User = Depends(require_admin_only),
+):
+    result = await align_ledger_to_on_hand(
+        body.product_id,
+        body.reason,
+        current_user.name,
+    )
+    await log_audit(
+        module=AuditModule.inventory,
+        action="align_ledger",
+        user=current_user,
+        request=request,
+        entity_type="product",
+        entity_id=body.product_id,
+        previous={"on_hand": result["on_hand"], "ledger_close": result["ledger_close"]},
+        new={
+            "stock": result["on_hand"],
+            "ledger_close": result["ledger_close"],
+            "reason": body.reason,
+        },
+    )
+    return MessageResponse(
+        message=f"Ledger aligned to Current Stock ({result['on_hand']})",
+    )
 
 
 @router.post("/adjust", response_model=MessageResponse)

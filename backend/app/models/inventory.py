@@ -12,6 +12,7 @@ class AdjustmentType(str, Enum):
     correction = "correction"
     sale = "sale"
     receive = "receive"
+    void = "void"
 
 
 class InventoryBatch(Document):

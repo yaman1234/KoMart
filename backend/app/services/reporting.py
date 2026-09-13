@@ -11,7 +11,7 @@ from app.models.expense import Expense
 from app.models.inventory import InventoryBatch
 from app.models.product import Product
 from app.models.transaction import Transaction, TransactionItem, TransactionStatus
-from app.services.stock import get_current_stock_batch
+from app.services.stock import classify_on_hand_stock, get_current_stock_batch
 
 
 def parse_date_range(start_date: str, end_date: str) -> tuple[datetime, datetime]:
@@ -177,10 +177,13 @@ async def aggregate_product_inventory_stats() -> dict[str, float | int]:
     low_stock = 0
     out_of_stock = 0
     for product in products:
-        stock = stock_map.get(str(product.id), 0)
-        if stock == 0:
+        status = classify_on_hand_stock(
+            stock_map.get(str(product.id), 0),
+            product.low_stock_threshold,
+        )
+        if status == "out":
             out_of_stock += 1
-        elif stock <= product.low_stock_threshold:
+        elif status == "low":
             low_stock += 1
 
     inventory_value = await aggregate_batch_inventory_value()

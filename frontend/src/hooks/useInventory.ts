@@ -72,3 +72,23 @@ export function useMovementSummary(
     queryFn: () => inventoryService.getMovementSummary(params),
   });
 }
+
+export function useInventoryIntegrity(enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.inventoryIntegrity,
+    queryFn: () => inventoryService.getIntegrity({ onlyOutOfSync: true, pageSize: 50 }),
+    enabled,
+  });
+}
+
+export function useAlignLedger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ productId, reason }: { productId: string; reason: string }) =>
+      inventoryService.alignLedger(productId, reason),
+    onSuccess: (_, { productId }) => {
+      invalidateCommerceQueries(queryClient, { productId, scopes: ['stock'] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventoryIntegrity });
+    },
+  });
+}

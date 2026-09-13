@@ -51,6 +51,36 @@ async def get_current_stock(product_id: str) -> int:
     return await get_batch_total(product_id)
 
 
+async def assert_stock_matches_ledger(
+    product_id: str,
+    stock_before: int,
+    qty: int,
+    stock_after: int,
+    *,
+    check_on_hand: bool = True,
+) -> None:
+    """Ledger line must describe the real batch move. 500 = programming error."""
+    if stock_after != stock_before + qty:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"Stock ledger math failed for {product_id}: "
+                f"after {stock_after} != before {stock_before} + {qty}"
+            ),
+        )
+    if not check_on_hand:
+        return
+    on_hand = await get_current_stock(product_id)
+    if stock_after != on_hand:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"Stock ledger drifted from batches for {product_id}: "
+                f"after {stock_after} != on-hand {on_hand}"
+            ),
+        )
+
+
 async def get_current_stock_batch(product_ids: list[str]) -> dict[str, int]:
     pipeline = [
         {"$match": {"product_id": {"$in": product_ids}, "quantity": {"$gt": 0}}},
@@ -58,6 +88,15 @@ async def get_current_stock_batch(product_ids: list[str]) -> dict[str, int]:
     ]
     rows = await InventoryBatch.aggregate(pipeline).to_list()
     return {row["_id"]: row["total"] for row in rows}
+
+
+def classify_on_hand_stock(stock: int, threshold: int) -> str:
+    """Same Low / Out / OK rules the Inventory cards and table must share."""
+    if stock <= 0:
+        return "out"
+    if stock <= threshold:
+        return "low"
+    return "ok"
 
 
 async def refresh_product_stock(product: Product) -> int:
@@ -158,18 +197,25 @@ async def deduct_stock_fefo(product_id: str, quantity: int) -> list[BatchDeducti
 
 
 async def restock_from_deductions(deductions: list[BatchDeduction]) -> None:
-    """Restore quantities deducted during a failed sale."""
-    touched_products: set[str] = set()
+    """Restore quantities previously deducted from batches. `quantity` must be positive."""
     for d in deductions:
+        if d.quantity == 0:
+            continue
+        if d.quantity < 0:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="restock_from_deductions requires a positive quantity",
+            )
         col = InventoryBatch.get_motor_collection()
-        await col.update_one(
+        result = await col.update_one(
             {"_id": BsonObjectId(d.batch_id)},
             {"$inc": {"quantity": d.quantity}},
         )
-        touched_products.add(d.product_id)
-
-    for product_id in touched_products:
-        product = await Product.get(product_id)
+        if result.matched_count != 1:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot restock: batch {d.batch_id} not found",
+            )
 
 
 async def _insert_adjustment(
@@ -220,6 +266,71 @@ async def _insert_adjustment(
     return adjustment
 
 
+@dataclass
+class SignedBatchMove:
+    batch_id: str | None
+    quantity: int
+    unit_cost: float = 0.0
+
+
+async def log_signed_batch_moves(
+    *,
+    product: Product,
+    moves: list[SignedBatchMove],
+    stock_before: int,
+    adjustment_type: AdjustmentType,
+    reason: str,
+    created_by: str,
+    transaction_id: str | None = None,
+    reference_type: str = "",
+    reference_id: str = "",
+    unit_selling_price: float = 0.0,
+    line_discount: float = 0.0,
+    category: str = "",
+) -> list[StockAdjustment]:
+    """Write one ledger row per actual batch move, then assert close == on-hand."""
+    rows: list[StockAdjustment] = []
+    running = stock_before
+    pending = [m for m in moves if m.quantity != 0]
+    for index, move in enumerate(pending):
+        after = running + move.quantity
+        row = await record_inventory_change(
+            product=product,
+            quantity=move.quantity,
+            adjustment_type=adjustment_type,
+            reason=reason,
+            created_by=created_by,
+            stock_before=running,
+            stock_after=after,
+            batch_id=move.batch_id,
+            transaction_id=transaction_id,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            unit_cost=move.unit_cost,
+            unit_selling_price=unit_selling_price,
+            line_discount=line_discount,
+            category=category,
+        )
+        rows.append(row)
+        is_last = index == len(pending) - 1
+        await assert_stock_matches_ledger(
+            str(product.id),
+            running,
+            move.quantity,
+            after,
+            check_on_hand=is_last,
+        )
+        running = after
+    if not pending:
+        await assert_stock_matches_ledger(
+            str(product.id),
+            stock_before,
+            0,
+            stock_before,
+        )
+    return rows
+
+
 async def record_inventory_change(
     *,
     product: Product,
@@ -239,7 +350,14 @@ async def record_inventory_change(
     category: str = "",
 ) -> StockAdjustment:
     """Public helper for logging inventory changes from sales and other services."""
-    ref_type = reference_type or (adjustment_type.value if adjustment_type != AdjustmentType.sale else "sale")
+    if reference_type:
+        ref_type = reference_type
+    elif adjustment_type == AdjustmentType.sale:
+        ref_type = "sale"
+    elif adjustment_type == AdjustmentType.void:
+        ref_type = "sale"
+    else:
+        ref_type = adjustment_type.value
     ref_id = reference_id or transaction_id or ""
     return await _insert_adjustment(
         product=product,
@@ -320,6 +438,7 @@ async def receive_stock(
         unit_cost=landed_cost,
         unit_selling_price=selling_price,
     )
+    await assert_stock_matches_ledger(product_id, stock_before, quantity, stock_after)
     from app.services.response_cache import bump_commerce_caches
     await bump_commerce_caches()
     return batch
@@ -348,13 +467,18 @@ async def adjust_stock(
         if not batch or batch.product_id != product_id:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Batch not found")
         if quantity < 0 and batch.quantity + quantity < 0:
-            new_qty = 0
-        else:
-            new_qty = batch.quantity + quantity
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Insufficient stock in this batch. Available: {batch.quantity}, "
+                    f"requested: {abs(quantity)}"
+                ),
+            )
+        new_qty = batch.quantity + quantity
         col = InventoryBatch.get_motor_collection()
         await col.update_one(
             {"_id": batch.id},
-            {"$set": {"quantity": max(0, new_qty)}},
+            {"$set": {"quantity": new_qty}},
         )
     elif quantity < 0:
         await deduct_stock_fefo(product_id, abs(quantity))
@@ -370,10 +494,20 @@ async def adjust_stock(
         affected_batch_id = str(batch.id)
 
     stock_after = await get_current_stock(product_id)
+    actual_qty = stock_after - stock_before
+    if actual_qty == 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No stock change applied")
+    if actual_qty != quantity:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"Stock change mismatch: requested {quantity}, applied {actual_qty}"
+            ),
+        )
 
     await _insert_adjustment(
         product=product,
-        quantity=quantity,
+        quantity=actual_qty,
         adjustment_type=adjustment_type,
         reason=reason,
         created_by=created_by,
@@ -384,6 +518,7 @@ async def adjust_stock(
         reference_id=affected_batch_id or "",
         unit_cost=product.cost_price,
     )
+    await assert_stock_matches_ledger(product_id, stock_before, actual_qty, stock_after)
 
     from app.services.response_cache import bump_commerce_caches
     await bump_commerce_caches()
@@ -391,13 +526,30 @@ async def adjust_stock(
 
 
 async def expiring_product_ids(within_days: int = 30) -> set[str]:
+    """Active catalog SKUs with at least one on-hand batch expiring in the window."""
     today = date.today().isoformat()
     cutoff = (date.today() + timedelta(days=within_days)).isoformat()
     batches = await InventoryBatch.find(
         InventoryBatch.quantity > 0,
         {"expiry_date": {"$gte": today, "$lte": cutoff}},
     ).to_list()
-    return {batch.product_id for batch in batches}
+    raw_ids = {batch.product_id for batch in batches if batch.product_id}
+    if not raw_ids:
+        return set()
+
+    object_ids: list[BsonObjectId] = []
+    for pid in raw_ids:
+        try:
+            object_ids.append(BsonObjectId(pid))
+        except Exception:
+            continue
+    if not object_ids:
+        return set()
+
+    products = await Product.find(
+        {"_id": {"$in": object_ids}, "is_active": True},
+    ).to_list()
+    return {str(product.id) for product in products}
 
 
 def nearest_expiry(batches: list[InventoryBatch]) -> str | None:
