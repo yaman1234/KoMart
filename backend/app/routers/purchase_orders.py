@@ -5,6 +5,7 @@ import logging
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
+from app.services.po_amend import amend_purchase_order
 from app.services.po_receive import receive_purchase_order_items
 from app.services.po_payment import record_payment
 from app.models.purchase_order import (
@@ -43,23 +44,23 @@ def _resolve_ordered_by(body_ordered_by: str | None, current_user: User, placing
 
 
 def _po_is_editable(po: PurchaseOrder) -> bool:
-    if po.status in (POStatus.received, POStatus.cancelled):
-        return False
-    if po.status == POStatus.partial:
-        return True
-    if po.status == POStatus.ordered:
-        return all(item.received_quantity == 0 for item in po.items)
-    return po.status == POStatus.draft
+    return po.status != POStatus.cancelled
+
+
+def _po_has_received_stock(po: PurchaseOrder) -> bool:
+    return any(item.received_quantity > 0 for item in (po.items or []))
 
 
 def _allowed_update_status(po: PurchaseOrder, target: POStatus) -> bool:
+    if po.status == POStatus.received:
+        return target in (POStatus.received, POStatus.partial)
     if target in (POStatus.received, POStatus.cancelled, POStatus.partial) and target != po.status:
         if target == POStatus.partial:
-            return po.status == POStatus.partial
+            return po.status in (POStatus.partial, POStatus.received)
         return False
-    if po.status in (POStatus.ordered, POStatus.partial) and target == POStatus.draft:
+    if po.status in (POStatus.ordered, POStatus.partial, POStatus.received) and target == POStatus.draft:
         return False
-    return target in (POStatus.draft, POStatus.ordered, POStatus.partial)
+    return target in (POStatus.draft, POStatus.ordered, POStatus.partial, POStatus.received)
 
 
 def _merge_items(existing: PurchaseOrder, incoming: list) -> list:
@@ -374,8 +375,16 @@ async def update_purchase_order(
     if not _po_is_editable(po):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Only draft, ordered, or partial purchase orders can be edited",
+            detail="Cancelled purchase orders cannot be edited",
         )
+    if _po_has_received_stock(po):
+        refreshed = await amend_purchase_order(
+            po,
+            body,
+            current_user=current_user,
+            request=request,
+        )
+        return _to_response(refreshed)
     if not _allowed_update_status(po, body.status):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -392,7 +401,10 @@ async def update_purchase_order(
     if body.total_amount + 0.001 < amount_paid:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail=f"Total amount cannot be less than amount already paid ({amount_paid:.2f})",
+            detail=(
+                f"Total amount cannot be less than amount already paid ({amount_paid:.2f}). "
+                "Delete the extra PO expense to reverse payment first."
+            ),
         )
 
     updates: dict = {

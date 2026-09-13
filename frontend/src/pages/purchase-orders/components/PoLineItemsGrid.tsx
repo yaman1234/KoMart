@@ -340,7 +340,8 @@ export function PoLineItemsGrid({
           <TableBody>
             {lines.map((line, index) => {
               const qty = parseQuantity(line.quantityInput);
-              const locked = line.receivedQuantity > 0;
+              const identityLocked = line.receivedQuantity > 0;
+              const empty = !line.product && !line.skuInput.trim();
               const lineTotal = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
 
               return (
@@ -360,7 +361,7 @@ export function PoLineItemsGrid({
                       size="small"
                       variant="outlined"
                       value={line.skuInput}
-                      disabled={locked}
+                      disabled={identityLocked}
                       placeholder="SKU"
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { skuInput: e.target.value, resolveError: undefined })}
@@ -377,7 +378,7 @@ export function PoLineItemsGrid({
                     <PoProductAutocompleteCell
                       line={line}
                       catalogIndex={catalogIndex}
-                      disabled={locked}
+                      disabled={identityLocked}
                       onFocus={() => setFocusedRow(index)}
                       onLineChange={(updated) => handleProductChange(index, updated)}
                     />
@@ -388,7 +389,7 @@ export function PoLineItemsGrid({
                       size="small"
                       type="number"
                       value={line.quantityInput}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={empty}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { quantityInput: e.target.value })}
                       onBlur={() =>
@@ -412,7 +413,7 @@ export function PoLineItemsGrid({
                       fullWidth
                       size="small"
                       value={line.buyUom}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={identityLocked || empty}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { buyUom: e.target.value })}
                       onKeyDown={(e) => poCellKeyDown(e, index, 2, lines.length, tableRef.current)}
@@ -432,7 +433,7 @@ export function PoLineItemsGrid({
                       size="small"
                       type="number"
                       value={line.unitsPerBuyUom}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={identityLocked || empty}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) =>
                         updateLine(index, {
@@ -457,7 +458,7 @@ export function PoLineItemsGrid({
                       size="small"
                       type="number"
                       value={line.unitCost}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={empty}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) =>
                         updateLine(index, { unitCost: parseFloat(e.target.value) || 0 })
@@ -484,7 +485,7 @@ export function PoLineItemsGrid({
                     <IconButton
                       size="small"
                       color="error"
-                      disabled={locked || (lines.length === 1 && !line.skuInput && !line.product)}
+                      disabled={lines.length === 1 && empty}
                       onClick={() => removeLine(index)}
                       aria-label="Remove row"
                     >

@@ -33,6 +33,7 @@ import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { useAuthStore } from '@/store';
 import type { Product, PurchaseOrderItem, PurchaseOrderStatus } from '@/types';
+import { PO_AMEND_HINT } from '@/pages/purchase-orders/poTerminology';
 import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsGrid';
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
@@ -225,7 +226,7 @@ export function PurchaseOrderFormPage() {
       );
       return false;
     }
-    if (expectedDelivery) {
+    if (expectedDelivery && !isPlacedEdit) {
       const delivery = dayjs(expectedDelivery).startOf('day');
       if (delivery.isBefore(today())) {
         setError('Expected delivery cannot be in the past');
@@ -352,6 +353,11 @@ export function PurchaseOrderFormPage() {
       />
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {isPlacedEdit && (existingPo?.items.some((item) => item.receivedQuantity > 0) ?? false) && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {PO_AMEND_HINT}
+        </Alert>
+      )}
 
       <Paper sx={{ px: 2, py: 2, mb: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
@@ -384,7 +390,7 @@ export function PurchaseOrderFormPage() {
                 label="Expected Delivery"
                 value={expectedDelivery}
                 onChange={setExpectedDelivery}
-                minDate={today().format('YYYY-MM-DD')}
+                minDate={isPlacedEdit ? undefined : today().format('YYYY-MM-DD')}
                 size="small"
                 fullWidth
               />
