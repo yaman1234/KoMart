@@ -865,7 +865,7 @@ export function ReportsPage() {
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             Bill discounts & round-off
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                             {billAdjustSubtitle}
                           </Typography>
                         </TableCell>
