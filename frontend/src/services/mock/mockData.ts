@@ -584,6 +584,8 @@ export const mockSoldProducts: SoldProduct[] = mockTopProducts.map((p) => ({
   name: p.name,
   quantitySold: p.quantitySold,
   unitSellingPrice: p.quantitySold ? Math.round((p.revenue / p.quantitySold) * 100) / 100 : 0,
+  lineDiscount: 0,
+  billDiscount: 0,
   discountGiven: 0,
   lineTotal: p.revenue,
   revenue: p.revenue,
@@ -653,6 +655,9 @@ export const mockSalesSummary = {
   avgBasket: 276.21,
   totalUnitsSold: 4850,
   totalDiscount: 12400,
+  billDiscount: 0,
+  tax: 0,
+  roundOff: 0,
 };
 
 export const mockSalesByPaymentMethod = [

@@ -86,13 +86,19 @@ async def sales_summary(
     total_revenue = sum(t.total for t in txns)
     count = len(txns)
     units = sum(item.quantity for t in txns for item in t.items)
-    discount = sum(t.discount for t in txns)
+    bill_discount = sum(float(t.discount or 0) for t in txns)
+    line_discounts = sum(line_discount(item) for t in txns for item in t.items)
+    tax = sum(float(getattr(t, "tax", 0) or 0) for t in txns)
+    round_off = sum(float(getattr(t, "round_off", 0) or 0) for t in txns)
     return SalesSummary(
         total_revenue=round(total_revenue, 2),
         transaction_count=count,
         avg_basket=round(total_revenue / count, 2) if count else 0.0,
         total_units_sold=units,
-        total_discount=round(discount, 2),
+        total_discount=round(line_discounts + bill_discount, 2),
+        bill_discount=round(bill_discount, 2),
+        tax=round(tax, 2),
+        round_off=round(round_off, 2),
     )
 
 
@@ -289,6 +295,7 @@ async def top_products_report(
     for pid, v in product_stats.items():
         qty = float(v["qty"])
         gross = float(v["gross"])
+        line_disc = float(v["discount"])
         unit_price = round(gross / qty, 2) if qty else 0.0
         rows.append(
             SoldProduct(
@@ -296,7 +303,9 @@ async def top_products_report(
                 name=v["name"],
                 quantity_sold=round(qty, 2),
                 unit_selling_price=unit_price,
-                discount_given=round(float(v["discount"]), 2),
+                line_discount=round(line_disc, 2),
+                bill_discount=0.0,
+                discount_given=round(line_disc, 2),
                 line_total=round(gross, 2),
                 revenue=round(float(v["revenue"]), 2),
             )

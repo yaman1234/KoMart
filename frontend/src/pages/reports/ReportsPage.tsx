@@ -92,6 +92,12 @@ function paymentLabel(method: string): string {
   return PAYMENT_METHODS.find((p) => p.value === normalized)?.label ?? method;
 }
 
+/** Signed amount for the bill-adjustment subtitle, e.g. +Rs. 12.00 or −Rs. 5.00 */
+function formatAdjustPart(amount: number): string {
+  const formatted = formatCurrency(amount);
+  return amount > 0 ? `+${formatted}` : formatted;
+}
+
 export function ReportsPage() {
   const navigate = useNavigate();
   const formatDate = useFormatDate();
@@ -147,7 +153,14 @@ export function ReportsPage() {
     revenue: topProducts.reduce((s, p) => s + (p.revenue ?? 0), 0),
     unitsSold: topProducts.reduce((s, p) => s + (p.quantitySold ?? 0), 0),
   };
-  const itemsSoldTotalAmount = itemsSoldTotals.revenue;
+  const billDiscount = salesSummary?.billDiscount ?? 0;
+  const tax = salesSummary?.tax ?? 0;
+  const roundOff = salesSummary?.roundOff ?? 0;
+  const billAdjustmentNet = -billDiscount + tax + roundOff;
+  const itemsSoldTotalAmount = topProducts.length
+    ? (salesSummary?.totalRevenue ?? itemsSoldTotals.revenue + billAdjustmentNet)
+    : 0;
+  const billAdjustSubtitle = `Manual / promo / loyalty ${formatAdjustPart(-billDiscount)} · Tax ${formatAdjustPart(tax)} · Round-off ${formatAdjustPart(roundOff)}`;
   const pagedItemsSold = topProducts.slice(
     itemsSoldPage * itemsSoldPageSize,
     itemsSoldPage * itemsSoldPageSize + itemsSoldPageSize,
@@ -298,24 +311,45 @@ export function ReportsPage() {
         [salesSum?.totalRevenue ?? 0, salesSum?.transactionCount ?? 0, salesSum?.avgBasket ?? 0],
       ]);
 
+      const exportLineRevenue = sumRev(topProds);
+      const exportBillDiscount = salesSum?.billDiscount ?? 0;
+      const exportTax = salesSum?.tax ?? 0;
+      const exportRoundOff = salesSum?.roundOff ?? 0;
+      const exportAdjustNet = -exportBillDiscount + exportTax + exportRoundOff;
+      const exportTotalRevenue = salesSum?.totalRevenue ?? exportLineRevenue + exportAdjustNet;
+
       appendSection(
         salesAoA, 'ITEMS SOLD',
-        ['Product', 'Unit Selling Price', 'Units Sold', 'Discount Given', 'Line Total', 'Revenue'],
-        topProds.map((p) => [
-          p.name,
-          p.unitSellingPrice ?? 0,
-          p.quantitySold,
-          p.discountGiven ?? 0,
-          p.lineTotal ?? p.revenue,
-          p.revenue,
-        ]),
+        ['Product', 'Unit Selling Price', 'Units Sold', 'Line Total', 'Discount Given', 'Revenue'],
         [
-          'TOTAL AMOUNT',
+          ...topProds.map((p) => [
+            p.name,
+            p.unitSellingPrice ?? 0,
+            p.quantitySold,
+            p.lineTotal ?? p.revenue,
+            p.discountGiven ?? 0,
+            p.revenue,
+          ]),
+          [
+            `Bill discounts & round-off (${[
+              `Manual / promo / loyalty ${exportBillDiscount ? `-${exportBillDiscount}` : '0'}`,
+              `Tax +${exportTax}`,
+              `Round-off +${exportRoundOff}`,
+            ].join(' · ')})`,
+            '',
+            '',
+            '',
+            exportBillDiscount,
+            exportAdjustNet,
+          ],
+        ],
+        [
+          'TOTAL',
           '',
           topProds.reduce((s, p) => s + p.quantitySold, 0),
-          topProds.reduce((s, p) => s + (p.discountGiven ?? 0), 0),
           topProds.reduce((s, p) => s + (p.lineTotal ?? p.revenue), 0),
-          sumRev(topProds),
+          topProds.reduce((s, p) => s + (p.discountGiven ?? 0), 0),
+          exportTotalRevenue,
         ],
       );
 
@@ -724,7 +758,8 @@ export function ReportsPage() {
               </Typography>
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              All products with sales in the selected period
+              Product rows are line-only. Bill discounts, tax, and round-off are reconciled in the
+              row before Total so Revenue matches Total Revenue.
             </Typography>
             <Paper
               variant="outlined"
@@ -747,10 +782,10 @@ export function ReportsPage() {
                         Units Sold
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                        Discount Given
+                        Line Total
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
-                        Line Total
+                        Discount Given
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}>
                         Revenue
@@ -802,10 +837,10 @@ export function ReportsPage() {
                           </Typography>
                         </TableCell>
                         <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
-                          {formatCurrency(p.discountGiven ?? 0)}
+                          {formatCurrency(p.lineTotal ?? p.revenue)}
                         </TableCell>
                         <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
-                          {formatCurrency(p.lineTotal ?? p.revenue)}
+                          {formatCurrency(p.discountGiven ?? 0)}
                         </TableCell>
                         <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
                           {formatCurrency(p.revenue)}
@@ -823,6 +858,31 @@ export function ReportsPage() {
                       <TableRow
                         sx={{
                           backgroundColor: 'action.hover',
+                          '& td': { borderTop: '2px solid', borderColor: 'divider' },
+                        }}
+                      >
+                        <TableCell colSpan={3} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Bill discounts & round-off
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {billAdjustSubtitle}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(billDiscount)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(billAdjustmentNet)}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {topProducts.length > 0 && (
+                      <TableRow
+                        sx={{
+                          backgroundColor: 'action.hover',
                           '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'divider' },
                         }}
                       >
@@ -833,13 +893,13 @@ export function ReportsPage() {
                           {itemsSoldTotals.unitsSold.toLocaleString()}
                         </TableCell>
                         <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
-                          {formatCurrency(itemsSoldTotals.discountGiven)}
-                        </TableCell>
-                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
                           {formatCurrency(itemsSoldTotals.lineTotal)}
                         </TableCell>
                         <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
-                          {formatCurrency(itemsSoldTotals.revenue)}
+                          {formatCurrency(itemsSoldTotals.discountGiven)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ borderBottom: '1px solid', borderColor: 'divider', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatCurrency(itemsSoldTotalAmount)}
                         </TableCell>
                       </TableRow>
                     )}

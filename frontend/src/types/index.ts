@@ -612,6 +612,8 @@ export interface SoldProduct {
   name: string;
   quantitySold: number;
   unitSellingPrice: number;
+  lineDiscount?: number;
+  billDiscount?: number;
   discountGiven: number;
   lineTotal: number;
   revenue: number;
@@ -755,6 +757,9 @@ export interface SalesSummary {
   avgBasket: number;
   totalUnitsSold: number;
   totalDiscount: number;
+  billDiscount: number;
+  tax: number;
+  roundOff: number;
 }
 
 export interface SalesByPaymentMethod {

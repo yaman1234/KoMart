@@ -47,6 +47,43 @@ def line_discount(item: TransactionItem) -> float:
     return float(item.discount) * float(item.quantity)
 
 
+def allocate_txn_to_lines(txn: Transaction) -> list[dict[str, Any]]:
+    """Split bill-level discount and txn.total onto lines by line-net share."""
+    items = list(txn.items or [])
+    if not items:
+        return []
+
+    nets = [max(0.0, float(line_revenue(item))) for item in items]
+    line_total = sum(nets)
+    bill = max(0.0, float(getattr(txn, "discount", 0) or 0))
+    total = float(getattr(txn, "total", 0) or 0)
+    n = len(items)
+
+    allocated_bill = 0.0
+    allocated_rev = 0.0
+    rows: list[dict[str, Any]] = []
+    for idx, (item, net) in enumerate(zip(items, nets)):
+        if idx == n - 1:
+            bill_alloc = round(bill - allocated_bill, 2)
+            revenue = round(total - allocated_rev, 2)
+        else:
+            share = (net / line_total) if line_total else (1.0 / n)
+            bill_alloc = round(share * bill, 2)
+            revenue = round(share * total, 2)
+            allocated_bill += bill_alloc
+            allocated_rev += revenue
+        line_disc = line_discount(item)
+        rows.append({
+            "item": item,
+            "gross": line_gross(item),
+            "line_discount": line_disc,
+            "bill_discount": bill_alloc,
+            "discount_given": round(line_disc + bill_alloc, 2),
+            "revenue": revenue,
+        })
+    return rows
+
+
 def line_cogs(item: TransactionItem, product: Product | None) -> float:
     unit_cost = getattr(item, "unit_cost", 0.0) or 0.0
     if unit_cost > 0:

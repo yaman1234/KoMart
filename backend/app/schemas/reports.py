@@ -10,6 +10,8 @@ class SoldProduct(BaseModel):
     name: str
     quantity_sold: float
     unit_selling_price: float
+    line_discount: float = 0.0
+    bill_discount: float = 0.0
     discount_given: float
     line_total: float
     revenue: float
@@ -21,6 +23,9 @@ class SalesSummary(BaseModel):
     avg_basket: float
     total_units_sold: int
     total_discount: float
+    bill_discount: float = 0.0
+    tax: float = 0.0
+    round_off: float = 0.0
 
 
 class SalesByPaymentMethod(BaseModel):
