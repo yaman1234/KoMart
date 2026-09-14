@@ -453,6 +453,15 @@ async def update_status(
     if not po:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
 
+    if body.status == POStatus.cancelled:
+        from app.services.po_cancel import cancel_purchase_order
+        refreshed = await cancel_purchase_order(
+            po,
+            current_user=current_user,
+            request=request,
+        )
+        return _to_response(refreshed)
+
     before = po_snapshot(po)
     updates: dict = {"status": body.status, "updated_at": datetime.now(timezone.utc)}
     if body.status == POStatus.ordered and not po.ordered_by:

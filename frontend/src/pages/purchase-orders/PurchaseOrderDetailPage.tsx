@@ -39,6 +39,7 @@ import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { FormModal } from '@/components/common/FormModal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
@@ -65,6 +66,7 @@ import {
   poDetailTableMinWidth,
 } from '@/pages/purchase-orders/poLineTableColumns';
 import { PO_LABELS, PO_RECEIVE_HINT } from '@/pages/purchase-orders/poTerminology';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 
 const PAYMENT_SCHEMA = z.object({
   amount: z.number({ error: 'Amount is required' }).positive('Amount must be positive'),
@@ -93,9 +95,7 @@ const LINE_STATUS_COLORS: Record<PurchaseOrderLineStatus, 'default' | 'warning' 
 };
 
 const NEXT_STATUSES: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>> = {
-  draft: ['ordered', 'cancelled'],
-  ordered: ['cancelled'],
-  partial: ['cancelled'],
+  draft: ['ordered'],
 };
 
 const PAYABLE_STATUSES = new Set<PurchaseOrderStatus>(['ordered', 'partial', 'received']);
@@ -118,6 +118,7 @@ export function PurchaseOrderDetailPage() {
   const [statusValue, setStatusValue] = useState('');
   const [statusError, setStatusError] = useState('');
   const [receiveError, setReceiveError] = useState('');
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [receiveSelections, setReceiveSelections] = useState<Record<string, ReceiveSelection>>({});
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState('');
@@ -216,11 +217,24 @@ export function PurchaseOrderDetailPage() {
     setStatusValue(status);
     try {
       await statusMutation.mutateAsync({ id: po.id, status });
-      showSuccess('Purchase Order updated.');
+      showSuccess(status === 'ordered' ? 'Purchase Order placed.' : 'Purchase Order updated.');
       setStatusValue('');
     } catch (err) {
       setStatusError(getErrorMessage(err));
       setStatusValue('');
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!po) return;
+    setStatusError('');
+    try {
+      await statusMutation.mutateAsync({ id: po.id, status: 'cancelled' });
+      showSuccess('Purchase Order cancelled.');
+      setCancelOpen(false);
+    } catch (err) {
+      setStatusError(getErrorMessage(err));
+      setCancelOpen(false);
     }
   };
 
@@ -297,6 +311,24 @@ export function PurchaseOrderDetailPage() {
   if (isError || !po) return <Alert severity="error">Purchase order not found.</Alert>;
 
   const nextStatuses = NEXT_STATUSES[po.status] ?? [];
+  const canCancel = canManage && po.status !== 'cancelled';
+  const receivedUnits = po.items.reduce(
+    (sum, item) => sum + item.receivedQuantity * (item.unitsPerBuyUom ?? 1),
+    0,
+  );
+  const cancelMessage = [
+    `Cancel ${po.orderNumber}? This cannot be undone.`,
+    '',
+    amountPaid > 0
+      ? `• Reverse ${formatCurrency(amountPaid)} in recorded payments (linked expenses and wallet entries).`
+      : '• No payments to reverse.',
+    receivedUnits > 0
+      ? `• Remove ${receivedUnits} leftover stock unit(s) received on this purchase order.`
+      : '• No received stock to reverse.',
+    '',
+    'Cancel is blocked if any received stock from this order was already sold.',
+    'Use Edit to correct prices or quantities — Cancel voids the whole order.',
+  ].join('\n');
   const receivedCount = po.items.filter((i) => i.receivedQuantity >= i.quantity).length;
 
   return (
@@ -355,6 +387,17 @@ export function PurchaseOrderDetailPage() {
                   <MenuItem key={s} value={s}>{PO_STATUS_LABELS[s]}</MenuItem>
                 ))}
               </TextField>
+            )}
+            {canCancel && (
+              <Button
+                color="error"
+                variant="outlined"
+                startIcon={<CancelOutlinedIcon />}
+                onClick={() => setCancelOpen(true)}
+                disabled={statusMutation.isPending}
+              >
+                Cancel order
+              </Button>
             )}
           </Box>
         }
@@ -786,6 +829,18 @@ export function PurchaseOrderDetailPage() {
           </Grid>
         </Grid>
       </FormModal>
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title="Cancel purchase order"
+        message={cancelMessage}
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        confirmColor="error"
+        loading={statusMutation.isPending}
+        onConfirm={() => void handleCancelOrder()}
+        onCancel={() => setCancelOpen(false)}
+      />
     </Box>
   );
 }

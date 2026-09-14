@@ -650,7 +650,20 @@ export const mockApi = {
     await delay(500);
     const idx = purchaseOrders.findIndex((p) => p.id === id);
     if (idx === -1) throw new Error('Purchase order not found');
-    purchaseOrders[idx] = { ...purchaseOrders[idx], status, updatedAt: new Date().toISOString() };
+    const po = purchaseOrders[idx];
+    if (status === 'cancelled') {
+      if (po.status === 'cancelled') throw new Error('Purchase order is already cancelled');
+      purchaseOrders[idx] = {
+        ...po,
+        status: 'cancelled',
+        amountPaid: 0,
+        paymentStatus: 'unpaid',
+        payments: [],
+        updatedAt: new Date().toISOString(),
+      };
+      return purchaseOrders[idx];
+    }
+    purchaseOrders[idx] = { ...po, status, updatedAt: new Date().toISOString() };
     return purchaseOrders[idx];
   },
 

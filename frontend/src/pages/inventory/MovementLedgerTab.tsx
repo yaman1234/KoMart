@@ -40,10 +40,9 @@ interface MovementLedgerTabProps {
   productId?: string;
   hideProductColumn?: boolean;
   onHandStock?: number;
-  onCorrectStock?: (target: number) => void;
 }
 
-export function MovementLedgerTab({ productId, hideProductColumn, onHandStock, onCorrectStock }: MovementLedgerTabProps) {
+export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }: MovementLedgerTabProps) {
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.user);
   const canAlign = isAdmin(currentUser?.role);

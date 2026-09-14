@@ -63,9 +63,16 @@ export function useUpdatePurchaseOrderStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: PurchaseOrderStatus }) =>
       purchaseOrderService.updateStatus(id, status),
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, status }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
+      if (status === 'cancelled') {
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.walletBalances });
+        invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
+      }
     },
   });
 }

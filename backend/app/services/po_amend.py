@@ -126,6 +126,7 @@ async def _reverse_po_receive(
     po_id: str,
     base_qty: int,
     created_by: str,
+    reason: str = "PO amend — reverse receive",
 ) -> None:
     product = await Product.get(product_id)
     if not product:
@@ -147,7 +148,7 @@ async def _reverse_po_receive(
         ],
         stock_before=stock_before,
         adjustment_type=AdjustmentType.adjustment,
-        reason="PO amend — reverse receive",
+        reason=reason,
         created_by=created_by,
         reference_type="purchase_order",
         reference_id=po_id,

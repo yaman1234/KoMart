@@ -353,9 +353,11 @@ export function PurchaseOrderFormPage() {
       />
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {isPlacedEdit && (existingPo?.items.some((item) => item.receivedQuantity > 0) ?? false) && (
+      {isPlacedEdit && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          {PO_AMEND_HINT}
+          {(existingPo?.items.some((item) => item.receivedQuantity > 0) ?? false)
+            ? PO_AMEND_HINT
+            : 'Save Changes updates supplier, lines, and prices. To void this purchase order entirely (and reverse any payments), use Cancel order on the detail page.'}
         </Alert>
       )}
 
