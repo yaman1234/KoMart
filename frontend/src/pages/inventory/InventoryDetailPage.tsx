@@ -191,10 +191,6 @@ export function InventoryDetailPage() {
           productId={productId}
           hideProductColumn
           onHandStock={item.stock}
-          onCorrectStock={(target) => {
-            setAdjustTarget(target);
-            setAdjustOpen(true);
-          }}
         />
       )}
 
