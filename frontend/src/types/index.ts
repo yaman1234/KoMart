@@ -259,7 +259,7 @@ export interface InventoryStats {
   inventoryValue: number;
 }
 
-export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive';
+export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive' | 'void';
 
 export interface StockAdjustment {
   id: string;
@@ -281,6 +281,7 @@ export type MovementDirection = 'in' | 'out';
 
 export type MovementReferenceType =
   | 'sale'
+  | 'void'
   | 'receive'
   | 'purchase_order'
   | 'adjustment'
@@ -317,6 +318,31 @@ export interface MovementSummary {
   movementCount: number;
   totalIn: number;
   totalOut: number;
+  openingStock?: number | null;
+  closingStock?: number | null;
+  periodIn?: number | null;
+  periodOut?: number | null;
+  onHand?: number | null;
+  variance?: number | null;
+  outOfSyncCount?: number | null;
+}
+
+export interface InventoryIntegrityItem {
+  productId: string;
+  productName: string;
+  productSku: string;
+  onHand: number;
+  ledgerClose: number;
+  variance: number;
+}
+
+export interface InventoryIntegrityResponse {
+  outOfSyncCount: number;
+  data: InventoryIntegrityItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export interface InventoryMovementQueryParams {

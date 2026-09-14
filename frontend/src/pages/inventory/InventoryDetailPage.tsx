@@ -55,6 +55,7 @@ export function InventoryDetailPage() {
 
   const adjustMutation = useAdjustStock();
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState<number | undefined>(undefined);
 
   if (isLoading) {
     return (
@@ -111,7 +112,10 @@ export function InventoryDetailPage() {
                 size="small"
                 variant="outlined"
                 startIcon={<TuneIcon />}
-                onClick={() => setAdjustOpen(true)}
+                onClick={() => {
+                  setAdjustTarget(undefined);
+                  setAdjustOpen(true);
+                }}
               >
                 Correct stock
               </Button>
@@ -183,7 +187,15 @@ export function InventoryDetailPage() {
       )}
 
       {tab === 'ledger' && productId && (
-        <MovementLedgerTab productId={productId} hideProductColumn />
+        <MovementLedgerTab
+          productId={productId}
+          hideProductColumn
+          onHandStock={item.stock}
+          onCorrectStock={(target) => {
+            setAdjustTarget(target);
+            setAdjustOpen(true);
+          }}
+        />
       )}
 
       <AdjustStockDialog
@@ -191,7 +203,11 @@ export function InventoryDetailPage() {
         item={item}
         createdBy={currentUser?.name ?? 'User'}
         loading={adjustMutation.isPending}
-        onClose={() => setAdjustOpen(false)}
+        initialTarget={adjustTarget}
+        onClose={() => {
+          setAdjustOpen(false);
+          setAdjustTarget(undefined);
+        }}
         onSubmit={(payload) => {
           adjustMutation.mutate(payload, {
             onSuccess: () => {

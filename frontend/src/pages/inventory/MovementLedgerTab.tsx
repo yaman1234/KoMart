@@ -1,8 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
   MenuItem,
   Paper,
@@ -13,14 +18,17 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatCard } from '@/components/common/StatCard';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
-import { useInventoryMovements, useMovementSummary } from '@/hooks/useInventory';
-import { formatAmount, formatDateTime } from '@/utils';
+import { useAlignLedger, useInventoryIntegrity, useInventoryMovements, useMovementSummary } from '@/hooks/useInventory';
+import { formatAmount, formatDateTime, isAdmin } from '@/utils';
+import { useAuthStore } from '@/store';
+import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryMovement, InventoryMovementQueryParams } from '@/types';
 import dayjs from 'dayjs';
 
 const MOVEMENT_TYPES: { value: InventoryMovementQueryParams['movementType']; label: string }[] = [
   { value: '', label: 'All Types' },
   { value: 'sale', label: 'Sale' },
+  { value: 'void', label: 'Sale void' },
   { value: 'receive', label: 'Stock In' },
   { value: 'purchase_order', label: 'PO Receive' },
   { value: 'adjustment', label: 'Adjustment' },
@@ -31,10 +39,18 @@ const MOVEMENT_TYPES: { value: InventoryMovementQueryParams['movementType']; lab
 interface MovementLedgerTabProps {
   productId?: string;
   hideProductColumn?: boolean;
+  onHandStock?: number;
+  onCorrectStock?: (target: number) => void;
 }
 
-export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedgerTabProps) {
+export function MovementLedgerTab({ productId, hideProductColumn, onHandStock, onCorrectStock }: MovementLedgerTabProps) {
   const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
+  const canAlign = isAdmin(currentUser?.role);
+  const alignMutation = useAlignLedger();
+  const { data: integrity } = useInventoryIntegrity(!productId);
+  const [alignReason, setAlignReason] = useState('');
+  const [alignProductId, setAlignProductId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -67,6 +83,13 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
 
   const { data, isLoading } = useInventoryMovements(filterParams);
   const { data: summary } = useMovementSummary(summaryParams);
+  const onHand = onHandStock ?? summary?.onHand ?? null;
+  const ledgerClose = summary?.closingStock ?? null;
+  const cardVariance =
+    onHand != null && ledgerClose != null ? onHand - ledgerClose : 0;
+  const integrityVariance = summary?.variance ?? cardVariance;
+  const displayVariance = integrityVariance !== 0 ? integrityVariance : cardVariance;
+  const outOfSyncCount = summary?.outOfSyncCount ?? integrity?.outOfSyncCount ?? 0;
 
   const columns: Column<InventoryMovement>[] = [
     {
@@ -158,7 +181,7 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
               variant="text"
               sx={{ textTransform: 'none', p: 0, minWidth: 0, cursor: 'pointer' }}
             >
-              PO
+              {row.referenceLabel || 'PO'}
             </Button>
           );
         }
@@ -172,26 +195,131 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
   return (
     <Box>
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard title="Movements" value={summary?.movementCount ?? '—'} />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard title="Total In" value={summary?.totalIn ?? '—'} color="success.main" />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard title="Total Out" value={summary?.totalOut ?? '—'} color="error.main" />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard
-            title="Net Change"
-            value={
-              summary
-                ? summary.totalIn - summary.totalOut
-                : '—'
-            }
-          />
-        </Grid>
+        {productId ? (
+          <>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard
+                title="Opening"
+                value={summary?.openingStock ?? '—'}
+                subtitle="From the ledger, not leftover batches"
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard
+                title="In"
+                value={summary?.periodIn ?? summary?.totalIn ?? '—'}
+                color="success.main"
+                subtitle="In the selected dates"
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard
+                title="Out"
+                value={summary?.periodOut ?? summary?.totalOut ?? '—'}
+                color="error.main"
+                subtitle="In the selected dates"
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard
+                title="Ledger close"
+                value={ledgerClose ?? '—'}
+                subtitle="Opening + In − Out"
+              />
+            </Grid>
+          </>
+        ) : (
+          <>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard title="Movements" value={summary?.movementCount ?? '—'} />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard title="Total In" value={summary?.totalIn ?? '—'} color="success.main" />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard title="Total Out" value={summary?.totalOut ?? '—'} color="error.main" />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <StatCard
+                title="SKUs out of sync"
+                value={outOfSyncCount}
+                color={outOfSyncCount > 0 ? 'error.main' : undefined}
+                subtitle="Current Stock ≠ Ledger close (Opening + In − Out)"
+              />
+            </Grid>
+          </>
+        )}
       </Grid>
+      {productId && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Ledger close = Opening + In − Out for the selected dates. Current Stock is the batch total.
+        </Typography>
+      )}
+      {productId && displayVariance !== 0 && onHand != null && (
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={
+            canAlign ? (
+              <Button
+                color="inherit"
+                size="small"
+                variant="outlined"
+                onClick={() => {
+                  setAlignProductId(productId);
+                  setAlignReason('');
+                }}
+              >
+                Align ledger to {onHand}
+              </Button>
+            ) : undefined
+          }
+        >
+          Current Stock is {onHand}; Ledger close is {onHand - displayVariance} (diff {displayVariance > 0 ? '+' : ''}
+          {displayVariance}). Use Align ledger — it writes a diary line only and does not change Current Stock.
+          Correct stock would move the shelf and keep the same gap.
+        </Alert>
+      )}
+      {!productId && outOfSyncCount > 0 && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {outOfSyncCount} SKU{outOfSyncCount === 1 ? '' : 's'} have Current Stock that does not match
+          Ledger close (Opening + In − Out).
+          {integrity?.data?.length ? (
+            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+              {integrity.data.slice(0, 20).map((row) => {
+                const label = [row.productName, row.productSku].filter(Boolean).join(' · ')
+                  || row.productId
+                  || 'Unknown product';
+                return (
+                  <li key={row.productId}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      sx={{ textTransform: 'none', minWidth: 0, p: 0 }}
+                      onClick={() => navigate(`/inventory/${row.productId}?tab=ledger`)}
+                    >
+                      {label}
+                    </Button>
+                    {': Current '}
+                    {row.onHand}
+                    {', ledger '}
+                    {row.ledgerClose}
+                    {' ('}
+                    {row.variance > 0 ? '+' : ''}
+                    {row.variance}
+                    {')'}
+                  </li>
+                );
+              })}
+              {outOfSyncCount > 20 && (
+                <li>
+                  and {outOfSyncCount - 20} more
+                </li>
+              )}
+            </Box>
+          ) : null}
+        </Alert>
+      )}
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} sx={{ alignItems: 'center' }}>
@@ -276,6 +404,53 @@ export function MovementLedgerTab({ productId, hideProductColumn }: MovementLedg
         }}
         emptyMessage="No inventory movements in this period"
       />
+
+      <Dialog
+        open={!!alignProductId}
+        onClose={() => setAlignProductId(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Align ledger to Current Stock</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Writes one correction so the diary matches the batch total. Shelf quantity does not change.
+          </Typography>
+          <TextField
+            label="Reason"
+            value={alignReason}
+            onChange={(e) => setAlignReason(e.target.value)}
+            fullWidth
+            multiline
+            rows={2}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAlignProductId(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!alignReason.trim()}
+            loading={alignMutation.isPending}
+            onClick={() => {
+              if (!alignProductId || !alignReason.trim()) return;
+              alignMutation.mutate(
+                { productId: alignProductId, reason: alignReason.trim() },
+                {
+                  onSuccess: () => {
+                    showSuccess('Ledger aligned to Current Stock.');
+                    setAlignProductId(null);
+                    setAlignReason('');
+                  },
+                  onError: (err) => showApiError(err, 'Could not align ledger.'),
+                },
+              );
+            }}
+          >
+            Align ledger
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

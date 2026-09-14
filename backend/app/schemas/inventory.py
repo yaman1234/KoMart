@@ -120,3 +120,33 @@ class MovementSummaryResponse(BaseModel):
     movement_count: int
     total_in: int
     total_out: int
+    opening_stock: int | None = None
+    closing_stock: int | None = None
+    period_in: int | None = None
+    period_out: int | None = None
+    on_hand: int | None = None
+    variance: int | None = None
+    out_of_sync_count: int | None = None
+
+
+class InventoryIntegrityItem(BaseModel):
+    product_id: str
+    product_name: str
+    product_sku: str
+    on_hand: int
+    ledger_close: int
+    variance: int
+
+
+class InventoryIntegrityResponse(BaseModel):
+    out_of_sync_count: int
+    data: list[InventoryIntegrityItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class AlignLedgerRequest(BaseModel):
+    product_id: str
+    reason: str = Field(min_length=1)

@@ -415,6 +415,23 @@ async def receive_purchase_order_items(
     if not refreshed:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Receive commit failed")
 
+    from app.services.stock import get_current_stock
+    for pid in {plan.item.product_id for plan in plans}:
+        on_hand = await get_current_stock(pid)
+        last = (
+            await StockAdjustment.find({"product_id": pid})
+            .sort("-created_at")
+            .first_or_none()
+        )
+        if last is not None and int(last.stock_after) != on_hand:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(
+                    f"PO receive ledger drifted from batches for {pid}: "
+                    f"after {last.stock_after} != on-hand {on_hand}"
+                ),
+            )
+
     for snap in price_snapshots:
         await log_receive_price_change(
             product_id=snap.product_id,

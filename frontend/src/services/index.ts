@@ -76,6 +76,7 @@ import type {
   AuditLogQueryParams,
   InventoryMovement,
   MovementSummary,
+  InventoryIntegrityResponse,
   InventoryMovementQueryParams,
   DiscountRule,
   EvaluateDiscountResult,
@@ -325,6 +326,19 @@ export const inventoryService = {
   getMovementSummary: async (params?: Omit<InventoryMovementQueryParams, 'page' | 'pageSize'>): Promise<MovementSummary> => {
     const { data } = await apiClient.get('/inventory/movements/summary', { params });
     return data as MovementSummary;
+  },
+  getIntegrity: async (params?: { page?: number; pageSize?: number; onlyOutOfSync?: boolean }): Promise<InventoryIntegrityResponse> => {
+    const { data } = await apiClient.get('/inventory/integrity', {
+      params: {
+        page: params?.page ?? 1,
+        pageSize: params?.pageSize ?? 50,
+        onlyOutOfSync: params?.onlyOutOfSync ?? true,
+      },
+    });
+    return data as InventoryIntegrityResponse;
+  },
+  alignLedger: async (productId: string, reason: string): Promise<void> => {
+    await apiClient.post('/inventory/integrity/align', { productId, reason });
   },
 };
 

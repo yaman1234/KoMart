@@ -151,6 +151,66 @@ async def test_adjust_stock_modifies_batches(stock_product: Product):
 
 
 @pytest.mark.asyncio
+async def test_adjust_without_batch_reduces_total_stock(stock_product: Product):
+    """Product-level delta (Correct Stock default) must use all batches, not one."""
+    pid = str(stock_product.id)
+    await receive_stock(pid, "OLD", 20, unit_cost=10.0, created_by="test")
+    await receive_stock(pid, "PO", 20, unit_cost=10.0, created_by="test")
+    await adjust_stock(pid, -2, AdjustmentType.adjustment, "sales stand-in", "test")
+    assert await get_current_stock(pid) == 38
+
+    after = await adjust_stock(
+        pid,
+        -20,
+        AdjustmentType.adjustment,
+        "undo double receive",
+        "test-user",
+    )
+    assert after == 18
+    assert await get_current_stock(pid) == 18
+    last = (
+        await StockAdjustment.find(StockAdjustment.product_id == pid)
+        .sort("-created_at")
+        .first_or_none()
+    )
+    assert last is not None
+    assert last.quantity == -20
+    assert last.stock_after == 18
+    assert last.stock_after == await get_current_stock(pid)
+
+
+@pytest.mark.asyncio
+async def test_adjust_specific_batch_rejects_overdraw(stock_product: Product):
+    pid = str(stock_product.id)
+    await receive_stock(pid, "SMALL", 18, unit_cost=10.0, created_by="test")
+    await receive_stock(pid, "LARGE", 20, unit_cost=10.0, created_by="test")
+    small = await InventoryBatch.find_one(
+        InventoryBatch.product_id == pid,
+        InventoryBatch.batch_number == "SMALL",
+    )
+    assert small is not None
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        await adjust_stock(
+            pid,
+            -20,
+            AdjustmentType.adjustment,
+            "batch overdraw",
+            "test-user",
+            batch_id=str(small.id),
+        )
+    assert exc.value.status_code == 400
+    assert await get_current_stock(pid) == 38
+    overdraw_rows = await StockAdjustment.find(
+        StockAdjustment.product_id == pid,
+        StockAdjustment.reason == "batch overdraw",
+    ).to_list()
+    assert overdraw_rows == []
+
+
+@pytest.mark.asyncio
 async def test_batch_stock_aggregation(stock_product: Product):
     await receive_stock(str(stock_product.id), "B1", 5, unit_cost=10.0, created_by="test")
     await receive_stock(str(stock_product.id), "B2", 7, unit_cost=12.0, created_by="test")

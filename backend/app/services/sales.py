@@ -8,7 +8,9 @@ from fastapi import HTTPException, status
 
 from app.models.customer import Customer, MembershipTier
 from app.models.transaction import Transaction, TransactionItem, BatchAllocation, TransactionStatus
-from app.models.inventory import AdjustmentType, StockAdjustment
+from bson import ObjectId as BsonObjectId
+
+from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
 from app.models.product import (
     Product,
     SellMode,
@@ -19,10 +21,12 @@ from app.models.product import (
 from app.schemas.transaction import TransactionCreate, TransactionResponse
 from app.services.stock import (
     BatchDeduction,
+    SignedBatchMove,
+    assert_stock_matches_ledger,
     check_stock_available,
     deduct_stock_fefo,
     get_current_stock,
-    record_inventory_change,
+    log_signed_batch_moves,
     restock_from_deductions,
 )
 from app.services.store_settings import get_store_settings
@@ -289,25 +293,32 @@ async def record_sale(
             deductions = await deduct_stock_fefo(item.product_id, base_qty)
             all_deductions.extend(deductions)
 
-            running_stock = stock_before
-            for deduction in deductions:
-                running_after = running_stock - deduction.quantity
-                adj = await record_inventory_change(
-                    product=product,
-                    quantity=-deduction.quantity,
-                    adjustment_type=AdjustmentType.sale,
-                    reason=f"Sale {txn_number}",
-                    created_by=body.created_by,
-                    stock_before=running_stock,
-                    stock_after=running_after,
-                    batch_id=deduction.batch_id,
-                    unit_cost=deduction.unit_cost,
-                    unit_selling_price=item.price,
-                    line_discount=item.discount,
-                    category=product.category,
-                )
-                adjustment_ids.append(str(adj.id))
-                running_stock = running_after
+            rows = await log_signed_batch_moves(
+                product=product,
+                moves=[
+                    SignedBatchMove(
+                        batch_id=d.batch_id,
+                        quantity=-d.quantity,
+                        unit_cost=d.unit_cost,
+                    )
+                    for d in deductions
+                ],
+                stock_before=stock_before,
+                adjustment_type=AdjustmentType.sale,
+                reason=f"Sale {txn_number}",
+                created_by=body.created_by,
+                unit_selling_price=item.price,
+                line_discount=item.discount,
+                category=product.category,
+            )
+            adjustment_ids.extend(str(row.id) for row in rows)
+            running_stock = stock_before - sum(d.quantity for d in deductions)
+            await assert_stock_matches_ledger(
+                item.product_id,
+                stock_before,
+                -base_qty,
+                running_stock,
+            )
 
             total_line_cost = sum(d.quantity * d.unit_cost for d in deductions)
             weighted_cost = (
@@ -399,56 +410,184 @@ async def record_sale(
         raise
 
 
-async def reallocate_batches(txn: Transaction, new_items: list[dict]) -> None:
-    """Reconcile batch allocations when line items are edited."""
-    old_map: dict[str, tuple[int, list[BatchAllocation]]] = {}
-    for item in txn.items:
-        old_map[item.product_id] = (item.quantity, item.batch_allocations)
+def _item_base_qty(item: TransactionItem | dict, old_item: TransactionItem | None = None) -> int:
+    if isinstance(item, dict):
+        sell_qty = int(item.get("quantity", 0) or 0)
+        factor = max(1, int(item.get("unit_factor") or 0) or 0)
+        if factor <= 1 and old_item is not None:
+            factor = max(1, getattr(old_item, "unit_factor", None) or 1)
+        return sell_qty * max(1, factor)
+    return _base_quantity(item)
 
+
+def _allocations_to_restock(
+    product_id: str,
+    allocs: list[BatchAllocation],
+    qty: int,
+) -> tuple[list[BatchDeduction], list[BatchAllocation]]:
+    """Take `qty` units back from stored allocations. Returns (restocks, leftover allocs)."""
+    remaining = qty
+    restocks: list[BatchDeduction] = []
+    leftover: list[BatchAllocation] = []
+    for alloc in allocs:
+        if remaining <= 0:
+            leftover.append(alloc)
+            continue
+        take = min(alloc.quantity, remaining)
+        restocks.append(BatchDeduction(
+            product_id=product_id,
+            batch_id=alloc.batch_id,
+            quantity=take,
+            unit_cost=alloc.unit_cost,
+        ))
+        kept = alloc.quantity - take
+        if kept > 0:
+            leftover.append(BatchAllocation(
+                batch_id=alloc.batch_id,
+                quantity=kept,
+                unit_cost=alloc.unit_cost,
+            ))
+        remaining -= take
+    if remaining > 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Cannot restock sale edit: stored allocations are smaller than the quantity reduction",
+        )
+    return restocks, leftover
+
+
+async def reallocate_batches(txn: Transaction, new_items: list[dict]) -> dict[str, list[BatchAllocation]]:
+    """Apply sale-edit stock deltas and ledger lines. Returns new allocations by product."""
+    old_map: dict[str, TransactionItem] = {item.product_id: item for item in txn.items}
     new_map: dict[str, int] = {}
-    for item in new_items:
-        new_map[item["product_id"]] = item.get("quantity", 0)
+    for raw in new_items:
+        pid = raw.get("product_id")
+        if not pid:
+            continue
+        new_map[pid] = _item_base_qty(raw, old_map.get(pid))
 
-    all_deductions: list[BatchDeduction] = []
+    deltas: list[tuple[str, int]] = []
+    for pid, new_base in new_map.items():
+        old_item = old_map.get(pid)
+        old_base = _base_quantity(old_item) if old_item else 0
+        delta = new_base - old_base
+        if delta != 0:
+            deltas.append((pid, delta))
+    for pid, old_item in old_map.items():
+        if pid not in new_map and _base_quantity(old_item) > 0:
+            deltas.append((pid, -_base_quantity(old_item)))
 
-    for product_id, new_qty in new_map.items():
-        old_qty, old_allocs = old_map.get(product_id, (0, []))
-        delta = new_qty - old_qty
+    for pid, delta in deltas:
         if delta > 0:
-            try:
-                deductions = await deduct_stock_fefo(product_id, delta)
-                all_deductions.extend(deductions)
-            except HTTPException:
-                raise HTTPException(
-                    status.HTTP_400_BAD_REQUEST,
-                    detail=f"Insufficient stock for {product_id}",
+            await check_stock_available(pid, delta)
+
+    product_ids = list({pid for pid, _ in deltas})
+    products = await _load_products_map(product_ids)
+    created_by = txn.created_by or ""
+    reason = f"Sale edit {txn.transaction_number}"
+    txn_id = str(txn.id)
+
+    applied_deducts: list[BatchDeduction] = []
+    applied_restocks: list[BatchDeduction] = []
+    ledger_ids: list[str] = []
+    new_allocs: dict[str, list[BatchAllocation]] = {
+        pid: list(item.batch_allocations) for pid, item in old_map.items()
+    }
+
+    try:
+        for pid, delta in deltas:
+            product = products.get(pid)
+            if not product:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+            old_item = old_map.get(pid)
+            stock_before = await get_current_stock(pid)
+
+            if delta > 0:
+                deductions = await deduct_stock_fefo(pid, delta)
+                applied_deducts.extend(deductions)
+                rows = await log_signed_batch_moves(
+                    product=product,
+                    moves=[
+                        SignedBatchMove(
+                            batch_id=d.batch_id,
+                            quantity=-d.quantity,
+                            unit_cost=d.unit_cost,
+                        )
+                        for d in deductions
+                    ],
+                    stock_before=stock_before,
+                    adjustment_type=AdjustmentType.sale,
+                    reason=reason,
+                    created_by=created_by,
+                    transaction_id=txn_id,
+                    reference_type="sale",
+                    reference_id=txn_id,
+                    category=product.category,
                 )
-        elif delta < 0:
-            restock_qty = abs(delta)
-            for alloc in old_allocs:
-                if restock_qty <= 0:
-                    break
-                qty = min(alloc.quantity, restock_qty)
-                all_deductions.append(BatchDeduction(
-                    product_id=product_id,
-                    batch_id=alloc.batch_id,
-                    quantity=-qty,
-                    unit_cost=alloc.unit_cost,
-                ))
-                restock_qty -= qty
+                ledger_ids.extend(str(row.id) for row in rows)
+                extra = [
+                    BatchAllocation(
+                        batch_id=d.batch_id,
+                        quantity=d.quantity,
+                        unit_cost=d.unit_cost,
+                    )
+                    for d in deductions
+                ]
+                new_allocs[pid] = list(old_item.batch_allocations if old_item else []) + extra
+            else:
+                restock_qty = abs(delta)
+                source_allocs = list(old_item.batch_allocations) if old_item else []
+                restocks, leftover = _allocations_to_restock(pid, source_allocs, restock_qty)
+                await restock_from_deductions(restocks)
+                applied_restocks.extend(restocks)
+                rows = await log_signed_batch_moves(
+                    product=product,
+                    moves=[
+                        SignedBatchMove(
+                            batch_id=d.batch_id,
+                            quantity=d.quantity,
+                            unit_cost=d.unit_cost,
+                        )
+                        for d in restocks
+                    ],
+                    stock_before=stock_before,
+                    adjustment_type=AdjustmentType.sale,
+                    reason=reason,
+                    created_by=created_by,
+                    transaction_id=txn_id,
+                    reference_type="sale",
+                    reference_id=txn_id,
+                    category=product.category,
+                )
+                ledger_ids.extend(str(row.id) for row in rows)
+                if pid in new_map:
+                    new_allocs[pid] = leftover
+                else:
+                    new_allocs.pop(pid, None)
 
-    for product_id, (old_qty, _) in old_map.items():
-        if product_id not in new_map and old_qty > 0:
-            for alloc in old_map[product_id][1]:
-                all_deductions.append(BatchDeduction(
-                    product_id=product_id,
-                    batch_id=alloc.batch_id,
-                    quantity=-alloc.quantity,
-                    unit_cost=alloc.unit_cost,
-                ))
+            on_hand = await get_current_stock(pid)
+            await assert_stock_matches_ledger(pid, stock_before, -delta, on_hand)
+    except Exception:
+        if ledger_ids:
+            for adj_id in ledger_ids:
+                adj = await StockAdjustment.get(adj_id)
+                if adj:
+                    await adj.delete()
+        if applied_deducts:
+            await restock_from_deductions(applied_deducts)
+        if applied_restocks:
+            col = InventoryBatch.get_motor_collection()
+            for d in applied_restocks:
+                await col.update_one(
+                    {"_id": BsonObjectId(d.batch_id), "quantity": {"$gte": d.quantity}},
+                    {"$inc": {"quantity": -d.quantity}},
+                )
+        raise
 
-    if all_deductions:
-        await restock_from_deductions(all_deductions)
+    for pid, item in old_map.items():
+        if pid not in new_allocs and pid in new_map:
+            new_allocs[pid] = list(item.batch_allocations)
+    return new_allocs
 
 
 async def update_transaction(txn_id: str, body: "TransactionUpdate") -> TransactionResponse:
@@ -522,27 +661,52 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
         if not isinstance(new_items_raw, list) or len(new_items_raw) == 0:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Items list cannot be empty")
 
+        old_by_pid = {i.product_id: i for i in txn.items}
         validated: list[TransactionItem] = []
         for raw in new_items_raw:
             pid = raw.get("product_id")
             qty = int(raw.get("quantity", 0))
-            if not pid or qty < 0:
+            if not pid or qty < 1:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid item in update")
             price = float(raw.get("unit_price", 0) or 0)
             line_disc = float(raw.get("line_discount", 0) or 0)
+            old = old_by_pid.get(pid)
+            factor = max(1, getattr(old, "unit_factor", None) or 1) if old else 1
             validated.append(TransactionItem(
                 product_id=pid,
-                name=next((i.name for i in txn.items if i.product_id == pid), pid),
-                sku=next((i.sku for i in txn.items if i.product_id == pid), ""),
+                name=(old.name if old else pid),
+                sku=(old.sku if old else ""),
                 price=max(0.0, price),
-                quantity=max(0, qty),
+                quantity=max(1, qty),
                 discount=max(0.0, line_disc),
+                unit_factor=factor,
+                sell_uom=getattr(old, "sell_uom", "") if old else "",
+                category=getattr(old, "category", "") if old else "",
             ))
 
+        realloc_payload = [
+            {
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+                "unit_factor": item.unit_factor,
+            }
+            for item in validated
+        ]
+        new_allocs = await reallocate_batches(txn, realloc_payload)
+        for item in validated:
+            allocs = new_allocs.get(item.product_id, [])
+            item.batch_allocations = allocs
+            base = _base_quantity(item)
+            total_cost = sum(a.quantity * a.unit_cost for a in allocs)
+            item.unit_cost = round(total_cost / base, 4) if base else item.unit_cost
+
         effective_items = validated
-        await reallocate_batches(txn, new_items_raw)
         updates["items"] = [i.model_dump() for i in validated]
         updates["subtotal"] = round(sum(i.price * i.quantity for i in validated), 2)
+        updates["total_cost"] = round(
+            sum(i.unit_cost * _base_quantity(i) for i in validated),
+            2,
+        )
 
     if "discount" in data and data["discount"] is not None:
         discount = float(data["discount"])
@@ -589,10 +753,12 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
         else str(refreshed.payment_method)
     )
     new_total = float(refreshed.total or 0)
+    items_changed = "items" in updates
     if new_method != prev_method or abs(new_total - prev_total) > 0.001:
         # Rewrite ledger so wallet balances match the edited sale.
         await delete_reference("transaction", txn_id)
         await post_sale(refreshed, created_by=refreshed.created_by or "")
+    if items_changed or new_method != prev_method or abs(new_total - prev_total) > 0.001:
         from app.services.response_cache import bump_commerce_caches
         await bump_commerce_caches()
 
@@ -641,7 +807,37 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
                 ),
             )
     if deductions:
+        by_product: dict[str, list[BatchDeduction]] = {}
+        for d in deductions:
+            by_product.setdefault(d.product_id, []).append(d)
+        stock_before_map = {
+            pid: await get_current_stock(pid) for pid in by_product
+        }
+        products = await _load_products_map(list(by_product))
         await restock_from_deductions(deductions)
+        for pid, product_deds in by_product.items():
+            product = products.get(pid)
+            if not product:
+                continue
+            await log_signed_batch_moves(
+                product=product,
+                moves=[
+                    SignedBatchMove(
+                        batch_id=d.batch_id,
+                        quantity=d.quantity,
+                        unit_cost=d.unit_cost,
+                    )
+                    for d in product_deds
+                ],
+                stock_before=stock_before_map[pid],
+                adjustment_type=AdjustmentType.void,
+                reason=f"Void {txn.transaction_number}",
+                created_by=voided_by,
+                transaction_id=txn_id,
+                reference_type="sale",
+                reference_id=txn_id,
+                category=product.category,
+            )
 
     if txn.customer_id:
         customer = await Customer.get(txn.customer_id)

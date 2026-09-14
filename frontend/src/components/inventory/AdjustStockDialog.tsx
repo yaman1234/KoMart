@@ -24,6 +24,7 @@ interface AdjustStockDialogProps {
   item: InventoryItem | null;
   createdBy: string;
   loading?: boolean;
+  initialTarget?: number;
   onClose: () => void;
   onSubmit: (payload: Omit<StockAdjustment, 'id' | 'createdAt'>) => void;
 }
@@ -33,6 +34,7 @@ export function AdjustStockDialog({
   item,
   createdBy,
   loading,
+  initialTarget,
   onClose,
   onSubmit,
 }: AdjustStockDialogProps) {
@@ -48,15 +50,14 @@ export function AdjustStockDialog({
 
   useEffect(() => {
     if (!open || !item) return;
-    const firstBatch = item.batches.find((b) => b.quantity > 0);
-    setBatchId(firstBatch?.id ?? '');
-    setQty('');
+    setBatchId('');
+    setQty(initialTarget != null ? String(initialTarget) : '');
     setType('adjustment');
     setReason('');
     setError('');
     setMode('target');
     setAdvancedOpen(false);
-  }, [open, item]);
+  }, [open, item, initialTarget]);
 
   const handleSubmit = () => {
     if (!item) return;

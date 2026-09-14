@@ -252,6 +252,7 @@ export const QUERY_KEYS = {
   inventoryItem: (id: string) => ['inventory', 'item', id] as const,
   inventoryMovements: (filters?: string) => ['inventory', 'movements', filters] as const,
   movementSummary: (filters?: string) => ['inventory', 'movementSummary', filters] as const,
+  inventoryIntegrity: ['inventory', 'integrity'] as const,
   catalog: ['catalog'] as const,
   catalogProduct: (id: string) => ['catalog', id] as const,
   storeInfo: ['catalog', 'store-info'] as const,
