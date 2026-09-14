@@ -186,6 +186,81 @@ async def test_void_movement_label(
 
 
 @pytest.mark.asyncio
+async def test_legacy_return_type_does_not_500_list_movements(
+    client: AsyncClient,
+    manager_user: User,
+    sample_movement,
+):
+    """Historical Mongo rows used type=return; Beanie enum used to reject them."""
+    _, product = sample_movement
+    pid = str(product.id)
+    col = StockAdjustment.get_motor_collection()
+    inserted = await col.insert_one({
+        "product_id": pid,
+        "product_name": product.name,
+        "product_sku": product.sku,
+        "type": "return",
+        "quantity": 2,
+        "stock_before": 3,
+        "stock_after": 5,
+        "reason": "Customer return TXN-LEGACY",
+        "created_by": manager_user.name,
+        "reference_type": "sale",
+        "reference_id": "txn-return",
+    })
+    try:
+        token = await _login(client, manager_user.email, "managerpass123")
+        res = await client.get(
+            "/api/v1/inventory/movements",
+            params={"product_id": pid, "movement_type": "return"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res.status_code == 200
+        row = next(r for r in res.json()["data"] if r["id"] == str(inserted.inserted_id))
+        assert row["type"] == "return"
+        assert row["movement_label"] == "Sale return"
+        assert row["direction"] == "in"
+        assert row["reference_type"] == "sale"
+    finally:
+        await col.delete_one({"_id": inserted.inserted_id})
+
+
+@pytest.mark.asyncio
+async def test_unknown_adjustment_type_does_not_500_list_movements(
+    client: AsyncClient,
+    manager_user: User,
+    sample_movement,
+):
+    _, product = sample_movement
+    pid = str(product.id)
+    col = StockAdjustment.get_motor_collection()
+    inserted = await col.insert_one({
+        "product_id": pid,
+        "product_name": product.name,
+        "product_sku": product.sku,
+        "type": "legacy_mystery",
+        "quantity": -1,
+        "stock_before": 5,
+        "stock_after": 4,
+        "reason": "Unknown historical type",
+        "created_by": manager_user.name,
+    })
+    try:
+        token = await _login(client, manager_user.email, "managerpass123")
+        res = await client.get(
+            "/api/v1/inventory/movements",
+            params={"product_id": pid},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res.status_code == 200
+        row = next(r for r in res.json()["data"] if r["id"] == str(inserted.inserted_id))
+        assert row["type"] == "legacy_mystery"
+        assert row["direction"] == "out"
+    finally:
+        await col.delete_one({"_id": inserted.inserted_id})
+
+
+@pytest.mark.asyncio
 async def test_movement_reference_shows_batch_number(
     client: AsyncClient,
     manager_user: User,

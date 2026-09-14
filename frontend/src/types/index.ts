@@ -259,7 +259,7 @@ export interface InventoryStats {
   inventoryValue: number;
 }
 
-export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive' | 'void';
+export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive' | 'void' | 'return';
 
 export interface StockAdjustment {
   id: string;
@@ -282,6 +282,7 @@ export type MovementDirection = 'in' | 'out';
 export type MovementReferenceType =
   | 'sale'
   | 'void'
+  | 'return'
   | 'receive'
   | 'purchase_order'
   | 'adjustment'

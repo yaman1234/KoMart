@@ -6,7 +6,7 @@ from math import ceil
 from app.auth.dependencies import get_current_user, require_admin_only, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product
-from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
+from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment, adj_type_value
 from app.schemas.inventory import (
     AlignLedgerRequest,
     BatchCreate,
@@ -59,8 +59,15 @@ from app.services.inventory_movements import (
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
-def _adjustment_source(adj_type: AdjustmentType) -> str:
-    return "sale" if adj_type in (AdjustmentType.sale, AdjustmentType.void) else "manual"
+def _adjustment_source(adj_type: AdjustmentType | str) -> str:
+    return "sale" if adj_type in (
+        AdjustmentType.sale,
+        AdjustmentType.void,
+        AdjustmentType.return_,
+        "sale",
+        "void",
+        "return",
+    ) else "manual"
 
 
 def _adjustment_response(adj: StockAdjustment) -> StockAdjustmentResponse:
@@ -70,7 +77,7 @@ def _adjustment_response(adj: StockAdjustment) -> StockAdjustmentResponse:
         product_name=adj.product_name,
         batch_id=adj.batch_id,
         transaction_id=adj.transaction_id,
-        type=adj.type,
+        type=adj_type_value(adj.type),
         quantity=adj.quantity,
         stock_before=adj.stock_before,
         stock_after=adj.stock_after,
@@ -431,7 +438,7 @@ async def list_movements(
     product_id: str = Query(""),
     search: str = Query(""),
     direction: str = Query("", pattern="^(|in|out)$"),
-    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|adjustment|damaged|correction)$"),
+    movement_type: str = Query("", pattern="^(|sale|void|return|receive|purchase_order|adjustment|damaged|correction)$"),
     start_date: str = Query(""),
     end_date: str = Query(""),
     _: User = Depends(require_manager_or_above),
@@ -460,7 +467,7 @@ async def movement_summary(
     product_id: str = Query(""),
     search: str = Query(""),
     direction: str = Query("", pattern="^(|in|out)$"),
-    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|adjustment|damaged|correction)$"),
+    movement_type: str = Query("", pattern="^(|sale|void|return|receive|purchase_order|adjustment|damaged|correction)$"),
     start_date: str = Query(""),
     end_date: str = Query(""),
     _: User = Depends(require_manager_or_above),

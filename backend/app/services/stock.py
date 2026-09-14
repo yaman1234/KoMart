@@ -356,6 +356,8 @@ async def record_inventory_change(
         ref_type = "sale"
     elif adjustment_type == AdjustmentType.void:
         ref_type = "sale"
+    elif adjustment_type == AdjustmentType.return_:
+        ref_type = "sale"
     else:
         ref_type = adjustment_type.value
     ref_id = reference_id or transaction_id or ""

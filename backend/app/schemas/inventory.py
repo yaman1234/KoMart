@@ -76,7 +76,7 @@ class StockAdjustmentResponse(BaseModel):
     product_name: str = ""
     batch_id: Optional[str] = None
     transaction_id: Optional[str] = None
-    type: AdjustmentType
+    type: str
     quantity: int
     stock_before: int = 0
     stock_after: int = 0

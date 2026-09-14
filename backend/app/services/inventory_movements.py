@@ -7,7 +7,12 @@ from datetime import datetime, timezone
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 
-from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
+from app.models.inventory import (
+    AdjustmentType,
+    InventoryBatch,
+    StockAdjustment,
+    adj_type_value,
+)
 from app.models.product import Product
 from app.models.transaction import Transaction
 from app.services.stock import get_current_stock
@@ -15,6 +20,7 @@ from app.services.stock import get_current_stock
 MOVEMENT_LABELS: dict[str, str] = {
     "sale": "Sale",
     "void": "Sale void",
+    "return": "Sale return",
     "receive": "Stock In",
     "purchase_order": "PO Receive",
     "adjustment": "Adjustment",
@@ -22,17 +28,20 @@ MOVEMENT_LABELS: dict[str, str] = {
     "correction": "Correction",
 }
 
+_SALE_RESTOCK_TYPES = {AdjustmentType.void, AdjustmentType.return_, "void", "return"}
+
 
 def movement_direction(quantity: int) -> str:
     return "in" if quantity > 0 else "out"
 
 
-def movement_label(reference_type: str, adjustment_type: AdjustmentType) -> str:
-    if adjustment_type == AdjustmentType.void:
-        return MOVEMENT_LABELS["void"]
+def movement_label(reference_type: str, adjustment_type: AdjustmentType | str) -> str:
+    type_value = adj_type_value(adjustment_type)
+    if type_value in ("void", "return"):
+        return MOVEMENT_LABELS[type_value]
     if reference_type in MOVEMENT_LABELS:
         return MOVEMENT_LABELS[reference_type]
-    return MOVEMENT_LABELS.get(adjustment_type.value, adjustment_type.value.title())
+    return MOVEMENT_LABELS.get(type_value, type_value.replace("_", " ").title())
 
 
 async def resolve_reference(
@@ -45,12 +54,14 @@ async def resolve_reference(
         return "sale", adj.transaction_id
     if adj.type == AdjustmentType.sale:
         return "sale", adj.transaction_id or ""
+    if adj.type in _SALE_RESTOCK_TYPES:
+        return "sale", adj.transaction_id or ""
     if adj.type == AdjustmentType.receive and adj.batch_id:
         po_id = (batch_po_map or {}).get(adj.batch_id, "")
         if po_id:
             return "purchase_order", po_id
         return "receive", adj.batch_id
-    return adj.type.value, adj.batch_id or ""
+    return adj_type_value(adj.type), adj.batch_id or ""
 
 
 def _reference_label(*, ref_type: str, txn_number: str, batch_number: str) -> str:
@@ -90,7 +101,7 @@ async def build_movement_row(
             batch_number=batch_number,
         ),
         "transaction_number": txn_number,
-        "type": adj.type.value,
+        "type": adj_type_value(adj.type),
         "direction": movement_direction(adj.quantity),
         "movement_label": movement_label(ref_type, adj.type),
         "quantity": adj.quantity,

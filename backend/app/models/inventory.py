@@ -1,5 +1,5 @@
 from beanie import Document
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing import Optional
 from enum import Enum
 from datetime import datetime, timezone
@@ -13,6 +13,11 @@ class AdjustmentType(str, Enum):
     sale = "sale"
     receive = "receive"
     void = "void"
+    return_ = "return"  # legacy stock-in from a sale return; `return` is a keyword
+
+
+def adj_type_value(value: AdjustmentType | str) -> str:
+    return value.value if isinstance(value, AdjustmentType) else str(value)
 
 
 class InventoryBatch(Document):
@@ -41,7 +46,8 @@ class StockAdjustment(Document):
     transaction_id: Optional[str] = None
     reference_type: str = ""
     reference_id: str = ""
-    type: AdjustmentType
+    # Union so a legacy/unknown Mongo value does not 500 the whole ledger page.
+    type: AdjustmentType | str
     quantity: int
     stock_before: int = 0
     stock_after: int = 0
@@ -54,6 +60,17 @@ class StockAdjustment(Document):
     reason: str
     created_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _keep_unknown_type(cls, value: object) -> AdjustmentType | str:
+        if isinstance(value, AdjustmentType):
+            return value
+        raw = str(value)
+        try:
+            return AdjustmentType(raw)
+        except ValueError:
+            return raw
 
     class Settings:
         name = "stock_adjustments"
