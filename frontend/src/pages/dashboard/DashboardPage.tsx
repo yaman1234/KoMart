@@ -51,6 +51,7 @@ import { DashboardChartCard, type ChartViewMode } from '@/components/charts/Dash
 import {
   useDashboardStats,
   useDashboardKpi,
+  useDayWiseTransactions,
   useDashboardCashFlow,
   useOperationalExpenses,
   useTopProfitProducts,
@@ -338,15 +339,153 @@ function CategoricalChart({
   );
 }
 
+function TodaySalesTile({
+  data,
+  loading,
+  today,
+  onNavigate,
+}: {
+  data?: {
+    todaySale: number;
+    todayCashSale: number;
+    todayBankSale: number;
+    todayEsewaSale: number;
+  };
+  loading: boolean;
+  today: string;
+  onNavigate: (path: string) => void;
+}) {
+  const rows: { label: string; method: 'cash' | 'esewa' | 'bank'; amount: number; icon: ReactNode }[] = [
+    { label: 'Cash', method: 'cash', amount: data?.todayCashSale ?? 0, icon: <PaymentsIcon sx={{ fontSize: 14 }} /> },
+    { label: 'eSewa', method: 'esewa', amount: data?.todayEsewaSale ?? 0, icon: <PhoneAndroidIcon sx={{ fontSize: 14 }} /> },
+    { label: 'Bank', method: 'bank', amount: data?.todayBankSale ?? 0, icon: <AccountBalanceIcon sx={{ fontSize: 14 }} /> },
+  ];
+
+  return (
+    <Card
+      sx={{
+        height: '100%',
+        bgcolor: 'background.paper',
+        cursor: 'pointer',
+        transition: 'box-shadow 0.15s',
+        '&:hover': { boxShadow: 3 },
+      }}
+      onClick={() => onNavigate(`/sales?startDate=${today}&endDate=${today}&status=completed`)}
+    >
+      <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ display: 'flex', color: 'action.active', lineHeight: 0 }}>
+            <PointOfSaleIcon fontSize="small" />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.4 }}>
+            Today Sale
+          </Typography>
+        </Box>
+        {loading ? (
+          <Skeleton width="70%" height={32} />
+        ) : (
+          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2, my: 0.5 }}>
+            {formatCurrency(data?.todaySale ?? 0)}
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+          {rows.map((row) => (
+            <Box
+              key={row.method}
+              component="button"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onNavigate(`/sales?startDate=${today}&endDate=${today}&paymentMethod=${row.method}&status=completed`);
+              }}
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                border: 0,
+                bgcolor: 'transparent',
+                p: 0.25,
+                m: 0,
+                cursor: 'pointer',
+                borderRadius: 0.5,
+                textAlign: 'left',
+                color: 'text.secondary',
+                '&:hover': { bgcolor: 'action.hover', color: 'primary.main' },
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {row.icon}
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>{row.label}</Typography>
+              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                {loading ? '…' : formatCurrency(row.amount)}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DayWiseTransactionsSection({
+  data,
+  loading,
+  dateLabel,
+  onNavigate,
+}: {
+  data?: {
+    todaySale: number;
+    todayCashSale: number;
+    todayBankSale: number;
+    todayEsewaSale: number;
+    todayExpense: number;
+  };
+  loading: boolean;
+  dateLabel: string;
+  onNavigate: (path: string) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.25 }}>
+        Day Wise Transactions
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: -0.75, mb: 1.25 }}>
+        {dateLabel}
+      </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+          gap: 1.5,
+        }}
+      >
+        <TodaySalesTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
+        <KpiTile
+          title="Today Expense"
+          icon={<ReceiptLongIcon fontSize="small" />}
+          main={formatCurrency(data?.todayExpense ?? 0)}
+          sub="Today"
+          loading={loading}
+          onClick={() => onNavigate(`/expenses?startDate=${today}&endDate=${today}`)}
+        />
+      </Box>
+    </Box>
+  );
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const formatDate = useFormatDate();
+  const today = new Date().toISOString().slice(0, 10);
   const user = useAuthStore((s) => s.user);
   const isAdminOrManager = canViewAdminReports(user?.role);
   const [kpiMetric, setKpiMetric] = useState<KpiFlowMetric | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: kpi, isLoading: kpiLoading } = useDashboardKpi();
+  const { data: dayWiseTransactions, isLoading: dayWiseTransactionsLoading } = useDayWiseTransactions();
   const { data: cashFlow = [], isLoading: cashFlowLoading } = useDashboardCashFlow(30);
   const { data: opex = [], isLoading: opexLoading } = useOperationalExpenses(30);
   const { data: topProfit = [], isLoading: profitLoading } = useTopProfitProducts(30, 6);
@@ -368,6 +507,7 @@ export function DashboardPage() {
   if (!isAdminOrManager) {
     return (
       <Box>
+        <DayWiseTransactionsSection data={dayWiseTransactions} loading={dayWiseTransactionsLoading} dateLabel={formatDate(today)} onNavigate={navigate} />
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <StatCard
@@ -405,6 +545,7 @@ export function DashboardPage() {
 
   return (
     <Box>
+      <DayWiseTransactionsSection data={dayWiseTransactions} loading={dayWiseTransactionsLoading} dateLabel={formatDate(today)} onNavigate={navigate} />
       <Box
         sx={{
           pt: 0.5,

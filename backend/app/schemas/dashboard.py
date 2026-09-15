@@ -14,6 +14,14 @@ class DashboardStats(BaseModel):
     net_revenue: float
 
 
+class DayWiseTransactions(BaseModel):
+    today_sale: float
+    today_cash_sale: float
+    today_bank_sale: float
+    today_esewa_sale: float
+    today_expense: float
+
+
 class RevenueDataPoint(BaseModel):
     date: str
     revenue: float

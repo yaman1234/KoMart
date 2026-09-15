@@ -6,9 +6,10 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.customer import Customer
 from app.models.transaction import Transaction
-from app.schemas.dashboard import DashboardStats, RevenueDataPoint, TopProduct, SalesByCategory
+from app.schemas.dashboard import DashboardStats, DayWiseTransactions, RevenueDataPoint, TopProduct, SalesByCategory
 from app.services.dashboard_kpi import (
     build_cash_flow,
+    build_day_wise_transactions,
     build_kpi_flow,
     build_kpi_summary,
     build_operational_expenses,
@@ -38,6 +39,11 @@ from app.services.response_cache import (
 )
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+
+@router.get("/day-wise-transactions", response_model=DayWiseTransactions)
+async def get_day_wise_transactions(_: User = Depends(get_current_user)):
+    return await build_day_wise_transactions()
 
 
 @router.get("/kpi-summary")
