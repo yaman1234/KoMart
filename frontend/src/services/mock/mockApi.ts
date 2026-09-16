@@ -1516,6 +1516,8 @@ export const mockApi = {
       productIds: data.productIds ?? [],
       category: data.category ?? '',
       minCartTotal: data.minCartTotal ?? 0,
+      buyQty: data.buyQty ?? 1,
+      getQty: data.getQty ?? 1,
       maxDiscount: data.maxDiscount ?? 0,
       startsAt: data.startsAt,
       endsAt: data.endsAt,
@@ -1531,8 +1533,9 @@ export const mockApi = {
   },
 
   async evaluateDiscount(payload: {
-    items: Array<{ productId: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ productId: string; price: number; quantity: number; category?: string; sellUom?: string }>;
     couponCode?: string;
+    excludedPromotions?: Array<{ ruleId: string; productId?: string; sellUom?: string }>;
   }): Promise<EvaluateDiscountResult> {
     await delay(150);
     return {

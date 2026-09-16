@@ -25,6 +25,7 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
@@ -160,6 +161,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
+  const [offerOnly, setOfferOnly] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'' | ProductStatus>('');
   const [sortBy, setSortBy] = useState<ProductSortField>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -220,17 +222,27 @@ export function ProductsPage() {
   // ── Flatten infinite pages for grid ─────────────────────────────────────────
   const allGridProducts = infiniteData?.pages.flatMap((p) => p.data) ?? [];
 
-  const filteredGridProducts = filterByStock(allGridProducts, stockFilter);
+  const stockFilteredGrid = filterByStock(allGridProducts, stockFilter);
 
   // ── Sheet products (paged) ──────────────────────────────────────────────────
-  const listProducts = pagedData?.data ?? [];
+  const listProductsRaw = pagedData?.data ?? [];
 
   const discountMap = useMemo(
     () => buildProductDiscountMap(
-      viewMode === 'grid' ? filteredGridProducts : listProducts,
+      viewMode === 'grid' ? stockFilteredGrid : listProductsRaw,
       discountRules,
     ),
-    [viewMode, filteredGridProducts, listProducts, discountRules],
+    [viewMode, stockFilteredGrid, listProductsRaw, discountRules],
+  );
+
+  const filteredGridProducts = useMemo(
+    () => (offerOnly ? stockFilteredGrid.filter((p) => discountMap.has(p.id)) : stockFilteredGrid),
+    [offerOnly, stockFilteredGrid, discountMap],
+  );
+
+  const listProducts = useMemo(
+    () => (offerOnly ? listProductsRaw.filter((p) => discountMap.has(p.id)) : listProductsRaw),
+    [offerOnly, listProductsRaw, discountMap],
   );
 
   // ── IntersectionObserver sentinel ───────────────────────────────────────────
@@ -406,6 +418,16 @@ export function ProductsPage() {
           <ToggleButton value="low">Low</ToggleButton>
           <ToggleButton value="out">Out</ToggleButton>
         </ToggleButtonGroup>
+
+        <Chip
+          icon={<LocalOfferOutlinedIcon sx={{ fontSize: '1rem !important' }} />}
+          label="Offer"
+          size="small"
+          variant={offerOnly ? 'filled' : 'outlined'}
+          color={offerOnly ? 'success' : 'default'}
+          onClick={() => { setOfferOnly((v) => !v); setPage(0); }}
+          sx={{ fontWeight: 600, cursor: 'pointer' }}
+        />
 
         {/* Newest products */}
         <ToggleButton

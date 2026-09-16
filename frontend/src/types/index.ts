@@ -69,6 +69,7 @@ export type ProductStatus = 'active' | 'discontinued' | 'seasonal';
 export type DiscountRuleType =
   | 'product_percent'
   | 'product_flat'
+  | 'product_bogo'
   | 'category_percent'
   | 'category_flat'
   | 'cart_percent'
@@ -84,6 +85,8 @@ export interface DiscountRule {
   category: string;
   minCartTotal: number;
   minLineQty?: number;
+  buyQty?: number;
+  getQty?: number;
   sellUom?: string;
   maxDiscount: number;
   startsAt?: string;
@@ -98,6 +101,14 @@ export interface AppliedPromotion {
   ruleId: string;
   name: string;
   amount: number;
+  productId?: string;
+  sellUom?: string;
+}
+
+export interface ExcludedPromotion {
+  ruleId: string;
+  productId?: string;
+  sellUom?: string;
 }
 
 export interface EvaluateDiscountResult {
@@ -129,6 +140,8 @@ export interface CatalogOffer {
   productIds: string[];
   category: string;
   code?: string;
+  buyQty?: number;
+  getQty?: number;
   startsAt?: string;
   endsAt?: string;
 }
@@ -499,6 +512,7 @@ export interface Transaction {
   promotionDiscount?: number;
   manualDiscount?: number;
   appliedPromotions?: AppliedPromotion[];
+  excludedPromotions?: ExcludedPromotion[];
   couponCode?: string;
   tax: number;
   loyaltyPointsRedeemed: number;

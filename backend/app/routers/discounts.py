@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.auth.dependencies import get_current_user, require_manager_or_above
+from app.auth.dependencies import get_current_user, require_manager_or_above, require_admin_only
 from app.models.discount_rule import DiscountRule, DiscountRuleType
 from app.models.user import User
 from app.schemas.discount import (
@@ -28,6 +28,8 @@ def _to_response(rule: DiscountRule) -> DiscountRuleResponse:
         category=rule.category,
         min_cart_total=rule.min_cart_total,
         min_line_qty=getattr(rule, "min_line_qty", 0) or 0,
+        buy_qty=max(1, int(getattr(rule, "buy_qty", 1) or 1)),
+        get_qty=max(1, int(getattr(rule, "get_qty", 1) or 1)),
         sell_uom=getattr(rule, "sell_uom", "") or "",
         max_discount=rule.max_discount,
         starts_at=rule.starts_at.isoformat() if rule.starts_at else None,
@@ -45,10 +47,19 @@ def _validate_rule_payload(
     product_ids: list[str],
     category: str,
     value: float,
+    buy_qty: int = 1,
+    get_qty: int = 1,
 ) -> None:
-    if rule_type in (DiscountRuleType.product_percent, DiscountRuleType.product_flat):
+    if rule_type in (
+        DiscountRuleType.product_percent,
+        DiscountRuleType.product_flat,
+        DiscountRuleType.product_bogo,
+    ):
         if not product_ids:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="At least one product is required for product discounts")
+    if rule_type == DiscountRuleType.product_bogo:
+        if buy_qty < 1 or get_qty < 1:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Buy qty and get qty must be at least 1")
     if rule_type in (DiscountRuleType.category_percent, DiscountRuleType.category_flat):
         if not category:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="category is required for category discounts")
@@ -74,7 +85,11 @@ async def evaluate_cart_discounts(
     body: EvaluateDiscountRequest,
     _: User = Depends(get_current_user),
 ):
-    return await evaluate_discounts(body.items, coupon_code=body.coupon_code)
+    return await evaluate_discounts(
+        body.items,
+        coupon_code=body.coupon_code,
+        excluded_promotions=body.excluded_promotions,
+    )
 
 
 @router.post("", response_model=DiscountRuleResponse, status_code=status.HTTP_201_CREATED)
@@ -87,6 +102,8 @@ async def create_discount_rule(
         product_ids=body.product_ids,
         category=body.category,
         value=body.value,
+        buy_qty=body.buy_qty,
+        get_qty=body.get_qty,
     )
     if body.code:
         existing = await DiscountRule.find_one(DiscountRule.code == body.code.strip().upper())
@@ -94,6 +111,9 @@ async def create_discount_rule(
             raise HTTPException(status.HTTP_409_CONFLICT, detail="Coupon code already exists")
     data = body.model_dump()
     data["code"] = body.code.strip().upper() if body.code else ""
+    if body.rule_type == DiscountRuleType.product_bogo:
+        data["value"] = 0
+        data["category"] = ""
     rule = DiscountRule(**data)
     await rule.insert()
     return _to_response(rule)
@@ -120,12 +140,19 @@ async def update_discount_rule(
     merged_products = data.get("product_ids", rule.product_ids)
     merged_category = data.get("category", rule.category)
     merged_value = data.get("value", rule.value)
+    merged_buy = data.get("buy_qty", getattr(rule, "buy_qty", 1) or 1)
+    merged_get = data.get("get_qty", getattr(rule, "get_qty", 1) or 1)
     _validate_rule_payload(
         merged_type,
         product_ids=merged_products,
         category=merged_category,
         value=merged_value,
+        buy_qty=merged_buy,
+        get_qty=merged_get,
     )
+    if merged_type == DiscountRuleType.product_bogo:
+        data["value"] = 0
+        data["category"] = ""
     data["updated_at"] = datetime.now(timezone.utc)
     await rule.set(data)
     refreshed = await DiscountRule.get(rule_id)
@@ -135,9 +162,9 @@ async def update_discount_rule(
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_discount_rule(
     rule_id: str,
-    current_user: User = Depends(require_manager_or_above),
+    current_user: User = Depends(require_admin_only),
 ):
     rule = await DiscountRule.get(rule_id)
     if not rule:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Discount rule not found")
-    await rule.set({"is_active": False, "updated_at": datetime.now(timezone.utc)})
+    await rule.delete()

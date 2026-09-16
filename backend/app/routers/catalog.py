@@ -55,6 +55,8 @@ class CatalogOfferResponse(BaseModel):
     product_ids: list[str] = Field(default_factory=list)
     category: str
     code: str
+    buy_qty: int = 1
+    get_qty: int = 1
     starts_at: Optional[str]
     ends_at: Optional[str]
 
@@ -140,6 +142,8 @@ async def list_offers(response: Response):
             product_ids=rule.product_ids,
             category=rule.category,
             code=rule.code,
+            buy_qty=max(1, int(getattr(rule, "buy_qty", 1) or 1)),
+            get_qty=max(1, int(getattr(rule, "get_qty", 1) or 1)),
             starts_at=rule.starts_at.isoformat() if rule.starts_at else None,
             ends_at=rule.ends_at.isoformat() if rule.ends_at else None,
         ))

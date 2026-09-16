@@ -16,6 +16,8 @@ class DiscountRuleCreate(BaseModel):
     category: str = ""
     min_cart_total: float = Field(default=0, ge=0)
     min_line_qty: int = Field(default=0, ge=0)
+    buy_qty: int = Field(default=1, ge=1)
+    get_qty: int = Field(default=1, ge=1)
     sell_uom: str = ""
     max_discount: float = Field(default=0, ge=0)
     starts_at: Optional[datetime] = None
@@ -33,6 +35,8 @@ class DiscountRuleUpdate(BaseModel):
     category: Optional[str] = None
     min_cart_total: Optional[float] = Field(default=None, ge=0)
     min_line_qty: Optional[int] = Field(default=None, ge=0)
+    buy_qty: Optional[int] = Field(default=None, ge=1)
+    get_qty: Optional[int] = Field(default=None, ge=1)
     sell_uom: Optional[str] = None
     max_discount: Optional[float] = Field(default=None, ge=0)
     starts_at: Optional[datetime] = None
@@ -51,6 +55,8 @@ class DiscountRuleResponse(BaseModel):
     category: str
     min_cart_total: float
     min_line_qty: int = 0
+    buy_qty: int = 1
+    get_qty: int = 1
     sell_uom: str = ""
     max_discount: float
     starts_at: Optional[str] = None
@@ -69,9 +75,16 @@ class EvaluateCartItem(BaseModel):
     sell_uom: str = ""
 
 
+class ExcludedPromotion(BaseModel):
+    rule_id: str
+    product_id: str = ""
+    sell_uom: str = ""
+
+
 class EvaluateDiscountRequest(BaseModel):
     items: list[EvaluateCartItem]
     coupon_code: str = ""
+    excluded_promotions: list[ExcludedPromotion] = Field(default_factory=list)
 
 
 class EvaluatedLineItem(BaseModel):

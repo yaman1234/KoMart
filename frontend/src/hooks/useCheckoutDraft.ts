@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useEvaluateDiscounts } from '@/hooks/useDiscounts';
+import { promotionKey, useEvaluateDiscounts } from '@/hooks/useDiscounts';
 import { cartLineKey } from '@/utils/cartLine';
 import { resolveSellOption } from '@/utils/uomSell';
-import type { AppliedPromotion, CartItem, Product } from '@/types';
+import type { AppliedPromotion, CartItem, ExcludedPromotion, Product } from '@/types';
 
 export type CheckoutDiscountType = 'flat' | 'pct' | null;
 
@@ -19,6 +19,7 @@ export interface CheckoutDiscountBreakdown {
   manualDiscount: number;
   loyaltyPointsRedeemed: number;
   appliedPromotions: AppliedPromotion[];
+  availablePromotions: AppliedPromotion[];
   totalDiscount: number;
 }
 
@@ -37,12 +38,14 @@ export function useCheckoutDraft(
   const [discountInput, setDiscountInput] = useState(0);
   const [loyaltyPointsRedeemed, setLoyaltyPointsRedeemed] = useState(0);
   const [notes, setNotes] = useState('');
+  const [excludedPromotions, setExcludedPromotions] = useState<ExcludedPromotion[]>([]);
 
   const initDraft = useCallback((init: CheckoutDraftInit) => {
     setDiscountType(init.discountType);
     setDiscountInput(init.discountInput);
     setLoyaltyPointsRedeemed(init.loyaltyPointsRedeemed ?? 0);
     setNotes(init.notes ?? '');
+    setExcludedPromotions([]);
   }, []);
 
   const itemsForDiscount = useMemo(
@@ -53,7 +56,8 @@ export function useCheckoutDraft(
     [items, productCategoryMap],
   );
 
-  const { data: discountEval } = useEvaluateDiscounts(itemsForDiscount, '');
+  const { data: fullEval } = useEvaluateDiscounts(itemsForDiscount, '', []);
+  const { data: discountEval } = useEvaluateDiscounts(itemsForDiscount, '', excludedPromotions);
 
   const lineDiscountMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -86,13 +90,17 @@ export function useCheckoutDraft(
     promotionLineDiscount + promotionCartDiscount + manualDiscount + effectiveLoyalty;
   const total = Math.max(0, subtotal - totalDiscount);
 
+  const availablePromotions = fullEval?.appliedPromotions ?? [];
+  const appliedPromotions = discountEval?.appliedPromotions ?? [];
+
   const discountBreakdown: CheckoutDiscountBreakdown = useMemo(
     () => ({
       promotionLineDiscount,
       promotionCartDiscount,
       manualDiscount,
       loyaltyPointsRedeemed: effectiveLoyalty,
-      appliedPromotions: discountEval?.appliedPromotions ?? [],
+      appliedPromotions,
+      availablePromotions,
       totalDiscount,
     }),
     [
@@ -100,7 +108,8 @@ export function useCheckoutDraft(
       promotionCartDiscount,
       manualDiscount,
       effectiveLoyalty,
-      discountEval?.appliedPromotions,
+      appliedPromotions,
+      availablePromotions,
       totalDiscount,
     ],
   );
@@ -153,6 +162,27 @@ export function useCheckoutDraft(
     setNotes(text.slice(0, 500));
   }, []);
 
+  const setPromotionEnabled = useCallback((promo: AppliedPromotion, enabled: boolean) => {
+    const key = promotionKey(promo);
+    setExcludedPromotions((prev) => {
+      const without = prev.filter((p) => promotionKey(p) !== key);
+      if (enabled) return without;
+      return [
+        ...without,
+        {
+          ruleId: promo.ruleId,
+          productId: promo.productId ?? '',
+          sellUom: promo.sellUom ?? '',
+        },
+      ];
+    });
+  }, []);
+
+  const isPromotionEnabled = useCallback((promo: AppliedPromotion) => {
+    const key = promotionKey(promo);
+    return !excludedPromotions.some((p) => promotionKey(p) === key);
+  }, [excludedPromotions]);
+
   return {
     initDraft,
     items,
@@ -165,7 +195,9 @@ export function useCheckoutDraft(
     total,
     manualDiscount,
     promotionDiscount: discountEval?.promotionDiscountTotal ?? 0,
-    appliedPromotions: discountEval?.appliedPromotions ?? [],
+    appliedPromotions,
+    availablePromotions,
+    excludedPromotions,
     discountBreakdown,
     paymentItems,
     netAfterPromo,
@@ -176,5 +208,7 @@ export function useCheckoutDraft(
     setDiscount,
     setLoyalty,
     setNotes: setNotesText,
+    setPromotionEnabled,
+    isPromotionEnabled,
   };
 }

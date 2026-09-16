@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { discountService } from '@/services';
-import type { CartItem, DiscountRule, DiscountRuleType } from '@/types';
+import type { CartItem, DiscountRule, DiscountRuleType, ExcludedPromotion } from '@/types';
 import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
 
 export function useDiscountRules(activeOnly = true) {
@@ -25,18 +25,22 @@ export function useCreateDiscountRule() {
       category?: string;
       minCartTotal?: number;
       minLineQty?: number;
+      buyQty?: number;
+      getQty?: number;
       sellUom?: string;
       maxDiscount?: number;
       priority?: number;
     }) => discountService.create({
       name: data.name,
-      code: data.code ?? '',
+      code: '',
       ruleType: data.ruleType,
-      value: data.value,
+      value: data.ruleType === 'product_bogo' ? 0 : data.value,
       productIds: data.productIds ?? [],
-      category: data.category ?? '',
+      category: data.ruleType === 'product_bogo' ? '' : (data.category ?? ''),
       minCartTotal: data.minCartTotal ?? 0,
       minLineQty: data.minLineQty ?? 0,
+      buyQty: data.buyQty ?? 1,
+      getQty: data.getQty ?? 1,
       sellUom: data.sellUom ?? '',
       maxDiscount: data.maxDiscount ?? 0,
       priority: data.priority ?? 0,
@@ -72,7 +76,19 @@ export function useDeleteDiscountRule() {
   });
 }
 
-export function useEvaluateDiscounts(items: CartItem[], couponCode: string) {
+export function promotionKey(promo: {
+  ruleId: string;
+  productId?: string;
+  sellUom?: string;
+}): string {
+  return `${promo.ruleId}|${promo.productId ?? ''}|${(promo.sellUom ?? '').toLowerCase()}`;
+}
+
+export function useEvaluateDiscounts(
+  items: CartItem[],
+  couponCode: string,
+  excludedPromotions: ExcludedPromotion[] = [],
+) {
   const payloadKey = useMemo(
     () => JSON.stringify({
       items: items.map((i) => ({
@@ -83,8 +99,9 @@ export function useEvaluateDiscounts(items: CartItem[], couponCode: string) {
         sellUom: i.sellUom ?? '',
       })),
       couponCode,
+      excludedPromotions,
     }),
-    [items, couponCode],
+    [items, couponCode, excludedPromotions],
   );
 
   return useQuery({
@@ -98,6 +115,7 @@ export function useEvaluateDiscounts(items: CartItem[], couponCode: string) {
         sellUom: i.sellUom ?? '',
       })),
       couponCode,
+      excludedPromotions,
     }),
     enabled: items.length > 0,
     staleTime: STALE_TIME.realtime,

@@ -876,6 +876,7 @@ export const discountService = {
   evaluate: async (payload: {
     items: Array<{ productId: string; price: number; quantity: number; category?: string; sellUom?: string }>;
     couponCode?: string;
+    excludedPromotions?: Array<{ ruleId: string; productId?: string; sellUom?: string }>;
   }): Promise<EvaluateDiscountResult> => {
     if (useMock()) return mockApi.evaluateDiscount(payload);
     const { data } = await apiClient.post('/discounts/evaluate', payload);

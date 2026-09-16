@@ -21,7 +21,6 @@ import {
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import { CustomerPicker } from '@/components/pos/CustomerPicker';
 import { PosAddProductAutocomplete } from '@/components/pos/PosAddProductAutocomplete';
 import AddIcon from '@mui/icons-material/Add';
@@ -31,10 +30,11 @@ import { formatAmount, formatCurrency, uomLabel } from '@/utils';
 import { cartLineKey } from '@/utils/cartLine';
 import { cashTenderSuggestions } from '@/utils/cashTenderSuggestions';
 import { useCheckoutDraft, type CartMutators, type CheckoutDiscountType } from '@/hooks/useCheckoutDraft';
+import { promotionKey } from '@/hooks/useDiscounts';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { ReceiptView } from '@/components/pos/ReceiptView';
 import { ReceiptActions } from '@/components/pos/ReceiptActions';
-import type { AppliedPromotion, CartItem, PaymentMethod, ReceiptBranding, Transaction } from '@/types';
+import type { AppliedPromotion, CartItem, ExcludedPromotion, PaymentMethod, ReceiptBranding, Transaction } from '@/types';
 import { printTransactionReceipt } from '@/utils/receiptPrint';
 import { noNumberSpinnerSx } from '@/styles/inputStyles';
 
@@ -60,6 +60,7 @@ export interface PaymentConfirmPayload {
   notes: string;
   promotionDiscount: number;
   appliedPromotions: AppliedPromotion[];
+  excludedPromotions: ExcludedPromotion[];
   discount: number;
   roundOff: number;
 }
@@ -224,6 +225,7 @@ export function PaymentModal({
       notes: draft.notes.trim(),
       promotionDiscount: draft.promotionDiscount,
       appliedPromotions: draft.appliedPromotions,
+      excludedPromotions: draft.excludedPromotions,
       discount: breakdown.promotionCartDiscount + draft.manualDiscount + draft.loyaltyPointsRedeemed,
       roundOff: roundOffAmount,
     });
@@ -272,14 +274,18 @@ export function PaymentModal({
       slotProps={{
         paper: {
           sx: {
-            width: 'min(1100px, 96vw)',
-            maxHeight: '92vh',
-            m: 1.5,
+            width: '90vw',
+            maxWidth: '90vw',
+            height: '90vh',
+            maxHeight: '90vh',
+            m: 1,
+            display: 'flex',
+            flexDirection: 'column',
           },
         },
       }}
     >
-      <DialogTitle sx={{ fontWeight: 700, pb: 1, display: 'flex', alignItems: 'flex-start', gap: 2, pr: 2 }}>
+      <DialogTitle sx={{ fontWeight: 700, pb: 1, display: 'flex', alignItems: 'flex-start', gap: 2, pr: 2, flexShrink: 0 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           Confirm Payment
           {saleDate && (
@@ -296,7 +302,7 @@ export function PaymentModal({
         </Typography>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <DialogContent sx={{ pt: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {error && (
           <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
             {error}
@@ -306,34 +312,42 @@ export function PaymentModal({
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1.35fr 1fr' },
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.85fr) minmax(280px, 1fr)' },
             gap: 1.5,
             alignItems: 'stretch',
             flex: 1,
             minHeight: 0,
+            overflow: { xs: 'auto', md: 'hidden' },
           }}
         >
-          {/* Left: order items */}
+          {/* Left: add product + items table + full-width subtotal */}
           <Box
             sx={{
               display: 'flex',
               flexDirection: 'column',
+              gap: 0.75,
               minWidth: 0,
-              minHeight: { md: 420 },
+              minHeight: 0,
+              height: { md: '100%' },
             }}
           >
             <SectionLabel>Order items</SectionLabel>
+            <Box sx={{ flexShrink: 0 }}>
+              <PosAddProductAutocomplete
+                onAdd={(product, asPack) => draft.addProduct(product, asPack)}
+              />
+            </Box>
+
             <Box
               sx={{
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: 1.5,
-                mb: 1,
                 overflow: 'hidden',
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                minHeight: 0,
+                minHeight: { xs: 280, md: 0 },
               }}
             >
               <Box
@@ -365,10 +379,10 @@ export function PaymentModal({
                 ))}
               </Box>
 
-              <Box sx={{ flex: 1, overflow: 'auto', minHeight: 200, maxHeight: { xs: 280, md: 'none' } }}>
+              <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                 {draft.items.length === 0 ? (
                   <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
-                    No items — add a product below
+                    No items — add a product above
                   </Typography>
                 ) : (
                   draft.items.map((item, index) => {
@@ -458,22 +472,225 @@ export function PaymentModal({
               </Box>
             </Box>
 
-            <PosAddProductAutocomplete
-              onAdd={(product, asPack) => draft.addProduct(product, asPack)}
-            />
+            {/* Subtotal: full width of Order items, amounts aligned to Total column */}
+            <Paper
+              variant="outlined"
+              sx={{
+                py: 1,
+                px: 0,
+                borderRadius: 2,
+                bgcolor: 'action.hover',
+                flexShrink: 0,
+                width: '100%',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: orderCols,
+                  px: 1,
+                  gap: 0.5,
+                  alignItems: 'center',
+                  mb: 0.25,
+                }}
+              >
+                <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / 7' }}>
+                  Subtotal
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ gridColumn: 7, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {formatAmount(draft.subtotal)}
+                </Typography>
+              </Box>
+              {breakdown.promotionLineDiscount > 0 && (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: orderCols,
+                    px: 1,
+                    gap: 0.5,
+                    alignItems: 'center',
+                    mb: 0.25,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / 7' }}>
+                    Item promotions
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="success.main"
+                    sx={{ gridColumn: 7, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    - {formatAmount(breakdown.promotionLineDiscount)}
+                  </Typography>
+                </Box>
+              )}
+              {breakdown.promotionCartDiscount > 0 && (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: orderCols,
+                    px: 1,
+                    gap: 0.5,
+                    alignItems: 'center',
+                    mb: 0.25,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / 7' }}>
+                    Cart promotion
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="success.main"
+                    sx={{ gridColumn: 7, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    - {formatAmount(breakdown.promotionCartDiscount)}
+                  </Typography>
+                </Box>
+              )}
+              {breakdown.manualDiscount > 0 && (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: orderCols,
+                    px: 1,
+                    gap: 0.5,
+                    alignItems: 'center',
+                    mb: 0.25,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / 7' }}>
+                    Manual discount
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="success.main"
+                    sx={{ gridColumn: 7, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    - {formatAmount(breakdown.manualDiscount)}
+                  </Typography>
+                </Box>
+              )}
+              {breakdown.loyaltyPointsRedeemed > 0 && (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: orderCols,
+                    px: 1,
+                    gap: 0.5,
+                    alignItems: 'center',
+                    mb: 0.25,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / 7' }}>
+                    Loyalty
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="success.main"
+                    sx={{ gridColumn: 7, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    - {formatAmount(breakdown.loyaltyPointsRedeemed)}
+                  </Typography>
+                </Box>
+              )}
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: orderCols,
+                  px: 1,
+                  gap: 0.5,
+                  alignItems: 'center',
+                  mt: 0.25,
+                  mb: 0.25,
+                }}
+              >
+                <FormControlLabel
+                  sx={{
+                    gridColumn: '1 / 7',
+                    mx: 0,
+                    mr: 0,
+                    minWidth: 0,
+                    '& .MuiFormControlLabel-label': { fontSize: '0.8rem' },
+                    '& .MuiCheckbox-root': { py: 0.25, pl: 0 },
+                  }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={roundOffEnabled}
+                      onChange={(_, checked) => setRoundOffEnabled(checked)}
+                      disabled={loading}
+                    />
+                  }
+                  label="Roundoff"
+                />
+                {roundOffEnabled && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      gridColumn: 7,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      fontWeight: 600,
+                      color: roundOffAmount === 0
+                        ? 'text.secondary'
+                        : roundOffAmount > 0
+                          ? 'text.primary'
+                          : 'success.main',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {roundOffAmount === 0
+                      ? formatAmount(0)
+                      : `${roundOffAmount > 0 ? '+ ' : '- '}${formatAmount(Math.abs(roundOffAmount))}`}
+                  </Typography>
+                )}
+              </Box>
+              <Divider sx={{ my: 0.5, mx: 1 }} />
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: orderCols,
+                  px: 1,
+                  gap: 0.5,
+                  alignItems: 'baseline',
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ gridColumn: '1 / 7', fontWeight: 700 }}>
+                  Amount due
+                </Typography>
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    gridColumn: '7 / 9',
+                    textAlign: 'right',
+                    fontWeight: 700,
+                    color: 'primary.main',
+                    fontVariantNumeric: 'tabular-nums',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatCurrency(payableTotal)}
+                </Typography>
+              </Box>
+            </Paper>
           </Box>
 
-          {/* Right: customer, discounts, remarks, totals, payment */}
+          {/* Right: customer, discounts, remarks + Payment at bottom (same row as subtotal) */}
           <Box
             sx={{
               display: 'flex',
               flexDirection: 'column',
               gap: 1,
               minWidth: 0,
-              overflow: 'visible',
+              minHeight: 0,
+              height: { md: '100%' },
+              overflow: { md: 'auto' },
             }}
           >
-            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
+            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, flexShrink: 0 }}>
               <CustomerPicker
                 customerId={customerId}
                 onCustomerChange={onCustomerChange}
@@ -481,7 +698,7 @@ export function PaymentModal({
               />
             </Paper>
 
-            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
+            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, flexShrink: 0 }}>
               <SectionLabel>Discounts</SectionLabel>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: customerLoyalty > 0 ? 0.5 : 0 }}>
                 <ToggleButtonGroup
@@ -540,18 +757,58 @@ export function PaymentModal({
                 />
               )}
 
-              {breakdown.appliedPromotions.length > 0 && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-                  {breakdown.appliedPromotions.map((promo) => (
-                    <Chip
-                      key={promo.ruleId}
-                      icon={<LocalOfferOutlinedIcon />}
-                      label={`${promo.name} (−${formatAmount(promo.amount)})`}
-                      size="small"
-                      color="success"
-                      variant="outlined"
-                    />
-                  ))}
+              {breakdown.availablePromotions.length > 0 && (
+                <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25, maxHeight: 100, overflow: 'auto' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    Applied discounts
+                  </Typography>
+                  {breakdown.availablePromotions.map((promo) => {
+                    const enabled = draft.isPromotionEnabled(promo);
+                    const productName = promo.productId
+                      ? (draft.items.find((i) =>
+                          i.productId === promo.productId
+                          && (i.sellUom ?? '') === (promo.sellUom ?? ''),
+                        )?.name
+                        ?? draft.items.find((i) => i.productId === promo.productId)?.name
+                        ?? 'Product')
+                      : 'Entire cart';
+                    return (
+                      <FormControlLabel
+                        key={promotionKey(promo)}
+                        sx={{
+                          m: 0,
+                          alignItems: 'flex-start',
+                          gap: 0.5,
+                          opacity: enabled ? 1 : 0.55,
+                        }}
+                        control={(
+                          <Checkbox
+                            size="small"
+                            checked={enabled}
+                            onChange={(_, checked) => draft.setPromotionEnabled(promo, checked)}
+                            sx={{ p: 0.25, mt: 0.1 }}
+                          />
+                        )}
+                        label={(
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, width: '100%' }}>
+                            <Typography variant="caption" sx={{ lineHeight: 1.35 }}>
+                              {promo.name}
+                              <Typography component="span" variant="caption" color="text.secondary">
+                                {` · ${productName}`}
+                              </Typography>
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color={enabled ? 'success.main' : 'text.secondary'}
+                              sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}
+                            >
+                              −{formatAmount(promo.amount)}
+                            </Typography>
+                          </Box>
+                        )}
+                      />
+                    );
+                  })}
                 </Box>
               )}
             </Paper>
@@ -570,104 +827,18 @@ export function PaymentModal({
                 formHelperText: { sx: { m: 0, mt: 0.25 } },
               }}
               helperText={`${draft.notes.length}/500`}
+              sx={{ flexShrink: 0 }}
             />
 
-            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, bgcolor: 'action.hover' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-                <Typography variant="caption" color="text.secondary">Subtotal</Typography>
-                <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatAmount(draft.subtotal)}</Typography>
-              </Box>
-              {breakdown.promotionLineDiscount > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-                  <Typography variant="caption" color="text.secondary">Item promotions</Typography>
-                  <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    - {formatAmount(breakdown.promotionLineDiscount)}
-                  </Typography>
-                </Box>
-              )}
-              {breakdown.promotionCartDiscount > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-                  <Typography variant="caption" color="text.secondary">Cart promotion</Typography>
-                  <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    - {formatAmount(breakdown.promotionCartDiscount)}
-                  </Typography>
-                </Box>
-              )}
-              {breakdown.manualDiscount > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-                  <Typography variant="caption" color="text.secondary">Manual discount</Typography>
-                  <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    - {formatAmount(breakdown.manualDiscount)}
-                  </Typography>
-                </Box>
-              )}
-              {breakdown.loyaltyPointsRedeemed > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-                  <Typography variant="caption" color="text.secondary">Loyalty</Typography>
-                  <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    - {formatAmount(breakdown.loyaltyPointsRedeemed)}
-                  </Typography>
-                </Box>
-              )}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 1,
-                  mt: 0.25,
-                  mb: 0.25,
-                }}
-              >
-                <FormControlLabel
-                  sx={{
-                    mx: 0,
-                    mr: 0,
-                    flex: 1,
-                    minWidth: 0,
-                    '& .MuiFormControlLabel-label': { fontSize: '0.8rem' },
-                    '& .MuiCheckbox-root': { py: 0.25, pl: 0 },
-                  }}
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={roundOffEnabled}
-                      onChange={(_, checked) => setRoundOffEnabled(checked)}
-                      disabled={loading}
-                    />
-                  }
-                  label="Roundoff"
-                />
-                {roundOffEnabled && (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 600,
-                      color: roundOffAmount === 0
-                        ? 'text.secondary'
-                        : roundOffAmount > 0
-                          ? 'text.primary'
-                          : 'success.main',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {roundOffAmount === 0
-                      ? formatAmount(0)
-                      : `${roundOffAmount > 0 ? '+ ' : '- '}${formatAmount(Math.abs(roundOffAmount))}`}
-                  </Typography>
-                )}
-              </Box>
-              <Divider sx={{ my: 0.5 }} />
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Amount due</Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatCurrency(payableTotal)}
-                </Typography>
-              </Box>
-            </Paper>
-
-            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                flexShrink: 0,
+                mt: { md: 'auto' },
+              }}
+            >
               <SectionLabel>Payment</SectionLabel>
               <Box
                 sx={{
@@ -744,7 +915,7 @@ export function PaymentModal({
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+      <DialogActions sx={{ px: 3, pb: 2, pt: 1, flexShrink: 0 }}>
         <Button onClick={onClose} disabled={loading}>Cancel</Button>
         <Button
           variant="contained"

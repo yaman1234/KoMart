@@ -3,6 +3,7 @@ import type { DiscountRule, DiscountRuleType, Product } from '@/types';
 const LINE_RULE_TYPES: DiscountRuleType[] = [
   'product_percent',
   'product_flat',
+  'product_bogo',
   'category_percent',
   'category_flat',
 ];
@@ -43,9 +44,11 @@ export function getProductLineDiscountRules(
 }
 
 export function formatDiscountRuleLabel(rule: DiscountRule): string {
-  const amount = rule.ruleType.includes('percent')
-    ? `${rule.value}% off`
-    : `Rs. ${rule.value} off`;
+  const amount = rule.ruleType === 'product_bogo'
+    ? `Buy ${rule.buyQty ?? 1} Get ${rule.getQty ?? 1} Free`
+    : rule.ruleType.includes('percent')
+      ? `${rule.value}% off`
+      : `Rs. ${rule.value} off`;
   return rule.code ? `${amount} (${rule.code})` : amount;
 }
 
