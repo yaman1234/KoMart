@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   Box,
   Button,
@@ -147,6 +147,7 @@ export function ProductFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEditing = !!id;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const { data: product, isLoading: productLoading } = useProduct(id ?? '');
   const { data: storeSettings } = useStoreSettings();
@@ -325,6 +326,7 @@ export function ProductFormPage() {
   if (!file) return;
 
   try {
+    setImageUploading(true);
 const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -375,7 +377,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
     console.error('Cloudinary upload error:', error);
     showApiError(error, 'Image upload failed.');
   } finally {
-    // Allow selecting the same file again
+    setImageUploading(false);
     e.target.value = '';
   }
 };
@@ -840,11 +842,12 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
             <Button
               variant="outlined"
               fullWidth
-              startIcon={<UploadIcon />}
+              startIcon={imageUploading ? <CircularProgress size={16} /> : <UploadIcon />}
               onClick={() => fileInputRef.current?.click()}
+              disabled={imageUploading}
               sx={{ mb: 1.5 }}
             >
-              Upload Image
+              {imageUploading ? 'Uploading…' : 'Upload Image'}
             </Button>
 
             {/* URL fallback */}
