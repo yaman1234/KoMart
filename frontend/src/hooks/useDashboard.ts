@@ -22,6 +22,14 @@ export function useDashboardKpi() {
   });
 }
 
+export function useDayWiseTransactions() {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.dashboard, 'dayWiseTransactions'],
+    queryFn: () => dashboardService.getDayWiseTransactions(),
+    staleTime: STALE_TIME.standard,
+  });
+}
+
 export function useDashboardCashFlow(days = 30) {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'cashFlow', days],
