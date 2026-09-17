@@ -33,7 +33,7 @@ import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { useAuthStore } from '@/store';
 import type { Product, PurchaseOrderItem, PurchaseOrderStatus } from '@/types';
-import { PO_AMEND_HINT } from '@/pages/purchase-orders/poTerminology';
+import { PO_DRAFT_EDIT_HINT } from '@/pages/purchase-orders/poTerminology';
 import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsGrid';
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
@@ -101,6 +101,9 @@ export function PurchaseOrderFormPage() {
   const [supplierId, setSupplierId] = useState('');
   const [expectedDelivery, setExpectedDelivery] = useState(() => today().format('YYYY-MM-DD'));
   const [orderedBy, setOrderedBy] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [tax, setTax] = useState(0);
+  const [remarks, setRemarks] = useState('');
   const [lines, setLines] = useState<PoLineItem[]>(() => [emptyPoLineItem(0)]);
   const [error, setError] = useState('');
   const [pasteWarning, setPasteWarning] = useState('');
@@ -117,7 +120,6 @@ export function PurchaseOrderFormPage() {
 
   const suppliers = suppliersData?.data ?? [];
   const isPending = createMutation.isPending || updateMutation.isPending;
-  const isPlacedEdit = isEdit && existingPo && existingPo.status !== 'draft';
 
   useEffect(() => {
     if (!canManage) {
@@ -156,11 +158,14 @@ export function PurchaseOrderFormPage() {
 
   useEffect(() => {
     if (!isEdit || !existingPo || formLoaded || catalogLoading) return;
-    if (!canEditPurchaseOrder(existingPo)) return;
+    if (!canEditPurchaseOrder(existingPo, currentUser?.role)) return;
 
     setSupplierId(existingPo.supplierId);
     setExpectedDelivery(existingPo.expectedDelivery ?? today().format('YYYY-MM-DD'));
     setOrderedBy(existingPo.orderedBy ?? currentUser?.name ?? '');
+    setDiscount(existingPo.discount ?? 0);
+    setTax(existingPo.tax ?? 0);
+    setRemarks(existingPo.remarks ?? '');
 
     if (existingPo.items.length > 0) {
       const loaded = existingPo.items.map((item) => {
@@ -180,10 +185,13 @@ export function PurchaseOrderFormPage() {
     (l) => l.product && parseQuantity(l.quantityInput) > 0 && l.unitCost > 0 && !l.resolveError,
   );
   const unresolvedLines = lines.filter((l) => l.skuInput.trim() && (!l.product || l.resolveError));
-  const totalAmount = validLines.reduce(
+  const subtotal = validLines.reduce(
     (s, l) => s + parseQuantity(l.quantityInput) * l.unitCost,
     0,
   );
+  const safeDiscount = Math.max(0, Number.isFinite(discount) ? discount : 0);
+  const safeTax = Math.max(0, Number.isFinite(tax) ? tax : 0);
+  const totalAmount = Math.max(0, Math.round((subtotal - safeDiscount + safeTax) * 100) / 100);
   const lineCount = validLines.length;
 
   const receivedByProduct = new Map(
@@ -197,6 +205,9 @@ export function PurchaseOrderFormPage() {
       supplierName: supplier?.name ?? '',
       status,
       totalAmount,
+      discount: safeDiscount,
+      tax: safeTax,
+      remarks: remarks.trim(),
       expectedDelivery: expectedDelivery || undefined,
       orderedBy: orderedBy || undefined,
       items: validLines.map((l) => ({
@@ -205,8 +216,8 @@ export function PurchaseOrderFormPage() {
         quantity: parseQuantity(l.quantityInput),
         unitCost: l.unitCost,
         receivedQuantity: receivedByProduct.get(l.product!.id) ?? l.receivedQuantity ?? 0,
-        orderUom: l.buyUom,
-        baseUom: l.product!.uom ?? 'pcs',
+        orderUom: l.buyUom || l.product!.buyUom || l.product!.uom || 'pcs',
+        baseUom: l.product!.uom || l.buyUom || 'pcs',
         unitsPerBuyUom: l.unitsPerBuyUom,
       })),
     };
@@ -226,7 +237,7 @@ export function PurchaseOrderFormPage() {
       );
       return false;
     }
-    if (expectedDelivery && !isPlacedEdit) {
+    if (expectedDelivery) {
       const delivery = dayjs(expectedDelivery).startOf('day');
       if (delivery.isBefore(today())) {
         setError('Expected delivery cannot be in the past');
@@ -268,11 +279,6 @@ export function PurchaseOrderFormPage() {
     }
   };
 
-  const handleSaveChanges = () => {
-    if (!existingPo) return;
-    void handleSubmit(existingPo.status);
-  };
-
   if (!canManage) return null;
 
   if (isEdit && poLoading) {
@@ -287,10 +293,12 @@ export function PurchaseOrderFormPage() {
     return <Alert severity="error">Purchase order not found.</Alert>;
   }
 
-  if (isEdit && existingPo && !canEditPurchaseOrder(existingPo)) {
+  if (isEdit && existingPo && !canEditPurchaseOrder(existingPo, currentUser?.role)) {
     return (
       <Alert severity="warning" sx={{ mb: 2 }}>
-        This purchase order cannot be edited.{' '}
+        {existingPo.status === 'draft'
+          ? 'You do not have permission to edit this purchase order.'
+          : PO_DRAFT_EDIT_HINT}{' '}
         <Button size="small" onClick={() => navigate(`/purchase-orders/${existingPo.id}`)}>
           View order
         </Button>
@@ -323,54 +331,25 @@ export function PurchaseOrderFormPage() {
             >
               Cancel
             </Button>
-            {!isPlacedEdit && (
-              <>
-                <Button variant="outlined" onClick={() => void handleSubmit('draft')} loading={isPending}>
-                  Save as Draft
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  onClick={() => void handleSubmit('ordered')}
-                  loading={isPending}
-                >
-                  Place Order
-                </Button>
-              </>
-            )}
-            {isPlacedEdit && (
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSaveChanges}
-                loading={isPending}
-              >
-                Save Changes
-              </Button>
-            )}
+            <Button variant="outlined" onClick={() => void handleSubmit('draft')} loading={isPending}>
+              Save as Draft
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={() => void handleSubmit('ordered')}
+              loading={isPending}
+            >
+              Place Order
+            </Button>
           </Box>
         }
       />
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {isPlacedEdit && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          {(existingPo?.items.some((item) => item.receivedQuantity > 0) ?? false)
-            ? PO_AMEND_HINT
-            : 'Save Changes updates supplier, lines, and prices. To void this purchase order entirely (and reverse any payments), use Cancel order on the detail page.'}
-        </Alert>
-      )}
 
       <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order details</Typography>
-            <Chip
-              label={`${lineCount} item${lineCount !== 1 ? 's' : ''} · ${formatCurrency(totalAmount)}`}
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 600 }}
-            />
-          </Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>Order details</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
@@ -392,7 +371,7 @@ export function PurchaseOrderFormPage() {
                 label="Expected Delivery"
                 value={expectedDelivery}
                 onChange={setExpectedDelivery}
-                minDate={isPlacedEdit ? undefined : today().format('YYYY-MM-DD')}
+                minDate={today().format('YYYY-MM-DD')}
                 size="small"
                 fullWidth
               />
@@ -416,7 +395,16 @@ export function PurchaseOrderFormPage() {
         </Paper>
 
       <Box sx={{ mb: 1.5 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Order Items</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
+          <Chip
+            label={`${lineCount} item${lineCount !== 1 ? 's' : ''}`}
+            color="primary"
+            variant="outlined"
+            size="small"
+            sx={{ fontWeight: 600 }}
+          />
+        </Box>
         {catalogLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress size={28} />
@@ -432,10 +420,62 @@ export function PurchaseOrderFormPage() {
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          Order Total: {formatCurrency(totalAmount)}
-        </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          mt: 1.5,
+          mb: 2,
+        }}
+      >
+        <Box sx={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+          <TextField
+            label="Discount"
+            type="number"
+            size="small"
+            fullWidth
+            value={discount}
+            onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+          />
+          <TextField
+            label="Tax"
+            type="number"
+            size="small"
+            fullWidth
+            value={tax}
+            onChange={(e) => setTax(Math.max(0, parseFloat(e.target.value) || 0))}
+            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+          />
+          <TextField
+            label="Remarks"
+            size="small"
+            fullWidth
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            multiline
+            minRows={1}
+            maxRows={3}
+          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25, pt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              Subtotal: {formatCurrency(subtotal)}
+            </Typography>
+            {safeDiscount > 0 && (
+              <Typography variant="body2" color="text.secondary">
+                Discount: −{formatCurrency(safeDiscount)}
+              </Typography>
+            )}
+            {safeTax > 0 && (
+              <Typography variant="body2" color="text.secondary">
+                Tax: +{formatCurrency(safeTax)}
+              </Typography>
+            )}
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Order Total: {formatCurrency(totalAmount)}
+            </Typography>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

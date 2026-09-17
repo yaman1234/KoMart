@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,11 +12,14 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { useQueries } from '@tanstack/react-query';
 import { useUomOptions } from '@/hooks/useUoms';
 import { formatCurrency } from '@/utils';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
@@ -36,7 +39,10 @@ import {
 } from '@/pages/purchase-orders/poProductResolver';
 import { PO_LABELS, PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
 import { PoProductAutocompleteCell } from '@/pages/purchase-orders/components/PoProductAutocompleteCell';
+import { productService } from '@/services';
+import { QUERY_KEYS } from '@/constants';
 
+/** Editable: SKU, Pack qty, Primary Unit, Conversion unit, Unit cost */
 const EDITABLE_COLS = [0, 1, 2, 3, 4] as const;
 type EditableCol = (typeof EDITABLE_COLS)[number];
 
@@ -148,6 +154,18 @@ function ensureTrailingEmptyRow(
   return lines;
 }
 
+function catalogSellUnitBaseline(line: PoLineItem): number {
+  if (!line.product) return 0;
+  // product.costPrice is already per sell/base UOM
+  return line.product.costPrice ?? 0;
+}
+
+/** Pack unit cost → sell-unit (landed) cost */
+function packToSellUnitCost(packUnitCost: number, unitsPerBuy: number): number {
+  const units = unitsPerBuy > 0 ? unitsPerBuy : 1;
+  return packUnitCost / units;
+}
+
 export interface PoLineItemsGridProps {
   lines: PoLineItem[];
   onChange: (lines: PoLineItem[]) => void;
@@ -158,16 +176,44 @@ export interface PoLineItemsGridProps {
 
 const headerSx = {
   fontWeight: 700,
-  fontSize: '0.75rem',
-  whiteSpace: 'nowrap',
-  py: 0.75,
+  fontSize: '0.7rem',
+  lineHeight: 1.25,
+  whiteSpace: 'normal' as const,
+  wordBreak: 'break-word' as const,
+  py: 1,
   px: 1,
-  bgcolor: 'action.hover',
-  borderBottom: '1px solid',
+  bgcolor: 'grey.100',
+  borderBottom: '2px solid',
   borderColor: 'divider',
+  color: 'text.secondary',
+  verticalAlign: 'bottom' as const,
 };
 
-const cellPadSx = { p: 0, borderBottom: '1px solid', borderColor: 'divider' };
+const cellPadSx = {
+  p: 0.5,
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+  verticalAlign: 'middle' as const,
+  overflow: 'hidden',
+};
+
+const readOnlyCellSx = {
+  ...cellPadSx,
+  px: 1,
+  fontSize: '0.8125rem',
+  color: 'text.secondary',
+};
+
+const gridInputSx = {
+  ...excelCellSx,
+  ...noNumberSpinnerSx,
+  width: '100%',
+  maxWidth: '100%',
+  '& .MuiOutlinedInput-root': {
+    ...excelCellSx['& .MuiOutlinedInput-root'],
+    height: 36,
+  },
+} as const;
 
 export function PoLineItemsGrid({
   lines,
@@ -181,6 +227,33 @@ export function PoLineItemsGrid({
   const nextIdRef = useRef(Math.max(0, ...lines.map((l) => l.id)) + 1);
   const [focusedRow, setFocusedRow] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const productIds = useMemo(
+    () => [...new Set(lines.map((l) => l.product?.id).filter((id): id is string => Boolean(id)))],
+    [lines],
+  );
+
+  const historyQueries = useQueries({
+    queries: productIds.map((id) => ({
+      queryKey: QUERY_KEYS.productPurchasePriceHistory(id),
+      queryFn: () => productService.getPurchasePriceHistory(id, 1),
+      staleTime: 60_000,
+    })),
+  });
+
+  const lastSellUnitCostByProductId = useMemo(() => {
+    const map = new Map<string, number>();
+    productIds.forEach((id, i) => {
+      const row = historyQueries[i]?.data?.data?.[0];
+      if (row && row.landedUnitCost > 0) {
+        map.set(id, row.landedUnitCost);
+      } else if (row && row.unitCost > 0) {
+        const units = row.unitsPerBuyUom > 0 ? row.unitsPerBuyUom : 1;
+        map.set(id, row.unitCost / units);
+      }
+    });
+    return map;
+  }, [productIds, historyQueries]);
 
   const nextId = () => {
     nextIdRef.current += 1;
@@ -315,8 +388,13 @@ export function PoLineItemsGrid({
           size="small"
           sx={{
             tableLayout: 'fixed',
+            width: '100%',
             minWidth: poFormTableMinWidth(),
-            borderCollapse: 'collapse',
+            borderCollapse: 'separate',
+            borderSpacing: 0,
+            '& .MuiTableCell-root': {
+              boxSizing: 'border-box',
+            },
           }}
         >
           <colgroup>
@@ -332,6 +410,8 @@ export function PoLineItemsGrid({
               <TableCell align="right" sx={headerSx}>{PO_LABELS.packQty}</TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.buyUom}</TableCell>
               <TableCell align="right" sx={headerSx}>{PO_LABELS.unitsPerPack}</TableCell>
+              <TableCell sx={headerSx}>{PO_LABELS.sellUnit}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.totalUnits}</TableCell>
               <TableCell align="right" sx={headerSx}>{PO_LABELS.unitCost}</TableCell>
               <TableCell align="right" sx={headerSx}>{PO_LABELS.lineTotal}</TableCell>
               <TableCell sx={headerSx} />
@@ -340,9 +420,23 @@ export function PoLineItemsGrid({
           <TableBody>
             {lines.map((line, index) => {
               const qty = parseQuantity(line.quantityInput);
+              const units = line.unitsPerBuyUom || 1;
               const identityLocked = line.receivedQuantity > 0;
               const empty = !line.product && !line.skuInput.trim();
               const lineTotal = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
+              const totalUnits = qty * units;
+              const sellUnit = line.product?.uom || '—';
+              const historySell = line.product
+                ? lastSellUnitCostByProductId.get(line.product.id)
+                : undefined;
+              const baselineSell = (historySell && historySell > 0)
+                ? historySell
+                : catalogSellUnitBaseline(line);
+              const currentSell = packToSellUnitCost(line.unitCost, units);
+              const costIncreased = baselineSell > 0 && currentSell > baselineSell + 0.0001;
+              const increasePct = costIncreased
+                ? Math.round(((currentSell - baselineSell) / baselineSell) * 100)
+                : 0;
 
               return (
                 <TableRow
@@ -368,7 +462,7 @@ export function PoLineItemsGrid({
                       onBlur={() => handleSkuBlur(index)}
                       onKeyDown={(e) => poCellKeyDown(e, index, 0, lines.length, tableRef.current)}
                       error={!!line.resolveError}
-                      sx={excelCellSx}
+                      sx={gridInputSx}
                       slotProps={{
                         htmlInput: { 'data-po-row': index, 'data-po-col': 0 },
                       }}
@@ -396,7 +490,7 @@ export function PoLineItemsGrid({
                         updateLine(index, { quantityInput: String(parseQuantity(line.quantityInput)) })
                       }
                       onKeyDown={(e) => poCellKeyDown(e, index, 1, lines.length, tableRef.current)}
-                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
+                      sx={gridInputSx}
                       slotProps={{
                         htmlInput: {
                           min: 1,
@@ -417,7 +511,7 @@ export function PoLineItemsGrid({
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { buyUom: e.target.value })}
                       onKeyDown={(e) => poCellKeyDown(e, index, 2, lines.length, tableRef.current)}
-                      sx={excelCellSx}
+                      sx={gridInputSx}
                       slotProps={{
                         htmlInput: { 'data-po-row': index, 'data-po-col': 2 },
                       }}
@@ -441,7 +535,7 @@ export function PoLineItemsGrid({
                         })
                       }
                       onKeyDown={(e) => poCellKeyDown(e, index, 3, lines.length, tableRef.current)}
-                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
+                      sx={gridInputSx}
                       slotProps={{
                         htmlInput: {
                           min: 1,
@@ -452,36 +546,57 @@ export function PoLineItemsGrid({
                       }}
                     />
                   </TableCell>
+                  <TableCell sx={readOnlyCellSx}>{empty ? '—' : sellUnit}</TableCell>
+                  <TableCell align="right" sx={readOnlyCellSx}>
+                    {empty ? '—' : totalUnits}
+                  </TableCell>
                   <TableCell align="right" sx={cellPadSx}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="number"
-                      value={line.unitCost}
-                      disabled={empty}
-                      onFocus={() => setFocusedRow(index)}
-                      onChange={(e) =>
-                        updateLine(index, { unitCost: parseFloat(e.target.value) || 0 })
-                      }
-                      onKeyDown={(e) => poCellKeyDown(e, index, 4, lines.length, tableRef.current)}
-                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
-                      slotProps={{
-                        htmlInput: {
-                          min: 0,
-                          step: 0.01,
-                          style: { textAlign: 'right' },
-                          'data-po-row': index,
-                          'data-po-col': 4,
-                        },
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: costIncreased ? '18px 1fr' : '1fr',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        minWidth: 0,
                       }}
-                    />
+                    >
+                      {costIncreased && (
+                        <Tooltip
+                          title={`Purchase price increased by ${increasePct}% (per sell unit)`}
+                        >
+                          <WarningAmberIcon color="warning" sx={{ fontSize: 16 }} />
+                        </Tooltip>
+                      )}
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        value={line.unitCost}
+                        disabled={empty}
+                        onFocus={() => setFocusedRow(index)}
+                        onChange={(e) =>
+                          updateLine(index, { unitCost: parseFloat(e.target.value) || 0 })
+                        }
+                        onKeyDown={(e) => poCellKeyDown(e, index, 4, lines.length, tableRef.current)}
+                        sx={gridInputSx}
+                        slotProps={{
+                          htmlInput: {
+                            min: 0,
+                            step: 0.01,
+                            style: { textAlign: 'right' },
+                            'data-po-row': index,
+                            'data-po-col': 4,
+                          },
+                        }}
+                      />
+                    </Box>
                   </TableCell>
                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', pr: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
                       {lineTotal > 0 ? formatCurrency(lineTotal) : '—'}
                     </Typography>
                   </TableCell>
-                  <TableCell sx={cellPadSx}>
+                  <TableCell sx={{ ...cellPadSx, textAlign: 'center' }}>
                     <IconButton
                       size="small"
                       color="error"

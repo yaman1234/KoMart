@@ -204,6 +204,9 @@ def po_snapshot(po: Any) -> dict[str, Any]:
         "supplier_name": po.supplier_name,
         "status": po.status.value if hasattr(po.status, "value") else str(po.status),
         "total_amount": po.total_amount,
+        "discount": float(getattr(po, "discount", 0) or 0),
+        "tax": float(getattr(po, "tax", 0) or 0),
+        "remarks": getattr(po, "remarks", "") or "",
         "amount_paid": float(getattr(po, "amount_paid", 0) or 0),
         "payment_status": (
             po.payment_status.value

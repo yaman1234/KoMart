@@ -236,6 +236,16 @@ export const productService = {
     const { data } = await apiClient.get(`/products/${id}`);
     return data;
   },
+  getPurchasePriceHistory: async (
+    id: string,
+    limit = 50,
+  ): Promise<import('@/types').PurchasePriceHistoryListResponse> => {
+    if (useMock()) return { data: [], total: 0 };
+    const { data } = await apiClient.get(`/products/${id}/purchase-price-history`, {
+      params: { limit },
+    });
+    return data;
+  },
   create: async (payload: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> => {
     if (useMock()) return mockApi.createProduct(payload);
     const { data } = await apiClient.post('/products', payload);
@@ -391,11 +401,15 @@ export const purchaseOrderService = {
     const { data } = await apiClient.patch(`/purchase-orders/${id}/status`, { status });
     return data;
   },
-  receiveItems: async (id: string, items: PurchaseOrderReceiveItem[]): Promise<PurchaseOrder> => {
+  receiveItems: async (
+    id: string,
+    items: PurchaseOrderReceiveItem[],
+    billNo?: string,
+  ): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.receivePurchaseOrderItems(id, items);
     const { data } = await apiClient.post(
       `/purchase-orders/${id}/receive`,
-      { items },
+      { items, billNo: billNo || undefined },
       { timeout: PO_RECEIVE_TIMEOUT_MS },
     );
     return data;
@@ -404,17 +418,18 @@ export const purchaseOrderService = {
   receiveItemsInChunks: async (
     id: string,
     items: PurchaseOrderReceiveItem[],
+    billNo?: string,
   ): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.receivePurchaseOrderItems(id, items);
     if (items.length <= PO_RECEIVE_CHUNK_SIZE) {
-      return purchaseOrderService.receiveItems(id, items);
+      return purchaseOrderService.receiveItems(id, items, billNo);
     }
     let last: PurchaseOrder | null = null;
     for (let i = 0; i < items.length; i += PO_RECEIVE_CHUNK_SIZE) {
       const chunk = items.slice(i, i + PO_RECEIVE_CHUNK_SIZE);
       const { data } = await apiClient.post(
         `/purchase-orders/${id}/receive`,
-        { items: chunk },
+        { items: chunk, billNo: billNo || undefined },
         { timeout: PO_RECEIVE_TIMEOUT_MS },
       );
       last = data;
@@ -427,6 +442,35 @@ export const purchaseOrderService = {
   ): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.recordPurchaseOrderPayment(id, payload);
     const { data } = await apiClient.post(`/purchase-orders/${id}/payments`, payload);
+    return data;
+  },
+};
+
+export const purchaseReturnService = {
+  getAvailable: async (purchaseOrderId: string): Promise<import('@/types').ReturnableLine[]> => {
+    if (useMock()) return [];
+    const { data } = await apiClient.get('/purchase-returns/available', {
+      params: { purchaseOrderId },
+    });
+    return data;
+  },
+  getAll: async (purchaseOrderId?: string): Promise<import('@/types').PurchaseReturnListResponse> => {
+    if (useMock()) return { data: [], total: 0 };
+    const { data } = await apiClient.get('/purchase-returns', {
+      params: purchaseOrderId ? { purchaseOrderId } : undefined,
+    });
+    return data;
+  },
+  create: async (
+    payload: import('@/types').PurchaseReturnCreatePayload,
+  ): Promise<import('@/types').PurchaseReturn> => {
+    if (useMock()) throw new Error('Purchase returns are not available in mock mode');
+    const { data } = await apiClient.post('/purchase-returns', payload);
+    return data;
+  },
+  getById: async (id: string): Promise<import('@/types').PurchaseReturn> => {
+    if (useMock()) throw new Error('Purchase returns are not available in mock mode');
+    const { data } = await apiClient.get(`/purchase-returns/${id}`);
     return data;
   },
 };

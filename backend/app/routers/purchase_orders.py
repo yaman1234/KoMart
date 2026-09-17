@@ -5,7 +5,6 @@ import logging
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
-from app.services.po_amend import amend_purchase_order
 from app.services.po_receive import receive_purchase_order_items
 from app.services.po_payment import record_payment
 from app.models.purchase_order import (
@@ -13,6 +12,8 @@ from app.models.purchase_order import (
     POStatus,
     PaymentStatus,
     compute_payment_status,
+    compute_line_subtotal,
+    compute_order_total,
 )
 from app.schemas.purchase_order import (
     PurchaseOrderCreate,
@@ -41,14 +42,6 @@ def _resolve_ordered_by(body_ordered_by: str | None, current_user: User, placing
     if placing_order:
         return current_user.name
     return None
-
-
-def _po_is_editable(po: PurchaseOrder) -> bool:
-    return po.status != POStatus.cancelled
-
-
-def _po_has_received_stock(po: PurchaseOrder) -> bool:
-    return any(item.received_quantity > 0 for item in (po.items or []))
 
 
 def _allowed_update_status(po: PurchaseOrder, target: POStatus) -> bool:
@@ -89,6 +82,10 @@ def _dt_iso(value) -> str:
 
 def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
     amount_paid = float(getattr(po, "amount_paid", 0) or 0)
+    discount = float(getattr(po, "discount", 0) or 0)
+    tax = float(getattr(po, "tax", 0) or 0)
+    remarks = getattr(po, "remarks", "") or ""
+    subtotal = compute_line_subtotal(po.items or [])
     total_amount = float(getattr(po, "total_amount", 0) or 0)
     raw_status = getattr(po, "payment_status", None)
     if isinstance(raw_status, PaymentStatus):
@@ -110,6 +107,10 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         status=po.status,
         items=[item_to_response(i) for i in (po.items or [])],
         total_amount=total_amount,
+        subtotal=subtotal,
+        discount=discount,
+        tax=tax,
+        remarks=remarks,
         amount_paid=amount_paid,
         payment_status=payment_status,
         payments=[payment_to_response(p) for p in payments],
@@ -164,6 +165,10 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
         status=po_status,
         items=[],
         total_amount=total_amount if total_amount >= 0 else 0.0,
+        subtotal=float(doc.get("subtotal") or total_amount or 0),
+        discount=float(doc.get("discount") or 0),
+        tax=float(doc.get("tax") or 0),
+        remarks=str(doc.get("remarks") or ""),
         amount_paid=amount_paid if amount_paid >= 0 else 0.0,
         payment_status=payment_status,
         payments=[],
@@ -331,6 +336,15 @@ async def create_purchase_order(
     current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
+    discount = float(po_data.get("discount") or 0)
+    tax = float(po_data.get("tax") or 0)
+    remarks = (po_data.get("remarks") or "").strip()
+    subtotal = compute_line_subtotal(body.items)
+    total_amount = compute_order_total(subtotal, discount, tax)
+    po_data["discount"] = discount
+    po_data["tax"] = tax
+    po_data["remarks"] = remarks
+    po_data["total_amount"] = total_amount
     placing_order = body.status == POStatus.ordered
     ordered_by = _resolve_ordered_by(body.ordered_by, current_user, placing_order)
     if ordered_by:
@@ -372,19 +386,20 @@ async def update_purchase_order(
     po = await PurchaseOrder.get(po_id)
     if not po:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
-    if not _po_is_editable(po):
+    if po.status == POStatus.cancelled:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail="Cancelled purchase orders cannot be edited",
         )
-    if _po_has_received_stock(po):
-        refreshed = await amend_purchase_order(
-            po,
-            body,
-            current_user=current_user,
-            request=request,
+    if po.status != POStatus.draft:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Only draft purchase orders can be edited. "
+                "Cancel the order and create a new one, or use Purchase Return "
+                "to send leftover goods back to the supplier."
+            ),
         )
-        return _to_response(refreshed)
     if not _allowed_update_status(po, body.status):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -398,7 +413,12 @@ async def update_purchase_order(
         raise
 
     amount_paid = float(getattr(po, "amount_paid", 0) or 0)
-    if body.total_amount + 0.001 < amount_paid:
+    discount = float(getattr(body, "discount", 0) or 0)
+    tax = float(getattr(body, "tax", 0) or 0)
+    remarks = (getattr(body, "remarks", None) or "").strip()
+    subtotal = compute_line_subtotal(merged_items)
+    total_amount = compute_order_total(subtotal, discount, tax)
+    if total_amount + 0.001 < amount_paid:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -410,7 +430,11 @@ async def update_purchase_order(
     updates: dict = {
         **body.model_dump(),
         "items": merged_items,
-        "payment_status": compute_payment_status(amount_paid, body.total_amount),
+        "discount": discount,
+        "tax": tax,
+        "remarks": remarks,
+        "total_amount": total_amount,
+        "payment_status": compute_payment_status(amount_paid, total_amount),
         "updated_at": datetime.now(timezone.utc),
     }
     placing_order = body.status == POStatus.ordered
@@ -511,5 +535,6 @@ async def receive_items(
         created_by=current_user.name,
         current_user=current_user,
         request=request,
+        bill_no=(body.bill_no or "").strip(),
     )
     return _to_response(refreshed)

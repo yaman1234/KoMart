@@ -195,6 +195,7 @@ async def receive_purchase_order_items(
     created_by: str,
     current_user: User,
     request: Request,
+    bill_no: str = "",
 ) -> PurchaseOrder:
     """
     Receive PO lines atomically (MongoDB transaction on replica set / Atlas).
@@ -442,6 +443,38 @@ async def receive_purchase_order_items(
             request=request,
             module=AuditModule.purchase_orders,
         )
+
+    from app.models.purchase_price_history import PurchasePriceHistory
+
+    received_date = now.strftime("%Y-%m-%d")
+    bill = (bill_no or "").strip()
+    history_rows: list[PurchasePriceHistory] = []
+    for plan in plans:
+        units = getattr(plan.item, "units_per_buy_uom", None) or 1
+        if plan.receive.units_per_buy_uom:
+            units = plan.receive.units_per_buy_uom
+        pack_cost = float(plan.item.unit_cost or 0)
+        history_rows.append(
+            PurchasePriceHistory(
+                product_id=plan.item.product_id,
+                purchase_order_id=po_id_str,
+                order_number=po.order_number,
+                supplier_id=po.supplier_id or "",
+                supplier_name=po.supplier_name or "",
+                unit_cost=pack_cost,
+                landed_unit_cost=plan.landed_cost,
+                units_per_buy_uom=units,
+                order_uom=getattr(plan.item, "order_uom", None) or "pcs",
+                base_uom=getattr(plan.item, "base_uom", None) or "pcs",
+                quantity=plan.buy_delta,
+                bill_no=bill,
+                received_date=received_date,
+                created_by=created_by,
+                created_at=now,
+            )
+        )
+    if history_rows:
+        await PurchasePriceHistory.insert_many(history_rows)
 
     await log_audit(
         module=AuditModule.purchase_orders,

@@ -80,11 +80,19 @@ export function useUpdatePurchaseOrderStatus() {
 export function useReceivePurchaseOrderItems() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, items }: { id: string; items: PurchaseOrderReceiveItem[] }) =>
-      purchaseOrderService.receiveItemsInChunks(id, items),
+    mutationFn: ({
+      id,
+      items,
+      billNo,
+    }: {
+      id: string;
+      items: PurchaseOrderReceiveItem[];
+      billNo?: string;
+    }) => purchaseOrderService.receiveItemsInChunks(id, items, billNo),
     onSuccess: (_, { id }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
       invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
     },
   });

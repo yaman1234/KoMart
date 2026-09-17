@@ -40,7 +40,10 @@ class PurchaseOrderCreate(BaseModel):
     supplier_id: str
     supplier_name: str
     items: list[PurchaseOrderItem]
-    total_amount: float = Field(ge=0)
+    total_amount: float = Field(default=0, ge=0)
+    discount: float = Field(default=0, ge=0)
+    tax: float = Field(default=0, ge=0)
+    remarks: str = ""
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
@@ -50,7 +53,10 @@ class PurchaseOrderUpdate(BaseModel):
     supplier_id: str
     supplier_name: str
     items: list[PurchaseOrderItem]
-    total_amount: float = Field(ge=0)
+    total_amount: float = Field(default=0, ge=0)
+    discount: float = Field(default=0, ge=0)
+    tax: float = Field(default=0, ge=0)
+    remarks: str = ""
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
@@ -69,6 +75,7 @@ class PurchaseOrderReceiveItem(BaseModel):
 
 class PurchaseOrderReceiveRequest(BaseModel):
     items: list[PurchaseOrderReceiveItem]
+    bill_no: Optional[str] = None
 
 
 class PurchaseOrderPaymentCreate(BaseModel):
@@ -114,6 +121,10 @@ class PurchaseOrderResponse(BaseModel):
     status: POStatus
     items: list[PurchaseOrderItemResponse]
     total_amount: float
+    subtotal: float = 0.0
+    discount: float = 0.0
+    tax: float = 0.0
+    remarks: str = ""
     amount_paid: float = 0.0
     payment_status: PaymentStatus = PaymentStatus.unpaid
     payments: list[PurchaseOrderPaymentResponse] = Field(default_factory=list)
@@ -133,3 +144,27 @@ class PurchaseOrderListResponse(BaseModel):
     total_pages: int
     received_total_amount: float = 0.0
     outstanding_amount: float = 0.0
+
+
+class PurchasePriceHistoryResponse(BaseModel):
+    id: str
+    product_id: str
+    purchase_order_id: str
+    order_number: str
+    supplier_id: str = ""
+    supplier_name: str = ""
+    unit_cost: float
+    landed_unit_cost: float
+    units_per_buy_uom: int = 1
+    order_uom: str = "pcs"
+    base_uom: str = "pcs"
+    quantity: int
+    bill_no: str = ""
+    received_date: str
+    created_by: str = ""
+    created_at: str
+
+
+class PurchasePriceHistoryListResponse(BaseModel):
+    data: list[PurchasePriceHistoryResponse]
+    total: int

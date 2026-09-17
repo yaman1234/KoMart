@@ -31,7 +31,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -46,7 +48,12 @@ import {
   useReceivePurchaseOrderItems,
   useRecordPurchaseOrderPayment,
 } from '@/hooks/usePurchaseOrders';
-import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import {
+  useCreatePurchaseReturn,
+  usePurchaseReturns,
+  useReturnableLines,
+} from '@/hooks/usePurchaseReturns';
+import { formatCurrency, canManagePurchaseOrders, formatDateTime } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
@@ -61,12 +68,11 @@ import type {
   PurchaseOrderStatus,
 } from '@/types';
 import {
-  PO_DETAIL_FLAT_COLUMNS,
-  poDetailFlatColWidths,
+  PO_DETAIL_COLUMNS,
+  poDetailColWidths,
   poDetailTableMinWidth,
 } from '@/pages/purchase-orders/poLineTableColumns';
-import { PO_LABELS, PO_RECEIVE_HINT } from '@/pages/purchase-orders/poTerminology';
-import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import { PO_LABELS, PO_RECEIVE_HINT, PO_RETURN_HINT } from '@/pages/purchase-orders/poTerminology';
 
 const PAYMENT_SCHEMA = z.object({
   amount: z.number({ error: 'Amount is required' }).positive('Amount must be positive'),
@@ -107,7 +113,43 @@ interface ReceiveSelection {
   unitsPerBuyUom?: number;
 }
 
-const headerCellSx = { fontWeight: 700, whiteSpace: 'nowrap', py: 1.25 };
+const headerCellSx = { fontWeight: 700, whiteSpace: 'nowrap', py: 0.75 };
+
+const orderedGroupHeaderSx = {
+  ...headerCellSx,
+  borderBottom: 2,
+  borderColor: 'grey.400',
+  bgcolor: 'grey.200',
+  color: 'text.primary',
+  letterSpacing: 0.3,
+  textTransform: 'uppercase' as const,
+  fontSize: '0.7rem',
+};
+
+const receivedGroupHeaderSx = {
+  ...headerCellSx,
+  borderBottom: 2,
+  borderColor: 'primary.main',
+  bgcolor: 'primary.main',
+  color: 'primary.contrastText',
+  letterSpacing: 0.3,
+  textTransform: 'uppercase' as const,
+  fontSize: '0.7rem',
+};
+
+const orderedSubHeaderSx = {
+  ...headerCellSx,
+  bgcolor: 'grey.100',
+  borderBottom: 1,
+  borderColor: 'divider',
+};
+
+const receivedSubHeaderSx = {
+  ...headerCellSx,
+  bgcolor: 'primary.50',
+  borderBottom: 1,
+  borderColor: 'primary.light',
+};
 
 export function PurchaseOrderDetailPage() {
   const navigate = useNavigate();
@@ -119,9 +161,16 @@ export function PurchaseOrderDetailPage() {
   const [statusError, setStatusError] = useState('');
   const [receiveError, setReceiveError] = useState('');
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [receiveBillNo, setReceiveBillNo] = useState('');
   const [receiveSelections, setReceiveSelections] = useState<Record<string, ReceiveSelection>>({});
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnError, setReturnError] = useState('');
+  const [returnQtys, setReturnQtys] = useState<Record<string, string>>({});
+  const [returnRemarks, setReturnRemarks] = useState('');
+  const [returnPaymentMethod, setReturnPaymentMethod] = useState('cash');
+  const [returnDate, setReturnDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const {
     register,
@@ -144,12 +193,28 @@ export function PurchaseOrderDetailPage() {
   const statusMutation = useUpdatePurchaseOrderStatus();
   const receiveMutation = useReceivePurchaseOrderItems();
   const paymentMutation = useRecordPurchaseOrderPayment();
+  const returnMutation = useCreatePurchaseReturn();
+  const { data: returnsData } = usePurchaseReturns(id ?? '', Boolean(id));
+  const { data: returnableLines = [], isFetching: returnableLoading } = useReturnableLines(
+    id ?? '',
+    returnOpen && Boolean(id),
+  );
 
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
   const amountPaid = po?.amountPaid ?? 0;
   const remaining = po ? Math.max(0, Math.round((po.totalAmount - amountPaid) * 100) / 100) : 0;
   const paymentStatus: PurchaseOrderPaymentStatus = po?.paymentStatus ?? 'unpaid';
   const canPay = Boolean(po && canManage && PAYABLE_STATUSES.has(po.status) && remaining > 0);
+  const hasReceivedStock = Boolean(
+    po?.items.some((item) => item.receivedQuantity > 0),
+  );
+  const canReturn = Boolean(
+    canManage
+    && po
+    && po.status !== 'cancelled'
+    && po.status !== 'draft'
+    && hasReceivedStock,
+  );
 
   const getReceiveSelection = (productId: string, remaining: number): ReceiveSelection =>
     receiveSelections[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
@@ -241,14 +306,19 @@ export function PurchaseOrderDetailPage() {
   const handleReceive = async () => {
     if (!po) return;
     if (itemsToReceive.length === 0) {
-      setReceiveError('Select at least one item with a pack qty');
+      setReceiveError('Select at least one item with a receive qty');
       return;
     }
     setReceiveError('');
     try {
-      await receiveMutation.mutateAsync({ id: po.id, items: itemsToReceive });
+      await receiveMutation.mutateAsync({
+        id: po.id,
+        items: itemsToReceive,
+        billNo: receiveBillNo.trim() || undefined,
+      });
       showSuccess('Purchase Order received.');
       setReceiveSelections({});
+      setReceiveBillNo('');
     } catch (err) {
       setReceiveError(getErrorMessage(err));
     }
@@ -301,6 +371,51 @@ export function PurchaseOrderDetailPage() {
     }
   };
 
+  const openReturnDialog = () => {
+    setReturnError('');
+    setReturnRemarks('');
+    setReturnPaymentMethod('cash');
+    setReturnDate(new Date().toISOString().slice(0, 10));
+    setReturnQtys({});
+    setReturnOpen(true);
+  };
+
+  const handlePostReturn = async () => {
+    if (!po) return;
+    const items = returnableLines
+      .map((line) => {
+        const raw = returnQtys[line.productId] ?? '';
+        const qty = parseInt(raw, 10);
+        return { productId: line.productId, returnQty: Number.isFinite(qty) ? qty : 0, max: line.availableQty };
+      })
+      .filter((row) => row.returnQty > 0);
+
+    if (items.length === 0) {
+      setReturnError('Enter a return qty for at least one product.');
+      return;
+    }
+    for (const row of items) {
+      if (row.returnQty > row.max) {
+        setReturnError(`Return qty cannot exceed available leftover (${row.max}).`);
+        return;
+      }
+    }
+    setReturnError('');
+    try {
+      const result = await returnMutation.mutateAsync({
+        purchaseOrderId: po.id,
+        items: items.map(({ productId, returnQty }) => ({ productId, returnQty })),
+        remarks: returnRemarks.trim() || undefined,
+        paymentMethod: returnPaymentMethod,
+        returnDate: returnDate || undefined,
+      });
+      showSuccess(`Purchase return ${result.returnNumber} posted.`);
+      setReturnOpen(false);
+    } catch (err) {
+      setReturnError(getErrorMessage(err));
+    }
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
@@ -327,7 +442,7 @@ export function PurchaseOrderDetailPage() {
       : '• No received stock to reverse.',
     '',
     'Cancel is blocked if any received stock from this order was already sold.',
-    'Use Edit to correct prices or quantities — Cancel voids the whole order.',
+    'Edit is only for drafts. After placing: cancel and recreate for mistakes, or Return to supplier for leftover stock.',
   ].join('\n');
   const receivedCount = po.items.filter((i) => i.receivedQuantity >= i.quantity).length;
 
@@ -341,7 +456,7 @@ export function PurchaseOrderDetailPage() {
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/purchase-orders')}>
               Back
             </Button>
-            {canManage && canEditPurchaseOrder(po) && (
+            {canEditPurchaseOrder(po, user?.role) && (
               <Button
                 variant="outlined"
                 startIcon={<EditIcon />}
@@ -368,6 +483,15 @@ export function PurchaseOrderDetailPage() {
                 onClick={openPaymentDialog}
               >
                 Record Payment
+              </Button>
+            )}
+            {canReturn && (
+              <Button
+                variant="outlined"
+                startIcon={<AssignmentReturnIcon />}
+                onClick={openReturnDialog}
+              >
+                Return to supplier
               </Button>
             )}
             {canManage && nextStatuses.length > 0 && (
@@ -441,11 +565,11 @@ export function PurchaseOrderDetailPage() {
           </Box>
         </Box>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 6, md: 3 }}>
+          <Grid size={{ xs: 6, md: 2.4 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Expected delivery</Typography>
             <Typography variant="body2">{po.expectedDelivery ? formatDate(po.expectedDelivery) : '—'}</Typography>
           </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
+          <Grid size={{ xs: 6, md: 2.4 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Items</Typography>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {po.items.length}
@@ -454,13 +578,17 @@ export function PurchaseOrderDetailPage() {
               </Typography>
             </Typography>
           </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
+          <Grid size={{ xs: 6, md: 2.4 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Ordered by</Typography>
             <Typography variant="body2">{po.orderedBy ?? '—'}</Typography>
           </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
+          <Grid size={{ xs: 6, md: 2.4 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Received by</Typography>
             <Typography variant="body2">{po.receivedBy ?? '—'}</Typography>
+          </Grid>
+          <Grid size={{ xs: 6, md: 2.4 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Last updated</Typography>
+            <Typography variant="body2">{po.updatedAt ? formatDateTime(po.updatedAt) : '—'}</Typography>
           </Grid>
         </Grid>
         <Accordion disableGutters elevation={0} sx={{ mt: 1.5, bgcolor: 'transparent', '&:before': { display: 'none' } }}>
@@ -477,10 +605,12 @@ export function PurchaseOrderDetailPage() {
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Created</Typography>
                 <Typography variant="body2">{formatDate(po.createdAt)}</Typography>
               </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Last updated</Typography>
-                <Typography variant="body2">{formatDate(po.updatedAt)}</Typography>
-              </Grid>
+              {(po.remarks || (po.discount ?? 0) > 0 || (po.tax ?? 0) > 0) && (
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Remarks</Typography>
+                  <Typography variant="body2">{po.remarks?.trim() || '—'}</Typography>
+                </Grid>
+              )}
             </Grid>
           </AccordionDetails>
         </Accordion>
@@ -548,8 +678,56 @@ export function PurchaseOrderDetailPage() {
         )}
       </Paper>
 
-      <Paper sx={{ p: 2 }}>
+      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Returns to supplier</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {PO_RETURN_HINT}
+            </Typography>
+          </Box>
+          {canReturn && (
+            <Button size="small" startIcon={<AssignmentReturnIcon />} onClick={openReturnDialog}>
+              Return to supplier
+            </Button>
+          )}
+        </Box>
+        {(returnsData?.data.length ?? 0) === 0 ? (
+          <Typography variant="body2" color="text.secondary">No purchase returns yet.</Typography>
+        ) : (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 700 }}>Return #</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Wallet</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Items</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>By</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(returnsData?.data ?? []).map((ret) => (
+                  <TableRow key={ret.id}>
+                    <TableCell>{ret.returnNumber}</TableCell>
+                    <TableCell>{ret.returnDate ? formatDate(ret.returnDate) : '—'}</TableCell>
+                    <TableCell sx={{ textTransform: 'capitalize' }}>{ret.paymentMethod}</TableCell>
+                    <TableCell align="right">{formatCurrency(ret.totalAmount)}</TableCell>
+                    <TableCell>
+                      {ret.items.map((i) => `${i.productName} (${i.returnQty})`).join(', ')}
+                    </TableCell>
+                    <TableCell>{ret.createdBy || '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      <Paper sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
             {canReceive && (
@@ -558,30 +736,42 @@ export function PurchaseOrderDetailPage() {
               </Typography>
             )}
           </Box>
-          <Typography variant="body2" color="text.secondary">
-            {po.items.length} product{po.items.length !== 1 ? 's' : ''}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            {canReceive && (
+              <TextField
+                size="small"
+                label={PO_LABELS.billNo}
+                value={receiveBillNo}
+                onChange={(e) => setReceiveBillNo(e.target.value)}
+                placeholder="Optional"
+                sx={{ width: 160 }}
+              />
+            )}
+            <Typography variant="body2" color="text.secondary">
+              {po.items.length} product{po.items.length !== 1 ? 's' : ''}
+            </Typography>
+          </Box>
         </Box>
-        <Divider sx={{ mb: 2 }} />
+        <Divider sx={{ mb: 1.5 }} />
 
         <TableContainer sx={{ overflowX: 'auto', maxWidth: '100%' }}>
           <Table
             size="small"
             sx={{
-              tableLayout: 'auto',
+              tableLayout: 'fixed',
               minWidth: poDetailTableMinWidth(canReceive),
-              '& .MuiTableCell-root': { verticalAlign: 'middle', py: 1.25 },
+              '& .MuiTableCell-root': { verticalAlign: 'middle', py: 0.75, px: 0.75, fontSize: '0.8125rem' },
             }}
           >
             <colgroup>
-              {poDetailFlatColWidths(canReceive).map((width, i) => (
+              {poDetailColWidths(canReceive).map((width, i) => (
                 <col key={i} style={{ width, minWidth: width }} />
               ))}
             </colgroup>
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
                 {canReceive && (
-                  <TableCell padding="checkbox" sx={headerCellSx}>
+                  <TableCell padding="checkbox" rowSpan={2} sx={headerCellSx}>
                     <Checkbox
                       size="small"
                       checked={selectAllState.checked}
@@ -591,17 +781,35 @@ export function PurchaseOrderDetailPage() {
                     />
                   </TableCell>
                 )}
-                <TableCell align="center" sx={headerCellSx}>#</TableCell>
-                <TableCell sx={headerCellSx}>Product</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.ordered}</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.received}</TableCell>
-                {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packQty}</TableCell>}
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitsPerPack}</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.totalUnits}</TableCell>
-                {canReceive && <TableCell sx={headerCellSx}>{PO_LABELS.expiryOptional}</TableCell>}
-                <TableCell sx={headerCellSx}>Status</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
+                <TableCell align="center" rowSpan={2} sx={headerCellSx}>#</TableCell>
+                <TableCell rowSpan={2} sx={headerCellSx}>Product</TableCell>
+                <TableCell
+                  align="center"
+                  colSpan={3}
+                  sx={orderedGroupHeaderSx}
+                >
+                  {PO_LABELS.ordered}
+                </TableCell>
+                <TableCell
+                  align="center"
+                  colSpan={canReceive ? 5 : 3}
+                  sx={receivedGroupHeaderSx}
+                >
+                  {PO_LABELS.received}
+                </TableCell>
+                <TableCell rowSpan={2} sx={headerCellSx}>Status</TableCell>
+                <TableCell align="right" rowSpan={2} sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
+                <TableCell align="right" rowSpan={2} sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
+              </TableRow>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell align="right" sx={orderedSubHeaderSx}>{PO_LABELS.orderedQty}</TableCell>
+                <TableCell align="right" sx={orderedSubHeaderSx}>{PO_LABELS.orderUom}</TableCell>
+                <TableCell align="right" sx={{ ...orderedSubHeaderSx, borderRight: 2, borderColor: 'grey.300' }}>{PO_LABELS.conversionUnit}</TableCell>
+                <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.receivedQty}</TableCell>
+                {canReceive && <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.receiveQty}</TableCell>}
+                <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.sellUom}</TableCell>
+                <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.totalUnitsSell}</TableCell>
+                {canReceive && <TableCell sx={receivedSubHeaderSx}>{PO_LABELS.expiryOptional}</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -609,11 +817,12 @@ export function PurchaseOrderDetailPage() {
                 const remaining = item.quantity - item.receivedQuantity;
                 const receiveSel = getReceiveSelection(item.productId, remaining);
                 const orderUom = item.orderUom ?? 'pcs';
+                const sellUom = item.baseUom ?? 'pcs';
                 const unitsPerBuy = receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
-                const orderedTotalUnits = item.quantity * (item.unitsPerBuyUom ?? 1);
-                const receiveTotalUnits = receiveSel.selected
+                const receivedTotalUnits = item.receivedQuantity * (item.unitsPerBuyUom ?? 1);
+                const thisReceiveUnits = receiveSel.selected
                   ? receiveSel.receiveQuantity * unitsPerBuy
-                  : 0;
+                  : receivedTotalUnits;
                 const lineStatus = item.lineStatus ?? (
                   item.receivedQuantity <= 0 ? 'pending'
                   : item.receivedQuantity >= item.quantity ? 'received'
@@ -643,15 +852,32 @@ export function PurchaseOrderDetailPage() {
                         {index + 1}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ minWidth: PO_DETAIL_FLAT_COLUMNS.product }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }} title={item.productName}>
+                    <TableCell sx={{ minWidth: PO_DETAIL_COLUMNS.product }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.3 }} title={item.productName} noWrap>
                         {item.productName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {item.quantity} {orderUom} · {orderedTotalUnits} {PO_LABELS.totalUnits.toLowerCase()}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">{item.quantity}</TableCell>
+                    <TableCell align="right">{orderUom}</TableCell>
+                    <TableCell align="right">
+                      {canReceive ? (
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={unitsPerBuy}
+                          disabled={!receiveSel.selected}
+                          onChange={(e) =>
+                            updateReceiveSelection(item.productId, remaining, {
+                              unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            })
+                          }
+                          sx={{ width: '100%', minWidth: 56 }}
+                          slotProps={{ htmlInput: { min: 1 } }}
+                        />
+                      ) : (
+                        item.unitsPerBuyUom ?? 1
+                      )}
+                    </TableCell>
                     <TableCell align="right">{item.receivedQuantity}</TableCell>
                     {canReceive && (
                       <TableCell align="right">
@@ -667,48 +893,29 @@ export function PurchaseOrderDetailPage() {
                               receiveQuantity: capped,
                             });
                           }}
-                          sx={{ width: '100%', minWidth: 72 }}
+                          sx={{ width: '100%', minWidth: 64 }}
                           slotProps={{ htmlInput: { min: 1, max: Math.max(remaining, 1) } }}
                         />
                       </TableCell>
                     )}
+                    <TableCell align="right">{sellUom}</TableCell>
                     <TableCell align="right">
-                      {canReceive ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={unitsPerBuy}
-                          disabled={!receiveSel.selected}
-                          onChange={(e) =>
-                            updateReceiveSelection(item.productId, remaining, {
-                              unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
-                            })
-                          }
-                          sx={{ width: '100%', minWidth: 72 }}
-                          slotProps={{ htmlInput: { min: 1 } }}
-                        />
-                      ) : (
-                        item.unitsPerBuyUom ?? 1
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {canReceive ? (receiveSel.selected ? receiveTotalUnits : '—') : orderedTotalUnits}
+                      {canReceive
+                        ? (receiveSel.selected ? thisReceiveUnits : '—')
+                        : receivedTotalUnits}
                     </TableCell>
                     {canReceive && (
                       <TableCell>
-                        <Box sx={{ width: '100%', minWidth: 120 }}>
-                          <NepaliAwareDatePicker
-                            label="Expiry"
-                            value={receiveSel.expiryDate}
-                            onChange={(d) =>
-                              updateReceiveSelection(item.productId, remaining, { expiryDate: d })
-                            }
-                            size="small"
-                            disabled={!receiveSel.selected}
-                            calendarSystem="AD"
-                            helperText={receiveSel.selected ? 'AD — optional' : undefined}
-                          />
-                        </Box>
+                        <NepaliAwareDatePicker
+                          label="Expiry"
+                          value={receiveSel.expiryDate}
+                          onChange={(d) =>
+                            updateReceiveSelection(item.productId, remaining, { expiryDate: d })
+                          }
+                          size="small"
+                          disabled={!receiveSel.selected}
+                          calendarSystem="AD"
+                        />
                       </TableCell>
                     )}
                     <TableCell>
@@ -728,7 +935,24 @@ export function PurchaseOrderDetailPage() {
         </TableContainer>
 
         <Divider sx={{ mt: 2, mb: 1 }} />
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25 }}>
+          {(po.discount ?? 0) > 0 || (po.tax ?? 0) > 0 ? (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                Subtotal: {formatCurrency(po.subtotal ?? po.items.reduce((s, i) => s + i.quantity * i.unitCost, 0))}
+              </Typography>
+              {(po.discount ?? 0) > 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  Discount: −{formatCurrency(po.discount ?? 0)}
+                </Typography>
+              )}
+              {(po.tax ?? 0) > 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  Tax: +{formatCurrency(po.tax ?? 0)}
+                </Typography>
+              )}
+            </>
+          ) : null}
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             Order Total: {formatCurrency(po.totalAmount)}
           </Typography>
@@ -828,6 +1052,108 @@ export function PurchaseOrderDetailPage() {
             />
           </Grid>
         </Grid>
+      </FormModal>
+
+      <FormModal
+        open={returnOpen}
+        title="Return to supplier"
+        onClose={() => setReturnOpen(false)}
+        onSubmit={() => void handlePostReturn()}
+        submitLabel="Post return"
+        loading={returnMutation.isPending}
+        maxWidth="md"
+      >
+        <Alert severity="info" sx={{ mb: 2 }}>{PO_RETURN_HINT}</Alert>
+        {returnError && <Alert severity="error" sx={{ mb: 2 }}>{returnError}</Alert>}
+        {returnableLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : returnableLines.length === 0 ? (
+          <Alert severity="warning">
+            No leftover stock from this purchase order is available to return
+            (it may already have been sold or returned).
+          </Alert>
+        ) : (
+          <>
+            <TableContainer sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell sx={{ fontWeight: 700 }}>Product</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>Available</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>Unit cost</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>Return qty</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {returnableLines.map((line) => (
+                    <TableRow key={line.productId}>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{line.productName}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Sell UOM: {line.baseUom}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">{line.availableQty}</TableCell>
+                      <TableCell align="right">{formatCurrency(line.unitCost)}</TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={returnQtys[line.productId] ?? ''}
+                          onChange={(e) =>
+                            setReturnQtys((prev) => ({ ...prev, [line.productId]: e.target.value }))
+                          }
+                          placeholder="0"
+                          slotProps={{
+                            htmlInput: { min: 0, max: line.availableQty, style: { textAlign: 'right', width: 88 } },
+                          }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <NepaliAwareDatePicker
+                  label="Return date"
+                  value={returnDate}
+                  onChange={setReturnDate}
+                  size="small"
+                  fullWidth
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Credit wallet</InputLabel>
+                  <Select
+                    label="Credit wallet"
+                    value={returnPaymentMethod}
+                    onChange={(e) => setReturnPaymentMethod(e.target.value)}
+                  >
+                    {PAYMENT_METHODS.map((method) => (
+                      <MenuItem key={method.value} value={method.value}>{method.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  label="Remarks"
+                  size="small"
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  value={returnRemarks}
+                  onChange={(e) => setReturnRemarks(e.target.value)}
+                />
+              </Grid>
+            </Grid>
+          </>
+        )}
       </FormModal>
 
       <ConfirmDialog

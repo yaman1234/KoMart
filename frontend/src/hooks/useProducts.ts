@@ -25,6 +25,14 @@ export function useProduct(id: string) {
   });
 }
 
+export function useProductPurchasePriceHistory(id: string, enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.productPurchasePriceHistory(id),
+    queryFn: () => productService.getPurchasePriceHistory(id),
+    enabled: !!id && enabled,
+  });
+}
+
 export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({

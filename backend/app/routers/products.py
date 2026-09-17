@@ -7,6 +7,7 @@ from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
 from app.models.price_history import PriceHistory
+from app.models.purchase_price_history import PurchasePriceHistory
 from app.models.supplier import Supplier
 from app.schemas.product import (
     ProductCreate,
@@ -22,6 +23,10 @@ from app.schemas.product import (
     SkuSuggestResponse,
     pack_selling_price_required,
     normalize_product_uoms,
+)
+from app.schemas.purchase_order import (
+    PurchasePriceHistoryListResponse,
+    PurchasePriceHistoryResponse,
 )
 from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
@@ -538,6 +543,52 @@ async def get_product(product_id: str, _: User = Depends(get_current_user)):
     if not product:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
     return await _to_response(product)
+
+
+@router.get(
+    "/{product_id}/purchase-price-history",
+    response_model=PurchasePriceHistoryListResponse,
+)
+async def get_purchase_price_history(
+    product_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    _: User = Depends(require_manager_or_above),
+):
+    product = await Product.get(product_id)
+    if not product:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    rows = (
+        await PurchasePriceHistory.find(PurchasePriceHistory.product_id == product_id)
+        .sort([("received_date", -1), ("created_at", -1)])
+        .limit(limit)
+        .to_list()
+    )
+    total = await PurchasePriceHistory.find(PurchasePriceHistory.product_id == product_id).count()
+    return PurchasePriceHistoryListResponse(
+        data=[
+            PurchasePriceHistoryResponse(
+                id=str(row.id),
+                product_id=row.product_id,
+                purchase_order_id=row.purchase_order_id,
+                order_number=row.order_number,
+                supplier_id=row.supplier_id or "",
+                supplier_name=row.supplier_name or "",
+                unit_cost=row.unit_cost,
+                landed_unit_cost=row.landed_unit_cost,
+                units_per_buy_uom=row.units_per_buy_uom,
+                order_uom=row.order_uom or "pcs",
+                base_uom=row.base_uom or "pcs",
+                quantity=row.quantity,
+                bill_no=row.bill_no or "",
+                received_date=row.received_date,
+                created_by=row.created_by or "",
+                created_at=row.created_at.isoformat() if hasattr(row.created_at, "isoformat") else str(row.created_at),
+            )
+            for row in rows
+        ],
+        total=total,
+    )
 
 
 @router.patch("/{product_id}", response_model=ProductResponse)

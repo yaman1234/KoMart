@@ -14,6 +14,8 @@ from app.models.purchase_order import (
     PurchaseOrderItem,
     compute_payment_status,
     compute_po_status,
+    compute_line_subtotal,
+    compute_order_total,
 )
 from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderUpdate
@@ -198,7 +200,13 @@ async def amend_purchase_order(
     request: Request | None = None,
 ) -> PurchaseOrder:
     amount_paid = float(getattr(po, "amount_paid", 0) or 0)
-    if body.total_amount + 0.001 < amount_paid:
+    discount = float(getattr(body, "discount", 0) or 0)
+    tax = float(getattr(body, "tax", 0) or 0)
+    remarks = (getattr(body, "remarks", None) or "").strip()
+    incoming = _normalize_incoming(body.items)
+    subtotal = compute_line_subtotal(incoming)
+    total_amount = compute_order_total(subtotal, discount, tax)
+    if total_amount + 0.001 < amount_paid:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -207,7 +215,6 @@ async def amend_purchase_order(
             ),
         )
 
-    incoming = _normalize_incoming(body.items)
     existing_by_pid = {item.product_id: item for item in po.items}
     incoming_by_pid = {item.product_id: item for item in incoming}
     po_id = str(po.id)
@@ -314,11 +321,14 @@ async def amend_purchase_order(
         "supplier_id": body.supplier_id,
         "supplier_name": body.supplier_name,
         "items": [item.model_dump() for item in merged],
-        "total_amount": body.total_amount,
+        "total_amount": total_amount,
+        "discount": discount,
+        "tax": tax,
+        "remarks": remarks,
         "expected_delivery": body.expected_delivery,
         "ordered_by": ordered_by,
         "status": compute_po_status(merged),
-        "payment_status": compute_payment_status(amount_paid, body.total_amount),
+        "payment_status": compute_payment_status(amount_paid, total_amount),
         "updated_at": now,
     }
     await po.set(updates)

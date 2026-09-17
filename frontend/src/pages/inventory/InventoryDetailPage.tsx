@@ -20,6 +20,7 @@ import { DataTable, type Column } from '@/components/tables/DataTable';
 import { AdjustStockDialog } from '@/components/inventory/AdjustStockDialog';
 import { useInventoryItem, useAdjustStock } from '@/hooks/useInventory';
 import { MovementLedgerTab } from './MovementLedgerTab';
+import { PurchasePriceHistoryTab } from './PurchasePriceHistoryTab';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatExpiryDate, isAdmin } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
@@ -27,10 +28,12 @@ import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch } from '@/types';
 import { useFormatDate } from '@/hooks/useFormatDate';
 
-type DetailTab = 'batches' | 'ledger';
+type DetailTab = 'batches' | 'ledger' | 'purchase-prices';
 
 function parseDetailTab(raw: string | null): DetailTab {
-  return raw === 'ledger' ? 'ledger' : 'batches';
+  if (raw === 'ledger') return 'ledger';
+  if (raw === 'purchase-prices') return 'purchase-prices';
+  return 'batches';
 }
 
 export function InventoryDetailPage() {
@@ -175,6 +178,7 @@ export function InventoryDetailPage() {
       <Tabs value={tab} onChange={(_, v: DetailTab) => setTab(v)} sx={{ mb: 2 }}>
         <Tab value="batches" label={`Batches (${item.batches.length})`} />
         <Tab value="ledger" label="Movement Ledger" />
+        <Tab value="purchase-prices" label="Purchase Price History" />
       </Tabs>
 
       {tab === 'batches' && (
@@ -192,6 +196,10 @@ export function InventoryDetailPage() {
           hideProductColumn
           onHandStock={item.stock}
         />
+      )}
+
+      {tab === 'purchase-prices' && productId && (
+        <PurchasePriceHistoryTab productId={productId} />
       )}
 
       <AdjustStockDialog

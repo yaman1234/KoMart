@@ -425,6 +425,10 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus;
   items: PurchaseOrderItem[];
   totalAmount: number;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  remarks?: string;
   amountPaid?: number;
   paymentStatus?: PurchaseOrderPaymentStatus;
   payments?: PurchaseOrderPayment[];
@@ -451,6 +455,83 @@ export interface PurchaseOrderReceiveItem {
   receiveQuantity: number;
   expiryDate?: string;
   unitsPerBuyUom?: number;
+}
+
+export interface PurchasePriceHistory {
+  id: string;
+  productId: string;
+  purchaseOrderId: string;
+  orderNumber: string;
+  supplierId?: string;
+  supplierName?: string;
+  unitCost: number;
+  landedUnitCost: number;
+  unitsPerBuyUom: number;
+  orderUom: string;
+  baseUom: string;
+  quantity: number;
+  billNo?: string;
+  receivedDate: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface PurchasePriceHistoryListResponse {
+  data: PurchasePriceHistory[];
+  total: number;
+}
+
+export type PurchaseReturnStatus = 'draft' | 'posted';
+
+export interface PurchaseReturnItem {
+  productId: string;
+  productName: string;
+  returnQty: number;
+  unitCost: number;
+  lineTotal: number;
+  baseUom: string;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  returnNumber: string;
+  purchaseOrderId: string;
+  orderNumber: string;
+  supplierId: string;
+  supplierName: string;
+  items: PurchaseReturnItem[];
+  totalAmount: number;
+  remarks: string;
+  status: PurchaseReturnStatus;
+  paymentMethod: string;
+  returnDate: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  postedAt?: string | null;
+}
+
+export interface PurchaseReturnCreatePayload {
+  purchaseOrderId: string;
+  items: { productId: string; returnQty: number }[];
+  remarks?: string;
+  paymentMethod?: string;
+  returnDate?: string;
+}
+
+export interface ReturnableLine {
+  productId: string;
+  productName: string;
+  availableQty: number;
+  unitCost: number;
+  baseUom: string;
+  receivedQuantity: number;
+  unitsPerBuyUom: number;
+}
+
+export interface PurchaseReturnListResponse {
+  data: PurchaseReturn[];
+  total: number;
 }
 
 export type MembershipTier = 'bronze' | 'silver' | 'gold' | 'platinum';

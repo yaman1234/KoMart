@@ -165,6 +165,23 @@ def compute_payment_status(amount_paid: float, total_amount: float) -> PaymentSt
     return PaymentStatus.partial
 
 
+def compute_line_subtotal(items: list[PurchaseOrderItem] | list[dict]) -> float:
+    total = 0.0
+    for raw in items:
+        if hasattr(raw, "quantity"):
+            qty = float(getattr(raw, "quantity", 0) or 0)
+            cost = float(getattr(raw, "unit_cost", 0) or 0)
+        else:
+            qty = float((raw or {}).get("quantity") or 0)
+            cost = float((raw or {}).get("unit_cost") or 0)
+        total += qty * cost
+    return round(total, 2)
+
+
+def compute_order_total(subtotal: float, discount: float = 0.0, tax: float = 0.0) -> float:
+    return round(max(0.0, float(subtotal or 0) - float(discount or 0) + float(tax or 0)), 2)
+
+
 def _safe_payment(raw: Any) -> PurchaseOrderPayment | None:
     """Parse one payment entry; skip invalid legacy rows instead of failing the PO."""
     try:
@@ -184,6 +201,9 @@ class PurchaseOrder(Document):
     status: POStatus = POStatus.draft
     items: list[PurchaseOrderItem] = Field(default_factory=list)
     total_amount: float = Field(ge=0)
+    discount: float = Field(default=0.0, ge=0)
+    tax: float = Field(default=0.0, ge=0)
+    remarks: str = ""
     amount_paid: float = Field(default=0.0, ge=0)
     payment_status: PaymentStatus = PaymentStatus.unpaid
     payments: list[PurchaseOrderPayment] = Field(default_factory=list)
@@ -232,6 +252,22 @@ class PurchaseOrder(Document):
         except (TypeError, ValueError):
             return 0.0
         return n if n >= 0 else 0.0
+
+    @field_validator("discount", "tax", mode="before")
+    @classmethod
+    def _coerce_discount_tax(cls, v: Any) -> Any:
+        if v is None:
+            return 0.0
+        try:
+            n = float(v)
+        except (TypeError, ValueError):
+            return 0.0
+        return n if n >= 0 else 0.0
+
+    @field_validator("remarks", mode="before")
+    @classmethod
+    def _coerce_remarks(cls, v: Any) -> str:
+        return _coerce_str(v, "")
 
     @field_validator("items", mode="before")
     @classmethod

@@ -67,7 +67,15 @@ export function PoProductAutocompleteCell({
           <TextField
             {...params}
             placeholder="Search product…"
-            sx={excelCellSx}
+            sx={{
+              ...excelCellSx,
+              width: '100%',
+              maxWidth: '100%',
+              '& .MuiOutlinedInput-root': {
+                ...excelCellSx['& .MuiOutlinedInput-root'],
+                height: 36,
+              },
+            }}
           />
         )}
         slotProps={{
