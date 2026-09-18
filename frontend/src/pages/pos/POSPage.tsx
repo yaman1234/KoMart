@@ -47,12 +47,13 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateCommerceQueries, patchProductStockInCache } from '@/hooks/invalidateCommerce';
 
 import { useInfiniteProducts } from '@/hooks/useProducts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useEvaluateDiscounts } from '@/hooks/useDiscounts';
+import { promotionKey, useDiscountRules, useEvaluateDiscounts } from '@/hooks/useDiscounts';
 import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useIsMobile } from '@/hooks/useMediaQuery';
@@ -67,6 +68,7 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { cartLineKey } from '@/utils/cartLine';
 import { uomLabel } from '@/utils';
+import { buildProductDiscountMap } from '@/utils/discountDisplay';
 import { canSellAsPack, canSellAsPiece, isPosSellableProduct, packSellOption, pieceSellOption, resolveSellOption } from '@/utils/uomSell';
 import { PaymentModal, type PaymentConfirmPayload } from '@/components/pos/PaymentModal';
 import { PosAddProductAutocomplete } from '@/components/pos/PosAddProductAutocomplete';
@@ -108,6 +110,7 @@ interface CollapsedCartRailProps {
 interface ProductCardProps {
   product: Product;
   qtyInCart: number;
+  discountLabel?: string | null;
   onAdd: (product: Product, asPack?: boolean) => void;
   onViewDetails: (product: Product) => void;
 }
@@ -124,7 +127,7 @@ const POS_IMAGE_CHIP_SX = {
   maxWidth: '100%',
 } as const;
 
-const ProductCard = memo(function ProductCard({ product, qtyInCart, onAdd, onViewDetails }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd, onViewDetails }: ProductCardProps) {
   const [sellAsPack, setSellAsPack] = useState(false);
   const dualSell = canSellAsPack(product) && canSellAsPiece(product);
   const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
@@ -254,9 +257,35 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, onAdd, onVie
             </Box>
           )}
 
-          {product.category && (
-            <Box sx={{ position: 'absolute', top: 6, left: 6, zIndex: 1, maxWidth: 'calc(100% - 40px)' }}>
-              <Chip label={product.category} size="small" sx={POS_IMAGE_CHIP_SX} />
+          {(product.category || discountLabel) && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 6,
+                left: 6,
+                zIndex: 1,
+                maxWidth: 'calc(100% - 40px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.4,
+                alignItems: 'flex-start',
+              }}
+            >
+              {product.category && (
+                <Chip label={product.category} size="small" sx={POS_IMAGE_CHIP_SX} />
+              )}
+              {discountLabel && (
+                <Chip
+                  icon={<LocalOfferOutlinedIcon sx={{ fontSize: '0.75rem !important', color: 'inherit !important' }} />}
+                  label={discountLabel}
+                  size="small"
+                  sx={{
+                    ...POS_IMAGE_CHIP_SX,
+                    bgcolor: 'success.dark',
+                    maxWidth: '100%',
+                  }}
+                />
+              )}
             </Box>
           )}
 
@@ -524,6 +553,7 @@ export function POSPage() {
   const [supplierIdFilter, setSupplierIdFilter] = useState('');
   const [popularOnly, setPopularOnly] = useState(false);
   const [trendingOnly, setTrendingOnly] = useState(false);
+  const [offerOnly, setOfferOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
   const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -588,6 +618,12 @@ export function POSPage() {
   const suppliers = suppliersData?.data ?? [];
 
   const products = infiniteProductsData?.pages.flatMap((p) => p.data) ?? [];
+  const { data: discountRules = [] } = useDiscountRules(true);
+
+  const discountMap = useMemo(
+    () => buildProductDiscountMap(products, discountRules),
+    [products, discountRules],
+  );
 
   useEffect(() => {
     const el = productGridSentinelRef.current;
@@ -630,13 +666,14 @@ export function POSPage() {
     .filter((p) => {
       if (categoryFilter && p.category !== categoryFilter) return false;
       if (supplierIdFilter && p.supplierId !== supplierIdFilter) return false;
+      if (offerOnly && !discountMap.has(p.id)) return false;
       return true;
     })
     .sort((a, b) => {
       if (priceSort === 'asc') return a.sellingPrice - b.sellingPrice;
       if (priceSort === 'desc') return b.sellingPrice - a.sellingPrice;
       return 0;
-    }), [addableProducts, categoryFilter, supplierIdFilter, priceSort]);
+    }), [addableProducts, categoryFilter, supplierIdFilter, offerOnly, discountMap, priceSort]);
 
   const cartQuantities = useMemo(() => {
     const map = new Map<string, number>();
@@ -769,6 +806,7 @@ export function POSPage() {
         promotionDiscount: payload.promotionDiscount,
         manualDiscount: payload.manualDiscount,
         appliedPromotions: payload.appliedPromotions,
+        excludedPromotions: payload.excludedPromotions,
         discount: payload.discount,
         tax: 0,
         loyaltyPointsRedeemed: payload.loyaltyPointsRedeemed,
@@ -923,6 +961,15 @@ export function POSPage() {
           </FormControl>
 
           <Chip
+            icon={<LocalOfferOutlinedIcon sx={{ fontSize: '1rem !important' }} />}
+            label="Offer"
+            size="small"
+            variant={offerOnly ? 'filled' : 'outlined'}
+            color={offerOnly ? 'success' : 'default'}
+            onClick={() => setOfferOnly((v) => !v)}
+            sx={{ fontWeight: 600 }}
+          />
+          <Chip
             label="Most Popular"
             size="small"
             variant={popularOnly ? 'filled' : 'outlined'}
@@ -964,6 +1011,7 @@ export function POSPage() {
                 <ProductCard
                   product={product}
                   qtyInCart={cartQuantities.get(product.id) ?? 0}
+                  discountLabel={discountMap.get(product.id)}
                   onAdd={handleAddProduct}
                   onViewDetails={setDetailProduct}
                 />
@@ -1226,14 +1274,26 @@ export function POSPage() {
 
           {(discountEval?.appliedPromotions.length ?? 0) > 0 && (
             <Box sx={{ mb: 0.75 }}>
-              {discountEval?.appliedPromotions.map((promo) => (
-                <Box key={promo.ruleId} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-                  <Typography variant="caption" color="success.main">{promo.name}</Typography>
-                  <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    - {formatAmount(promo.amount)}
-                  </Typography>
-                </Box>
-              ))}
+              {discountEval?.appliedPromotions.map((promo) => {
+                const productName = promo.productId
+                  ? (items.find((i) => i.productId === promo.productId && (i.sellUom ?? '') === (promo.sellUom ?? ''))?.name
+                    ?? items.find((i) => i.productId === promo.productId)?.name
+                    ?? 'Product')
+                  : 'Cart';
+                return (
+                  <Box key={promotionKey(promo)} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25, gap: 1 }}>
+                    <Typography variant="caption" color="success.main" sx={{ minWidth: 0 }}>
+                      {promo.name}
+                      <Typography component="span" variant="caption" color="text.secondary">
+                        {` · ${productName}`}
+                      </Typography>
+                    </Typography>
+                    <Typography variant="caption" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                      - {formatAmount(promo.amount)}
+                    </Typography>
+                  </Box>
+                );
+              })}
             </Box>
           )}
 
@@ -1340,6 +1400,7 @@ export function POSPage() {
 
       <ProductQuickViewDialog
         product={detailProduct}
+        discountLabel={detailProduct ? discountMap.get(detailProduct.id) : null}
         open={!!detailProduct}
         onClose={() => setDetailProduct(null)}
       />

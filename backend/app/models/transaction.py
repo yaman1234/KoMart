@@ -44,6 +44,8 @@ class AppliedPromotion(BaseModel):
     rule_id: str
     name: str
     amount: float
+    product_id: str = ""
+    sell_uom: str = ""
 
 
 class Transaction(Document):

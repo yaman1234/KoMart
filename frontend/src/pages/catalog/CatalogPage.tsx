@@ -267,7 +267,7 @@ export function CatalogPage() {
 
         <Chip
           icon={<LocalOfferIcon sx={{ fontSize: '1rem !important' }} />}
-          label="On Sale"
+          label="Offer"
           variant={onSaleOnly ? 'filled' : 'outlined'}
           color={onSaleOnly ? 'success' : 'default'}
           onClick={() => setOnSaleOnly(!onSaleOnly)}

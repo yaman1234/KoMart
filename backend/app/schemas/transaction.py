@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from app.models.transaction import PaymentMethod, TransactionItem, AppliedPromotion, TransactionStatus
+from app.schemas.discount import ExcludedPromotion
 
 
 class TransactionCreate(BaseModel):
@@ -12,6 +13,7 @@ class TransactionCreate(BaseModel):
     promotion_discount: float = Field(ge=0, default=0.0)
     manual_discount: float = Field(ge=0, default=0.0)
     applied_promotions: list[AppliedPromotion] = Field(default_factory=list)
+    excluded_promotions: list[ExcludedPromotion] = Field(default_factory=list)
     coupon_code: str = ""
     tax: float = Field(ge=0)
     round_off: float = 0.0

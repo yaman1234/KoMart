@@ -22,9 +22,11 @@ function offerMatchesProduct(offer: CatalogOffer, product: CatalogProduct): bool
 }
 
 function formatOfferLabel(offer: CatalogOffer): string {
-  const amount = offer.ruleType.includes('percent')
-    ? `${offer.value}% off`
-    : `${CURRENCY_SYMBOL} ${offer.value} off`;
+  const amount = offer.ruleType === 'product_bogo'
+    ? `Buy ${offer.buyQty ?? 1} Get ${offer.getQty ?? 1} Free`
+    : offer.ruleType.includes('percent')
+      ? `${offer.value}% off`
+      : `${CURRENCY_SYMBOL} ${offer.value} off`;
   return offer.code ? `${amount} (${offer.code})` : amount;
 }
 

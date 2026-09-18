@@ -10,6 +10,7 @@ from app.schemas.discount import (
     EvaluateCartItem,
     EvaluateDiscountResponse,
     EvaluatedLineItem,
+    ExcludedPromotion,
 )
 
 
@@ -46,7 +47,19 @@ def _cap_discount(amount: float, rule: DiscountRule) -> float:
     return amount
 
 
+def _bogo_free_units(rule: DiscountRule, quantity: int) -> int:
+    buy_qty = max(1, int(getattr(rule, "buy_qty", 1) or 1))
+    get_qty = max(1, int(getattr(rule, "get_qty", 1) or 1))
+    set_size = buy_qty + get_qty
+    return (quantity // set_size) * get_qty
+
+
 def _line_discount_amount(rule: DiscountRule, price: float, quantity: int) -> float:
+    if rule.rule_type == DiscountRuleType.product_bogo:
+        free_units = _bogo_free_units(rule, quantity)
+        if free_units <= 0:
+            return 0.0
+        return _cap_discount(round(free_units * price, 2), rule)
     if rule.rule_type == DiscountRuleType.product_percent:
         per_unit = round(price * rule.value / 100, 2)
     elif rule.rule_type == DiscountRuleType.product_flat:
@@ -72,19 +85,60 @@ def _cart_discount_amount(rule: DiscountRule, cart_base: float) -> float:
 
 
 def _matches_line(rule: DiscountRule, item: EvaluateCartItem) -> bool:
-    min_qty = getattr(rule, "min_line_qty", 0) or 0
-    if min_qty > 0 and item.quantity < min_qty:
-        return False
     rule_sell_uom = (getattr(rule, "sell_uom", None) or "").strip().lower()
     if rule_sell_uom:
         item_sell_uom = (item.sell_uom or "").strip().lower()
         if item_sell_uom != rule_sell_uom:
             return False
+    if rule.rule_type == DiscountRuleType.product_bogo:
+        return bool(rule.product_ids) and item.product_id in rule.product_ids
+    min_qty = getattr(rule, "min_line_qty", 0) or 0
+    if min_qty > 0 and item.quantity < min_qty:
+        return False
     if rule.rule_type in (DiscountRuleType.product_percent, DiscountRuleType.product_flat):
         return bool(rule.product_ids) and item.product_id in rule.product_ids
     if rule.rule_type in (DiscountRuleType.category_percent, DiscountRuleType.category_flat):
         return bool(rule.category) and rule.category == item.category
     return False
+
+
+def _exclusion_key(rule_id: str, product_id: str = "", sell_uom: str = "") -> tuple[str, str, str]:
+    return (
+        (rule_id or "").strip(),
+        (product_id or "").strip(),
+        (sell_uom or "").strip().lower(),
+    )
+
+
+def _build_exclusion_set(
+    excluded: list[ExcludedPromotion] | list[AppliedPromotion] | None,
+) -> set[tuple[str, str, str]]:
+    if not excluded:
+        return set()
+    keys: set[tuple[str, str, str]] = set()
+    for item in excluded:
+        keys.add(
+            _exclusion_key(
+                getattr(item, "rule_id", "") or "",
+                getattr(item, "product_id", "") or "",
+                getattr(item, "sell_uom", "") or "",
+            )
+        )
+    return keys
+
+
+def _is_line_excluded(
+    excluded: set[tuple[str, str, str]],
+    *,
+    rule_id: str,
+    product_id: str,
+    sell_uom: str,
+) -> bool:
+    return _exclusion_key(rule_id, product_id, sell_uom) in excluded
+
+
+def _is_cart_excluded(excluded: set[tuple[str, str, str]], *, rule_id: str) -> bool:
+    return _exclusion_key(rule_id, "", "") in excluded
 
 
 async def load_active_rules() -> list[DiscountRule]:
@@ -99,6 +153,7 @@ async def evaluate_discounts(
     items: list[EvaluateCartItem],
     *,
     coupon_code: str = "",
+    excluded_promotions: list[ExcludedPromotion] | list[AppliedPromotion] | None = None,
 ) -> EvaluateDiscountResponse:
     if not items:
         return EvaluateDiscountResponse(
@@ -109,6 +164,7 @@ async def evaluate_discounts(
             applied_promotions=[],
         )
 
+    excluded = _build_exclusion_set(excluded_promotions)
     subtotal = sum(i.price * i.quantity for i in items)
     rules = await load_active_rules()
     eligible = [r for r in rules if _rule_is_valid(r, coupon_code=coupon_code, subtotal=subtotal)]
@@ -118,6 +174,7 @@ async def evaluate_discounts(
         if r.rule_type in (
             DiscountRuleType.product_percent,
             DiscountRuleType.product_flat,
+            DiscountRuleType.product_bogo,
             DiscountRuleType.category_percent,
             DiscountRuleType.category_flat,
         )
@@ -134,8 +191,16 @@ async def evaluate_discounts(
     for item in items:
         best_amount = 0.0
         best_rule: DiscountRule | None = None
+        item_sell_uom = item.sell_uom or ""
         for rule in line_rules:
             if not _matches_line(rule, item):
+                continue
+            if _is_line_excluded(
+                excluded,
+                rule_id=str(rule.id),
+                product_id=item.product_id,
+                sell_uom=item_sell_uom,
+            ):
                 continue
             amount = _line_discount_amount(rule, item.price, item.quantity)
             if amount > best_amount:
@@ -146,7 +211,7 @@ async def evaluate_discounts(
         evaluated_lines.append(
             EvaluatedLineItem(
                 product_id=item.product_id,
-                sell_uom=item.sell_uom or "",
+                sell_uom=item_sell_uom,
                 per_unit_discount=per_unit,
                 line_discount=best_amount,
             )
@@ -158,6 +223,8 @@ async def evaluate_discounts(
                     rule_id=str(best_rule.id),
                     name=best_rule.name,
                     amount=best_amount,
+                    product_id=item.product_id,
+                    sell_uom=item_sell_uom,
                 )
             )
 
@@ -165,6 +232,8 @@ async def evaluate_discounts(
     cart_discount = 0.0
     best_cart_rule: DiscountRule | None = None
     for rule in cart_rules:
+        if _is_cart_excluded(excluded, rule_id=str(rule.id)):
+            continue
         amount = _cart_discount_amount(rule, cart_base)
         if amount > cart_discount:
             cart_discount = amount
@@ -176,6 +245,8 @@ async def evaluate_discounts(
                 rule_id=str(best_cart_rule.id),
                 name=best_cart_rule.name,
                 amount=cart_discount,
+                product_id="",
+                sell_uom="",
             )
         )
 

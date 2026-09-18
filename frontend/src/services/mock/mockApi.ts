@@ -19,6 +19,7 @@ import type {
   Transaction,
   AppNotification,
   DashboardStats,
+  DayWiseTransactions,
   RevenueDataPoint,
   TopProduct,
   SoldProduct,
@@ -264,6 +265,27 @@ export const mockApi = {
   async getDashboardKpiSummary(): Promise<DashboardKpiSummary> {
     await delay(300);
     return mockDashboardKpi;
+  },
+
+  async getDashboardDayWiseTransactions(): Promise<DayWiseTransactions> {
+    await delay(300);
+    const today = new Date().toISOString().slice(0, 10);
+    const todaysSales = transactions.filter(
+      (transaction) => transaction.createdAt.slice(0, 10) === today && transaction.status !== 'voided',
+    );
+    const salesByMethod = (method: Transaction['paymentMethod']) =>
+      todaysSales
+        .filter((transaction) => transaction.paymentMethod === method)
+        .reduce((total, transaction) => total + transaction.total, 0);
+    return {
+      todaySale: todaysSales.reduce((total, transaction) => total + transaction.total, 0),
+      todayCashSale: salesByMethod('cash'),
+      todayBankSale: salesByMethod('bank'),
+      todayEsewaSale: salesByMethod('esewa'),
+      todayExpense: expenses
+        .filter((expense) => expense.date === today)
+        .reduce((total, expense) => total + expense.amount, 0),
+    };
   },
 
   async getDashboardCashFlow(_days = 30): Promise<CashFlowPoint[]> {
@@ -1543,6 +1565,8 @@ export const mockApi = {
       productIds: data.productIds ?? [],
       category: data.category ?? '',
       minCartTotal: data.minCartTotal ?? 0,
+      buyQty: data.buyQty ?? 1,
+      getQty: data.getQty ?? 1,
       maxDiscount: data.maxDiscount ?? 0,
       startsAt: data.startsAt,
       endsAt: data.endsAt,
@@ -1558,8 +1582,9 @@ export const mockApi = {
   },
 
   async evaluateDiscount(payload: {
-    items: Array<{ productId: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ productId: string; price: number; quantity: number; category?: string; sellUom?: string }>;
     couponCode?: string;
+    excludedPromotions?: Array<{ ruleId: string; productId?: string; sellUom?: string }>;
   }): Promise<EvaluateDiscountResult> {
     await delay(150);
     return {

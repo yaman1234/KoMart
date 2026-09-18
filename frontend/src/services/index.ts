@@ -34,6 +34,7 @@ import type {
   AppNotification,
   NotificationType,
   DashboardStats,
+  DayWiseTransactions,
   RevenueDataPoint,
   TopProduct,
   SoldProduct,
@@ -162,6 +163,11 @@ export const dashboardService = {
   getKpiSummary: async (): Promise<DashboardKpiSummary> => {
     if (useMock()) return mockApi.getDashboardKpiSummary();
     const { data } = await apiClient.get('/dashboard/kpi-summary');
+    return data;
+  },
+  getDayWiseTransactions: async (): Promise<DayWiseTransactions> => {
+    if (useMock()) return mockApi.getDashboardDayWiseTransactions();
+    const { data } = await apiClient.get('/dashboard/day-wise-transactions');
     return data;
   },
   getCashFlow: async (days = 30): Promise<CashFlowPoint[]> => {
@@ -920,6 +926,7 @@ export const discountService = {
   evaluate: async (payload: {
     items: Array<{ productId: string; price: number; quantity: number; category?: string; sellUom?: string }>;
     couponCode?: string;
+    excludedPromotions?: Array<{ ruleId: string; productId?: string; sellUom?: string }>;
   }): Promise<EvaluateDiscountResult> => {
     if (useMock()) return mockApi.evaluateDiscount(payload);
     const { data } = await apiClient.post('/discounts/evaluate', payload);

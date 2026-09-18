@@ -97,6 +97,7 @@ export const PRODUCT_STATUS_OPTIONS = [
 export const DISCOUNT_RULE_TYPES = [
   { value: 'product_percent', label: 'Product — % off' },
   { value: 'product_flat', label: 'Product — flat off' },
+  { value: 'product_bogo', label: 'Buy X Get Y Free' },
   { value: 'category_percent', label: 'Category — % off' },
   { value: 'category_flat', label: 'Category — flat off' },
   { value: 'cart_percent', label: 'Cart — % off' },

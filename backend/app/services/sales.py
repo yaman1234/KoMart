@@ -154,7 +154,11 @@ async def prepare_sale_body(body: TransactionCreate) -> TransactionCreate:
             )
         )
 
-    evaluated = await evaluate_discounts(evaluate_items, coupon_code=body.coupon_code or "")
+    evaluated = await evaluate_discounts(
+        evaluate_items,
+        coupon_code=body.coupon_code or "",
+        excluded_promotions=getattr(body, "excluded_promotions", None) or [],
+    )
     items = []
     for i, item in enumerate(priced_items):
         per_unit = (

@@ -10,6 +10,7 @@ from pymongo import ASCENDING, IndexModel
 class DiscountRuleType(str, Enum):
     product_percent = "product_percent"
     product_flat = "product_flat"
+    product_bogo = "product_bogo"
     category_percent = "category_percent"
     category_flat = "category_flat"
     cart_percent = "cart_percent"
@@ -25,6 +26,8 @@ class DiscountRule(Document):
     category: str = ""
     min_cart_total: float = Field(default=0, ge=0)
     min_line_qty: int = Field(default=0, ge=0)
+    buy_qty: int = Field(default=1, ge=1)
+    get_qty: int = Field(default=1, ge=1)
     sell_uom: str = ""
     max_discount: float = Field(default=0, ge=0)
     starts_at: Optional[datetime] = None
