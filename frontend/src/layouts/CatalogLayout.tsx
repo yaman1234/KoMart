@@ -1,9 +1,36 @@
-import { AppBar, Box, Container, IconButton, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, Button, Container, IconButton, Toolbar, Typography } from '@mui/material';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import LoginIcon from '@mui/icons-material/Login';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { useThemeStore } from '@/store';
+import { useThemeStore, useAuthStore } from '@/store';
 import { APP_NAME } from '@/constants';
+
+function AuthButton() {
+  const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  return isAuthenticated ? (
+    <Button
+      variant="contained"
+      size="small"
+      startIcon={<DashboardIcon />}
+      onClick={() => navigate('/dashboard')}
+    >
+      Dashboard
+    </Button>
+  ) : (
+    <Button
+      variant="outlined"
+      size="small"
+      startIcon={<LoginIcon />}
+      onClick={() => navigate('/login')}
+    >
+      Login
+    </Button>
+  );
+}
 
 export function CatalogLayout() {
   const navigate = useNavigate();
@@ -35,6 +62,8 @@ export function CatalogLayout() {
           </Typography>
 
           <Box sx={{ flex: 1 }} />
+
+          <AuthButton />
 
           <IconButton onClick={toggleMode} size="small" aria-label="Toggle theme">
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
