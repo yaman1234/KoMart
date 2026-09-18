@@ -44,6 +44,10 @@ export function StatCard({
     );
   }
 
+  const gradient = color
+    ? `linear-gradient(135deg, ${color}22 0%, ${color}08 100%)`
+    : 'linear-gradient(135deg, rgba(var(--mui-palette-primary-mainChannel) / 0.12) 0%, rgba(var(--mui-palette-primary-mainChannel) / 0.03) 100%)';
+
   const content = (
     <CardContent>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -91,6 +95,7 @@ export function StatCard({
     <Card
       sx={{
         height: '100%',
+        background: gradient,
         ...(onClick
           ? {
               transition: 'box-shadow 0.15s ease, transform 0.15s ease',

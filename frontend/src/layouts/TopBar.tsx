@@ -2,6 +2,7 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Button,
   Typography,
   Box,
   Avatar,
@@ -14,6 +15,7 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import HomeIcon from '@mui/icons-material/Home';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -79,6 +81,17 @@ export function TopBar({ title }: TopBarProps) {
           )}
 
           <Box sx={{ flex: 1 }} />
+
+          <Tooltip title="Go to Home">
+            <Button
+              startIcon={<HomeIcon />}
+              onClick={() => navigate('/')}
+              variant="contained"
+              size="small"
+            >
+              Home
+            </Button>
+          </Tooltip>
 
           <Tooltip title="Toggle theme">
             <IconButton onClick={toggleMode}>
