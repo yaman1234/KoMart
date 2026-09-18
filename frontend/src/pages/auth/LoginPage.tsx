@@ -106,6 +106,16 @@ export function LoginPage() {
       >
         Sign In
       </Button>
+
+      <Button
+        variant="contained"
+        fullWidth
+        size="large"
+        onClick={() => navigate('/')}
+        sx={{ mt: 1, bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark' } }}
+      >
+        Navigate to Home
+      </Button>
     </Box>
   );
 }

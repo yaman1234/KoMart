@@ -107,6 +107,7 @@ function KpiTile({
   loading,
   icon,
   onClick,
+  gradient = 'linear-gradient(135deg, rgba(13,115,119,0.18) 0%, rgba(13,115,119,0.04) 100%)',
 }: {
   title: string;
   main: string;
@@ -114,15 +115,16 @@ function KpiTile({
   loading?: boolean;
   icon: ReactNode;
   onClick?: () => void;
+  gradient?: string;
 }) {
   return (
     <Card
       sx={{
         height: '100%',
-        bgcolor: 'background.paper',
+        background: gradient,
         cursor: onClick ? 'pointer' : 'default',
         transition: 'box-shadow 0.15s',
-        '&:hover': onClick ? { boxShadow: 3 } : undefined,
+        '&:hover': onClick ? { boxShadow: 4 } : undefined,
       }}
       onClick={onClick}
     >
@@ -170,7 +172,7 @@ function CashWalletTile({
   ];
 
   return (
-    <Card sx={{ height: '100%', bgcolor: 'background.paper' }}>
+    <Card sx={{ height: '100%', background: 'linear-gradient(135deg, rgba(99,60,180,0.18) 0%, rgba(99,60,180,0.04) 100%)' }}>
       <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box sx={{ display: 'flex', color: 'action.active', lineHeight: 0 }}>
@@ -365,10 +367,10 @@ function TodaySalesTile({
     <Card
       sx={{
         height: '100%',
-        bgcolor: 'background.paper',
+        background: 'linear-gradient(135deg, rgba(16,185,129,0.18) 0%, rgba(16,185,129,0.04) 100%)',
         cursor: 'pointer',
         transition: 'box-shadow 0.15s',
-        '&:hover': { boxShadow: 3 },
+        '&:hover': { boxShadow: 4 },
       }}
       onClick={() => onNavigate(`/sales?startDate=${today}&endDate=${today}&status=completed`)}
     >
@@ -469,6 +471,7 @@ function DayWiseTransactionsSection({
           sub="Today"
           loading={loading}
           onClick={() => onNavigate(`/expenses?startDate=${today}&endDate=${today}`)}
+          gradient="linear-gradient(135deg, rgba(239,68,68,0.22) 0%, rgba(239,68,68,0.05) 100%)"
         />
       </Box>
     </Box>
@@ -517,7 +520,7 @@ export function DashboardPage() {
             />
           </Grid>
           <Grid size={{ xs: 12, md: 8 }}>
-            <Card>
+            <Card sx={{ background: 'linear-gradient(135deg, rgba(233,196,106,0.15) 0%, rgba(233,196,106,0.04) 100%)' }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Quick Links</Typography>
                 <List dense>
@@ -567,6 +570,7 @@ export function DashboardPage() {
           sub={`Month ${formatCurrency(kpi?.sales.month ?? 0)} · Day ${formatCurrency(kpi?.sales.day ?? 0)}`}
           loading={kpiLoading}
           onClick={() => setKpiMetric('sales')}
+          gradient="linear-gradient(135deg, rgba(16,185,129,0.22) 0%, rgba(16,185,129,0.05) 100%)"
         />
         <KpiTile
           title="Purchase"
@@ -575,6 +579,7 @@ export function DashboardPage() {
           sub={`Month ${formatCurrency(kpi?.purchase.month ?? 0)} · Day ${formatCurrency(kpi?.purchase.day ?? 0)}`}
           loading={kpiLoading}
           onClick={() => setKpiMetric('purchase')}
+          gradient="linear-gradient(135deg, rgba(245,158,11,0.22) 0%, rgba(245,158,11,0.05) 100%)"
         />
         <KpiTile
           title="Receivables"
@@ -583,6 +588,7 @@ export function DashboardPage() {
           sub="Month — · Day —"
           loading={kpiLoading}
           onClick={() => setKpiMetric('receivables')}
+          gradient="linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0.05) 100%)"
         />
         <KpiTile
           title="Payables"
@@ -591,6 +597,7 @@ export function DashboardPage() {
           sub={`Month paid ${formatCurrency(kpi?.payables.monthPaid ?? 0)} · Day ${formatCurrency(kpi?.payables.dayPaid ?? 0)}`}
           loading={kpiLoading}
           onClick={() => setKpiMetric('payables')}
+          gradient="linear-gradient(135deg, rgba(239,68,68,0.22) 0%, rgba(239,68,68,0.05) 100%)"
         />
         <CashWalletTile
           total={kpi?.cashBank.total ?? 0}
@@ -664,7 +671,7 @@ export function DashboardPage() {
           </DashboardChartCard>
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ height: '100%' }}>
+          <Card sx={{ height: '100%', background: 'linear-gradient(135deg, rgba(233,196,106,0.15) 0%, rgba(233,196,106,0.04) 100%)' }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Quick Links</Typography>
               <List dense disablePadding>
