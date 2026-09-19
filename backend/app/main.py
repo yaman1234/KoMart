@@ -30,6 +30,7 @@ from app.routers import (
     wallets,
     cash_custody,
 )
+from app.routers import stock_count as stock_count_router
 
 
 @asynccontextmanager
@@ -87,6 +88,7 @@ app.include_router(discounts.router, prefix=API_PREFIX)
 app.include_router(day_closes.router, prefix=API_PREFIX)
 app.include_router(wallets.router, prefix=API_PREFIX)
 app.include_router(cash_custody.router, prefix=API_PREFIX)
+app.include_router(stock_count_router.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

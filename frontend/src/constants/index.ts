@@ -46,6 +46,7 @@ export const NAV_ITEMS = [
   { label: 'Sales', path: '/sales', icon: 'ReceiptLong', roles: ['admin', 'manager', 'cashier'] },
   { label: 'Products', path: '/products', icon: 'Inventory2', roles: ['admin', 'manager', 'cashier'] },
   { label: 'Inventory', path: '/inventory', icon: 'Warehouse', roles: ['admin', 'manager'] },
+  { label: 'Stock Count', path: '/stock-count', icon: 'FactCheck', roles: ['admin', 'manager'] },
   { label: 'Suppliers', path: '/suppliers', icon: 'LocalShipping', roles: ['admin', 'manager'] },
   { label: 'Purchase Orders', path: '/purchase-orders', icon: 'Receipt', roles: ['admin', 'manager'] },
   { label: 'Expenses', path: '/expenses', icon: 'AccountBalance', roles: ['admin', 'manager'] },
@@ -261,4 +262,7 @@ export const QUERY_KEYS = {
   catalogTags: ['catalog', 'tags'] as const,
   discounts: ['discounts'] as const,
   discountEvaluate: (payload?: string) => ['discounts', 'evaluate', payload] as const,
-};
+  stockCounts: ['stockCounts'] as const,
+  stockCount: (id: string) => ['stockCounts', id] as const,
+  stockCountList: (filters?: string) => ['stockCounts', 'list', filters] as const,
+} as const;

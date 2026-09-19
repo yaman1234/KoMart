@@ -1169,6 +1169,117 @@ export interface WalletAdjustmentPayload {
   remarks: string;
 }
 
+// ── Stock Count ──────────────────────────────────────────────────────────────
+
+export type StockCountStatus =
+  | 'draft'
+  | 'counting'
+  | 'submitted'
+  | 'under_review'
+  | 'recount_required'
+  | 'approved'
+  | 'completed'
+  | 'cancelled';
+
+export type StockCountType = 'full' | 'category' | 'section' | 'selected';
+export type StockCountMode = 'blind' | 'assisted';
+
+export interface StockCountItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  barcode: string;
+  category: string;
+  uom: string;
+  unitCost: number;
+  snapshotQty: number;   // -1 means hidden (blind mode)
+  physicalQty: number | null;
+  recountQty: number | null;
+  finalQty: number | null;
+  varianceQty: number | null;
+  varianceValue: number | null;
+  reason: string;
+  reasonNote: string;
+  countedBy: string;
+  countedAt: string | null;
+  recountedBy: string;
+  recountedAt: string | null;
+}
+
+export interface StockCountAuditEntry {
+  action: string;
+  userName: string;
+  userId: string;
+  timestamp: string;
+  note: string;
+}
+
+export interface StockCount {
+  id: string;
+  countNumber: string;
+  status: StockCountStatus;
+  countType: StockCountType;
+  countMode: StockCountMode;
+  categoryFilter: string;
+  notes: string;
+  items: StockCountItem[];
+  auditTrail: StockCountAuditEntry[];
+  snapshotTakenAt: string | null;
+  totalProducts: number;
+  countedProducts: number;
+  matchedCount: number;
+  shortCount: number;
+  excessCount: number;
+  shortageValue: number;
+  excessValue: number;
+  netVarianceValue: number;
+  stockAccuracyPct: number;
+  createdBy: string;
+  approvedBy: string;
+  adjustmentId: string;
+  countDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockCountListItem {
+  id: string;
+  countNumber: string;
+  status: StockCountStatus;
+  countType: StockCountType;
+  countMode: StockCountMode;
+  categoryFilter: string;
+  totalProducts: number;
+  countedProducts: number;
+  matchedCount: number;
+  shortCount: number;
+  excessCount: number;
+  netVarianceValue: number;
+  stockAccuracyPct: number;
+  createdBy: string;
+  approvedBy: string;
+  adjustmentId: string;
+  countDate: string;
+  createdAt: string;
+}
+
+export interface StockCountListResponse {
+  data: StockCountListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface StockCountCreatePayload {
+  countType: StockCountType;
+  countMode: StockCountMode;
+  categoryFilter?: string;
+  productIds?: string[];
+  notes?: string;
+  countDate?: string;
+}
+
 export type AuditModule =
   | 'auth'
   | 'products'

@@ -19,6 +19,7 @@ from app.models.price_history import PriceHistory
 from app.models.wallet_ledger import WalletLedgerEntry
 from app.models.cache_entry import CacheEntry
 from app.models.cash_custody import CashCustody
+from app.models.stock_count import StockCount
 
 __all__ = [
     "User",
@@ -43,4 +44,5 @@ __all__ = [
     "WalletLedgerEntry",
     "CacheEntry",
     "CashCustody",
+    "StockCount",
 ]
