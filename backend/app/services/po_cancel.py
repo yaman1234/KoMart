@@ -1,4 +1,4 @@
-"""Cancel a purchase order with full unwind of payments and leftover stock."""
+"""Cancel a purchase order with full unwind of payments, stock, GR, and returns."""
 
 from __future__ import annotations
 
@@ -8,15 +8,47 @@ from fastapi import HTTPException, Request, status
 
 from app.models.audit_log import AuditModule
 from app.models.expense import Expense
+from app.models.goods_receipt import GoodsReceipt, GoodsReceiptStatus
 from app.models.purchase_order import (
     POStatus,
     PaymentStatus,
     PurchaseOrder,
 )
-from app.models.user import User
+from app.models.purchase_return import PurchaseReturn, PurchaseReturnStatus
+from app.models.user import User, UserRole
 from app.services.audit import log_audit, po_snapshot
 from app.services.po_amend import _po_batch_leftover, _reverse_po_receive, _units
 from app.services.response_cache import bump_commerce_caches
+from beanie.operators import In
+
+
+CANCELABLE = {
+    POStatus.draft,
+    POStatus.pending_approval,
+    POStatus.approved,
+    POStatus.ordered,
+    POStatus.partial,
+    POStatus.received,
+    POStatus.closed,
+    POStatus.rejected,
+}
+
+
+async def _returned_base_qty(product_id: str, po_id: str) -> int:
+    """Sum confirmed return qty (sell/base UOM) for a product on this PO."""
+    returns = await PurchaseReturn.find(
+        PurchaseReturn.purchase_order_id == po_id,
+        In(PurchaseReturn.status, [
+            PurchaseReturnStatus.confirmed,
+            PurchaseReturnStatus.posted,
+        ]),
+    ).to_list()
+    total = 0
+    for doc in returns:
+        for item in doc.items or []:
+            if item.product_id == product_id:
+                total += int(item.return_qty or 0)
+    return total
 
 
 async def cancel_purchase_order(
@@ -25,25 +57,39 @@ async def cancel_purchase_order(
     current_user: User,
     request: Request | None = None,
 ) -> PurchaseOrder:
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Only admins can cancel purchase orders",
+        )
     if po.status == POStatus.cancelled:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail="Purchase order is already cancelled",
         )
+    if po.status not in CANCELABLE:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel a purchase order in status {po.status}",
+        )
 
     po_id = str(po.id)
     before = po_snapshot(po)
 
-    # Validate leftover stock covers every received line before mutating.
+    # Reverse leftover PO-batch stock. Treat confirmed returns as already out
+    # (not "sold") so cancel still works after purchase returns.
     stock_reverses: list[tuple[str, str, int]] = []
     for item in po.items or []:
         received = int(getattr(item, "received_quantity", 0) or 0)
         if received <= 0:
             continue
-        base_needed = received * _units(item)
+        units = _units(item)
+        received_base = received * units
+        returned_base = await _returned_base_qty(item.product_id, po_id)
+        expected_on_hand = max(0, received_base - returned_base)
         leftover = await _po_batch_leftover(item.product_id, po_id)
-        if leftover < base_needed:
-            sold = base_needed - leftover
+        if leftover < expected_on_hand:
+            sold = expected_on_hand - leftover
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -101,7 +147,64 @@ async def cancel_purchase_order(
             },
         )
 
+    # Void AP documents so outstanding reports stay truthful after cancel
+    from app.models.purchase_invoice import InvoiceStatus, PurchaseInvoice, SupplierCredit, SupplierPayment
+
     now = datetime.now(timezone.utc)
+    invoices = await PurchaseInvoice.find(
+        PurchaseInvoice.purchase_order_id == po_id,
+    ).to_list()
+    for inv in invoices:
+        if inv.status == InvoiceStatus.cancelled:
+            continue
+        await inv.set({
+            "status": InvoiceStatus.cancelled,
+            "amount_paid": 0.0,
+            "updated_at": now,
+            "notes": ((inv.notes or "").strip() + f" | Cancelled with PO {po.order_number}").strip(" |"),
+        })
+
+    payments = await SupplierPayment.find(
+        SupplierPayment.purchase_order_id == po_id,
+    ).to_list()
+    for payment in payments:
+        await payment.delete()
+
+    # Void goods receipts (keep rows for audit)
+    receipts = await GoodsReceipt.find(GoodsReceipt.purchase_order_id == po_id).to_list()
+    for gr in receipts:
+        if gr.status == GoodsReceiptStatus.cancelled:
+            continue
+        await gr.set({
+            "status": GoodsReceiptStatus.cancelled,
+            "updated_at": now,
+            "notes": ((gr.notes or "").strip() + f" | Cancelled with PO {po.order_number}").strip(" |"),
+        })
+
+    # Unwind purchase returns: reverse refund wallets, remove credits, mark cancelled
+    returns = await PurchaseReturn.find(PurchaseReturn.purchase_order_id == po_id).to_list()
+    for ret in returns:
+        if ret.status == PurchaseReturnStatus.cancelled:
+            continue
+        ret_id = str(ret.id)
+        if ret.status in (PurchaseReturnStatus.confirmed, PurchaseReturnStatus.posted):
+            await reverse_reference(
+                reference_type="purchase_return",
+                reference_id=ret_id,
+                reason=f"PO {po.order_number} cancelled — reverse return {ret.return_number}",
+                created_by=created_by,
+            )
+            credits = await SupplierCredit.find(
+                SupplierCredit.purchase_return_id == ret_id,
+            ).to_list()
+            for credit in credits:
+                await credit.delete()
+        await ret.set({
+            "status": PurchaseReturnStatus.cancelled,
+            "updated_at": now,
+            "remarks": ((ret.remarks or "").strip() + f" | Cancelled with PO {po.order_number}").strip(" |"),
+        })
+
     await po.set({
         "status": POStatus.cancelled,
         "payments": [],
@@ -113,7 +216,7 @@ async def cancel_purchase_order(
     if not refreshed:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
 
-    if stock_reverses or expenses:
+    if stock_reverses or expenses or invoices or receipts or returns:
         await bump_commerce_caches()
 
     await log_audit(

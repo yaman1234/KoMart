@@ -8,9 +8,13 @@ from pymongo import IndexModel, ASCENDING, DESCENDING
 
 class POStatus(str, Enum):
     draft = "draft"
-    ordered = "ordered"
+    pending_approval = "pending_approval"
+    approved = "approved"
+    rejected = "rejected"
+    ordered = "ordered"  # Sent to supplier (legacy name kept)
     partial = "partial"
     received = "received"
+    closed = "closed"
     cancelled = "cancelled"
 
 
@@ -178,8 +182,24 @@ def compute_line_subtotal(items: list[PurchaseOrderItem] | list[dict]) -> float:
     return round(total, 2)
 
 
-def compute_order_total(subtotal: float, discount: float = 0.0, tax: float = 0.0) -> float:
-    return round(max(0.0, float(subtotal or 0) - float(discount or 0) + float(tax or 0)), 2)
+def compute_order_total(
+    subtotal: float,
+    discount: float = 0.0,
+    tax: float = 0.0,
+    shipping: float = 0.0,
+    other_charges: float = 0.0,
+) -> float:
+    return round(
+        max(
+            0.0,
+            float(subtotal or 0)
+            - float(discount or 0)
+            + float(tax or 0)
+            + float(shipping or 0)
+            + float(other_charges or 0),
+        ),
+        2,
+    )
 
 
 def _safe_payment(raw: Any) -> PurchaseOrderPayment | None:
@@ -203,7 +223,12 @@ class PurchaseOrder(Document):
     total_amount: float = Field(ge=0)
     discount: float = Field(default=0.0, ge=0)
     tax: float = Field(default=0.0, ge=0)
+    shipping: float = Field(default=0.0, ge=0)
+    other_charges: float = Field(default=0.0, ge=0)
     remarks: str = ""
+    supplier_reference: str = ""
+    bill_no: str = ""
+    bill_images: list[str] = Field(default_factory=list)
     amount_paid: float = Field(default=0.0, ge=0)
     payment_status: PaymentStatus = PaymentStatus.unpaid
     payments: list[PurchaseOrderPayment] = Field(default_factory=list)
@@ -211,6 +236,9 @@ class PurchaseOrder(Document):
     ordered_by: Optional[str] = None
     received_by: Optional[str] = None
     received_date: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejected_reason: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -253,7 +281,7 @@ class PurchaseOrder(Document):
             return 0.0
         return n if n >= 0 else 0.0
 
-    @field_validator("discount", "tax", mode="before")
+    @field_validator("discount", "tax", "shipping", "other_charges", mode="before")
     @classmethod
     def _coerce_discount_tax(cls, v: Any) -> Any:
         if v is None:
@@ -264,7 +292,7 @@ class PurchaseOrder(Document):
             return 0.0
         return n if n >= 0 else 0.0
 
-    @field_validator("remarks", mode="before")
+    @field_validator("remarks", "supplier_reference", "rejected_reason", mode="before")
     @classmethod
     def _coerce_remarks(cls, v: Any) -> str:
         return _coerce_str(v, "")

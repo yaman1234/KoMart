@@ -36,44 +36,43 @@ export function poFormTableMinWidth(): number {
 export const PO_DETAIL_COLUMNS = {
   checkbox: 40,
   sn: 36,
-  product: 180,
-  orderedQty: 72,
-  orderUom: 72,
-  conversion: 96,
-  receivedQty: 72,
+  product: 160,
+  buyUom: 88,
+  conversion: 88,
+  sellUnit: 72,
+  orderedQty: 68,
+  receivedQty: 68,
+  remaining: 68,
   receiveQty: 80,
-  sellUom: 72,
-  totalUnits: 80,
-  expiry: 120,
-  status: 80,
+  totalUnits: 76,
   unitCost: 84,
+  expiry: 120,
+  status: 84,
   lineTotal: 92,
 } as const;
 
 export function poDetailColWidths(canReceive: boolean): number[] {
-  const widths: number[] = [
+  return [
     ...(canReceive ? [PO_DETAIL_COLUMNS.checkbox] : []),
     PO_DETAIL_COLUMNS.sn,
     PO_DETAIL_COLUMNS.product,
-    // Ordered group
-    PO_DETAIL_COLUMNS.orderedQty,
-    PO_DETAIL_COLUMNS.orderUom,
+    PO_DETAIL_COLUMNS.buyUom,
     PO_DETAIL_COLUMNS.conversion,
-    // Received group
+    PO_DETAIL_COLUMNS.sellUnit,
+    PO_DETAIL_COLUMNS.orderedQty,
     PO_DETAIL_COLUMNS.receivedQty,
+    PO_DETAIL_COLUMNS.remaining,
     ...(canReceive ? [PO_DETAIL_COLUMNS.receiveQty] : []),
-    PO_DETAIL_COLUMNS.sellUom,
     PO_DETAIL_COLUMNS.totalUnits,
+    PO_DETAIL_COLUMNS.unitCost,
     ...(canReceive ? [PO_DETAIL_COLUMNS.expiry] : []),
     PO_DETAIL_COLUMNS.status,
-    PO_DETAIL_COLUMNS.unitCost,
     PO_DETAIL_COLUMNS.lineTotal,
   ];
-  return widths;
 }
 
 export function poDetailTableMinWidth(canReceive: boolean): number {
-  return canReceive ? 1204 : 1004;
+  return poDetailColWidths(canReceive).reduce((sum, w) => sum + w, 0);
 }
 
 /** @deprecated Use PO_DETAIL_COLUMNS / poDetailColWidths */

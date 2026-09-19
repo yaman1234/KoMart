@@ -77,6 +77,42 @@ export function useUpdatePurchaseOrderStatus() {
   });
 }
 
+function invalidatePo(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+  void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
+  void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
+}
+
+export function usePoWorkflowAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      action,
+      reason,
+    }: {
+      id: string;
+      action: 'submit' | 'approve' | 'reject' | 'send' | 'close';
+      reason?: string;
+    }) => {
+      switch (action) {
+        case 'submit':
+          return purchaseOrderService.submit(id);
+        case 'approve':
+          return purchaseOrderService.approve(id);
+        case 'reject':
+          return purchaseOrderService.reject(id, reason);
+        case 'send':
+          return purchaseOrderService.send(id);
+        case 'close':
+          return purchaseOrderService.close(id);
+        default:
+          throw new Error('Unknown workflow action');
+      }
+    },
+    onSuccess: (_, { id }) => invalidatePo(queryClient, id),
+  });
+}
+
 export function useReceivePurchaseOrderItems() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -84,16 +120,32 @@ export function useReceivePurchaseOrderItems() {
       id,
       items,
       billNo,
+      billImages,
     }: {
       id: string;
       items: PurchaseOrderReceiveItem[];
       billNo?: string;
-    }) => purchaseOrderService.receiveItemsInChunks(id, items, billNo),
+      billImages?: string[];
+    }) => purchaseOrderService.receiveItemsInChunks(id, items, billNo, billImages),
     onSuccess: (_, { id }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
       void queryClient.invalidateQueries({ queryKey: ['products'] });
+      void queryClient.invalidateQueries({ queryKey: ['goodsReceipts', id] });
+      void queryClient.invalidateQueries({ queryKey: ['purchaseInvoices', id] });
       invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
+    },
+  });
+}
+
+export function useUpdatePurchaseOrderBillImages() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, billImages }: { id: string; billImages: string[] }) =>
+      purchaseOrderService.updateBillImages(id, billImages),
+    onSuccess: (_, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
     },
   });
 }
@@ -106,6 +158,8 @@ export function useRecordPurchaseOrderPayment() {
     onSuccess: (_, { id }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
+      void queryClient.invalidateQueries({ queryKey: ['purchaseInvoices', id] });
+      void queryClient.invalidateQueries({ queryKey: ['goodsReceipts', id] });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });

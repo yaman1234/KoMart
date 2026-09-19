@@ -407,15 +407,40 @@ export const purchaseOrderService = {
     const { data } = await apiClient.patch(`/purchase-orders/${id}/status`, { status });
     return data;
   },
+  submit: async (id: string): Promise<PurchaseOrder> => {
+    const { data } = await apiClient.post(`/purchase-orders/${id}/submit`);
+    return data;
+  },
+  approve: async (id: string): Promise<PurchaseOrder> => {
+    const { data } = await apiClient.post(`/purchase-orders/${id}/approve`);
+    return data;
+  },
+  reject: async (id: string, reason = ''): Promise<PurchaseOrder> => {
+    const { data } = await apiClient.post(`/purchase-orders/${id}/reject`, { reason });
+    return data;
+  },
+  send: async (id: string): Promise<PurchaseOrder> => {
+    const { data } = await apiClient.post(`/purchase-orders/${id}/send`);
+    return data;
+  },
+  close: async (id: string): Promise<PurchaseOrder> => {
+    const { data } = await apiClient.post(`/purchase-orders/${id}/close`);
+    return data;
+  },
   receiveItems: async (
     id: string,
     items: PurchaseOrderReceiveItem[],
     billNo?: string,
+    billImages?: string[],
   ): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.receivePurchaseOrderItems(id, items);
     const { data } = await apiClient.post(
       `/purchase-orders/${id}/receive`,
-      { items, billNo: billNo || undefined },
+      {
+        items,
+        billNo: billNo || undefined,
+        billImages: billImages?.length ? billImages : undefined,
+      },
       { timeout: PO_RECEIVE_TIMEOUT_MS },
     );
     return data;
@@ -425,22 +450,33 @@ export const purchaseOrderService = {
     id: string,
     items: PurchaseOrderReceiveItem[],
     billNo?: string,
+    billImages?: string[],
   ): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.receivePurchaseOrderItems(id, items);
     if (items.length <= PO_RECEIVE_CHUNK_SIZE) {
-      return purchaseOrderService.receiveItems(id, items, billNo);
+      return purchaseOrderService.receiveItems(id, items, billNo, billImages);
     }
     let last: PurchaseOrder | null = null;
     for (let i = 0; i < items.length; i += PO_RECEIVE_CHUNK_SIZE) {
       const chunk = items.slice(i, i + PO_RECEIVE_CHUNK_SIZE);
+      // Attach bill images only on the first chunk so they are not duplicated.
+      const images = i === 0 ? billImages : undefined;
       const { data } = await apiClient.post(
         `/purchase-orders/${id}/receive`,
-        { items: chunk, billNo: billNo || undefined },
+        {
+          items: chunk,
+          billNo: billNo || undefined,
+          billImages: images?.length ? images : undefined,
+        },
         { timeout: PO_RECEIVE_TIMEOUT_MS },
       );
       last = data;
     }
     return last!;
+  },
+  updateBillImages: async (id: string, billImages: string[]): Promise<PurchaseOrder> => {
+    const { data } = await apiClient.patch(`/purchase-orders/${id}/bill-images`, { billImages });
+    return data;
   },
   recordPayment: async (
     id: string,

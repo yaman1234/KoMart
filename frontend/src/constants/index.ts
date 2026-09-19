@@ -136,9 +136,13 @@ export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
 
 export const PO_STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
+  pending_approval: 'Pending Approval',
+  approved: 'Approved',
+  rejected: 'Rejected',
   ordered: 'Ordered',
   partial: 'Partially Received',
-  received: 'Received',
+  received: 'Fully Received',
+  closed: 'Closed',
   cancelled: 'Cancelled',
 };
 

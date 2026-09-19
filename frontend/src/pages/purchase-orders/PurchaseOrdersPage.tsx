@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Box, Button, Chip, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, Grid, MenuItem, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
+import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
@@ -14,9 +15,13 @@ import { useAuthStore } from '@/store';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
   draft: 'default',
+  pending_approval: 'warning',
+  approved: 'info',
+  rejected: 'error',
   ordered: 'warning',
   partial: 'info',
   received: 'success',
+  closed: 'default',
   cancelled: 'error',
 };
 
@@ -28,9 +33,13 @@ const PAYMENT_COLORS: Record<PurchaseOrderPaymentStatus, 'default' | 'warning' |
 
 const PO_STATUS_OPTIONS: PurchaseOrderStatus[] = [
   'draft',
+  'pending_approval',
+  'approved',
+  'rejected',
   'ordered',
   'partial',
   'received',
+  'closed',
   'cancelled',
 ];
 
@@ -47,8 +56,8 @@ export function PurchaseOrdersPage() {
   const canManage = canManagePurchaseOrders(user?.role);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [status, setStatus] = useState<PurchaseOrderStatus | ''>('ordered');
-  const [paymentStatus, setPaymentStatus] = useState<PurchaseOrderPaymentStatus | ''>('unpaid');
+  const [status, setStatus] = useState<string>('ordered,partial');
+  const [paymentStatus, setPaymentStatus] = useState<PurchaseOrderPaymentStatus | ''>('');
 
   const { data, isLoading } = usePurchaseOrders({
     search,
@@ -124,11 +133,6 @@ export function PurchaseOrdersPage() {
       render: (row) => row.expectedDelivery ? formatDate(row.expectedDelivery) : '—',
     },
     {
-      id: 'receivedDate',
-      label: 'Received Date',
-      render: (row) => row.receivedDate ? formatDate(row.receivedDate) : '—',
-    },
-    {
       id: 'created',
       label: 'Created',
       render: (row) => formatDate(row.createdAt),
@@ -139,7 +143,7 @@ export function PurchaseOrdersPage() {
     <Box>
       <PageHeader
         title="Purchase Orders"
-        subtitle={`${data?.total ?? 0} orders`}
+        subtitle="Place order → receive stock → pay. Formal approval is optional (Advanced)."
         action={
           canManage ? (
             <Button
@@ -153,30 +157,20 @@ export function PurchaseOrdersPage() {
         }
       />
 
-      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
-        <Paper
-          variant="outlined"
-          sx={{ px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Total Received Value
-          </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            {formatCurrency(data?.receivedTotalAmount ?? 0)}
-          </Typography>
-        </Paper>
-        <Paper
-          variant="outlined"
-          sx={{ px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Outstanding Payable
-          </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
-            {formatCurrency(data?.outstandingAmount ?? 0)}
-          </Typography>
-        </Paper>
-      </Box>
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <StatCard
+            title="Total Received Value"
+            value={formatCurrency(data?.receivedTotalAmount ?? 0)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <StatCard
+            title="Outstanding Payable"
+            value={formatCurrency(data?.outstandingAmount ?? 0)}
+          />
+        </Grid>
+      </Grid>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
         <Box sx={{ flex: 1, minWidth: 220 }}>
@@ -192,11 +186,12 @@ export function PurchaseOrdersPage() {
           label="Status"
           value={status}
           onChange={(e) => {
-            setStatus(e.target.value as PurchaseOrderStatus | '');
+            setStatus(e.target.value);
             setPage(0);
           }}
-          sx={{ minWidth: 180 }}
+          sx={{ minWidth: 200 }}
         >
+          <MenuItem value="ordered,partial">Open (needs receive)</MenuItem>
           <MenuItem value="">All</MenuItem>
           {PO_STATUS_OPTIONS.map((value) => (
             <MenuItem key={value} value={value}>

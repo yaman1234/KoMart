@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Box,
   Button,
@@ -26,14 +27,11 @@ import {
   InputAdornment,
   InputLabel,
   FormControl,
+  IconButton,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import EditIcon from '@mui/icons-material/Edit';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import PaymentsIcon from '@mui/icons-material/Payments';
-import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import CloseIcon from '@mui/icons-material/Close';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,23 +40,27 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { FormModal } from '@/components/common/FormModal';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PoDetailActions } from '@/pages/purchase-orders/components/PoDetailActions';
+import { PoHistoryTabs } from '@/pages/purchase-orders/components/PoHistoryTabs';
 import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
   useReceivePurchaseOrderItems,
   useRecordPurchaseOrderPayment,
+  usePoWorkflowAction,
+  useUpdatePurchaseOrderBillImages,
 } from '@/hooks/usePurchaseOrders';
 import {
   useCreatePurchaseReturn,
   usePurchaseReturns,
   useReturnableLines,
 } from '@/hooks/usePurchaseReturns';
-import { formatCurrency, canManagePurchaseOrders, formatDateTime } from '@/utils';
+import { formatCurrency, canManagePurchaseOrders, formatDateTime, isAdmin } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
-import { getErrorMessage } from '@/services/apiClient';
+import { apiClient, getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
+import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { PAYMENT_METHODS, PO_LINE_STATUS_LABELS, PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type {
@@ -67,12 +69,11 @@ import type {
   PurchaseOrderReceiveItem,
   PurchaseOrderStatus,
 } from '@/types';
+import { PO_LABELS, PO_RECEIVE_HINT, PO_RETURN_HINT, PO_BILL_NO_HINT, PO_AUTO_OPEN_PAY_AFTER_RECEIVE, PO_BILL_IMAGES_HINT } from '@/pages/purchase-orders/poTerminology';
 import {
-  PO_DETAIL_COLUMNS,
   poDetailColWidths,
   poDetailTableMinWidth,
 } from '@/pages/purchase-orders/poLineTableColumns';
-import { PO_LABELS, PO_RECEIVE_HINT, PO_RETURN_HINT } from '@/pages/purchase-orders/poTerminology';
 
 const PAYMENT_SCHEMA = z.object({
   amount: z.number({ error: 'Amount is required' }).positive('Amount must be positive'),
@@ -85,7 +86,15 @@ const PAYMENT_SCHEMA = z.object({
 type PaymentFormValues = z.infer<typeof PAYMENT_SCHEMA>;
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
-  draft: 'default', ordered: 'warning', partial: 'info', received: 'success', cancelled: 'error',
+  draft: 'default',
+  pending_approval: 'warning',
+  approved: 'info',
+  rejected: 'error',
+  ordered: 'warning',
+  partial: 'info',
+  received: 'success',
+  closed: 'default',
+  cancelled: 'error',
 };
 
 const PAYMENT_COLORS: Record<PurchaseOrderPaymentStatus, 'default' | 'warning' | 'success'> = {
@@ -100,11 +109,7 @@ const LINE_STATUS_COLORS: Record<PurchaseOrderLineStatus, 'default' | 'warning' 
   received: 'success',
 };
 
-const NEXT_STATUSES: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>> = {
-  draft: ['ordered'],
-};
-
-const PAYABLE_STATUSES = new Set<PurchaseOrderStatus>(['ordered', 'partial', 'received']);
+const PAYABLE_STATUSES = new Set<PurchaseOrderStatus>(['ordered', 'partial', 'received', 'closed']);
 
 interface ReceiveSelection {
   selected: boolean;
@@ -115,53 +120,18 @@ interface ReceiveSelection {
 
 const headerCellSx = { fontWeight: 700, whiteSpace: 'nowrap', py: 0.75 };
 
-const orderedGroupHeaderSx = {
-  ...headerCellSx,
-  borderBottom: 2,
-  borderColor: 'grey.400',
-  bgcolor: 'grey.200',
-  color: 'text.primary',
-  letterSpacing: 0.3,
-  textTransform: 'uppercase' as const,
-  fontSize: '0.7rem',
-};
-
-const receivedGroupHeaderSx = {
-  ...headerCellSx,
-  borderBottom: 2,
-  borderColor: 'primary.main',
-  bgcolor: 'primary.main',
-  color: 'primary.contrastText',
-  letterSpacing: 0.3,
-  textTransform: 'uppercase' as const,
-  fontSize: '0.7rem',
-};
-
-const orderedSubHeaderSx = {
-  ...headerCellSx,
-  bgcolor: 'grey.100',
-  borderBottom: 1,
-  borderColor: 'divider',
-};
-
-const receivedSubHeaderSx = {
-  ...headerCellSx,
-  bgcolor: 'primary.50',
-  borderBottom: 1,
-  borderColor: 'primary.light',
-};
-
 export function PurchaseOrderDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
   const formatDate = useFormatDate();
   const canManage = canManagePurchaseOrders(user?.role);
-  const [statusValue, setStatusValue] = useState('');
   const [statusError, setStatusError] = useState('');
   const [receiveError, setReceiveError] = useState('');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [receiveBillNo, setReceiveBillNo] = useState('');
+  const [pendingBillImages, setPendingBillImages] = useState<string[]>([]);
+  const [billUploadBusy, setBillUploadBusy] = useState(false);
   const [receiveSelections, setReceiveSelections] = useState<Record<string, ReceiveSelection>>({});
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState('');
@@ -170,6 +140,9 @@ export function PurchaseOrderDetailPage() {
   const [returnQtys, setReturnQtys] = useState<Record<string, string>>({});
   const [returnRemarks, setReturnRemarks] = useState('');
   const [returnPaymentMethod, setReturnPaymentMethod] = useState('cash');
+  const [returnSettlement, setReturnSettlement] = useState<'refund' | 'credit' | 'replacement' | 'pending'>('refund');
+  const [returnReason, setReturnReason] = useState('other');
+  const [returnBillNo, setReturnBillNo] = useState('');
   const [returnDate, setReturnDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const {
@@ -191,7 +164,9 @@ export function PurchaseOrderDetailPage() {
 
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
   const statusMutation = useUpdatePurchaseOrderStatus();
+  const workflowMutation = usePoWorkflowAction();
   const receiveMutation = useReceivePurchaseOrderItems();
+  const billImagesMutation = useUpdatePurchaseOrderBillImages();
   const paymentMutation = useRecordPurchaseOrderPayment();
   const returnMutation = useCreatePurchaseReturn();
   const { data: returnsData } = usePurchaseReturns(id ?? '', Boolean(id));
@@ -199,12 +174,40 @@ export function PurchaseOrderDetailPage() {
     id ?? '',
     returnOpen && Boolean(id),
   );
+  const { data: receiptsData } = useQuery({
+    queryKey: ['goodsReceipts', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/purchase-orders/${id}/goods-receipts`);
+      return data as { data: Array<Record<string, unknown>>; total: number };
+    },
+    enabled: Boolean(id),
+  });
+  const { data: invoicesData } = useQuery({
+    queryKey: ['purchaseInvoices', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/purchase-orders/${id}/invoices`);
+      return data as { data: Array<Record<string, unknown>>; total: number };
+    },
+    enabled: Boolean(id),
+  });
+
+  useEffect(() => {
+    if (po?.billNo?.trim()) {
+      setReceiveBillNo(po.billNo.trim());
+    }
+  }, [po?.id, po?.billNo]);
 
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
   const amountPaid = po?.amountPaid ?? 0;
   const remaining = po ? Math.max(0, Math.round((po.totalAmount - amountPaid) * 100) / 100) : 0;
   const paymentStatus: PurchaseOrderPaymentStatus = po?.paymentStatus ?? 'unpaid';
-  const canPay = Boolean(po && canManage && PAYABLE_STATUSES.has(po.status) && remaining > 0);
+  const canPay = Boolean(
+    po
+    && canManage
+    && PAYABLE_STATUSES.has(po.status)
+    && remaining > 0
+    && (invoicesData?.data?.length ?? 0) > 0,
+  );
   const hasReceivedStock = Boolean(
     po?.items.some((item) => item.receivedQuantity > 0),
   );
@@ -276,20 +279,6 @@ export function PurchaseOrderDetailPage() {
       });
   }, [po, receiveSelections]);
 
-  const handleStatusChange = async (status: PurchaseOrderStatus) => {
-    if (!po) return;
-    setStatusError('');
-    setStatusValue(status);
-    try {
-      await statusMutation.mutateAsync({ id: po.id, status });
-      showSuccess(status === 'ordered' ? 'Purchase Order placed.' : 'Purchase Order updated.');
-      setStatusValue('');
-    } catch (err) {
-      setStatusError(getErrorMessage(err));
-      setStatusValue('');
-    }
-  };
-
   const handleCancelOrder = async () => {
     if (!po) return;
     setStatusError('');
@@ -303,38 +292,114 @@ export function PurchaseOrderDetailPage() {
     }
   };
 
-  const handleReceive = async () => {
+  const handlePlaceOrder = async () => {
     if (!po) return;
-    if (itemsToReceive.length === 0) {
+    setStatusError('');
+    try {
+      await statusMutation.mutateAsync({ id: po.id, status: 'ordered' });
+      showSuccess('Order placed.');
+    } catch (err) {
+      setStatusError(getErrorMessage(err));
+    }
+  };
+
+  const openPaymentDialog = (opts?: { amount?: number; billNo?: string }) => {
+    if (!po) return;
+    const payRemaining = opts?.amount ?? remaining;
+    resetPaymentForm({
+      amount: payRemaining > 0 ? payRemaining : remaining,
+      date: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'cash',
+      billNo: opts?.billNo ?? (po.billNo?.trim() || ''),
+      notes: '',
+    });
+    setPaymentError('');
+    setPaymentOpen(true);
+  };
+
+  const finishReceive = async (items: PurchaseOrderReceiveItem[]) => {
+    if (!po) return;
+    if (items.length === 0) {
       setReceiveError('Select at least one item with a receive qty');
       return;
     }
     setReceiveError('');
     try {
-      await receiveMutation.mutateAsync({
+      const updated = await receiveMutation.mutateAsync({
         id: po.id,
-        items: itemsToReceive,
+        items,
         billNo: receiveBillNo.trim() || undefined,
+        billImages: pendingBillImages.length ? pendingBillImages : undefined,
       });
-      showSuccess('Purchase Order received.');
+      showSuccess('Goods received — invoice created.');
       setReceiveSelections({});
+      const bill = receiveBillNo.trim() || updated.billNo?.trim() || po.billNo?.trim() || '';
       setReceiveBillNo('');
+      setPendingBillImages([]);
+      if (PO_AUTO_OPEN_PAY_AFTER_RECEIVE) {
+        const paid = updated.amountPaid ?? 0;
+        const due = Math.max(0, Math.round((updated.totalAmount - paid) * 100) / 100);
+        if (due > 0) {
+          openPaymentDialog({ amount: due, billNo: bill });
+        }
+      }
     } catch (err) {
       setReceiveError(getErrorMessage(err));
     }
   };
 
-  const openPaymentDialog = () => {
+  const handleBillFilesSelected = async (files: FileList | null) => {
+    if (!files?.length || !po) return;
+    setBillUploadBusy(true);
+    setReceiveError('');
+    try {
+      const urls = await uploadImagesToCloudinary(files);
+      if (!urls.length) return;
+      if (canReceive) {
+        setPendingBillImages((prev) => [...prev, ...urls]);
+      } else if (canManage && po.status !== 'cancelled') {
+        const next = [...(po.billImages ?? []), ...urls];
+        await billImagesMutation.mutateAsync({ id: po.id, billImages: next });
+        showSuccess('Bill image(s) saved.');
+      }
+    } catch (err) {
+      setReceiveError(getErrorMessage(err));
+    } finally {
+      setBillUploadBusy(false);
+    }
+  };
+
+  const handleRemoveSavedBillImage = async (url: string) => {
+    if (!po || !canManage) return;
+    const next = (po.billImages ?? []).filter((u) => u !== url);
+    try {
+      await billImagesMutation.mutateAsync({ id: po.id, billImages: next });
+      showSuccess('Bill image removed.');
+    } catch (err) {
+      setStatusError(getErrorMessage(err));
+    }
+  };
+
+  const handleReceive = async () => {
+    await finishReceive(itemsToReceive);
+  };
+
+  const handleWorkflow = async (action: 'submit' | 'approve' | 'reject' | 'send' | 'close') => {
     if (!po) return;
-    resetPaymentForm({
-      amount: remaining,
-      date: new Date().toISOString().slice(0, 10),
-      paymentMethod: 'cash',
-      billNo: '',
-      notes: '',
-    });
-    setPaymentError('');
-    setPaymentOpen(true);
+    setStatusError('');
+    try {
+      await workflowMutation.mutateAsync({ id: po.id, action });
+      const messages: Record<typeof action, string> = {
+        submit: 'Submitted for approval.',
+        approve: 'Purchase Order approved.',
+        reject: 'Purchase Order rejected.',
+        send: 'Purchase Order sent to supplier.',
+        close: 'Purchase Order closed.',
+      };
+      showSuccess(messages[action]);
+    } catch (err) {
+      setStatusError(getErrorMessage(err));
+    }
   };
 
   const handleRecordPayment = async (values: PaymentFormValues) => {
@@ -354,7 +419,7 @@ export function PurchaseOrderDetailPage() {
     }
     setPaymentError('');
     try {
-      await paymentMutation.mutateAsync({
+      const updated = await paymentMutation.mutateAsync({
         id: po.id,
         data: {
           amount,
@@ -366,6 +431,16 @@ export function PurchaseOrderDetailPage() {
       });
       showSuccess('Payment recorded and expense created.');
       setPaymentOpen(false);
+      const paidUp = (updated.paymentStatus === 'paid')
+        || Math.max(0, updated.totalAmount - (updated.amountPaid ?? 0)) < 0.001;
+      if (canManage && updated.status === 'received' && paidUp) {
+        try {
+          await workflowMutation.mutateAsync({ id: po.id, action: 'close' });
+          showSuccess('Order fully paid — closed.');
+        } catch {
+          // Close is best-effort; payment already succeeded.
+        }
+      }
     } catch (err) {
       setPaymentError(getErrorMessage(err));
     }
@@ -375,7 +450,10 @@ export function PurchaseOrderDetailPage() {
     setReturnError('');
     setReturnRemarks('');
     setReturnPaymentMethod('cash');
+    setReturnSettlement('refund');
+    setReturnReason('other');
     setReturnDate(new Date().toISOString().slice(0, 10));
+    setReturnBillNo(po?.billNo?.trim() || '');
     setReturnQtys({});
     setReturnOpen(true);
   };
@@ -407,7 +485,11 @@ export function PurchaseOrderDetailPage() {
         items: items.map(({ productId, returnQty }) => ({ productId, returnQty })),
         remarks: returnRemarks.trim() || undefined,
         paymentMethod: returnPaymentMethod,
+        billNo: returnBillNo.trim() || undefined,
         returnDate: returnDate || undefined,
+        settlementType: returnSettlement,
+        reason: returnReason as 'damaged' | 'wrong_item' | 'expired' | 'quality' | 'other',
+        confirmImmediately: true,
       });
       showSuccess(`Purchase return ${result.returnNumber} posted.`);
       setReturnOpen(false);
@@ -425,26 +507,36 @@ export function PurchaseOrderDetailPage() {
   }
   if (isError || !po) return <Alert severity="error">Purchase order not found.</Alert>;
 
-  const nextStatuses = NEXT_STATUSES[po.status] ?? [];
-  const canCancel = canManage && po.status !== 'cancelled';
+  const canCancel = isAdmin(user?.role) && [
+    'draft',
+    'pending_approval',
+    'approved',
+    'ordered',
+    'partial',
+    'received',
+    'closed',
+    'rejected',
+  ].includes(po.status);
+  const workflowBusy = workflowMutation.isPending || statusMutation.isPending;
   const receivedUnits = po.items.reduce(
     (sum, item) => sum + item.receivedQuantity * (item.unitsPerBuyUom ?? 1),
     0,
   );
   const cancelMessage = [
-    `Cancel ${po.orderNumber}? This cannot be undone.`,
+    `Cancel ${po.orderNumber}? Admin only — this cannot be undone.`,
     '',
     amountPaid > 0
       ? `• Reverse ${formatCurrency(amountPaid)} in recorded payments (linked expenses and wallet entries).`
       : '• No payments to reverse.',
     receivedUnits > 0
-      ? `• Remove ${receivedUnits} leftover stock unit(s) received on this purchase order.`
+      ? `• Remove leftover stock unit(s) received on this purchase order (returns already out are not treated as sold).`
       : '• No received stock to reverse.',
+    '• Void goods receipts and purchase invoices; reverse return refunds/credits.',
     '',
     'Cancel is blocked if any received stock from this order was already sold.',
-    'Edit is only for drafts. After placing: cancel and recreate for mistakes, or Return to supplier for leftover stock.',
   ].join('\n');
   const receivedCount = po.items.filter((i) => i.receivedQuantity >= i.quantity).length;
+  const selectedReceiveCount = itemsToReceive.length;
 
   return (
     <Box>
@@ -452,78 +544,27 @@ export function PurchaseOrderDetailPage() {
         title={po.orderNumber}
         breadcrumbs={[{ label: 'Purchase Orders', path: '/purchase-orders' }, { label: po.orderNumber }]}
         action={
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/purchase-orders')}>
-              Back
-            </Button>
-            {canEditPurchaseOrder(po, user?.role) && (
-              <Button
-                variant="outlined"
-                startIcon={<EditIcon />}
-                onClick={() => navigate(`/purchase-orders/${po.id}/edit`)}
-              >
-                Edit
-              </Button>
-            )}
-            {canManage && canReceive && (
-              <Button
-                variant="contained"
-                startIcon={<InventoryIcon />}
-                onClick={() => void handleReceive()}
-                loading={receiveMutation.isPending}
-                disabled={itemsToReceive.length === 0}
-              >
-                Process Receipt
-              </Button>
-            )}
-            {canPay && (
-              <Button
-                variant="outlined"
-                startIcon={<PaymentsIcon />}
-                onClick={openPaymentDialog}
-              >
-                Record Payment
-              </Button>
-            )}
-            {canReturn && (
-              <Button
-                variant="outlined"
-                startIcon={<AssignmentReturnIcon />}
-                onClick={openReturnDialog}
-              >
-                Return to supplier
-              </Button>
-            )}
-            {canManage && nextStatuses.length > 0 && (
-              <TextField
-                select
-                size="small"
-                label="Update Status"
-                value={statusValue}
-                disabled={statusMutation.isPending}
-                onChange={(e) => {
-                  const next = e.target.value as PurchaseOrderStatus;
-                  if (next) void handleStatusChange(next);
-                }}
-                sx={{ minWidth: 170 }}
-              >
-                {nextStatuses.map((s) => (
-                  <MenuItem key={s} value={s}>{PO_STATUS_LABELS[s]}</MenuItem>
-                ))}
-              </TextField>
-            )}
-            {canCancel && (
-              <Button
-                color="error"
-                variant="outlined"
-                startIcon={<CancelOutlinedIcon />}
-                onClick={() => setCancelOpen(true)}
-                disabled={statusMutation.isPending}
-              >
-                Cancel order
-              </Button>
-            )}
-          </Box>
+          <PoDetailActions
+            po={po}
+            userRole={user?.role}
+            canManage={canManage}
+            canReceive={Boolean(canManage && canReceive)}
+            canPay={canPay}
+            canReturn={canReturn}
+            canCancel={canCancel}
+            workflowBusy={workflowBusy || statusMutation.isPending}
+            receivePending={receiveMutation.isPending}
+            receiveDisabled={itemsToReceive.length === 0}
+            placeOrderPending={statusMutation.isPending}
+            onBack={() => navigate('/purchase-orders')}
+            onEdit={() => navigate(`/purchase-orders/${po.id}/edit`)}
+            onPlaceOrder={() => void handlePlaceOrder()}
+            onWorkflow={(action) => void handleWorkflow(action)}
+            onReceive={() => void handleReceive()}
+            onPay={() => openPaymentDialog()}
+            onReturn={openReturnDialog}
+            onCancel={() => setCancelOpen(true)}
+          />
         }
       />
 
@@ -531,23 +572,17 @@ export function PurchaseOrderDetailPage() {
         <Alert severity="error" sx={{ mb: 2 }}>{statusError || receiveError}</Alert>
       )}
 
-      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Supplier
-            </Typography>
+      <Paper variant="outlined" sx={{ px: 2, py: 1.5, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flexWrap: 'wrap' }}>
             <Link
               component={RouterLink}
               to={`/suppliers/${po.supplierId}`}
               variant="subtitle1"
               sx={{ fontWeight: 600 }}
-              title={po.supplierName}
             >
               {po.supplierName}
             </Link>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Chip label={PO_STATUS_LABELS[po.status]} color={STATUS_COLORS[po.status]} size="small" sx={{ fontWeight: 600 }} />
             <Chip
               label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
@@ -556,177 +591,144 @@ export function PurchaseOrderDetailPage() {
               variant="outlined"
               sx={{ fontWeight: 600 }}
             />
+            {po.billNo?.trim() ? (
+              <Typography variant="body2" color="text.secondary">
+                Bill: <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{po.billNo}</Box>
+              </Typography>
+            ) : null}
           </Box>
-          <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Order total</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-              {formatCurrency(po.totalAmount)}
-            </Typography>
+          <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Total</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatCurrency(po.totalAmount)}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Paid</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatCurrency(amountPaid)}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Remaining</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: remaining > 0 ? 'warning.main' : 'success.main' }}>
+                {formatCurrency(remaining)}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Items</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                {receivedCount}/{po.items.length} received
+              </Typography>
+            </Box>
           </Box>
         </Box>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 6, md: 2.4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Expected delivery</Typography>
-            <Typography variant="body2">{po.expectedDelivery ? formatDate(po.expectedDelivery) : '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 2.4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Items</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {po.items.length}
-              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                · {receivedCount} received
-              </Typography>
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 2.4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Ordered by</Typography>
-            <Typography variant="body2">{po.orderedBy ?? '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 2.4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Received by</Typography>
-            <Typography variant="body2">{po.receivedBy ?? '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 2.4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Last updated</Typography>
-            <Typography variant="body2">{po.updatedAt ? formatDateTime(po.updatedAt) : '—'}</Typography>
-          </Grid>
-        </Grid>
-        <Accordion disableGutters elevation={0} sx={{ mt: 1.5, bgcolor: 'transparent', '&:before': { display: 'none' } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 40 }}>
-            <Typography variant="body2" color="text.secondary">More details</Typography>
+        <Accordion disableGutters elevation={0} sx={{ mt: 0.5, bgcolor: 'transparent', '&:before': { display: 'none' } }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 36 }}>
+            <Typography variant="caption" color="text.secondary">More details</Typography>
           </AccordionSummary>
           <AccordionDetails sx={{ px: 0, pt: 0 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Received date</Typography>
-                <Typography variant="body2">{po.receivedDate ? formatDate(po.receivedDate) : '—'}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Created</Typography>
-                <Typography variant="body2">{formatDate(po.createdAt)}</Typography>
-              </Grid>
-              {(po.remarks || (po.discount ?? 0) > 0 || (po.tax ?? 0) > 0) && (
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Remarks</Typography>
-                  <Typography variant="body2">{po.remarks?.trim() || '—'}</Typography>
-                </Grid>
-              )}
-            </Grid>
+            <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 2, overflowX: 'auto', py: 0.5 }}>
+              {[
+                { label: 'Expected delivery', value: po.expectedDelivery ? formatDate(po.expectedDelivery) : '—' },
+                { label: 'Ordered by', value: po.orderedBy ?? '—' },
+                { label: 'Received by', value: po.receivedBy ?? '—' },
+                { label: 'Updated', value: po.updatedAt ? formatDateTime(po.updatedAt) : '—' },
+                { label: 'Created', value: formatDate(po.createdAt) },
+                { label: 'Bill no.', value: po.billNo?.trim() || '—' },
+                { label: 'Remarks', value: po.remarks?.trim() || '—' },
+              ].map((field) => (
+                <Box key={field.label} sx={{ flexShrink: 0, minWidth: 120 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {field.label}
+                  </Typography>
+                  <Typography variant="body2" noWrap title={field.value}>
+                    {field.value}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
           </AccordionDetails>
         </Accordion>
       </Paper>
 
-      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Payments</Typography>
-          {canPay && (
-            <Button size="small" startIcon={<PaymentsIcon />} onClick={openPaymentDialog}>
-              Record payment
-            </Button>
-          )}
-        </Box>
-        <Grid container spacing={2} sx={{ mb: 1.5 }}>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Paid</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 700 }}>{formatCurrency(amountPaid)}</Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Remaining</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 700, color: remaining > 0 ? 'warning.main' : 'success.main' }}>
-              {formatCurrency(remaining)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Status</Typography>
-            <Chip
-              label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
-              color={PAYMENT_COLORS[paymentStatus]}
-              size="small"
-              sx={{ mt: 0.25 }}
-            />
-          </Grid>
-        </Grid>
-        {(po.payments?.length ?? 0) === 0 ? (
-          <Typography variant="body2" color="text.secondary">No payments recorded yet.</Typography>
-        ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Bill no.</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Recorded by</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(po.payments ?? []).map((payment, index) => (
-                  <TableRow key={`${payment.expenseId}-${index}`}>
-                    <TableCell>{formatDate(payment.date)}</TableCell>
-                    <TableCell>{payment.billNo?.trim() ? payment.billNo : '—'}</TableCell>
-                    <TableCell sx={{ textTransform: 'capitalize' }}>{payment.paymentMethod}</TableCell>
-                    <TableCell align="right">{formatCurrency(payment.amount)}</TableCell>
-                    <TableCell>{payment.notes || '—'}</TableCell>
-                    <TableCell>{payment.createdBy || '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
-
-      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Returns to supplier</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              {PO_RETURN_HINT}
-            </Typography>
+      {((po.billImages?.length ?? 0) > 0 || (canManage && po.status !== 'cancelled' && !canReceive)) && (
+        <Paper variant="outlined" sx={{ px: 2, py: 1.5, mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Bill photos</Typography>
+            {canManage && po.status !== 'cancelled' && !canReceive && (
+              <Button
+                size="small"
+                variant="outlined"
+                component="label"
+                startIcon={<PhotoCameraIcon />}
+                loading={billUploadBusy || billImagesMutation.isPending}
+                disabled={billUploadBusy || billImagesMutation.isPending}
+              >
+                Add photos
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    void handleBillFilesSelected(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </Button>
+            )}
           </Box>
-          {canReturn && (
-            <Button size="small" startIcon={<AssignmentReturnIcon />} onClick={openReturnDialog}>
-              Return to supplier
-            </Button>
+          {(po.billImages?.length ?? 0) === 0 ? (
+            <Typography variant="caption" color="text.secondary">No bill photos yet.</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {(po.billImages ?? []).map((url) => (
+                <Box key={url} sx={{ position: 'relative', width: 72, height: 72 }}>
+                  <Box
+                    component="a"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ display: 'block', width: 72, height: 72 }}
+                  >
+                    <Box
+                      component="img"
+                      src={url}
+                      alt="Bill"
+                      sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}
+                    />
+                  </Box>
+                  {canManage && po.status !== 'cancelled' && (
+                    <IconButton
+                      size="small"
+                      aria-label="Remove bill photo"
+                      onClick={() => void handleRemoveSavedBillImage(url)}
+                      sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'background.paper', boxShadow: 1 }}
+                    >
+                      <CloseIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
+            </Box>
           )}
-        </Box>
-        {(returnsData?.data.length ?? 0) === 0 ? (
-          <Typography variant="body2" color="text.secondary">No purchase returns yet.</Typography>
-        ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 700 }}>Return #</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Wallet</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Items</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>By</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(returnsData?.data ?? []).map((ret) => (
-                  <TableRow key={ret.id}>
-                    <TableCell>{ret.returnNumber}</TableCell>
-                    <TableCell>{ret.returnDate ? formatDate(ret.returnDate) : '—'}</TableCell>
-                    <TableCell sx={{ textTransform: 'capitalize' }}>{ret.paymentMethod}</TableCell>
-                    <TableCell align="right">{formatCurrency(ret.totalAmount)}</TableCell>
-                    <TableCell>
-                      {ret.items.map((i) => `${i.productName} (${i.returnQty})`).join(', ')}
-                    </TableCell>
-                    <TableCell>{ret.createdBy || '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
+        </Paper>
+      )}
 
-      <Paper sx={{ p: 2 }}>
+      <PoHistoryTabs
+        po={po}
+        receipts={receiptsData?.data ?? []}
+        invoices={invoicesData?.data ?? []}
+        returns={returnsData?.data ?? []}
+        canPay={canPay}
+        canReturn={canReturn}
+        paymentStatus={paymentStatus}
+        amountPaid={amountPaid}
+        remaining={remaining}
+        formatDate={formatDate}
+        onPay={() => openPaymentDialog()}
+        onReturn={openReturnDialog}
+      />
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
@@ -736,21 +738,68 @@ export function PurchaseOrderDetailPage() {
               </Typography>
             )}
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-            {canReceive && (
-              <TextField
-                size="small"
-                label={PO_LABELS.billNo}
-                value={receiveBillNo}
-                onChange={(e) => setReceiveBillNo(e.target.value)}
-                placeholder="Optional"
-                sx={{ width: 160 }}
-              />
-            )}
-            <Typography variant="body2" color="text.secondary">
-              {po.items.length} product{po.items.length !== 1 ? 's' : ''}
-            </Typography>
-          </Box>
+          {canReceive && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <TextField
+                  size="small"
+                  label={PO_LABELS.billNo}
+                  value={receiveBillNo}
+                  onChange={(e) => setReceiveBillNo(e.target.value)}
+                  placeholder="Optional"
+                  sx={{ width: 170 }}
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCameraIcon />}
+                  loading={billUploadBusy}
+                  disabled={billUploadBusy}
+                >
+                  Bill photos
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    hidden
+                    onChange={(e) => {
+                      void handleBillFilesSelected(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  {selectedReceiveCount} selected — use Process Goods Receipt in the header
+                </Typography>
+              </Box>
+              {(pendingBillImages.length > 0 || (po.billImages?.length ?? 0) > 0) && (
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 420 }}>
+                  {pendingBillImages.map((url) => (
+                    <Box key={url} sx={{ position: 'relative', width: 56, height: 56 }}>
+                      <Box
+                        component="img"
+                        src={url}
+                        alt="Pending bill"
+                        sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}
+                      />
+                      <IconButton
+                        size="small"
+                        aria-label="Remove pending bill photo"
+                        onClick={() => setPendingBillImages((prev) => prev.filter((u) => u !== url))}
+                        sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'background.paper', boxShadow: 1 }}
+                      >
+                        <CloseIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+              <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 360, textAlign: 'right' }}>
+                {PO_BILL_NO_HINT} {PO_BILL_IMAGES_HINT}
+              </Typography>
+            </Box>
+          )}
         </Box>
         <Divider sx={{ mb: 1.5 }} />
 
@@ -760,7 +809,13 @@ export function PurchaseOrderDetailPage() {
             sx={{
               tableLayout: 'fixed',
               minWidth: poDetailTableMinWidth(canReceive),
-              '& .MuiTableCell-root': { verticalAlign: 'middle', py: 0.75, px: 0.75, fontSize: '0.8125rem' },
+              '& .MuiTableCell-root': {
+                verticalAlign: 'middle',
+                py: 0.75,
+                px: 0.75,
+                fontSize: '0.8125rem',
+                overflow: 'hidden',
+              },
             }}
           >
             <colgroup>
@@ -771,7 +826,7 @@ export function PurchaseOrderDetailPage() {
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
                 {canReceive && (
-                  <TableCell padding="checkbox" rowSpan={2} sx={headerCellSx}>
+                  <TableCell padding="checkbox" sx={headerCellSx}>
                     <Checkbox
                       size="small"
                       checked={selectAllState.checked}
@@ -781,54 +836,39 @@ export function PurchaseOrderDetailPage() {
                     />
                   </TableCell>
                 )}
-                <TableCell align="center" rowSpan={2} sx={headerCellSx}>#</TableCell>
-                <TableCell rowSpan={2} sx={headerCellSx}>Product</TableCell>
-                <TableCell
-                  align="center"
-                  colSpan={3}
-                  sx={orderedGroupHeaderSx}
-                >
-                  {PO_LABELS.ordered}
-                </TableCell>
-                <TableCell
-                  align="center"
-                  colSpan={canReceive ? 5 : 3}
-                  sx={receivedGroupHeaderSx}
-                >
-                  {PO_LABELS.received}
-                </TableCell>
-                <TableCell rowSpan={2} sx={headerCellSx}>Status</TableCell>
-                <TableCell align="right" rowSpan={2} sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
-                <TableCell align="right" rowSpan={2} sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
-              </TableRow>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell align="right" sx={orderedSubHeaderSx}>{PO_LABELS.orderedQty}</TableCell>
-                <TableCell align="right" sx={orderedSubHeaderSx}>{PO_LABELS.orderUom}</TableCell>
-                <TableCell align="right" sx={{ ...orderedSubHeaderSx, borderRight: 2, borderColor: 'grey.300' }}>{PO_LABELS.conversionUnit}</TableCell>
-                <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.receivedQty}</TableCell>
-                {canReceive && <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.receiveQty}</TableCell>}
-                <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.sellUom}</TableCell>
-                <TableCell align="right" sx={receivedSubHeaderSx}>{PO_LABELS.totalUnitsSell}</TableCell>
-                {canReceive && <TableCell sx={receivedSubHeaderSx}>{PO_LABELS.expiryOptional}</TableCell>}
+                <TableCell align="center" sx={headerCellSx}>#</TableCell>
+                <TableCell sx={headerCellSx}>Product</TableCell>
+                <TableCell sx={headerCellSx}>{PO_LABELS.buyUom}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitsPerPack}</TableCell>
+                <TableCell sx={headerCellSx}>{PO_LABELS.sellUnit}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.orderedQty}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.receivedQty}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.remaining}</TableCell>
+                {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.receiveQty}</TableCell>}
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.totalUnits}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
+                {canReceive && <TableCell sx={headerCellSx}>{PO_LABELS.expiryOptional}</TableCell>}
+                <TableCell sx={headerCellSx}>Status</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {po.items.map((item, index) => {
-                const remaining = item.quantity - item.receivedQuantity;
-                const receiveSel = getReceiveSelection(item.productId, remaining);
-                const orderUom = item.orderUom ?? 'pcs';
-                const sellUom = item.baseUom ?? 'pcs';
-                const unitsPerBuy = receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
-                const receivedTotalUnits = item.receivedQuantity * (item.unitsPerBuyUom ?? 1);
-                const thisReceiveUnits = receiveSel.selected
-                  ? receiveSel.receiveQuantity * unitsPerBuy
-                  : receivedTotalUnits;
+                const lineRemaining = item.quantity - item.receivedQuantity;
+                const receiveSel = getReceiveSelection(item.productId, lineRemaining);
                 const lineStatus = item.lineStatus ?? (
                   item.receivedQuantity <= 0 ? 'pending'
                   : item.receivedQuantity >= item.quantity ? 'received'
                   : 'partial'
                 );
-                const defaultPackQty = remaining > 0 ? remaining : 1;
+                const defaultPackQty = lineRemaining > 0 ? lineRemaining : 1;
+                const orderUom = item.orderUom ?? 'pcs';
+                const units = item.unitsPerBuyUom ?? 1;
+                const baseUom = item.baseUom ?? 'pcs';
+                const receivedTotalUnits = item.receivedQuantity * units;
+                const thisReceiveUnits = receiveSel.selected
+                  ? receiveSel.receiveQuantity * units
+                  : receivedTotalUnits;
 
                 return (
                   <TableRow key={item.productId} selected={canReceive && receiveSel.selected}>
@@ -838,7 +878,7 @@ export function PurchaseOrderDetailPage() {
                           size="small"
                           checked={receiveSel.selected}
                           onChange={(e) =>
-                            updateReceiveSelection(item.productId, remaining, {
+                            updateReceiveSelection(item.productId, lineRemaining, {
                               selected: e.target.checked,
                               receiveQuantity: receiveSel.receiveQuantity || defaultPackQty,
                               unitsPerBuyUom: receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1,
@@ -852,33 +892,21 @@ export function PurchaseOrderDetailPage() {
                         {index + 1}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ minWidth: PO_DETAIL_COLUMNS.product }}>
+                    <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.3 }} title={item.productName} noWrap>
                         {item.productName}
                       </Typography>
                     </TableCell>
-                    <TableCell align="right">{item.quantity}</TableCell>
-                    <TableCell align="right">{orderUom}</TableCell>
-                    <TableCell align="right">
-                      {canReceive ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={unitsPerBuy}
-                          disabled={!receiveSel.selected}
-                          onChange={(e) =>
-                            updateReceiveSelection(item.productId, remaining, {
-                              unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
-                            })
-                          }
-                          sx={{ width: '100%', minWidth: 56 }}
-                          slotProps={{ htmlInput: { min: 1 } }}
-                        />
-                      ) : (
-                        item.unitsPerBuyUom ?? 1
-                      )}
+                    <TableCell>
+                      <Typography variant="body2" noWrap>{orderUom}</Typography>
                     </TableCell>
+                    <TableCell align="right">{units}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap>{baseUom}</Typography>
+                    </TableCell>
+                    <TableCell align="right">{item.quantity}</TableCell>
                     <TableCell align="right">{item.receivedQuantity}</TableCell>
+                    <TableCell align="right">{lineRemaining}</TableCell>
                     {canReceive && (
                       <TableCell align="right">
                         <TextField
@@ -888,41 +916,43 @@ export function PurchaseOrderDetailPage() {
                           disabled={!receiveSel.selected}
                           onChange={(e) => {
                             const raw = Math.max(1, parseInt(e.target.value, 10) || 1);
-                            const capped = remaining > 0 ? Math.min(raw, remaining) : raw;
-                            updateReceiveSelection(item.productId, remaining, {
+                            const capped = lineRemaining > 0 ? Math.min(raw, lineRemaining) : raw;
+                            updateReceiveSelection(item.productId, lineRemaining, {
                               receiveQuantity: capped,
                             });
                           }}
-                          sx={{ width: '100%', minWidth: 64 }}
-                          slotProps={{ htmlInput: { min: 1, max: Math.max(remaining, 1) } }}
+                          sx={{ width: '100%', maxWidth: 72 }}
+                          slotProps={{ htmlInput: { min: 1, max: Math.max(lineRemaining, 1) } }}
                         />
                       </TableCell>
                     )}
-                    <TableCell align="right">{sellUom}</TableCell>
                     <TableCell align="right">
                       {canReceive
                         ? (receiveSel.selected ? thisReceiveUnits : '—')
                         : receivedTotalUnits}
                     </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {formatCurrency(item.unitCost)}
+                    </TableCell>
                     {canReceive && (
                       <TableCell>
-                        <NepaliAwareDatePicker
-                          label="Expiry"
-                          value={receiveSel.expiryDate}
-                          onChange={(d) =>
-                            updateReceiveSelection(item.productId, remaining, { expiryDate: d })
-                          }
-                          size="small"
-                          disabled={!receiveSel.selected}
-                          calendarSystem="AD"
-                        />
+                        {receiveSel.selected ? (
+                          <NepaliAwareDatePicker
+                            label=""
+                            value={receiveSel.expiryDate}
+                            onChange={(d) =>
+                              updateReceiveSelection(item.productId, lineRemaining, { expiryDate: d })
+                            }
+                            size="small"
+                            calendarSystem="AD"
+                          />
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">—</Typography>
+                        )}
                       </TableCell>
                     )}
                     <TableCell>
                       <Chip label={PO_LINE_STATUS_LABELS[lineStatus]} size="small" color={LINE_STATUS_COLORS[lineStatus]} />
-                    </TableCell>
-                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {formatCurrency(item.unitCost)}
                     </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {formatCurrency(item.quantity * item.unitCost)}
@@ -961,7 +991,7 @@ export function PurchaseOrderDetailPage() {
 
       <FormModal
         open={paymentOpen}
-        title="Record Payment"
+        title="Pay invoice"
         onClose={() => setPaymentOpen(false)}
         onSubmit={handlePaymentSubmit(handleRecordPayment)}
         submitLabel="Save payment"
@@ -1127,19 +1157,62 @@ export function PurchaseOrderDetailPage() {
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  label="Bill no."
+                  size="small"
+                  fullWidth
+                  value={returnBillNo}
+                  onChange={(e) => setReturnBillNo(e.target.value)}
+                  placeholder="Defaults from PO"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Credit wallet</InputLabel>
+                  <InputLabel>Settlement</InputLabel>
                   <Select
-                    label="Credit wallet"
-                    value={returnPaymentMethod}
-                    onChange={(e) => setReturnPaymentMethod(e.target.value)}
+                    label="Settlement"
+                    value={returnSettlement}
+                    onChange={(e) => setReturnSettlement(e.target.value as typeof returnSettlement)}
                   >
-                    {PAYMENT_METHODS.map((method) => (
-                      <MenuItem key={method.value} value={method.value}>{method.label}</MenuItem>
-                    ))}
+                    <MenuItem value="refund">Refund (wallet)</MenuItem>
+                    <MenuItem value="credit">Supplier credit</MenuItem>
+                    <MenuItem value="replacement">Replacement</MenuItem>
+                    <MenuItem value="pending">Pending settlement</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Reason</InputLabel>
+                  <Select
+                    label="Reason"
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                  >
+                    <MenuItem value="damaged">Damaged</MenuItem>
+                    <MenuItem value="wrong_item">Wrong item</MenuItem>
+                    <MenuItem value="expired">Expired</MenuItem>
+                    <MenuItem value="quality">Quality</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              {returnSettlement === 'refund' && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Credit wallet</InputLabel>
+                    <Select
+                      label="Credit wallet"
+                      value={returnPaymentMethod}
+                      onChange={(e) => setReturnPaymentMethod(e.target.value)}
+                    >
+                      {PAYMENT_METHODS.map((method) => (
+                        <MenuItem key={method.value} value={method.value}>{method.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
               <Grid size={{ xs: 12 }}>
                 <TextField
                   label="Remarks"

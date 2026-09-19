@@ -196,6 +196,7 @@ async def receive_purchase_order_items(
     current_user: User,
     request: Request,
     bill_no: str = "",
+    allow_replacement: bool = False,
 ) -> PurchaseOrder:
     """
     Receive PO lines atomically (MongoDB transaction on replica set / Atlas).
@@ -207,7 +208,18 @@ async def receive_purchase_order_items(
     if not po:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
 
-    if po.status not in (POStatus.ordered, POStatus.partial):
+    if allow_replacement:
+        if po.status not in (
+            POStatus.ordered,
+            POStatus.partial,
+            POStatus.received,
+            POStatus.closed,
+        ):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Replacement goods cannot be received for this purchase order status",
+            )
+    elif po.status not in (POStatus.ordered, POStatus.partial):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail="Only ordered or partially received purchase orders can be processed",
@@ -237,7 +249,7 @@ async def receive_purchase_order_items(
             continue
 
         remaining_ordered = item.quantity - item.received_quantity
-        if buy_delta > remaining_ordered:
+        if not allow_replacement and buy_delta > remaining_ordered:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -249,7 +261,11 @@ async def receive_purchase_order_items(
         units = receive.units_per_buy_uom or getattr(item, "units_per_buy_uom", None) or 1
         base_delta = buy_delta * units
 
-        item_updates: dict = {"received_quantity": item.received_quantity + buy_delta}
+        # Replacement stock restores inventory without re-billing / over-counting received qty
+        if allow_replacement:
+            item_updates: dict = {}
+        else:
+            item_updates = {"received_quantity": item.received_quantity + buy_delta}
         if receive.units_per_buy_uom and receive.units_per_buy_uom != getattr(
             item, "units_per_buy_uom", 1
         ):
@@ -264,7 +280,8 @@ async def receive_purchase_order_items(
                 base_delta=base_delta,
             ),
         )
-        updated_items[idx] = item.model_copy(update=item_updates)
+        if item_updates:
+            updated_items[idx] = item.model_copy(update=item_updates)
 
     if not plans:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No stock was received")

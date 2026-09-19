@@ -1,3 +1,9 @@
+/** Small-store default: Place Order → Receive → Pay. Formal approval stays in Advanced. */
+export const PO_REQUIRE_APPROVAL = false;
+
+/** After goods receipt, open the pay dialog so stock-in and pay can finish in one visit. */
+export const PO_AUTO_OPEN_PAY_AFTER_RECEIVE = true;
+
 export const PO_LABELS = {
   sku: 'SKU',
   product: 'Product',
@@ -8,23 +14,35 @@ export const PO_LABELS = {
   totalUnits: 'Total units',
   sellUnit: 'Sell Unit',
   ordered: 'Ordered',
-  orderedQty: 'Ordered Qty',
+  orderedQty: 'Ordered',
   orderUom: 'Order UOM',
+  uom: 'UOM',
   received: 'Received',
-  receivedQty: 'Received Qty',
+  receivedQty: 'Received',
   receiveQty: 'Receive qty',
+  remaining: 'Remaining',
   sellUom: 'Sell UOM',
   totalUnitsSell: 'Total Units',
   unitCost: 'Unit cost',
   lineTotal: 'Line total',
-  expiryOptional: 'Expiry (optional)',
-  billNo: 'Bill number',
+  expiryOptional: 'Expiry',
+  billNo: 'Supplier bill no.',
 } as const;
 
 export const PO_PASTE_HINT = `${PO_LABELS.sku} · ${PO_LABELS.product} · ${PO_LABELS.packQty} · ${PO_LABELS.buyUom} · ${PO_LABELS.unitsPerPack} · ${PO_LABELS.unitCost}`;
 
 export const PO_RECEIVE_HINT =
-  'Receive qty is in Order UOM. Total units (Sell UOM) = receive qty × Conversion unit.';
+  'Select lines (use header checkbox for all), enter qty in Primary Unit, then Process Goods Receipt. Stock goes in and an invoice is created — then Pay the supplier.';
+
+export const PO_BILL_NO_HINT =
+  'Saved on this receipt and invoice, and on the PO for later payments/returns.';
+
+export const PO_BILL_IMAGES_HINT =
+  'Upload photos of the supplier bill (multiple images). Saved on the goods receipt and the purchase order.';
+
+export const PO_GOODS_RECEIPT_HINT = 'Physical stock in.';
+
+export const PO_INVOICE_HINT = 'Supplier bill (AP). Auto-created on goods receipt.';
 
 export const PO_DRAFT_EDIT_HINT =
   'Edit is only available while this order is a draft. After Place Order, cancel and recreate to fix mistakes, or use Return to supplier for leftover received stock.';
@@ -33,4 +51,4 @@ export const PO_CANCEL_HINT =
   'Cancel voids the purchase order: recorded payments and leftover received stock are reversed. If any received stock was already sold, cancel is blocked — use Return to supplier for remaining stock instead.';
 
 export const PO_RETURN_HINT =
-  'Return leftover received stock to the supplier. The original purchase order stays on record; a wallet credit is posted for the return value. Return qty is in Sell UOM and cannot exceed leftover stock from this PO.';
+  'Return leftover stock. Refund requires prior invoice payment; otherwise use credit, replacement, or pending.';

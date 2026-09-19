@@ -613,6 +613,80 @@ async def purchase_orders_summary_report(
     )
 
 
+@router.get("/goods-receipts-summary")
+async def goods_receipts_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    from app.models.goods_receipt import GoodsReceipt, GoodsReceiptStatus
+    start, end = parse_date_range(start_date, end_date)
+    docs = await GoodsReceipt.find({"created_at": {"$gte": start, "$lte": end}}).to_list()
+    confirmed = [d for d in docs if d.status == GoodsReceiptStatus.confirmed]
+    return {
+        "total_receipts": len(docs),
+        "confirmed_receipts": len(confirmed),
+        "total_amount": round(sum(float(d.total_amount or 0) for d in confirmed), 2),
+    }
+
+
+@router.get("/purchase-returns-summary")
+async def purchase_returns_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    from app.models.purchase_return import PurchaseReturn, PurchaseReturnStatus
+    start, end = parse_date_range(start_date, end_date)
+    docs = await PurchaseReturn.find({"created_at": {"$gte": start, "$lte": end}}).to_list()
+    confirmed = [
+        d for d in docs
+        if d.status in (PurchaseReturnStatus.confirmed, PurchaseReturnStatus.posted)
+    ]
+    by_settlement: dict[str, int] = defaultdict(int)
+    for d in confirmed:
+        st = getattr(d, "settlement_type", None)
+        key = st.value if hasattr(st, "value") else str(st or "refund")
+        by_settlement[key] += 1
+    return {
+        "total_returns": len(docs),
+        "confirmed_returns": len(confirmed),
+        "total_amount": round(sum(float(d.total_amount or 0) for d in confirmed), 2),
+        "by_settlement": dict(by_settlement),
+    }
+
+
+@router.get("/supplier-outstanding-summary")
+async def supplier_outstanding_summary_report(
+    _: User = Depends(require_manager_or_above),
+):
+    from app.models.purchase_invoice import InvoiceStatus, PurchaseInvoice, SupplierCredit
+    invoices = await PurchaseInvoice.find(
+        {"status": {"$nin": [InvoiceStatus.cancelled.value, InvoiceStatus.paid.value]}},
+    ).to_list()
+    by_supplier: dict[str, dict] = {}
+    for inv in invoices:
+        row = by_supplier.setdefault(
+            inv.supplier_id,
+            {"supplier_id": inv.supplier_id, "supplier_name": inv.supplier_name, "invoice_outstanding": 0.0},
+        )
+        row["invoice_outstanding"] = round(row["invoice_outstanding"] + inv.outstanding, 2)
+    credits = await SupplierCredit.find_all().to_list()
+    credit_by: dict[str, float] = defaultdict(float)
+    for c in credits:
+        credit_by[c.supplier_id] += float(c.remaining_amount or 0)
+    result = []
+    for sid, row in by_supplier.items():
+        credit = round(credit_by.get(sid, 0.0), 2)
+        result.append({
+            **row,
+            "credit_balance": credit,
+            "net_outstanding": round(max(0.0, row["invoice_outstanding"] - credit), 2),
+        })
+    result.sort(key=lambda r: r["net_outstanding"], reverse=True)
+    return {"data": result, "total": len(result)}
+
+
 @router.get("/top-customers", response_model=list[TopCustomer])
 async def top_customers_report(
     start_date: str = Query(""),

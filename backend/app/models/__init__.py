@@ -18,6 +18,8 @@ from app.models.day_close import DayClose
 from app.models.price_history import PriceHistory
 from app.models.purchase_price_history import PurchasePriceHistory
 from app.models.purchase_return import PurchaseReturn
+from app.models.goods_receipt import GoodsReceipt
+from app.models.purchase_invoice import PurchaseInvoice, SupplierPayment, SupplierCredit
 from app.models.wallet_ledger import WalletLedgerEntry
 from app.models.cache_entry import CacheEntry
 from app.models.cash_custody import CashCustody
@@ -44,6 +46,10 @@ __all__ = [
     "PriceHistory",
     "PurchasePriceHistory",
     "PurchaseReturn",
+    "GoodsReceipt",
+    "PurchaseInvoice",
+    "SupplierPayment",
+    "SupplierCredit",
     "WalletLedgerEntry",
     "CacheEntry",
     "CashCustody",

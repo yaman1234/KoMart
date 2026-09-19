@@ -13,17 +13,21 @@ from httpx import ASGITransport, AsyncClient
 from app.auth.jwt import hash_password
 from app.database import init_db
 from app.main import app
+from app.models.goods_receipt import GoodsReceipt
 from app.models.expense import Expense
 from app.models.inventory import InventoryBatch, StockAdjustment
 from app.models.product import Product
+from app.models.purchase_invoice import PurchaseInvoice, SupplierCredit
 from app.models.purchase_order import (
     POStatus,
     PaymentStatus,
     PurchaseOrder,
     PurchaseOrderItem,
 )
+from app.models.purchase_return import PurchaseReturn
 from app.models.user import User, UserRole
 from app.schemas.purchase_order import PurchaseOrderPaymentCreate, PurchaseOrderReceiveItem
+from app.services.goods_receipt_service import create_and_confirm_goods_receipt
 from app.services.po_cancel import cancel_purchase_order
 from app.services.po_payment import record_payment
 from app.services.po_receive import receive_purchase_order_items
@@ -49,6 +53,19 @@ async def _manager() -> User:
         name="PO Cancel Tester",
         hashed_password=hash_password("managerpass123"),
         role=UserRole.manager,
+        is_active=True,
+    )
+    await user.insert()
+    return user
+
+
+async def _admin() -> User:
+    email = f"po-cancel-admin-{uuid.uuid4().hex[:8]}@komart.com"
+    user = User(
+        email=email,
+        name="PO Cancel Admin",
+        hashed_password=hash_password("adminpass123"),
+        role=UserRole.admin,
         is_active=True,
     )
     await user.insert()
@@ -83,7 +100,7 @@ async def _product(name: str, cost: float = 10.0) -> Product:
 
 
 async def _ordered_po(product: Product, qty: int = 5, cost: float = 10.0) -> tuple[PurchaseOrder, User]:
-    user = await _manager()
+    user = await _admin()
     po = PurchaseOrder(
         order_number=f"PO-CNL-{uuid.uuid4().hex[:6]}",
         supplier_id="sup-1",
@@ -126,6 +143,10 @@ async def _receive_po(
 async def _cleanup(po: PurchaseOrder, *products: Product, user: User | None = None) -> None:
     pid = str(po.id)
     await Expense.find(Expense.purchase_order_id == pid).delete()
+    await PurchaseInvoice.find(PurchaseInvoice.purchase_order_id == pid).delete()
+    await PurchaseReturn.find(PurchaseReturn.purchase_order_id == pid).delete()
+    await SupplierCredit.find(SupplierCredit.purchase_order_id == pid).delete()
+    await GoodsReceipt.find(GoodsReceipt.purchase_order_id == pid).delete()
     await InventoryBatch.find(InventoryBatch.purchase_order_id == pid).delete()
     for product in products:
         await InventoryBatch.find(InventoryBatch.product_id == str(product.id)).delete()
@@ -242,10 +263,35 @@ async def test_cancel_already_cancelled_is_400():
 @pytest.mark.asyncio
 async def test_status_endpoint_cancel_unwinds(client: AsyncClient):
     product = await _product("Cancel HTTP")
-    po, user = await _receive_po(product, qty=3, cost=10.0)
+    user = await _admin()
+    po = PurchaseOrder(
+        order_number=f"PO-CNL-HTTP-{uuid.uuid4().hex[:6]}",
+        supplier_id="sup-1",
+        supplier_name="Supplier",
+        status=POStatus.ordered,
+        items=[
+            PurchaseOrderItem(
+                product_id=str(product.id),
+                product_name=product.name,
+                quantity=3,
+                unit_cost=10.0,
+                received_quantity=0,
+            )
+        ],
+        total_amount=30.0,
+        ordered_by=user.name,
+    )
+    await po.insert()
+    await create_and_confirm_goods_receipt(
+        str(po.id),
+        [PurchaseOrderReceiveItem(product_id=str(product.id), receive_quantity=3)],
+        created_by=user.name,
+        current_user=user,
+        request=_mock_request(),
+    )
     login = await client.post(
         "/api/v1/auth/login",
-        json={"email": user.email, "password": "managerpass123"},
+        json={"email": user.email, "password": "adminpass123"},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]
@@ -261,4 +307,103 @@ async def test_status_endpoint_cancel_unwinds(client: AsyncClient):
     assert body["amount_paid"] == 0
     assert await get_current_stock(str(product.id)) == 0
 
+    grs = await GoodsReceipt.find(GoodsReceipt.purchase_order_id == str(po.id)).to_list()
+    assert grs
+    assert all(
+        (g.status.value if hasattr(g.status, "value") else str(g.status)) == "cancelled"
+        for g in grs
+    )
+
     await _cleanup(po, product, user=user)
+
+
+@pytest.mark.asyncio
+async def test_manager_cannot_cancel_via_status(client: AsyncClient):
+    product = await _product("Cancel Manager Forbidden")
+    po, admin = await _ordered_po(product)
+    manager = await _manager()
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": manager.email, "password": "managerpass123"},
+    )
+    assert login.status_code == 200
+    res = await client.patch(
+        f"/api/v1/purchase-orders/{po.id}/status",
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        json={"status": "cancelled"},
+    )
+    assert res.status_code == 403
+    still = await PurchaseOrder.get(str(po.id))
+    assert still is not None
+    assert still.status == POStatus.ordered
+    await _cleanup(po, product, user=admin)
+    await manager.delete()
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_confirmed_return_reverses_leftover_only(client: AsyncClient):
+    """Confirmed returns count as already out — cancel must not treat them as sold."""
+    product = await _product("Cancel After Return")
+    user = await _admin()
+    po = PurchaseOrder(
+        order_number=f"PO-CNL-RET-{uuid.uuid4().hex[:6]}",
+        supplier_id="sup-1",
+        supplier_name="Supplier",
+        status=POStatus.ordered,
+        items=[
+            PurchaseOrderItem(
+                product_id=str(product.id),
+                product_name=product.name,
+                quantity=5,
+                unit_cost=10.0,
+                received_quantity=0,
+            )
+        ],
+        total_amount=50.0,
+        ordered_by=user.name,
+    )
+    await po.insert()
+    await create_and_confirm_goods_receipt(
+        str(po.id),
+        [PurchaseOrderReceiveItem(product_id=str(product.id), receive_quantity=5)],
+        created_by=user.name,
+        current_user=user,
+        request=_mock_request(),
+        bill_images=["https://example.com/bill1.jpg", "https://example.com/bill2.jpg"],
+    )
+    refreshed = await PurchaseOrder.get(str(po.id))
+    assert refreshed is not None
+    assert refreshed.bill_images == ["https://example.com/bill1.jpg", "https://example.com/bill2.jpg"]
+    assert await get_current_stock(str(product.id)) == 5
+
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": user.email, "password": "adminpass123"},
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    ret = await client.post(
+        "/api/v1/purchase-returns",
+        headers=headers,
+        json={
+            "purchase_order_id": str(po.id),
+            "items": [{"product_id": str(product.id), "return_qty": 2}],
+            "settlement_type": "credit",
+            "remarks": "partial return before cancel",
+        },
+    )
+    assert ret.status_code == 201, ret.text
+    assert await get_current_stock(str(product.id)) == 3
+
+    po = await PurchaseOrder.get(str(po.id))
+    assert po is not None
+    cancelled = await cancel_purchase_order(po, current_user=user, request=_mock_request())
+    assert cancelled.status == POStatus.cancelled
+    assert await get_current_stock(str(product.id)) == 0
+    credits = await SupplierCredit.find(SupplierCredit.purchase_order_id == str(po.id)).to_list()
+    assert credits == []
+    returns = await PurchaseReturn.find(PurchaseReturn.purchase_order_id == str(po.id)).to_list()
+    assert returns
+    assert all(r.status.value == "cancelled" for r in returns)
+
+    await _cleanup(cancelled, product, user=user)

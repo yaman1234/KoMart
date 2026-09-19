@@ -14,6 +14,8 @@ from app.routers import (
     suppliers,
     purchase_orders,
     purchase_returns,
+    goods_receipts,
+    purchase_invoices,
     customers,
     transactions,
     dashboard,
@@ -73,6 +75,8 @@ app.include_router(inventory.router, prefix=API_PREFIX)
 app.include_router(suppliers.router, prefix=API_PREFIX)
 app.include_router(purchase_orders.router, prefix=API_PREFIX)
 app.include_router(purchase_returns.router, prefix=API_PREFIX)
+app.include_router(goods_receipts.router, prefix=API_PREFIX)
+app.include_router(purchase_invoices.router, prefix=API_PREFIX)
 app.include_router(customers.router, prefix=API_PREFIX)
 app.include_router(transactions.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)

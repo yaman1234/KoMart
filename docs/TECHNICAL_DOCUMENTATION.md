@@ -58,7 +58,7 @@ The system follows a **SPA + REST API** architecture:
 | **POS / Billing** | Product search, cart, promotion rules + manual discounts, cash/eSewa payment, receipt print |
 | **Products** | SKU, barcode, categories, pricing, images, supplier linkage, lifecycle status |
 | **Inventory** | Batch receive, FEFO deduction, adjust/damaged/correction, movement ledger, history audit |
-| **Purchasing** | Suppliers, purchase orders, partial receive |
+| **Purchasing** | Suppliers, purchase orders, approval, goods receipts, invoices, returns |
 | **Customers** | Profile, loyalty points, membership tiers, purchase history |
 | **Sales** | Transaction ledger, detail view, edit (manager+), reprint |
 | **Expenses** | Categorized operating expenses |
@@ -200,12 +200,14 @@ See also: [MIGRATION_REFRESH_TOKENS.md](./MIGRATION_REFRESH_TOKENS.md)
 
 | Attribute | Detail |
 |-----------|--------|
-| **Purpose** | Procure stock from suppliers with receive workflow |
-| **Inputs** | Supplier, line items, expected delivery, status updates, receive quantities |
-| **Outputs** | PO record, inventory batches on receive |
-| **Business Rules** | Status: draft → ordered → partial → received; receive creates batches |
-| **Validation** | Cannot edit non-draft POs; receive qty ≤ remaining |
-| **Permissions** | Manager, admin |
+| **Purpose** | Procure stock from suppliers with receive, payment, cancel, and purchase-return workflows |
+| **Inputs** | Supplier, line items (UOM + conversion), discount/tax/remarks, expected delivery, receive quantities, payments, return quantities |
+| **Outputs** | PO record, inventory batches on receive, PO expenses/wallet on payment, purchase returns + wallet credit, purchase price history |
+| **Business Rules** | Status: draft → ordered → partial → received; `cancelled` terminal. **Edit only while draft.** After place: cancel + recreate for mistakes; purchase return for leftover goods back to supplier. |
+| **Validation** | Non-draft `PATCH` forbidden (403); receive qty ≤ remaining; return qty ≤ PO batch leftover; cancel blocked if received stock sold |
+| **Permissions** | Manager, admin (view: all authenticated) |
+
+**Full feature documentation:** [PURCHASE_ORDERS.md](./PURCHASE_ORDERS.md)
 
 ---
 
@@ -1566,11 +1568,29 @@ OAuth2 password form for Swagger UI (`username` = email).
 | GET | `/purchase-orders` | User | List |
 | POST | `/purchase-orders` | Manager+ | Create |
 | GET | `/purchase-orders/{id}` | User | Detail |
-| PATCH | `/purchase-orders/{id}` | Manager+ | Update (draft only) |
-| PATCH | `/purchase-orders/{id}/status` | Manager+ | Status transition |
-| POST | `/purchase-orders/{id}/receive` | Manager+ | Receive stock |
+| PATCH | `/purchase-orders/{id}` | Manager+ | Update (**draft only**) |
+| PATCH | `/purchase-orders/{id}/status` | Manager+ | Status (incl. cancel) |
+| POST | `/purchase-orders/{id}/submit` | Manager+ | Submit for approval |
+| POST | `/purchase-orders/{id}/approve` | Manager+ | Approve |
+| POST | `/purchase-orders/{id}/reject` | Manager+ | Reject |
+| POST | `/purchase-orders/{id}/send` | Manager+ | Send (approved → ordered) |
+| POST | `/purchase-orders/{id}/close` | Manager+ | Close fully received |
+| POST | `/purchase-orders/{id}/receive` | Manager+ | Confirm goods receipt |
+| POST | `/purchase-orders/{id}/payments` | Manager+ | Pay via open invoice |
+| GET | `/purchase-orders/{id}/goods-receipts` | User | GR history |
+| GET | `/purchase-orders/{id}/invoices` | User | Invoices for PO |
 
----
+### Goods Receipts / Invoices / Returns
+
+| Method | URL | Auth | Description |
+|--------|-----|------|-------------|
+| GET | `/goods-receipts` | User | List GRs |
+| GET | `/purchase-invoices` | User | List invoices |
+| POST | `/purchase-invoices/{id}/payments` | Manager+ | Pay invoice |
+| GET | `/suppliers/{id}/outstanding` | User | Supplier payable net |
+| GET/POST | `/purchase-returns` | User / Manager+ | Returns + settlements |
+
+See [PURCHASE_ORDERS.md](./PURCHASE_ORDERS.md) for workflows, UOM rules, and operator guidance.
 
 ---
 

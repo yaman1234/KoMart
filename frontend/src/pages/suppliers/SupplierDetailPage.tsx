@@ -26,9 +26,13 @@ import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
   draft: 'default',
+  pending_approval: 'warning',
+  approved: 'info',
+  rejected: 'error',
   ordered: 'warning',
   partial: 'info',
   received: 'success',
+  closed: 'default',
   cancelled: 'error',
 };
 

@@ -382,9 +382,13 @@ export interface Supplier {
 
 export type PurchaseOrderStatus =
   | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
   | 'ordered'
   | 'partial'
   | 'received'
+  | 'closed'
   | 'cancelled';
 
 export type PurchaseOrderPaymentStatus = 'unpaid' | 'partial' | 'paid';
@@ -441,7 +445,12 @@ export interface PurchaseOrder {
   subtotal?: number;
   discount?: number;
   tax?: number;
+  shipping?: number;
+  otherCharges?: number;
   remarks?: string;
+  supplierReference?: string;
+  billNo?: string;
+  billImages?: string[];
   amountPaid?: number;
   paymentStatus?: PurchaseOrderPaymentStatus;
   payments?: PurchaseOrderPayment[];
@@ -449,6 +458,9 @@ export interface PurchaseOrder {
   orderedBy?: string;
   receivedBy?: string;
   receivedDate?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -494,7 +506,16 @@ export interface PurchasePriceHistoryListResponse {
   total: number;
 }
 
-export type PurchaseReturnStatus = 'draft' | 'posted';
+export type PurchaseReturnStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'confirmed'
+  | 'posted'
+  | 'rejected'
+  | 'cancelled';
+
+export type ReturnSettlementType = 'refund' | 'credit' | 'replacement' | 'pending';
 
 export interface PurchaseReturnItem {
   productId: string;
@@ -510,18 +531,24 @@ export interface PurchaseReturn {
   returnNumber: string;
   purchaseOrderId: string;
   orderNumber: string;
+  goodsReceiptId?: string;
   supplierId: string;
   supplierName: string;
   items: PurchaseReturnItem[];
   totalAmount: number;
   remarks: string;
+  reason?: string;
+  settlementType?: ReturnSettlementType;
   status: PurchaseReturnStatus;
   paymentMethod: string;
+  billNo?: string;
   returnDate: string;
+  approvedBy?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   postedAt?: string | null;
+  confirmedAt?: string | null;
 }
 
 export interface PurchaseReturnCreatePayload {
@@ -529,7 +556,11 @@ export interface PurchaseReturnCreatePayload {
   items: { productId: string; returnQty: number }[];
   remarks?: string;
   paymentMethod?: string;
+  billNo?: string;
   returnDate?: string;
+  settlementType?: 'refund' | 'credit' | 'replacement' | 'pending';
+  reason?: 'damaged' | 'wrong_item' | 'expired' | 'quality' | 'other';
+  confirmImmediately?: boolean;
 }
 
 export interface ReturnableLine {

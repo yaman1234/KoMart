@@ -146,6 +146,7 @@ async def reverse_reference(
             WalletEntryType.sale,
             WalletEntryType.expense,
             WalletEntryType.po_payment,
+            WalletEntryType.purchase_return,
         )
     ]
     # Reverse each primary that isn't already paired (len primary > reversals means some need reverse)

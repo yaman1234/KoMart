@@ -43,7 +43,10 @@ class PurchaseOrderCreate(BaseModel):
     total_amount: float = Field(default=0, ge=0)
     discount: float = Field(default=0, ge=0)
     tax: float = Field(default=0, ge=0)
+    shipping: float = Field(default=0, ge=0)
+    other_charges: float = Field(default=0, ge=0)
     remarks: str = ""
+    supplier_reference: str = ""
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
@@ -56,7 +59,10 @@ class PurchaseOrderUpdate(BaseModel):
     total_amount: float = Field(default=0, ge=0)
     discount: float = Field(default=0, ge=0)
     tax: float = Field(default=0, ge=0)
+    shipping: float = Field(default=0, ge=0)
+    other_charges: float = Field(default=0, ge=0)
     remarks: str = ""
+    supplier_reference: str = ""
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
@@ -64,6 +70,10 @@ class PurchaseOrderUpdate(BaseModel):
 
 class PurchaseOrderStatusUpdate(BaseModel):
     status: POStatus
+
+
+class PurchaseOrderRejectRequest(BaseModel):
+    reason: str = ""
 
 
 class PurchaseOrderReceiveItem(BaseModel):
@@ -76,6 +86,11 @@ class PurchaseOrderReceiveItem(BaseModel):
 class PurchaseOrderReceiveRequest(BaseModel):
     items: list[PurchaseOrderReceiveItem]
     bill_no: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
+
+
+class PurchaseOrderBillImagesUpdate(BaseModel):
+    bill_images: list[str] = Field(default_factory=list)
 
 
 class PurchaseOrderPaymentCreate(BaseModel):
@@ -124,7 +139,12 @@ class PurchaseOrderResponse(BaseModel):
     subtotal: float = 0.0
     discount: float = 0.0
     tax: float = 0.0
+    shipping: float = 0.0
+    other_charges: float = 0.0
     remarks: str = ""
+    supplier_reference: str = ""
+    bill_no: str = ""
+    bill_images: list[str] = Field(default_factory=list)
     amount_paid: float = 0.0
     payment_status: PaymentStatus = PaymentStatus.unpaid
     payments: list[PurchaseOrderPaymentResponse] = Field(default_factory=list)
@@ -132,6 +152,9 @@ class PurchaseOrderResponse(BaseModel):
     ordered_by: Optional[str]
     received_by: Optional[str]
     received_date: Optional[str]
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    rejected_reason: str = ""
     created_at: str
     updated_at: str
 

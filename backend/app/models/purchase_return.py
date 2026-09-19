@@ -9,7 +9,27 @@ from pymongo import IndexModel, ASCENDING, DESCENDING
 
 class PurchaseReturnStatus(str, Enum):
     draft = "draft"
-    posted = "posted"
+    pending_approval = "pending_approval"
+    approved = "approved"
+    confirmed = "confirmed"
+    posted = "posted"  # legacy alias for confirmed
+    rejected = "rejected"
+    cancelled = "cancelled"
+
+
+class ReturnSettlementType(str, Enum):
+    refund = "refund"
+    credit = "credit"
+    replacement = "replacement"
+    pending = "pending"
+
+
+class ReturnReason(str, Enum):
+    damaged = "damaged"
+    wrong_item = "wrong_item"
+    expired = "expired"
+    quality = "quality"
+    other = "other"
 
 
 class PurchaseReturnItem(BaseModel):
@@ -32,14 +52,21 @@ class PurchaseReturn(Document):
     return_number: str
     purchase_order_id: str
     order_number: str = ""
+    goods_receipt_id: str = ""
     supplier_id: str = ""
     supplier_name: str = ""
     items: list[PurchaseReturnItem] = Field(default_factory=list)
     total_amount: float = Field(default=0, ge=0)
     remarks: str = ""
+    reason: ReturnReason = ReturnReason.other
+    settlement_type: ReturnSettlementType = ReturnSettlementType.refund
     status: PurchaseReturnStatus = PurchaseReturnStatus.posted
-    payment_method: str = "cash"  # wallet receiving the supplier credit
+    payment_method: str = "cash"  # wallet for refund settlement
+    bill_no: str = ""
     return_date: str = ""  # YYYY-MM-DD
+    approved_by: str = ""
+    approved_at: Optional[datetime] = None
+    confirmed_at: Optional[datetime] = None
     created_by: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

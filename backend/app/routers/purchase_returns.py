@@ -13,6 +13,7 @@ from app.schemas.purchase_return import (
 from app.services.purchase_return import (
     list_returnable_lines,
     post_purchase_return,
+    approve_purchase_return,
     _to_response,
 )
 
@@ -62,6 +63,18 @@ async def create_purchase_return(
     current_user: User = Depends(require_manager_or_above),
 ):
     doc = await post_purchase_return(body, current_user=current_user, request=request)
+    return _to_response(doc)
+
+
+@router.post("/{return_id}/approve", response_model=PurchaseReturnResponse)
+async def approve_return_endpoint(
+    return_id: str,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    doc = await approve_purchase_return(
+        return_id, current_user=current_user, request=request, confirm=True,
+    )
     return _to_response(doc)
 
 

@@ -346,6 +346,10 @@ export function PurchaseOrderFormPage() {
         }
       />
 
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Small-store path: Place Order, then receive stock and pay on the order page. Use Save as Draft only if you need to finish later.
+      </Typography>
+
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ px: 2, py: 2, mb: 2 }}>
