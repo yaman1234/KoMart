@@ -1,9 +1,67 @@
-import { AppBar, Box, Container, IconButton, Toolbar, Typography } from '@mui/material';
+import { AppBar, Avatar, Box, Button, Container, IconButton, ListItemIcon, Menu, MenuItem, Toolbar, Typography } from '@mui/material';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import LoginIcon from '@mui/icons-material/Login';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { useThemeStore } from '@/store';
+import { useState } from 'react';
+import { useThemeStore, useAuthStore } from '@/store';
 import { APP_NAME } from '@/constants';
+
+function AuthButton() {
+  const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+
+  if (!isAuthenticated) {
+    return (
+      <Button variant="outlined" size="small" startIcon={<LoginIcon />} onClick={() => navigate('/login')}>
+        Login
+      </Button>
+    );
+  }
+
+  const initials = user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?';
+
+  return (
+    <>
+      <Button
+        size="small"
+        startIcon={<DashboardIcon />}
+        variant="contained"
+        onClick={() => navigate('/dashboard')}
+      >
+        Dashboard
+      </Button>
+      <Avatar
+        sx={{ width: 32, height: 32, fontSize: 13, cursor: 'pointer', bgcolor: 'primary.main' }}
+        onClick={(e) => setAnchor(e.currentTarget)}
+      >
+        {initials}
+      </Avatar>
+      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+        <MenuItem disabled sx={{ opacity: '1 !important' }}>
+          <Typography variant="caption" color="text.secondary">
+            {user?.name}
+          </Typography>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setAnchor(null);
+            logout();
+            navigate('/login');
+          }}
+        >
+          <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
+          Logout
+        </MenuItem>
+      </Menu>
+    </>
+  );
+}
 
 export function CatalogLayout() {
   const navigate = useNavigate();
@@ -35,6 +93,8 @@ export function CatalogLayout() {
           </Typography>
 
           <Box sx={{ flex: 1 }} />
+
+          <AuthButton />
 
           <IconButton onClick={toggleMode} size="small" aria-label="Toggle theme">
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
