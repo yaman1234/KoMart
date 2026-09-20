@@ -32,6 +32,10 @@ import { ExpensesPage } from '@/pages/expenses/ExpensesPage';
 import { ExpenseFormPage } from '@/pages/expenses/ExpenseFormPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
+import { StockCountsPage } from '@/pages/stock-count/StockCountsPage';
+import { StockCountFormPage } from '@/pages/stock-count/StockCountFormPage';
+import { StockCountDetailPage } from '@/pages/stock-count/StockCountDetailPage';
+import { StockCountCountPage } from '@/pages/stock-count/StockCountCountPage';
 
 export const router = createBrowserRouter([
   // Public catalog routes (no auth)
@@ -84,6 +88,10 @@ export const router = createBrowserRouter([
               { path: '/products/:id/edit', element: <ProductFormPage /> },
               { path: '/inventory', element: <InventoryPage /> },
               { path: '/inventory/:productId', element: <InventoryDetailPage /> },
+              { path: '/stock-count', element: <StockCountsPage /> },
+              { path: '/stock-count/new', element: <StockCountFormPage /> },
+              { path: '/stock-count/:id', element: <StockCountDetailPage /> },
+              { path: '/stock-count/:id/count', element: <StockCountCountPage /> },
               { path: '/suppliers', element: <SuppliersPage /> },
               { path: '/suppliers/new', element: <SupplierFormPage /> },
               { path: '/suppliers/:id/edit', element: <SupplierFormPage /> },

@@ -81,6 +81,9 @@ import type {
   InventoryMovementQueryParams,
   DiscountRule,
   EvaluateDiscountResult,
+  StockCount,
+  StockCountListResponse,
+  StockCountCreatePayload,
 } from '@/types';
 
 const useMock = () => isMockEnabled();
@@ -887,6 +890,91 @@ export const discountService = {
     if (useMock()) return mockApi.evaluateDiscount(payload);
     const { data } = await apiClient.post('/discounts/evaluate', payload);
     return data as EvaluateDiscountResult;
+  },
+};
+
+export const stockCountService = {
+  getAll: async (params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    countType?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<StockCountListResponse> => {
+    const { data } = await apiClient.get('/stock-counts', { params });
+    return data as StockCountListResponse;
+  },
+  getById: async (id: string): Promise<StockCount> => {
+    const { data } = await apiClient.get(`/stock-counts/${id}`);
+    return data as StockCount;
+  },
+  create: async (payload: StockCountCreatePayload): Promise<StockCount> => {
+    const { data } = await apiClient.post('/stock-counts', {
+      count_type: payload.countType,
+      count_mode: payload.countMode,
+      category_filter: payload.categoryFilter ?? '',
+      product_ids: payload.productIds ?? [],
+      notes: payload.notes ?? '',
+      count_date: payload.countDate ?? '',
+    });
+    return data as StockCount;
+  },
+  countItem: async (id: string, productId: string, physicalQty: number): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/count-item`, {
+      product_id: productId,
+      physical_qty: physicalQty,
+    });
+    return data as StockCount;
+  },
+  countItemsBulk: async (
+    id: string,
+    items: Array<{ productId: string; physicalQty: number }>,
+  ): Promise<StockCount> => {
+    const { data } = await apiClient.post(
+      `/stock-counts/${id}/count-items`,
+      items.map((i) => ({ product_id: i.productId, physical_qty: i.physicalQty })),
+    );
+    return data as StockCount;
+  },
+  submit: async (id: string): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/submit`);
+    return data as StockCount;
+  },
+  requestRecount: async (id: string, notes?: string): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/request-recount`, { notes: notes ?? '' });
+    return data as StockCount;
+  },
+  recountItem: async (id: string, productId: string, recountQty: number): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/recount-item`, {
+      product_id: productId,
+      recount_qty: recountQty,
+    });
+    return data as StockCount;
+  },
+  setVarianceReason: async (
+    id: string,
+    productId: string,
+    reason: string,
+    reasonNote: string,
+    finalQty?: number,
+  ): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/variance-reason`, {
+      product_id: productId,
+      reason,
+      reason_note: reasonNote,
+      final_qty: finalQty ?? null,
+    });
+    return data as StockCount;
+  },
+  approve: async (id: string, notes?: string): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/approve`, { notes: notes ?? '' });
+    return data as StockCount;
+  },
+  cancel: async (id: string, notes?: string): Promise<StockCount> => {
+    const { data } = await apiClient.post(`/stock-counts/${id}/cancel`, { notes: notes ?? '' });
+    return data as StockCount;
   },
 };
 
