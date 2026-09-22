@@ -292,6 +292,8 @@ export function InventoryPage() {
           <StatCard
             title="Total SKUs"
             value={stats?.totalSkus ?? '—'}
+            gradient={['#f0f9ff', '#bae6fd']}
+            color="#0369a1"
             onClick={() => setFilter('all')}
             subtitle="Show all"
           />
@@ -300,7 +302,8 @@ export function InventoryPage() {
           <StatCard
             title="Low Stock"
             value={stats?.lowStock ?? '—'}
-            color="warning.main"
+            gradient={['#fff7ed', '#fed7aa']}
+            color="#c2410c"
             onClick={() => setFilter('low')}
             subtitle="Filter low stock"
           />
@@ -309,7 +312,8 @@ export function InventoryPage() {
           <StatCard
             title="Out of Stock"
             value={stats?.outOfStock ?? '—'}
-            color="error.main"
+            gradient={['#fff1f2', '#fecdd3']}
+            color="#be123c"
             onClick={() => setFilter('out')}
             subtitle="Filter out of stock"
           />
@@ -318,6 +322,8 @@ export function InventoryPage() {
           <StatCard
             title="Inventory Value"
             value={stats ? formatCurrency(stats.inventoryValue) : '—'}
+            gradient={['#d4f5e9', '#a8e6cf']}
+            color="#1b7a4e"
             subtitle="Batch qty × unit cost (or stock × cost if no batches)"
           />
         </Grid>

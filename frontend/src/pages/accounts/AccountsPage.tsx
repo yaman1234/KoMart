@@ -60,8 +60,13 @@ function daysAgoIso(days: number) {
 
 function balanceColor(amount: number | null | undefined, defaultColor: string): string {
   if (amount == null || !Number.isFinite(amount)) return defaultColor;
-  if (amount < 0) return 'error.main';
+  if (amount < 0) return '#be123c';
   return defaultColor;
+}
+
+function balanceGradient(amount: number | null | undefined, defaultGradient: [string, string]): [string, string] {
+  if (amount != null && Number.isFinite(amount) && amount < 0) return ['#fff1f2', '#fecdd3'];
+  return defaultGradient;
 }
 
 function walletLabel(code: string) {
@@ -545,7 +550,8 @@ export function AccountsPage() {
             ]
               .filter(Boolean)
               .join(' · ')}
-            color={balanceColor(balances?.cash, 'success.main')}
+            gradient={balanceGradient(balances?.cash, ['#d4f5e9', '#a8e6cf'])}
+            color={balanceColor(balances?.cash, '#1b7a4e')}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
@@ -553,7 +559,8 @@ export function AccountsPage() {
             title="Bank"
             value={balancesLoading ? '—' : formatCurrency(balances?.bank)}
             subtitle={balances?.asOf ? `As of ${formatDate(balances.asOf)}` : undefined}
-            color={balanceColor(balances?.bank, 'primary.main')}
+            gradient={balanceGradient(balances?.bank, ['#dbeafe', '#93c5fd'])}
+            color={balanceColor(balances?.bank, '#1d4ed8')}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
@@ -561,7 +568,8 @@ export function AccountsPage() {
             title="eSewa"
             value={balancesLoading ? '—' : formatCurrency(balances?.esewa)}
             subtitle={balances?.asOf ? `As of ${formatDate(balances.asOf)}` : undefined}
-            color={balanceColor(balances?.esewa, 'info.main')}
+            gradient={balanceGradient(balances?.esewa, ['#fef9c3', '#fde68a'])}
+            color={balanceColor(balances?.esewa, '#92400e')}
           />
         </Grid>
       </Grid>
