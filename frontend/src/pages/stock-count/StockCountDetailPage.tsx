@@ -297,24 +297,25 @@ export function StockCountDetailPage() {
       </Paper>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        {[
-          { title: 'Total Products', value: sc.totalProducts, filter: 'all' as VarianceFilter },
-          { title: 'Counted', value: sc.countedProducts, filter: 'all' as VarianceFilter },
-          { title: 'Matched', value: sc.matchedCount, color: 'success.main', filter: 'matched' as VarianceFilter },
-          { title: 'Short', value: sc.shortCount, color: 'error.main', filter: 'short' as VarianceFilter },
-          { title: 'Excess', value: sc.excessCount, color: 'warning.main', filter: 'excess' as VarianceFilter },
-          { title: 'Shortage Value', value: formatCurrency(sc.shortageValue), color: 'error.main' },
-          { title: 'Excess Value', value: formatCurrency(sc.excessValue), color: 'warning.main' },
-          { title: 'Net Variance', value: formatCurrency(sc.netVarianceValue), color: sc.netVarianceValue < 0 ? 'error.main' : 'warning.main' },
-          { title: 'Stock Accuracy', value: `${sc.stockAccuracyPct.toFixed(1)}%`, color: sc.stockAccuracyPct >= 98 ? 'success.main' : sc.stockAccuracyPct >= 95 ? 'warning.main' : 'error.main' },
-        ].map((card) => (
+        {([
+          { title: 'Total Products', value: sc.totalProducts, gradient: ['#f0f9ff', '#bae6fd'] as [string,string], color: '#0369a1', filter: 'all' as VarianceFilter },
+          { title: 'Counted', value: sc.countedProducts, gradient: ['#dbeafe', '#93c5fd'] as [string,string], color: '#1d4ed8', filter: 'all' as VarianceFilter },
+          { title: 'Matched', value: sc.matchedCount, gradient: ['#d4f5e9', '#a8e6cf'] as [string,string], color: '#1b7a4e', filter: 'matched' as VarianceFilter },
+          { title: 'Short', value: sc.shortCount, gradient: ['#fff1f2', '#fecdd3'] as [string,string], color: '#be123c', filter: 'short' as VarianceFilter },
+          { title: 'Excess', value: sc.excessCount, gradient: ['#fff7ed', '#fed7aa'] as [string,string], color: '#c2410c', filter: 'excess' as VarianceFilter },
+          { title: 'Shortage Value', value: formatCurrency(sc.shortageValue), gradient: ['#fff1f2', '#fecdd3'] as [string,string], color: '#be123c' },
+          { title: 'Excess Value', value: formatCurrency(sc.excessValue), gradient: ['#fff7ed', '#fed7aa'] as [string,string], color: '#c2410c' },
+          { title: 'Net Variance', value: formatCurrency(sc.netVarianceValue), gradient: (sc.netVarianceValue < 0 ? ['#fff1f2', '#fecdd3'] : ['#fff7ed', '#fed7aa']) as [string,string], color: sc.netVarianceValue < 0 ? '#be123c' : '#c2410c' },
+          { title: 'Stock Accuracy', value: `${sc.stockAccuracyPct.toFixed(1)}%`, gradient: (sc.stockAccuracyPct >= 98 ? ['#d4f5e9', '#a8e6cf'] : sc.stockAccuracyPct >= 95 ? ['#fff7ed', '#fed7aa'] : ['#fff1f2', '#fecdd3']) as [string,string], color: sc.stockAccuracyPct >= 98 ? '#1b7a4e' : sc.stockAccuracyPct >= 95 ? '#c2410c' : '#be123c' },
+        ] as const).map((card) => (
           <Grid key={card.title} size={{ xs: 6, sm: 4, md: 3, lg: 'auto' }} sx={{ flex: '1 1 140px' }}>
             <StatCard
               title={card.title}
               value={card.value}
               color={card.color}
-              onClick={card.filter ? () => { setVFilter(card.filter!); setTab(0); } : undefined}
-              subtitle={card.filter ? 'Click to filter' : undefined}
+              gradient={card.gradient}
+              onClick={'filter' in card && card.filter ? () => { setVFilter(card.filter as VarianceFilter); setTab(0); } : undefined}
+              subtitle={'filter' in card && card.filter ? 'Click to filter' : undefined}
             />
           </Grid>
         ))}
