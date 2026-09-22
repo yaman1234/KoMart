@@ -2,10 +2,10 @@ import { showWarning } from '@/utils/toast';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
-/** Upload one image to Cloudinary (same env as product images). */
+/** Upload one image to Cloudinary using the purchase-order bill preset. */
 export async function uploadImageToCloudinary(file: File): Promise<string> {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER;
   if (!cloudName || !uploadPreset) {
     throw new Error('Cloudinary configuration is missing.');
   }
