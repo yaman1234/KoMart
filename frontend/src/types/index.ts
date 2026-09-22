@@ -1191,8 +1191,11 @@ export interface StockCountItem {
   barcode: string;
   category: string;
   uom: string;
+  imageUrl: string;
   unitCost: number;
   snapshotQty: number;   // -1 means hidden (blind mode)
+  unitsSoldInWindow: number;
+  adjustedSnapshotQty: number | null;
   physicalQty: number | null;
   recountQty: number | null;
   finalQty: number | null;

@@ -200,6 +200,8 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
               <StatCard
                 title="Opening"
                 value={summary?.openingStock ?? '—'}
+                gradient={['#f0f9ff', '#bae6fd']}
+                color="#0369a1"
                 subtitle="From the ledger, not leftover batches"
               />
             </Grid>
@@ -207,7 +209,8 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
               <StatCard
                 title="In"
                 value={summary?.periodIn ?? summary?.totalIn ?? '—'}
-                color="success.main"
+                gradient={['#d4f5e9', '#a8e6cf']}
+                color="#1b7a4e"
                 subtitle="In the selected dates"
               />
             </Grid>
@@ -215,7 +218,8 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
               <StatCard
                 title="Out"
                 value={summary?.periodOut ?? summary?.totalOut ?? '—'}
-                color="error.main"
+                gradient={['#fff1f2', '#fecdd3']}
+                color="#be123c"
                 subtitle="In the selected dates"
               />
             </Grid>
@@ -223,6 +227,8 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
               <StatCard
                 title="Ledger close"
                 value={ledgerClose ?? '—'}
+                gradient={['#fef9c3', '#fde68a']}
+                color="#92400e"
                 subtitle="Opening + In − Out"
               />
             </Grid>
@@ -230,19 +236,20 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
         ) : (
           <>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Movements" value={summary?.movementCount ?? '—'} />
+              <StatCard title="Movements" value={summary?.movementCount ?? '—'} gradient={['#f0f9ff', '#bae6fd']} color="#0369a1" />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Total In" value={summary?.totalIn ?? '—'} color="success.main" />
+              <StatCard title="Total In" value={summary?.totalIn ?? '—'} gradient={['#d4f5e9', '#a8e6cf']} color="#1b7a4e" />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Total Out" value={summary?.totalOut ?? '—'} color="error.main" />
+              <StatCard title="Total Out" value={summary?.totalOut ?? '—'} gradient={['#fff1f2', '#fecdd3']} color="#be123c" />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="SKUs out of sync"
                 value={outOfSyncCount}
-                color={outOfSyncCount > 0 ? 'error.main' : undefined}
+                gradient={outOfSyncCount > 0 ? ['#fff1f2', '#fecdd3'] : ['#d4f5e9', '#a8e6cf']}
+                color={outOfSyncCount > 0 ? '#be123c' : '#1b7a4e'}
                 subtitle="Current Stock ≠ Ledger close (Opening + In − Out)"
               />
             </Grid>

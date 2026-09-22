@@ -61,6 +61,7 @@ export function StockCountsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.stockCountList(filtersKey),
+    refetchOnMount: 'always',
     queryFn: () =>
       stockCountService.getAll({
         page: page + 1,
@@ -82,7 +83,12 @@ export function StockCountsPage() {
     },
     { id: 'countDate', label: 'Date', accessor: 'countDate', minWidth: 110 },
     { id: 'totalProducts', label: 'Products', align: 'right', accessor: 'totalProducts' },
-    { id: 'countedProducts', label: 'Counted', align: 'right', accessor: 'countedProducts' },
+    {
+      id: 'countedProducts',
+      label: 'Counted',
+      align: 'right',
+      render: (row) => `${row.countedProducts} / ${row.totalProducts}`,
+    },
     { id: 'matchedCount', label: 'Matched', align: 'right', accessor: 'matchedCount' },
     {
       id: 'shortCount',
