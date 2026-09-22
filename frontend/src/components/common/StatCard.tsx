@@ -17,6 +17,7 @@ interface StatCardProps {
   icon?: ReactNode;
   trend?: { value: number; label: string };
   color?: string;
+  gradient?: [string, string];
   loading?: boolean;
   sx?: SxProps<Theme>;
   onClick?: () => void;
@@ -29,6 +30,7 @@ export function StatCard({
   icon,
   trend,
   color,
+  gradient,
   loading,
   sx,
   onClick,
@@ -44,9 +46,9 @@ export function StatCard({
     );
   }
 
-  const gradient = color
-    ? `linear-gradient(135deg, ${color}22 0%, ${color}08 100%)`
-    : 'linear-gradient(135deg, rgba(var(--mui-palette-primary-mainChannel) / 0.12) 0%, rgba(var(--mui-palette-primary-mainChannel) / 0.03) 100%)';
+  const resolvedGradient = gradient
+    ? `linear-gradient(135deg, ${gradient[0]} 0%, ${gradient[1]} 100%)`
+    : 'linear-gradient(135deg, rgba(var(--mui-palette-primary-mainChannel) / 0.08) 0%, rgba(var(--mui-palette-primary-mainChannel) / 0.02) 100%)';
 
   const content = (
     <CardContent>
@@ -95,7 +97,7 @@ export function StatCard({
     <Card
       sx={{
         height: '100%',
-        background: gradient,
+        background: resolvedGradient,
         ...(onClick
           ? {
               transition: 'box-shadow 0.15s ease, transform 0.15s ease',
