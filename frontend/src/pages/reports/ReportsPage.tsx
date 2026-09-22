@@ -604,16 +604,18 @@ export function ReportsPage() {
         <Box>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} />
+              <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} gradient={['#d4f5e9', '#a8e6cf']} color="#1b7a4e" />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Avg. Daily Revenue" value={formatCurrency(avgDaily)} />
+              <StatCard title="Avg. Daily Revenue" value={formatCurrency(avgDaily)} gradient={['#dbeafe', '#93c5fd']} color="#1d4ed8" />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="Best Day"
                 value={formatCurrency(maxDay?.revenue ?? 0)}
                 subtitle={maxDay?.date ? formatDate(maxDay.date) : ''}
+                gradient={['#fef9c3', '#fde68a']}
+                color="#92400e"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -625,6 +627,8 @@ export function ReportsPage() {
                     ? `Avg. ${formatCurrency(salesSummary.avgBasket)}`
                     : undefined
                 }
+                gradient={['#ede9fe', '#c4b5fd']}
+                color="#5b21b6"
               />
             </Grid>
           </Grid>
@@ -1021,34 +1025,38 @@ export function ReportsPage() {
 
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
-              <StatCard title="Total SKUs" value={inventorySummary?.totalSkus ?? '—'} />
+              <StatCard title="Total SKUs" value={inventorySummary?.totalSkus ?? '—'} gradient={['#f0f9ff', '#bae6fd']} color="#0369a1" />
             </Grid>
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard
                 title="Inventory Value"
                 value={formatCurrency(inventorySummary?.inventoryValue ?? 0)}
-                color="primary.main"
+                gradient={['#dbeafe', '#93c5fd']}
+                color="#1d4ed8"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard
                 title="Low Stock"
                 value={inventorySummary?.lowStock ?? '—'}
-                color="warning.main"
+                gradient={['#fff7ed', '#fed7aa']}
+                color="#c2410c"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard
                 title="Out of Stock"
                 value={inventorySummary?.outOfStock ?? '—'}
-                color="error.main"
+                gradient={['#fff1f2', '#fecdd3']}
+                color="#be123c"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard
                 title="Expiring Soon"
                 value={inventorySummary?.expiring ?? '—'}
-                color="info.main"
+                gradient={['#fef9c3', '#fde68a']}
+                color="#92400e"
               />
             </Grid>
           </Grid>
@@ -1203,21 +1211,24 @@ export function ReportsPage() {
               <StatCard
                 title="Total Revenue"
                 value={formatCurrency(profitSummary?.totalRevenue ?? 0)}
-                color="success.main"
+                gradient={['#d4f5e9', '#a8e6cf']}
+                color="#1b7a4e"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="Gross Profit"
                 value={formatCurrency(profitSummary?.grossProfit ?? 0)}
-                color="primary.main"
+                gradient={['#dbeafe', '#93c5fd']}
+                color="#1d4ed8"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="Gross Margin"
                 value={`${profitSummary?.grossMarginPct ?? 0}%`}
-                color="info.main"
+                gradient={['#e0f2fe', '#7dd3fc']}
+                color="#0369a1"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -1225,7 +1236,8 @@ export function ReportsPage() {
                 title="Total Expenses"
                 value={formatCurrency(expenseSummary?.totalExpenses ?? 0)}
                 subtitle="All costs including setup"
-                color="error.main"
+                gradient={['#fff1f2', '#fecdd3']}
+                color="#be123c"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -1236,7 +1248,8 @@ export function ReportsPage() {
                     ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0)),
                 )}
                 subtitle="Excludes setup / investment"
-                color="warning.main"
+                gradient={['#fff7ed', '#fed7aa']}
+                color="#c2410c"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -1244,7 +1257,8 @@ export function ReportsPage() {
                 title="Setup Investment"
                 value={formatCurrency(expenseSummary?.setupInvestment ?? 0)}
                 subtitle="One-time costs"
-                color="info.main"
+                gradient={['#f0f9ff', '#bae6fd']}
+                color="#0369a1"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -1256,12 +1270,19 @@ export function ReportsPage() {
                       ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0))),
                 )}
                 subtitle="Gross Profit − Operating Expenses"
+                gradient={
+                  (profitSummary?.grossProfit ?? 0)
+                    - (expenseSummary?.operatingExpenses
+                      ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0))) >= 0
+                    ? ['#d4f5e9', '#a8e6cf']
+                    : ['#fff1f2', '#fecdd3']
+                }
                 color={
                   (profitSummary?.grossProfit ?? 0)
                     - (expenseSummary?.operatingExpenses
                       ?? Math.max(0, (expenseSummary?.totalExpenses ?? 0) - (expenseSummary?.setupInvestment ?? 0))) >= 0
-                    ? 'success.main'
-                    : 'error.main'
+                    ? '#1b7a4e'
+                    : '#be123c'
                 }
               />
             </Grid>
@@ -1408,13 +1429,14 @@ export function ReportsPage() {
         <Box>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 6, sm: 4 }}>
-              <StatCard title="Total POs" value={poSummary?.totalOrders ?? '—'} />
+              <StatCard title="Total POs" value={poSummary?.totalOrders ?? '—'} gradient={['#f0f9ff', '#bae6fd']} color="#0369a1" />
             </Grid>
             <Grid size={{ xs: 6, sm: 4 }}>
               <StatCard
                 title="Total Spend"
                 value={formatCurrency(poSummary?.totalAmount ?? 0)}
-                color="primary.main"
+                gradient={['#dbeafe', '#93c5fd']}
+                color="#1d4ed8"
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -1455,27 +1477,30 @@ export function ReportsPage() {
         <Box>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 6, sm: 3 }}>
-              <StatCard title="Total Members" value={loyaltySummary?.totalMembers ?? '—'} />
+              <StatCard title="Total Members" value={loyaltySummary?.totalMembers ?? '—'} gradient={['#f5f3ff', '#ddd6fe']} color="#5b21b6" />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="Active Members"
                 value={loyaltySummary?.activeMembers ?? '—'}
-                color="success.main"
+                gradient={['#d4f5e9', '#a8e6cf']}
+                color="#1b7a4e"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="New Customers"
                 value={loyaltySummary?.newCustomers ?? '—'}
-                color="primary.main"
+                gradient={['#dbeafe', '#93c5fd']}
+                color="#1d4ed8"
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <StatCard
                 title="Points Redeemed"
                 value={loyaltySummary?.pointsRedeemed?.toLocaleString() ?? '—'}
-                color="info.main"
+                gradient={['#e0f2fe', '#7dd3fc']}
+                color="#0369a1"
               />
             </Grid>
           </Grid>
