@@ -36,12 +36,15 @@ class StockCountItem(BaseModel):
     barcode: str = ""
     category: str = ""
     uom: str = ""
+    image_url: str = ""
     unit_cost: float = 0.0
     snapshot_qty: int = 0          # frozen at count start
+    units_sold_in_window: int = 0  # sales between snapshot and counted_at
+    adjusted_snapshot_qty: Optional[int] = None  # snapshot - units_sold_in_window
     physical_qty: Optional[int] = None
     recount_qty: Optional[int] = None
     final_qty: Optional[int] = None
-    variance_qty: Optional[int] = None   # physical - snapshot
+    variance_qty: Optional[int] = None   # physical - adjusted_snapshot
     variance_value: Optional[float] = None
     reason: str = ""
     reason_note: str = ""

@@ -6,7 +6,7 @@ from math import ceil
 
 from fastapi import HTTPException, status
 
-from app.models.inventory import AdjustmentType
+from app.models.inventory import AdjustmentType, StockAdjustment
 from app.models.product import Product
 from app.models.stock_count import (
     CountMode,
@@ -21,6 +21,29 @@ from app.services.stock import adjust_stock, get_current_stock_batch
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+async def _units_sold_in_window(product_id: str, since: datetime, until: datetime) -> int:
+    """Sum of sale quantities for a product between snapshot time and counted_at."""
+    col = StockAdjustment.get_motor_collection()
+    pipeline = [
+        {"$match": {
+            "product_id": product_id,
+            "type": "sale",
+            "created_at": {"$gte": since, "$lte": until},
+        }},
+        {"$group": {"_id": None, "total": {"$sum": {"$abs": "$quantity"}}}},
+    ]
+    result = await col.aggregate(pipeline).to_list(1)
+    return int(result[0]["total"]) if result else 0
+
+
+def _apply_adjusted_variance(item: StockCountItem, physical_qty: int, units_sold: int) -> None:
+    """Set adjusted_snapshot_qty, units_sold_in_window, variance_qty, variance_value."""
+    item.units_sold_in_window = units_sold
+    item.adjusted_snapshot_qty = item.snapshot_qty - units_sold
+    item.physical_qty = physical_qty
+    item.variance_qty = physical_qty - item.adjusted_snapshot_qty
+    item.variance_value = round(item.variance_qty * item.unit_cost, 2)
 
 async def _next_count_number() -> str:
     year = datetime.now(timezone.utc).year
@@ -112,6 +135,7 @@ async def create_stock_count(
             barcode=p.barcode or "",
             category=p.category or "",
             uom=p.uom or "pcs",
+            image_url=p.images[0] if p.images else "",
             unit_cost=p.cost_price,
             snapshot_qty=stock_map.get(str(p.id), 0),
         )
@@ -153,11 +177,11 @@ async def record_count(
     if not item:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not in this count.")
 
-    item.physical_qty = physical_qty
-    item.variance_qty = physical_qty - item.snapshot_qty
-    item.variance_value = round(item.variance_qty * item.unit_cost, 2)
+    counted_at = datetime.now(timezone.utc)
+    units_sold = await _units_sold_in_window(product_id, sc.snapshot_taken_at or sc.created_at, counted_at)
+    _apply_adjusted_variance(item, physical_qty, units_sold)
     item.counted_by = user.name
-    item.counted_at = datetime.now(timezone.utc)
+    item.counted_at = counted_at
 
     _recompute_summary(sc)
     sc.updated_at = datetime.now(timezone.utc)
@@ -176,16 +200,17 @@ async def bulk_record_count(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Count is not in counting state.")
 
     item_map = {i.product_id: i for i in sc.items}
+    counted_at = datetime.now(timezone.utc)
+    snapshot_time = sc.snapshot_taken_at or sc.created_at
     for upd in updates:
         item = item_map.get(upd["product_id"])
         if not item:
             continue
         qty = int(upd["physical_qty"])
-        item.physical_qty = qty
-        item.variance_qty = qty - item.snapshot_qty
-        item.variance_value = round(item.variance_qty * item.unit_cost, 2)
+        units_sold = await _units_sold_in_window(upd["product_id"], snapshot_time, counted_at)
+        _apply_adjusted_variance(item, qty, units_sold)
         item.counted_by = user.name
-        item.counted_at = datetime.now(timezone.utc)
+        item.counted_at = counted_at
 
     _recompute_summary(sc)
     sc.updated_at = datetime.now(timezone.utc)
@@ -233,13 +258,14 @@ async def record_recount(
     if not item:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not in this count.")
 
+    recounted_at = datetime.now(timezone.utc)
+    units_sold = await _units_sold_in_window(product_id, sc.snapshot_taken_at or sc.created_at, recounted_at)
     item.recount_qty = recount_qty
     item.recounted_by = user.name
-    item.recounted_at = datetime.now(timezone.utc)
-    # recount becomes the physical qty for variance purposes
-    item.physical_qty = recount_qty
-    item.variance_qty = recount_qty - item.snapshot_qty
-    item.variance_value = round(item.variance_qty * item.unit_cost, 2)
+    item.recounted_at = recounted_at
+    # recount becomes the physical qty; recalculate with fresh window
+    _apply_adjusted_variance(item, recount_qty, units_sold)
+    item.counted_at = recounted_at  # update window end for display
 
     _recompute_summary(sc)
     _audit(sc, "recount_recorded", user, f"{item.product_name}: recount={recount_qty}")
@@ -272,8 +298,10 @@ async def set_variance_reason(
     item.reason_note = reason_note
     if final_qty is not None:
         item.final_qty = final_qty
+        # final_qty override: recalculate variance against adjusted snapshot
+        adj = item.adjusted_snapshot_qty if item.adjusted_snapshot_qty is not None else item.snapshot_qty
         item.physical_qty = final_qty
-        item.variance_qty = final_qty - item.snapshot_qty
+        item.variance_qty = final_qty - adj
         item.variance_value = round(item.variance_qty * item.unit_cost, 2)
         _recompute_summary(sc)
 
@@ -309,7 +337,8 @@ async def approve_count(sc: StockCount, user: User, notes: str = "") -> StockCou
         final_qty = item.final_qty if item.final_qty is not None else item.physical_qty
         if final_qty is None:
             continue
-        variance = final_qty - item.snapshot_qty
+        adj = item.adjusted_snapshot_qty if item.adjusted_snapshot_qty is not None else item.snapshot_qty
+        variance = final_qty - adj
         if variance == 0:
             continue
         try:

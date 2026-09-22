@@ -20,6 +20,7 @@ import {
   Tooltip,
   IconButton,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -46,11 +47,12 @@ const STATUS_COLORS: Record<StockCountStatus, 'default' | 'info' | 'warning' | '
 const SHORTAGE_REASONS = ['Counting Error', 'Damaged', 'Expired', 'Theft/Loss', 'Unrecorded Sale', 'Internal Consumption', 'Other'];
 const EXCESS_REASONS = ['Counting Error', 'Purchase Not Recorded', 'Transfer Not Recorded', 'Return Not Recorded', 'Previous Adjustment Error', 'Other'];
 
-type VarianceFilter = 'all' | 'matched' | 'short' | 'excess' | 'uncounted';
+type VarianceFilter = 'all' | 'counted' | 'matched' | 'short' | 'excess' | 'uncounted';
 
 function applyVarianceFilter(item: StockCountItem, filter: VarianceFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'uncounted') return item.physicalQty === null;
+  if (filter === 'counted') return item.physicalQty !== null;
   if (item.physicalQty === null) return false;
   const v = item.varianceQty ?? 0;
   if (filter === 'matched') return v === 0;
@@ -155,6 +157,33 @@ export function StockCountDetailPage() {
             row.snapshotQty === -1
               ? <Typography variant="body2" sx={{ color: 'text.disabled' }}>Hidden</Typography>
               : row.snapshotQty,
+        },
+        {
+          id: 'unitsSoldInWindow',
+          label: 'Sold During Count',
+          align: 'right' as const,
+          render: (row: StockCountItem) =>
+            row.unitsSoldInWindow > 0 ? (
+              <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                -{row.unitsSoldInWindow}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">0</Typography>
+            ),
+        },
+        {
+          id: 'adjustedSnapshotQty',
+          label: 'Adj. Snapshot',
+          align: 'right' as const,
+          render: (row: StockCountItem) => {
+            if (row.snapshotQty === -1) return <Typography variant="body2" sx={{ color: 'text.disabled' }}>Hidden</Typography>;
+            const adj = row.adjustedSnapshotQty ?? row.snapshotQty;
+            return (
+              <Typography variant="body2" sx={{ fontWeight: row.unitsSoldInWindow > 0 ? 700 : 400 }}>
+                {adj}
+              </Typography>
+            );
+          },
         }]
       : []),
     {
@@ -252,7 +281,10 @@ export function StockCountDetailPage() {
         title={sc.countNumber}
         subtitle={`${STATUS_LABELS[sc.status]} · ${sc.countType === 'full' ? 'Full Count' : sc.countType} · ${sc.countMode === 'blind' ? 'Blind' : 'Assisted'} Mode`}
         action={
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Button onClick={() => navigate('/stock-count')} startIcon={<ArrowBackIcon />} size="small" sx={{ mr: 0.5 }}>
+              Back
+            </Button>
             {canCount && (
               <Button variant="contained" onClick={() => navigate(`/stock-count/${id}/count`)}>
                 {sc.status === 'recount_required' ? 'Continue Recount' : 'Continue Counting'}
@@ -299,7 +331,7 @@ export function StockCountDetailPage() {
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {([
           { title: 'Total Products', value: sc.totalProducts, gradient: ['#f0f9ff', '#bae6fd'] as [string,string], color: '#0369a1', filter: 'all' as VarianceFilter },
-          { title: 'Counted', value: sc.countedProducts, gradient: ['#dbeafe', '#93c5fd'] as [string,string], color: '#1d4ed8', filter: 'all' as VarianceFilter },
+          { title: 'Counted', value: sc.countedProducts, gradient: ['#dbeafe', '#93c5fd'] as [string,string], color: '#1d4ed8', filter: 'counted' as VarianceFilter },
           { title: 'Matched', value: sc.matchedCount, gradient: ['#d4f5e9', '#a8e6cf'] as [string,string], color: '#1b7a4e', filter: 'matched' as VarianceFilter },
           { title: 'Short', value: sc.shortCount, gradient: ['#fff1f2', '#fecdd3'] as [string,string], color: '#be123c', filter: 'short' as VarianceFilter },
           { title: 'Excess', value: sc.excessCount, gradient: ['#fff7ed', '#fed7aa'] as [string,string], color: '#c2410c', filter: 'excess' as VarianceFilter },
@@ -329,7 +361,7 @@ export function StockCountDetailPage() {
       {tab === 0 && (
         <>
           <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {(['all', 'matched', 'short', 'excess', 'uncounted'] as VarianceFilter[]).map((f) => (
+            {(['all', 'counted', 'matched', 'short', 'excess', 'uncounted'] as VarianceFilter[]).map((f) => (
               <Chip
                 key={f}
                 label={f.charAt(0).toUpperCase() + f.slice(1)}

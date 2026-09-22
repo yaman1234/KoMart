@@ -43,8 +43,11 @@ class StockCountItemResponse(BaseModel):
     barcode: str
     category: str
     uom: str
+    image_url: str
     unit_cost: float
     snapshot_qty: int
+    units_sold_in_window: int
+    adjusted_snapshot_qty: Optional[int]
     physical_qty: Optional[int]
     recount_qty: Optional[int]
     final_qty: Optional[int]
