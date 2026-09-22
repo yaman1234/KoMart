@@ -143,7 +143,33 @@ export function SalesPage() {
     {
       id: 'payment',
       label: 'Payment',
-      render: (r) => r.paymentMethod.toUpperCase(),
+      render: (r) => {
+        const gradients: Record<string, { bg: string; color: string }> = {
+          cash:  { bg: 'linear-gradient(135deg, #d4edda 0%, #a8d5b5 100%)', color: '#1b5e20' },
+          bank:  { bg: 'linear-gradient(135deg, #cce5ff 0%, #90c4f9 100%)', color: '#0d47a1' },
+          esewa: { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffd97d 100%)', color: '#7c4a00' },
+        };
+        const c = gradients[r.paymentMethod] ?? { bg: 'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)', color: '#212121' };
+        return (
+          <Typography
+            component="span"
+            variant="caption"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: 999,
+              px: 1.25,
+              py: 0.5,
+              fontWeight: 700,
+              letterSpacing: 0.25,
+              background: c.bg,
+              color: c.color,
+            }}
+          >
+            {r.paymentMethod.toUpperCase()}
+          </Typography>
+        );
+      },
       sortable: true,
       sortKey: 'paymentMethod',
     },

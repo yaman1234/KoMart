@@ -227,26 +227,30 @@ export function ExpensesPage() {
           title="Total Expenses"
           value={statsLoading ? '—' : formatCurrency(stats?.totalExpenses ?? 0)}
           icon={<TrendingUpIcon />}
-          color="error.main"
+          gradient={['#fff1f2', '#fecdd3']}
+          color="#be123c"
         />
         <StatCard
           title="Operating Expenses"
           value={statsLoading ? '—' : formatCurrency(stats?.operatingExpenses ?? Math.max(0, (stats?.totalExpenses ?? 0) - (stats?.setupInvestment ?? 0)))}
           icon={<AccountBalanceWalletIcon />}
-          color="warning.main"
+          gradient={['#fff7ed', '#fed7aa']}
+          color="#c2410c"
           subtitle="Excludes setup / investment"
         />
         <StatCard
           title="This Month"
           value={statsLoading ? '—' : formatCurrency(stats?.thisMonth ?? 0)}
           icon={<CalendarTodayIcon />}
-          color="info.main"
+          gradient={['#e0f2fe', '#7dd3fc']}
+          color="#0369a1"
         />
         <StatCard
           title="Setup / Investment"
           value={statsLoading ? '—' : formatCurrency(stats?.setupInvestment ?? 0)}
           icon={<BusinessCenterIcon />}
-          color="secondary.main"
+          gradient={['#f5f3ff', '#ddd6fe']}
+          color="#5b21b6"
           subtitle="Setup flag or Setup / Investment category"
         />
       </Box>
