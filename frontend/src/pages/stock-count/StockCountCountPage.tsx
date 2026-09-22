@@ -264,7 +264,7 @@ export function StockCountCountPage() {
                   <CheckCircleIcon color="success" sx={{ fontSize: 18, flexShrink: 0 }} />
                 )}
               </Box>
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }} useFlexGap>
                 <Chip label={`SKU: ${currentItem.sku}`} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
                 <Chip label={`Category: ${currentItem.category}`} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
                 <Chip label={`Unit: ${currentItem.uom}`} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
@@ -386,7 +386,7 @@ export function StockCountCountPage() {
       )}
 
       {/* ── Summary chips ── */}
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }} useFlexGap>
         <Chip
           label={`${totalCounted} counted`}
           size="small"
