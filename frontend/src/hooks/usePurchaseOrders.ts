@@ -51,9 +51,9 @@ export function useUpdatePurchaseOrder() {
       id: string;
       data: PurchaseOrderWritePayload;
     }) => purchaseOrderService.update(id, data),
-    onSuccess: (_, { id }) => {
+    onSuccess: () => {
+      // Prefix invalidates list (...params) and detail (...id) in one pass
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
     },
   });
 }
@@ -63,9 +63,8 @@ export function useUpdatePurchaseOrderStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: PurchaseOrderStatus }) =>
       purchaseOrderService.updateStatus(id, status),
-    onSuccess: (_, { id }) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
     },
   });
 }
@@ -75,9 +74,8 @@ export function useReceivePurchaseOrderItems() {
   return useMutation({
     mutationFn: ({ id, items }: { id: string; items: PurchaseOrderReceiveItem[] }) =>
       purchaseOrderService.receiveItemsInChunks(id, items),
-    onSuccess: (_, { id }) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
       invalidateCommerceQueries(queryClient, { scopes: ['stock', 'price'] });
     },
   });
@@ -88,9 +86,8 @@ export function useRecordPurchaseOrderPayment() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: PurchaseOrderPaymentPayload }) =>
       purchaseOrderService.recordPayment(id, data),
-    onSuccess: (_, { id }) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(id) });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });

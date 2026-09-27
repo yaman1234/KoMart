@@ -9,6 +9,8 @@ export interface PoLineItem {
   buyUom: string;
   unitsPerBuyUom: number;
   unitCost: number;
+  /** Last received purchase Unit Cost (buy/pack UOM); null = none / first buy */
+  lastPurchaseUnitCost?: number | null;
   receivedQuantity: number;
   resolveError?: string;
 }

@@ -19,6 +19,7 @@ class InventoryBatch(Document):
     product_id: str
     batch_number: str
     quantity: int = Field(ge=0)
+    received_quantity: Optional[int] = Field(default=None, ge=0)
     unit_cost: float = Field(default=0.0, ge=0)
     expiry_date: Optional[str] = None
     purchase_order_id: Optional[str] = None

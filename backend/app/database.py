@@ -28,6 +28,7 @@ from app.models import (
     CacheEntry,
     CashCustody,
     StockCount,
+    PurchasePriceHistory,
 )
 
 _motor_client: AsyncIOMotorClient | None = None
@@ -145,6 +146,7 @@ async def init_db() -> None:
             CacheEntry,
             CashCustody,
             StockCount,
+            PurchasePriceHistory,
         ],
     )
 

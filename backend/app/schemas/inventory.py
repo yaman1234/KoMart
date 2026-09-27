@@ -18,6 +18,7 @@ class BatchResponse(BaseModel):
     product_id: str
     batch_number: str
     quantity: int
+    received_quantity: Optional[int] = None
     unit_cost: float = 0.0
     expiry_date: Optional[str]
     purchase_order_id: Optional[str] = None

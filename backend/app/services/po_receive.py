@@ -352,6 +352,7 @@ async def receive_purchase_order_items(
             "product_id": pid,
             "batch_number": plan.batch_number,
             "quantity": plan.base_delta,
+            "received_quantity": plan.base_delta,
             "unit_cost": plan.landed_cost,
             "expiry_date": plan.receive.expiry_date or None,
             "purchase_order_id": po_id_str,
@@ -414,6 +415,29 @@ async def receive_purchase_order_items(
     refreshed = await PurchaseOrder.get(po_id)
     if not refreshed:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Receive commit failed")
+
+    # Record purchase Unit Cost history (buy/pack UOM as on the PO line)
+    from app.models.purchase_price_history import PurchasePriceHistory
+
+    bill_number = (getattr(refreshed, "bill_number", None) or "").strip() or None
+    for plan in plans:
+        buy_qty = int(plan.receive.receive_quantity)
+        units = getattr(plan.item, "units_per_buy_uom", None) or 1
+        hist = PurchasePriceHistory(
+            product_id=plan.item.product_id,
+            purchased_at=now,
+            unit_cost=float(plan.item.unit_cost),
+            quantity=buy_qty,
+            base_quantity=int(plan.base_delta),
+            purchase_order_id=po_id_str,
+            order_number=refreshed.order_number,
+            bill_number=bill_number,
+            supplier_id=getattr(refreshed, "supplier_id", None) or "",
+            supplier_name=getattr(refreshed, "supplier_name", None) or "",
+            order_uom=getattr(plan.item, "order_uom", None) or "pcs",
+            units_per_buy_uom=int(units),
+        )
+        await hist.insert()
 
     from app.services.stock import get_current_stock
     for pid in {plan.item.product_id for plan in plans}:

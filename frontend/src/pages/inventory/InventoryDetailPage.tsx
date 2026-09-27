@@ -20,6 +20,7 @@ import { DataTable, type Column } from '@/components/tables/DataTable';
 import { AdjustStockDialog } from '@/components/inventory/AdjustStockDialog';
 import { useInventoryItem, useAdjustStock } from '@/hooks/useInventory';
 import { MovementLedgerTab } from './MovementLedgerTab';
+import { PurchasePriceHistoryTab } from './PurchasePriceHistoryTab';
 import { useAuthStore } from '@/store';
 import { formatCurrency, formatExpiryDate, isAdmin } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
@@ -27,10 +28,12 @@ import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch } from '@/types';
 import { useFormatDate } from '@/hooks/useFormatDate';
 
-type DetailTab = 'batches' | 'ledger';
+type DetailTab = 'batches' | 'ledger' | 'purchaseHistory';
 
 function parseDetailTab(raw: string | null): DetailTab {
-  return raw === 'ledger' ? 'ledger' : 'batches';
+  if (raw === 'ledger') return 'ledger';
+  if (raw === 'purchaseHistory') return 'purchaseHistory';
+  return 'batches';
 }
 
 export function InventoryDetailPage() {
@@ -75,7 +78,25 @@ export function InventoryDetailPage() {
 
   const batchColumns: Column<InventoryBatch>[] = [
     { id: 'batch', label: 'Batch No.', accessor: 'batchNumber' },
-    { id: 'qty', label: 'Quantity', align: 'right', accessor: 'quantity' },
+    {
+      id: 'receivedQty',
+      label: 'Received Qty',
+      align: 'right',
+      render: (row) =>
+        row.receivedQuantity == null ? '—' : formatStockQty(row.receivedQuantity, item.uom ?? ''),
+    },
+    {
+      id: 'qty',
+      label: 'Remaining Qty',
+      align: 'right',
+      render: (row) => formatStockQty(row.quantity, item.uom ?? ''),
+    },
+    {
+      id: 'unitCost',
+      label: 'Unit Cost',
+      align: 'right',
+      render: (row) => (row.unitCost != null ? formatCurrency(row.unitCost) : '—'),
+    },
     {
       id: 'expiry',
       label: 'Expiry',
@@ -175,6 +196,7 @@ export function InventoryDetailPage() {
       <Tabs value={tab} onChange={(_, v: DetailTab) => setTab(v)} sx={{ mb: 2 }}>
         <Tab value="batches" label={`Batches (${item.batches.length})`} />
         <Tab value="ledger" label="Movement Ledger" />
+        <Tab value="purchaseHistory" label="Purchase price history" />
       </Tabs>
 
       {tab === 'batches' && (
@@ -192,6 +214,10 @@ export function InventoryDetailPage() {
           hideProductColumn
           onHandStock={item.stock}
         />
+      )}
+
+      {tab === 'purchaseHistory' && productId && (
+        <PurchasePriceHistoryTab productId={productId} />
       )}
 
       <AdjustStockDialog
