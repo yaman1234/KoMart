@@ -252,10 +252,27 @@ export interface InventoryBatch {
   productId: string;
   batchNumber: string;
   quantity: number;
+  receivedQuantity?: number | null;
   unitCost?: number;
   expiryDate?: string;
   purchaseOrderId?: string;
   receivedAt: string;
+}
+
+export interface PurchasePriceHistoryEntry {
+  id: string;
+  productId: string;
+  purchasedAt: string;
+  unitCost: number;
+  quantity: number;
+  baseQuantity?: number;
+  purchaseOrderId: string;
+  orderNumber: string;
+  billNumber?: string | null;
+  supplierId?: string;
+  supplierName?: string;
+  orderUom?: string;
+  unitsPerBuyUom?: number;
 }
 
 export interface InventoryItem extends Product {
@@ -437,6 +454,9 @@ export interface PurchaseOrder {
   supplierName: string;
   status: PurchaseOrderStatus;
   items: PurchaseOrderItem[];
+  subtotal?: number;
+  discount?: number;
+  additionalCharges?: number;
   totalAmount: number;
   amountPaid?: number;
   paymentStatus?: PurchaseOrderPaymentStatus;
@@ -445,6 +465,8 @@ export interface PurchaseOrder {
   orderedBy?: string;
   receivedBy?: string;
   receivedDate?: string;
+  billNumber?: string;
+  billImages?: string[];
   createdAt: string;
   updatedAt: string;
 }

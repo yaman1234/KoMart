@@ -19,9 +19,6 @@ import {
   TextField,
   Checkbox,
   Link,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Grid,
   InputAdornment,
   InputLabel,
@@ -31,7 +28,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaymentsIcon from '@mui/icons-material/Payments';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,9 +44,9 @@ import {
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
+import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { PAYMENT_METHODS, PO_LINE_STATUS_LABELS, PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type {
@@ -64,7 +60,12 @@ import {
   poDetailFlatColWidths,
   poDetailTableMinWidth,
 } from '@/pages/purchase-orders/poLineTableColumns';
-import { PO_LABELS, PO_RECEIVE_HINT } from '@/pages/purchase-orders/poTerminology';
+import {
+  PO_LABELS,
+  PO_RECEIVE_HINT,
+  PO_RECORD_PAYMENT_HINT,
+} from '@/pages/purchase-orders/poTerminology';
+import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
 
 const PAYMENT_SCHEMA = z.object({
   amount: z.number({ error: 'Amount is required' }).positive('Amount must be positive'),
@@ -95,7 +96,7 @@ const LINE_STATUS_COLORS: Record<PurchaseOrderLineStatus, 'default' | 'warning' 
 const NEXT_STATUSES: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>> = {
   draft: ['ordered', 'cancelled'],
   ordered: ['cancelled'],
-  partial: ['cancelled'],
+  // Received / partial with stock posted: cancel blocked — use purchase return
 };
 
 const PAYABLE_STATUSES = new Set<PurchaseOrderStatus>(['ordered', 'partial', 'received']);
@@ -147,6 +148,7 @@ export function PurchaseOrderDetailPage() {
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
   const amountPaid = po?.amountPaid ?? 0;
   const remaining = po ? Math.max(0, Math.round((po.totalAmount - amountPaid) * 100) / 100) : 0;
+  const overpaid = po ? Math.max(0, Math.round((amountPaid - po.totalAmount) * 100) / 100) : 0;
   const paymentStatus: PurchaseOrderPaymentStatus = po?.paymentStatus ?? 'unpaid';
   const canPay = Boolean(po && canManage && PAYABLE_STATUSES.has(po.status) && remaining > 0);
 
@@ -216,7 +218,7 @@ export function PurchaseOrderDetailPage() {
     setStatusValue(status);
     try {
       await statusMutation.mutateAsync({ id: po.id, status });
-      showSuccess('Purchase Order updated.');
+      showSuccess(`Status set to ${PO_STATUS_LABELS[status] ?? status}.`);
       setStatusValue('');
     } catch (err) {
       setStatusError(getErrorMessage(err));
@@ -233,7 +235,9 @@ export function PurchaseOrderDetailPage() {
     setReceiveError('');
     try {
       await receiveMutation.mutateAsync({ id: po.id, items: itemsToReceive });
-      showSuccess('Purchase Order received.');
+      showSuccess(
+        `${itemsToReceive.length} line${itemsToReceive.length !== 1 ? 's' : ''} received. Stock and cost updated.`,
+      );
       setReceiveSelections({});
     } catch (err) {
       setReceiveError(getErrorMessage(err));
@@ -246,7 +250,7 @@ export function PurchaseOrderDetailPage() {
       amount: remaining,
       date: new Date().toISOString().slice(0, 10),
       paymentMethod: 'cash',
-      billNo: '',
+      billNo: po.billNumber ?? '',
       notes: '',
     });
     setPaymentError('');
@@ -280,7 +284,10 @@ export function PurchaseOrderDetailPage() {
           notes: values.notes?.trim() || undefined,
         },
       });
-      showSuccess('Payment recorded and expense created.');
+      const nextRemaining = Math.max(0, po.totalAmount - (amountPaid + amount));
+      showSuccess(
+        `Payment of ${formatCurrency(amount)} recorded. Remaining ${formatCurrency(nextRemaining)}.`,
+      );
       setPaymentOpen(false);
     } catch (err) {
       setPaymentError(getErrorMessage(err));
@@ -360,150 +367,241 @@ export function PurchaseOrderDetailPage() {
         }
       />
 
+      <Box sx={{ mb: 1, mt: -0.5 }}>
+        <PoEntryFlowHelp />
+      </Box>
+
       {(statusError || receiveError) && (
         <Alert severity="error" sx={{ mb: 2 }}>{statusError || receiveError}</Alert>
       )}
 
-      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Supplier
-            </Typography>
-            <Link
-              component={RouterLink}
-              to={`/suppliers/${po.supplierId}`}
-              variant="subtitle1"
-              sx={{ fontWeight: 600 }}
-              title={po.supplierName}
+      <Grid container spacing={1.5} sx={{ mb: 2, alignItems: 'stretch' }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <Box
+              sx={{
+                px: 1.75,
+                py: 1.25,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1,
+                borderBottom: 1,
+                borderColor: 'divider',
+                bgcolor: 'action.hover',
+              }}
             >
-              {po.supplierName}
-            </Link>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Chip label={PO_STATUS_LABELS[po.status]} color={STATUS_COLORS[po.status]} size="small" sx={{ fontWeight: 600 }} />
-            <Chip
-              label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
-              color={PAYMENT_COLORS[paymentStatus]}
-              size="small"
-              variant="outlined"
-              sx={{ fontWeight: 600 }}
-            />
-          </Box>
-          <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Order total</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-              {formatCurrency(po.totalAmount)}
-            </Typography>
-          </Box>
-        </Box>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 6, md: 3 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Expected delivery</Typography>
-            <Typography variant="body2">{po.expectedDelivery ? formatDate(po.expectedDelivery) : '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Items</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {po.items.length}
-              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                · {receivedCount} received
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                Supplier
               </Typography>
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Ordered by</Typography>
-            <Typography variant="body2">{po.orderedBy ?? '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Received by</Typography>
-            <Typography variant="body2">{po.receivedBy ?? '—'}</Typography>
-          </Grid>
+              <Chip
+                label={PO_STATUS_LABELS[po.status]}
+                color={STATUS_COLORS[po.status]}
+                size="small"
+                sx={{ fontWeight: 600, height: 22 }}
+              />
+            </Box>
+            <Box sx={{ px: 1.75, py: 1.5, flex: 1 }}>
+              <Link
+                component={RouterLink}
+                to={`/suppliers/${po.supplierId}`}
+                variant="body1"
+                sx={{ fontWeight: 700, display: 'inline-block', mb: 1.25 }}
+                title={po.supplierName}
+              >
+                {po.supplierName}
+              </Link>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">Order total</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
+                  {formatCurrency(po.totalAmount)}
+                </Typography>
+              </Box>
+              <Divider sx={{ mb: 1.25 }} />
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  columnGap: 1.5,
+                  rowGap: 1,
+                }}
+              >
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>Expected delivery</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{po.expectedDelivery ? formatDate(po.expectedDelivery) : '—'}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>Items</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {po.items.length}
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                      · {receivedCount} received
+                    </Typography>
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>Ordered by</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{po.orderedBy ?? '—'}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>Received by</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{po.receivedBy ?? '—'}</Typography>
+                </Box>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25, lineHeight: 1.4 }}>
+                {po.receivedDate ? `Received ${formatDate(po.receivedDate)}` : 'Not received yet'}
+                {' · '}Created {formatDate(po.createdAt)}
+                {' · '}Updated {formatDate(po.updatedAt)}
+              </Typography>
+            </Box>
+          </Paper>
         </Grid>
-        <Accordion disableGutters elevation={0} sx={{ mt: 1.5, bgcolor: 'transparent', '&:before': { display: 'none' } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 40 }}>
-            <Typography variant="body2" color="text.secondary">More details</Typography>
-          </AccordionSummary>
-          <AccordionDetails sx={{ px: 0, pt: 0 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Received date</Typography>
-                <Typography variant="body2">{po.receivedDate ? formatDate(po.receivedDate) : '—'}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Created</Typography>
-                <Typography variant="body2">{formatDate(po.createdAt)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>Last updated</Typography>
-                <Typography variant="body2">{formatDate(po.updatedAt)}</Typography>
-              </Grid>
-            </Grid>
-          </AccordionDetails>
-        </Accordion>
-      </Paper>
 
-      <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Payments</Typography>
-          {canPay && (
-            <Button size="small" startIcon={<PaymentsIcon />} onClick={openPaymentDialog}>
-              Record payment
-            </Button>
-          )}
-        </Box>
-        <Grid container spacing={2} sx={{ mb: 1.5 }}>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Paid</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 700 }}>{formatCurrency(amountPaid)}</Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Remaining</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 700, color: remaining > 0 ? 'warning.main' : 'success.main' }}>
-              {formatCurrency(remaining)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 4 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Status</Typography>
-            <Chip
-              label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
-              color={PAYMENT_COLORS[paymentStatus]}
-              size="small"
-              sx={{ mt: 0.25 }}
-            />
-          </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <Box
+              sx={{
+                px: 1.75,
+                py: 1.25,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1,
+                flexWrap: 'wrap',
+                borderBottom: 1,
+                borderColor: 'divider',
+                bgcolor: 'action.hover',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                  Payment
+                </Typography>
+                <Chip
+                  label={PO_PAYMENT_STATUS_LABELS[paymentStatus]}
+                  color={PAYMENT_COLORS[paymentStatus]}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontWeight: 600, height: 22 }}
+                />
+              </Box>
+              {canPay && (
+                <Button size="small" variant="contained" startIcon={<PaymentsIcon />} onClick={openPaymentDialog} sx={{ py: 0.25 }}>
+                  Record payment
+                </Button>
+              )}
+            </Box>
+            <Box sx={{ px: 1.75, py: 1.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1.25 }}>
+                <Box
+                  sx={{
+                    px: 1.25,
+                    py: 1,
+                    borderRadius: 1,
+                    border: 1,
+                    borderColor: 'divider',
+                    bgcolor: 'background.default',
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>Paid</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
+                    {formatCurrency(amountPaid)}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    px: 1.25,
+                    py: 1,
+                    borderRadius: 1,
+                    border: 1,
+                    borderColor: remaining > 0 ? 'warning.light' : 'success.light',
+                    bgcolor: 'background.default',
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>Remaining</Typography>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{
+                      fontWeight: 700,
+                      lineHeight: 1.3,
+                      color: remaining > 0 ? 'warning.main' : 'success.main',
+                    }}
+                  >
+                    {formatCurrency(remaining)}
+                  </Typography>
+                </Box>
+              </Box>
+              {overpaid > 0 && (
+                <Chip
+                  label={`Overpaid / credit: ${formatCurrency(overpaid)}`}
+                  color="warning"
+                  size="small"
+                  sx={{ mb: 1, alignSelf: 'flex-start', fontWeight: 600, height: 22 }}
+                />
+              )}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, lineHeight: 1.35 }}>
+                {PO_RECORD_PAYMENT_HINT}
+              </Typography>
+              <Divider sx={{ mb: 1 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.75 }}>
+                Payment history
+              </Typography>
+              {(po.payments?.length ?? 0) === 0 ? (
+                <Typography variant="caption" color="text.secondary">No payments recorded yet.</Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, maxHeight: 160, overflowY: 'auto' }}>
+                  {(po.payments ?? []).map((payment, index) => (
+                    <Box
+                      key={`${payment.expenseId}-${index}`}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                        py: 0.5,
+                        borderBottom: index < (po.payments?.length ?? 0) - 1 ? 1 : 0,
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.3 }}>
+                          {formatDate(payment.date)}
+                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.75, textTransform: 'capitalize' }}>
+                            {payment.paymentMethod}
+                          </Typography>
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {payment.billNo?.trim() ? `Bill ${payment.billNo}` : 'No bill no.'}
+                          {payment.createdBy ? ` · ${payment.createdBy}` : ''}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {formatCurrency(payment.amount)}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          </Paper>
         </Grid>
-        {(po.payments?.length ?? 0) === 0 ? (
-          <Typography variant="body2" color="text.secondary">No payments recorded yet.</Typography>
-        ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Bill no.</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Recorded by</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(po.payments ?? []).map((payment, index) => (
-                  <TableRow key={`${payment.expenseId}-${index}`}>
-                    <TableCell>{formatDate(payment.date)}</TableCell>
-                    <TableCell>{payment.billNo?.trim() ? payment.billNo : '—'}</TableCell>
-                    <TableCell sx={{ textTransform: 'capitalize' }}>{payment.paymentMethod}</TableCell>
-                    <TableCell align="right">{formatCurrency(payment.amount)}</TableCell>
-                    <TableCell>{payment.notes || '—'}</TableCell>
-                    <TableCell>{payment.createdBy || '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
+      </Grid>
 
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
@@ -579,7 +677,26 @@ export function PurchaseOrderDetailPage() {
                 const defaultPackQty = remaining > 0 ? remaining : 1;
 
                 return (
-                  <TableRow key={item.productId} selected={canReceive && receiveSel.selected}>
+                  <TableRow
+                    key={item.productId}
+                    selected={canReceive && receiveSel.selected}
+                    sx={
+                      canReceive && receiveSel.selected
+                        ? {
+                            // Keep row indicated without a heavy/red tint that hides inputs
+                            '&.Mui-selected': {
+                              bgcolor: 'action.hover',
+                            },
+                            '&.Mui-selected:hover': {
+                              bgcolor: 'action.selected',
+                            },
+                            '& .MuiTableCell-root': {
+                              bgcolor: 'transparent',
+                            },
+                          }
+                        : undefined
+                    }
+                  >
                     {canReceive && (
                       <TableCell padding="checkbox">
                         <Checkbox
@@ -653,7 +770,7 @@ export function PurchaseOrderDetailPage() {
                     </TableCell>
                     {canReceive && (
                       <TableCell>
-                        <Box sx={{ width: '100%', minWidth: 120 }}>
+                        <Box sx={{ width: '100%', minWidth: 80 }}>
                           <NepaliAwareDatePicker
                             label="Expiry"
                             value={receiveSel.expiryDate}
@@ -663,7 +780,7 @@ export function PurchaseOrderDetailPage() {
                             size="small"
                             disabled={!receiveSel.selected}
                             calendarSystem="AD"
-                            helperText={receiveSel.selected ? 'AD — optional' : undefined}
+                            helperText={undefined}
                           />
                         </Box>
                       </TableCell>
@@ -685,10 +802,87 @@ export function PurchaseOrderDetailPage() {
         </TableContainer>
 
         <Divider sx={{ mt: 2, mb: 1 }} />
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Order Total: {formatCurrency(po.totalAmount)}
-          </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            flexWrap: 'wrap',
+            gap: 2,
+          }}
+        >
+          <Box sx={{ flex: '1 1 220px', minWidth: 0, maxWidth: 420 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Supplier bill
+            </Typography>
+            {po.billNumber ? (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Bill number:{' '}
+                <Typography component="span" variant="body2" sx={{ fontWeight: 600 }}>
+                  {po.billNumber}
+                </Typography>
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                No bill number
+              </Typography>
+            )}
+            {po.billImages && po.billImages.length > 0 ? (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {po.billImages.map((url) => (
+                  <Box
+                    key={url}
+                    component="a"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Box
+                      component="img"
+                      src={url}
+                      alt="Bill"
+                      sx={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="caption" color="text.secondary">
+                No bill photos
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ width: '100%', maxWidth: 360 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Order Summary
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="body2" color="text.secondary">Subtotal</Typography>
+              <Typography variant="body2">{formatCurrency(po.subtotal ?? po.totalAmount)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="body2" color="text.secondary">Discount</Typography>
+              <Typography variant="body2">{formatCurrency(po.discount ?? 0)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="body2" color="text.secondary">Additional charges</Typography>
+              <Typography variant="body2">{formatCurrency(po.additionalCharges ?? 0)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1, borderTop: 1, borderColor: 'divider' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Order total</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }} color="primary">
+                {formatCurrency(po.totalAmount)}
+              </Typography>
+            </Box>
+            {overpaid > 0 && (
+              <Chip
+                label={`Overpaid / credit: ${formatCurrency(overpaid)}`}
+                color="warning"
+                size="small"
+                sx={{ mt: 1, fontWeight: 600 }}
+              />
+            )}
+          </Box>
         </Box>
       </Paper>
 
@@ -703,7 +897,7 @@ export function PurchaseOrderDetailPage() {
       >
         {paymentError && <Alert severity="error" sx={{ mb: 2 }}>{paymentError}</Alert>}
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Remaining balance: {formatCurrency(remaining)}. This creates a linked expense under Purchase Order.
+          {PO_RECORD_PAYMENT_HINT} Remaining balance: {formatCurrency(remaining)}.
         </Typography>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -745,7 +939,7 @@ export function PurchaseOrderDetailPage() {
               name="paymentMethod"
               control={paymentControl}
               render={({ field }) => (
-                <FormControl fullWidth required error={!!paymentErrors.paymentMethod}>
+                <FormControl fullWidth required error={!!paymentErrors.paymentMethod} size="small">
                   <InputLabel>Payment method</InputLabel>
                   <Select label="Payment method" {...field}>
                     {PAYMENT_METHODS.map((method) => (

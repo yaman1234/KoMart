@@ -245,6 +245,25 @@ export const productService = {
     const { data } = await apiClient.get(`/products/${id}`);
     return data;
   },
+  getPurchasePriceHistory: async (
+    id: string,
+    params?: { page?: number; pageSize?: number },
+  ): Promise<{
+    data: import('@/types').PurchasePriceHistoryEntry[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> => {
+    const { data } = await apiClient.get(`/products/${id}/purchase-price-history`, { params });
+    return data;
+  },
+  getLastPurchaseUnitCost: async (
+    id: string,
+  ): Promise<{ productId: string; unitCost: number | null; purchasedAt: string | null }> => {
+    const { data } = await apiClient.get(`/products/${id}/last-purchase-unit-cost`);
+    return data;
+  },
   create: async (payload: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> => {
     if (useMock()) return mockApi.createProduct(payload);
     const { data } = await apiClient.post('/products', payload);

@@ -712,7 +712,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       {...register('unitsPerBuyUom', { valueAsNumber: true })}
-                      label="Conversion Rate"
+                      label="Units per pack"
                       type="number"
                       fullWidth
                       error={!!errors.unitsPerBuyUom}

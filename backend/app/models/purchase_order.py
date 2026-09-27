@@ -183,6 +183,9 @@ class PurchaseOrder(Document):
     supplier_name: str
     status: POStatus = POStatus.draft
     items: list[PurchaseOrderItem] = Field(default_factory=list)
+    subtotal: float = Field(default=0.0, ge=0)
+    discount: float = Field(default=0.0, ge=0)
+    additional_charges: float = Field(default=0.0, ge=0)
     total_amount: float = Field(ge=0)
     amount_paid: float = Field(default=0.0, ge=0)
     payment_status: PaymentStatus = PaymentStatus.unpaid
@@ -191,6 +194,8 @@ class PurchaseOrder(Document):
     ordered_by: Optional[str] = None
     received_by: Optional[str] = None
     received_date: Optional[str] = None
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -222,9 +227,9 @@ class PurchaseOrder(Document):
             return 0.0
         return n if n >= 0 else 0.0
 
-    @field_validator("total_amount", mode="before")
+    @field_validator("subtotal", "discount", "additional_charges", "total_amount", mode="before")
     @classmethod
-    def _coerce_total_amount(cls, v: Any) -> Any:
+    def _coerce_money_fields(cls, v: Any) -> Any:
         if v is None:
             return 0.0
         try:
@@ -232,6 +237,23 @@ class PurchaseOrder(Document):
         except (TypeError, ValueError):
             return 0.0
         return n if n >= 0 else 0.0
+
+    @field_validator("bill_number", mode="before")
+    @classmethod
+    def _coerce_bill_number(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        text = str(v).strip()
+        return text or None
+
+    @field_validator("bill_images", mode="before")
+    @classmethod
+    def _coerce_bill_images(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            return []
+        return [str(u).strip() for u in v if str(u).strip()]
 
     @field_validator("items", mode="before")
     @classmethod

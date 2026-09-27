@@ -16,6 +16,7 @@ from app.models.audit_log import AuditLog
 from app.models.discount_rule import DiscountRule
 from app.models.day_close import DayClose
 from app.models.price_history import PriceHistory
+from app.models.purchase_price_history import PurchasePriceHistory
 from app.models.wallet_ledger import WalletLedgerEntry
 from app.models.cache_entry import CacheEntry
 from app.models.cash_custody import CashCustody
@@ -41,6 +42,7 @@ __all__ = [
     "DiscountRule",
     "DayClose",
     "PriceHistory",
+    "PurchasePriceHistory",
     "WalletLedgerEntry",
     "CacheEntry",
     "CashCustody",

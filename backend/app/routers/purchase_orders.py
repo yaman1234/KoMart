@@ -28,6 +28,7 @@ from app.schemas.common import PaginatedResponse
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, po_snapshot
 from app.services.store_settings import get_store_settings
+from app.services.po_totals import compute_po_totals
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +87,27 @@ def _dt_iso(value) -> str:
     return str(value)
 
 
+def _normalized_totals(po: PurchaseOrder) -> dict[str, float]:
+    items = getattr(po, "items", None) or []
+    discount = float(getattr(po, "discount", 0) or 0)
+    charges = float(getattr(po, "additional_charges", 0) or 0)
+    computed = compute_po_totals(items, discount, charges)
+    # Legacy docs with no items parse: fall back to stored total as subtotal/total
+    if not items and computed["total_amount"] == 0:
+        stored = round(float(getattr(po, "total_amount", 0) or 0), 2)
+        return {
+            "subtotal": stored,
+            "discount": round(max(0.0, discount), 2),
+            "additional_charges": round(max(0.0, charges), 2),
+            "total_amount": stored,
+        }
+    return computed
+
+
 def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
     amount_paid = float(getattr(po, "amount_paid", 0) or 0)
-    total_amount = float(getattr(po, "total_amount", 0) or 0)
+    totals = _normalized_totals(po)
+    total_amount = totals["total_amount"]
     raw_status = getattr(po, "payment_status", None)
     if isinstance(raw_status, PaymentStatus):
         payment_status = raw_status
@@ -101,6 +120,8 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         payment_status = compute_payment_status(amount_paid, total_amount)
 
     payments = getattr(po, "payments", None) or []
+    bill_number = (getattr(po, "bill_number", None) or "").strip() or None
+    bill_images = [str(u).strip() for u in (getattr(po, "bill_images", None) or []) if str(u).strip()]
     return PurchaseOrderResponse(
         id=str(po.id),
         order_number=po.order_number,
@@ -108,6 +129,9 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         supplier_name=po.supplier_name,
         status=po.status,
         items=[item_to_response(i) for i in (po.items or [])],
+        subtotal=totals["subtotal"],
+        discount=totals["discount"],
+        additional_charges=totals["additional_charges"],
         total_amount=total_amount,
         amount_paid=amount_paid,
         payment_status=payment_status,
@@ -116,6 +140,8 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         ordered_by=po.ordered_by,
         received_by=po.received_by,
         received_date=po.received_date,
+        bill_number=bill_number,
+        bill_images=bill_images,
         created_at=_dt_iso(getattr(po, "created_at", None)),
         updated_at=_dt_iso(getattr(po, "updated_at", None)),
     )
@@ -162,6 +188,9 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
         supplier_name=str(doc.get("supplier_name") or ""),
         status=po_status,
         items=[],
+        subtotal=round(float(doc.get("subtotal") or total_amount or 0), 2),
+        discount=round(float(doc.get("discount") or 0), 2),
+        additional_charges=round(float(doc.get("additional_charges") or 0), 2),
         total_amount=total_amount if total_amount >= 0 else 0.0,
         amount_paid=amount_paid if amount_paid >= 0 else 0.0,
         payment_status=payment_status,
@@ -170,6 +199,8 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
         ordered_by=doc.get("ordered_by"),
         received_by=doc.get("received_by"),
         received_date=doc.get("received_date"),
+        bill_number=(str(doc.get("bill_number") or "").strip() or None),
+        bill_images=[str(u).strip() for u in (doc.get("bill_images") or []) if str(u).strip()],
         created_at=_dt_iso(doc.get("created_at")),
         updated_at=_dt_iso(doc.get("updated_at")),
     )
@@ -256,12 +287,30 @@ async def list_purchase_orders(
     else:
         match = {"$and": and_clauses}
 
+    # KPI match ignores status/payment filters so list cards stay store-wide.
+    kpi_clauses: list[dict] = []
+    if supplier_id:
+        kpi_clauses.append({"supplier_id": supplier_id})
+    if search:
+        kpi_clauses.append({
+            "$or": [
+                {"order_number": {"$regex": search, "$options": "i"}},
+                {"supplier_name": {"$regex": search, "$options": "i"}},
+            ]
+        })
+    if not kpi_clauses:
+        kpi_match: dict = {}
+    elif len(kpi_clauses) == 1:
+        kpi_match = kpi_clauses[0]
+    else:
+        kpi_match = {"$and": kpi_clauses}
+
     col = PurchaseOrder.get_motor_collection()
     total = await col.count_documents(match)
 
     # Aggregate summary totals without loading every document into Python first.
     summary_rows = await col.aggregate([
-        {"$match": match} if match else {"$match": {}},
+        {"$match": kpi_match} if kpi_match else {"$match": {}},
         {
             "$group": {
                 "_id": None,
@@ -330,12 +379,17 @@ async def create_purchase_order(
     current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
+    totals = compute_po_totals(body.items, body.discount, body.additional_charges)
+    po_data.update(totals)
     placing_order = body.status == POStatus.ordered
     ordered_by = _resolve_ordered_by(body.ordered_by, current_user, placing_order)
     if ordered_by:
         po_data["ordered_by"] = ordered_by
     elif not placing_order:
         po_data.pop("ordered_by", None)
+    bill_number = (po_data.get("bill_number") or "").strip() or None
+    po_data["bill_number"] = bill_number
+    po_data["bill_images"] = [str(u).strip() for u in (po_data.get("bill_images") or []) if str(u).strip()]
     po = PurchaseOrder(
         order_number=await _next_po_number(),
         **po_data,
@@ -389,16 +443,23 @@ async def update_purchase_order(
         raise
 
     amount_paid = float(getattr(po, "amount_paid", 0) or 0)
-    if body.total_amount + 0.001 < amount_paid:
+    totals = compute_po_totals(merged_items, body.discount, body.additional_charges)
+    if totals["total_amount"] + 0.001 < amount_paid:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=f"Total amount cannot be less than amount already paid ({amount_paid:.2f})",
         )
 
+    bill_number = (body.bill_number or "").strip() or None
+    bill_images = [str(u).strip() for u in (body.bill_images or []) if str(u).strip()]
+
     updates: dict = {
         **body.model_dump(),
+        **totals,
         "items": merged_items,
-        "payment_status": compute_payment_status(amount_paid, body.total_amount),
+        "bill_number": bill_number,
+        "bill_images": bill_images,
+        "payment_status": compute_payment_status(amount_paid, totals["total_amount"]),
         "updated_at": datetime.now(timezone.utc),
     }
     placing_order = body.status == POStatus.ordered
@@ -440,6 +501,14 @@ async def update_status(
     po = await PurchaseOrder.get(po_id)
     if not po:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
+
+    if body.status == POStatus.cancelled and po.status in (POStatus.received, POStatus.partial):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Received POs cannot be cancelled — use purchase return for unsold stock."
+            ),
+        )
 
     before = po_snapshot(po)
     updates: dict = {"status": body.status, "updated_at": datetime.now(timezone.utc)}

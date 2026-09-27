@@ -40,20 +40,30 @@ class PurchaseOrderCreate(BaseModel):
     supplier_id: str
     supplier_name: str
     items: list[PurchaseOrderItem]
-    total_amount: float = Field(ge=0)
+    total_amount: float = Field(default=0, ge=0)
+    discount: float = Field(default=0, ge=0)
+    additional_charges: float = Field(default=0, ge=0)
+    subtotal: Optional[float] = Field(default=None, ge=0)
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
 
 
 class PurchaseOrderUpdate(BaseModel):
     supplier_id: str
     supplier_name: str
     items: list[PurchaseOrderItem]
-    total_amount: float = Field(ge=0)
+    total_amount: float = Field(default=0, ge=0)
+    discount: float = Field(default=0, ge=0)
+    additional_charges: float = Field(default=0, ge=0)
+    subtotal: Optional[float] = Field(default=None, ge=0)
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
 
 
 class PurchaseOrderStatusUpdate(BaseModel):
@@ -113,6 +123,9 @@ class PurchaseOrderResponse(BaseModel):
     supplier_name: str
     status: POStatus
     items: list[PurchaseOrderItemResponse]
+    subtotal: float = 0.0
+    discount: float = 0.0
+    additional_charges: float = 0.0
     total_amount: float
     amount_paid: float = 0.0
     payment_status: PaymentStatus = PaymentStatus.unpaid
@@ -121,6 +134,8 @@ class PurchaseOrderResponse(BaseModel):
     ordered_by: Optional[str]
     received_by: Optional[str]
     received_date: Optional[str]
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
 

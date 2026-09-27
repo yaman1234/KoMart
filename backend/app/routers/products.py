@@ -532,6 +532,82 @@ async def bulk_update_products(
     return ProductBulkUpdateResponse(updated=updated, errors=errors)
 
 
+@router.get("/{product_id}/purchase-price-history")
+async def list_purchase_price_history(
+    product_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    _: User = Depends(get_current_user),
+):
+    from app.models.purchase_price_history import PurchasePriceHistory
+    from math import ceil
+
+    product = await Product.get(product_id)
+    if not product:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    total = await PurchasePriceHistory.find(PurchasePriceHistory.product_id == product_id).count()
+    rows = (
+        await PurchasePriceHistory.find(PurchasePriceHistory.product_id == product_id)
+        .sort("-purchased_at")
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list()
+    )
+    return {
+        "data": [
+            {
+                "id": str(r.id),
+                "product_id": r.product_id,
+                "purchased_at": r.purchased_at.isoformat(),
+                "unit_cost": r.unit_cost,
+                "quantity": r.quantity,
+                "base_quantity": r.base_quantity,
+                "purchase_order_id": r.purchase_order_id,
+                "order_number": r.order_number,
+                "bill_number": r.bill_number,
+                "supplier_id": getattr(r, "supplier_id", None) or "",
+                "supplier_name": getattr(r, "supplier_name", None) or "",
+                "order_uom": r.order_uom,
+                "units_per_buy_uom": r.units_per_buy_uom,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": ceil(total / page_size) if total else 1,
+    }
+
+
+@router.get("/{product_id}/last-purchase-unit-cost")
+async def get_last_purchase_unit_cost(
+    product_id: str,
+    _: User = Depends(get_current_user),
+):
+    from app.models.purchase_price_history import PurchasePriceHistory
+
+    product = await Product.get(product_id)
+    if not product:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    last = (
+        await PurchasePriceHistory.find(PurchasePriceHistory.product_id == product_id)
+        .sort("-purchased_at")
+        .first_or_none()
+    )
+    if not last:
+        return {"product_id": product_id, "unit_cost": None, "purchased_at": None}
+    return {
+        "product_id": product_id,
+        "unit_cost": last.unit_cost,
+        "purchased_at": last.purchased_at.isoformat(),
+        "order_number": last.order_number,
+        "units_per_buy_uom": last.units_per_buy_uom,
+        "order_uom": last.order_uom,
+    }
+
+
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(product_id: str, _: User = Depends(get_current_user)):
     product = await Product.get(product_id)

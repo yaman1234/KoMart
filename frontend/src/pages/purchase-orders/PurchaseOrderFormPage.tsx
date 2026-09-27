@@ -27,6 +27,8 @@ import {
   useUpdatePurchaseOrder,
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { computePoTotals } from '@/utils/poTotals';
+import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
@@ -37,6 +39,7 @@ import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsG
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
 import { useUomOptions } from '@/hooks/useUoms';
+import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
 
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
@@ -100,6 +103,11 @@ export function PurchaseOrderFormPage() {
   const [supplierId, setSupplierId] = useState('');
   const [expectedDelivery, setExpectedDelivery] = useState(() => today().format('YYYY-MM-DD'));
   const [orderedBy, setOrderedBy] = useState('');
+  const [discountInput, setDiscountInput] = useState('0');
+  const [additionalChargesInput, setAdditionalChargesInput] = useState('0');
+  const [billNumber, setBillNumber] = useState('');
+  const [billImages, setBillImages] = useState<string[]>([]);
+  const [billUploading, setBillUploading] = useState(false);
   const [lines, setLines] = useState<PoLineItem[]>(() => [emptyPoLineItem(0)]);
   const [error, setError] = useState('');
   const [pasteWarning, setPasteWarning] = useState('');
@@ -160,6 +168,10 @@ export function PurchaseOrderFormPage() {
     setSupplierId(existingPo.supplierId);
     setExpectedDelivery(existingPo.expectedDelivery ?? today().format('YYYY-MM-DD'));
     setOrderedBy(existingPo.orderedBy ?? currentUser?.name ?? '');
+    setDiscountInput(String(existingPo.discount ?? 0));
+    setAdditionalChargesInput(String(existingPo.additionalCharges ?? 0));
+    setBillNumber(existingPo.billNumber ?? '');
+    setBillImages(existingPo.billImages ?? []);
 
     if (existingPo.items.length > 0) {
       const loaded = existingPo.items.map((item) => {
@@ -179,10 +191,17 @@ export function PurchaseOrderFormPage() {
     (l) => l.product && parseQuantity(l.quantityInput) > 0 && l.unitCost > 0 && !l.resolveError,
   );
   const unresolvedLines = lines.filter((l) => l.skuInput.trim() && (!l.product || l.resolveError));
-  const totalAmount = validLines.reduce(
-    (s, l) => s + parseQuantity(l.quantityInput) * l.unitCost,
-    0,
+  const lineExtensions = validLines.map(
+    (l) => parseQuantity(l.quantityInput) * l.unitCost,
   );
+  const discountParsed = Number.parseFloat(discountInput);
+  const chargesParsed = Number.parseFloat(additionalChargesInput);
+  const totals = computePoTotals(
+    lineExtensions,
+    Number.isFinite(discountParsed) ? discountParsed : 0,
+    Number.isFinite(chargesParsed) ? chargesParsed : 0,
+  );
+  const { subtotal, discount, additionalCharges, totalAmount } = totals;
   const lineCount = validLines.length;
 
   const receivedByProduct = new Map(
@@ -195,7 +214,12 @@ export function PurchaseOrderFormPage() {
       supplierId,
       supplierName: supplier?.name ?? '',
       status,
+      discount,
+      additionalCharges,
+      subtotal,
       totalAmount,
+      billNumber: billNumber.trim() || undefined,
+      billImages,
       expectedDelivery: expectedDelivery || undefined,
       orderedBy: orderedBy || undefined,
       items: validLines.map((l) => ({
@@ -351,10 +375,14 @@ export function PurchaseOrderFormPage() {
         }
       />
 
+      <Box sx={{ mb: 1, mt: -0.5 }}>
+        <PoEntryFlowHelp />
+      </Box>
+
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order details</Typography>
             <Chip
               label={`${lineCount} item${lineCount !== 1 ? 's' : ''} · ${formatCurrency(totalAmount)}`}
@@ -363,8 +391,8 @@ export function PurchaseOrderFormPage() {
               sx={{ fontWeight: 600 }}
             />
           </Box>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
+          <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
                 select
                 label="Supplier"
@@ -379,7 +407,7 @@ export function PurchaseOrderFormPage() {
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <NepaliAwareDatePicker
                 label="Expected Delivery"
                 value={expectedDelivery}
@@ -389,7 +417,7 @@ export function PurchaseOrderFormPage() {
                 fullWidth
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
                 select
                 label="Ordered By"
@@ -424,10 +452,126 @@ export function PurchaseOrderFormPage() {
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          Order Total: {formatCurrency(totalAmount)}
-        </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: 2,
+          mt: 1,
+        }}
+      >
+        <Box sx={{ flex: '1 1 220px', minWidth: 0, maxWidth: 420 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+            Supplier bill
+          </Typography>
+          <TextField
+            label="Bill number"
+            size="small"
+            fullWidth
+            value={billNumber}
+            onChange={(e) => setBillNumber(e.target.value)}
+            placeholder="Optional supplier invoice / bill no"
+            sx={{ mb: 1.5 }}
+          />
+          <Box>
+            <Button
+              component="label"
+              size="small"
+              variant="outlined"
+              disabled={billUploading}
+            >
+              {billUploading ? 'Uploading…' : 'Add bill photos'}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (!files?.length) return;
+                  setBillUploading(true);
+                  void uploadImagesToCloudinary(files)
+                    .then((urls) => setBillImages((prev) => [...prev, ...urls]))
+                    .catch((err) => setError(err instanceof Error ? err.message : 'Upload failed'))
+                    .finally(() => {
+                      setBillUploading(false);
+                      e.target.value = '';
+                    });
+                }}
+              />
+            </Button>
+            {billImages.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                {billImages.map((url) => (
+                  <Box key={url} sx={{ position: 'relative' }}>
+                    <Box
+                      component="img"
+                      src={url}
+                      alt="Bill"
+                      sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}
+                    />
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => setBillImages((prev) => prev.filter((u) => u !== url))}
+                      sx={{ minWidth: 0, p: 0, position: 'absolute', top: -6, right: -6, fontSize: 10 }}
+                    >
+                      ×
+                    </Button>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </Box>
+        <Box sx={{ width: '100%', maxWidth: 360 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+            Order Summary
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+            <Typography variant="body2" color="text.secondary">Subtotal</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatCurrency(subtotal)}</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75, gap: 2 }}>
+            <Typography variant="body2" color="text.secondary">Discount</Typography>
+            <TextField
+              size="small"
+              type="number"
+              value={discountInput}
+              onChange={(e) => setDiscountInput(e.target.value)}
+              slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+              sx={{ width: 140 }}
+              helperText={discountParsed > subtotal ? 'Capped at subtotal' : undefined}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, gap: 2 }}>
+            <Typography variant="body2" color="text.secondary">Additional charges</Typography>
+            <TextField
+              size="small"
+              type="number"
+              value={additionalChargesInput}
+              onChange={(e) => setAdditionalChargesInput(e.target.value)}
+              slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+              sx={{ width: 140 }}
+            />
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              pt: 1,
+              borderTop: 1,
+              borderColor: 'divider',
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Order total</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }} color="primary">
+              {formatCurrency(totalAmount)}
+            </Typography>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

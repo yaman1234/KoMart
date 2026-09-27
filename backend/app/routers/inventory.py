@@ -86,11 +86,13 @@ def _adjustment_response(adj: StockAdjustment) -> StockAdjustmentResponse:
 
 
 def _batch_response(batch: InventoryBatch) -> BatchResponse:
+    received_qty = getattr(batch, "received_quantity", None)
     return BatchResponse(
         id=str(batch.id),
         product_id=batch.product_id,
         batch_number=batch.batch_number,
         quantity=batch.quantity,
+        received_quantity=received_qty if received_qty is not None else None,
         unit_cost=getattr(batch, "unit_cost", 0.0) or 0.0,
         expiry_date=batch.expiry_date,
         purchase_order_id=batch.purchase_order_id,

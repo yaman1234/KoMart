@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Box, Button, Chip, MenuItem, Paper, TextField, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
@@ -49,6 +49,13 @@ export function PurchaseOrdersPage() {
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<PurchaseOrderStatus | ''>('ordered');
   const [paymentStatus, setPaymentStatus] = useState<PurchaseOrderPaymentStatus | ''>('unpaid');
+
+  const resetFilters = () => {
+    setSearch('');
+    setStatus('');
+    setPaymentStatus('');
+    setPage(0);
+  };
 
   const { data, isLoading } = usePurchaseOrders({
     search,
@@ -137,48 +144,62 @@ export function PurchaseOrdersPage() {
 
   return (
     <Box>
-      <PageHeader
-        title="Purchase Orders"
-        subtitle={`${data?.total ?? 0} orders`}
-        action={
-          canManage ? (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/purchase-orders/new')}
-            >
-              Create Order
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
-        <Paper
-          variant="outlined"
-          sx={{ px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Total Received Value
-          </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            {formatCurrency(data?.receivedTotalAmount ?? 0)}
-          </Typography>
-        </Paper>
-        <Paper
-          variant="outlined"
-          sx={{ px: 2, py: 1.5, display: 'inline-flex', alignItems: 'baseline', gap: 1 }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Outstanding Payable
-          </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
-            {formatCurrency(data?.outstandingAmount ?? 0)}
-          </Typography>
-        </Paper>
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 1.5,
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          mb: 1.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <Paper
+            variant="outlined"
+            sx={{ px: 1.75, py: 1, display: 'inline-flex', flexDirection: 'column', gap: 0.125 }}
+          >
+            <Box sx={{ display: 'inline-flex', alignItems: 'baseline', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Total Received Value
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                {formatCurrency(data?.receivedTotalAmount ?? 0)}
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              Store-wide (ignores status/payment filters)
+            </Typography>
+          </Paper>
+          <Paper
+            variant="outlined"
+            sx={{ px: 1.75, py: 1, display: 'inline-flex', flexDirection: 'column', gap: 0.125 }}
+          >
+            <Box sx={{ display: 'inline-flex', alignItems: 'baseline', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Outstanding Payable
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                {formatCurrency(data?.outstandingAmount ?? 0)}
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              Store-wide (ignores status/payment filters)
+            </Typography>
+          </Paper>
+        </Box>
+        {canManage && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/purchase-orders/new')}
+          >
+            Create Order
+          </Button>
+        )}
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <Box sx={{ flex: 1, minWidth: 220 }}>
           <SearchBar
             value={search}
@@ -222,6 +243,14 @@ export function PurchaseOrdersPage() {
             </MenuItem>
           ))}
         </TextField>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<RestartAltIcon />}
+          onClick={resetFilters}
+        >
+          Reset filters
+        </Button>
       </Box>
 
       <DataTable

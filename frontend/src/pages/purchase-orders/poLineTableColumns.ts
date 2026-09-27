@@ -37,7 +37,7 @@ export const PO_DETAIL_FLAT_COLUMNS = {
   packQty: 88,
   unitsPerPack: 88,
   totalUnits: 96,
-  expiry: 130,
+  expiry: 90,
   status: 90,
   unitCost: 90,
   lineTotal: 100,
