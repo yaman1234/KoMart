@@ -254,12 +254,24 @@ async def build_day_wise_transactions() -> dict[str, float]:
     today = date.today()
     day_start, day_end = day_bounds(today)
     today_str = today.isoformat()
-    today_sale, cash_sale, bank_sale, esewa_sale, expense = await asyncio.gather(
+    (
+        today_sale,
+        cash_sale,
+        bank_sale,
+        esewa_sale,
+        expense,
+        cash_expense,
+        bank_expense,
+        esewa_expense,
+    ) = await asyncio.gather(
         _sales_in_range(day_start, day_end),
         _sales_by_payment(day_start, day_end, payment_method="cash"),
         _sales_by_payment(day_start, day_end, payment_method="bank"),
         _sales_by_payment(day_start, day_end, payment_method="esewa"),
         _expense_sum(today_str, today_str),
+        _expense_sum(today_str, today_str, payment_method="cash"),
+        _expense_sum(today_str, today_str, payment_method="bank"),
+        _expense_sum(today_str, today_str, payment_method="esewa"),
     )
     return {
         "today_sale": round(today_sale, 2),
@@ -267,6 +279,9 @@ async def build_day_wise_transactions() -> dict[str, float]:
         "today_bank_sale": round(bank_sale, 2),
         "today_esewa_sale": round(esewa_sale, 2),
         "today_expense": round(expense, 2),
+        "today_cash_expense": round(cash_expense, 2),
+        "today_bank_expense": round(bank_expense, 2),
+        "today_esewa_expense": round(esewa_expense, 2),
     }
 
 

@@ -47,6 +47,7 @@ async def list_expenses(
     is_setup_cost: str = Query(""),  # "true" | "false" | "" (all)
     start_date: str = Query(""),
     end_date: str = Query(""),
+    payment_method: str = Query(""),
     _: User = Depends(get_current_user),
 ):
     query = Expense.find()
@@ -64,6 +65,13 @@ async def list_expenses(
         query = query.find({"date": {"$gte": start_date}})
     if end_date:
         query = query.find({"date": {"$lte": end_date}})
+    if payment_method:
+        aliases = [payment_method]
+        if payment_method == "bank":
+            aliases.append("card")
+        if payment_method == "esewa":
+            aliases.append("khalti")
+        query = query.find({"payment_method": {"$in": aliases}})
 
     # Sort newest-date first
     query = query.sort([("date", -1), ("created_at", -1)])

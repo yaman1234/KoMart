@@ -68,7 +68,7 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { cartLineKey } from '@/utils/cartLine';
 import { uomLabel } from '@/utils';
-import { buildProductDiscountMap } from '@/utils/discountDisplay';
+import { buildProductDiscountMap, getProductDiscountAmount } from '@/utils/discountDisplay';
 import { canSellAsPack, canSellAsPiece, isPosSellableProduct, packSellOption, pieceSellOption, resolveSellOption } from '@/utils/uomSell';
 import { PaymentModal, type PaymentConfirmPayload } from '@/components/pos/PaymentModal';
 import { PosAddProductAutocomplete } from '@/components/pos/PosAddProductAutocomplete';
@@ -111,6 +111,7 @@ interface ProductCardProps {
   product: Product;
   qtyInCart: number;
   discountLabel?: string | null;
+  discountAmount?: number | null;
   onAdd: (product: Product, asPack?: boolean) => void;
   onViewDetails: (product: Product) => void;
 }
@@ -127,7 +128,7 @@ const POS_IMAGE_CHIP_SX = {
   maxWidth: '100%',
 } as const;
 
-const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, onAdd, onViewDetails }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, discountAmount, onAdd, onViewDetails }: ProductCardProps) {
   const [sellAsPack, setSellAsPack] = useState(false);
   const dualSell = canSellAsPack(product) && canSellAsPiece(product);
   const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
@@ -180,6 +181,7 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
         opacity: cardDisabled ? 0.45 : 1,
         border: inCart ? 2 : 0,
         borderColor: 'primary.main',
+        background: 'linear-gradient(160deg, #fafafa 0%, #ffffff 60%, #f5f5f5 100%)',
       }}
     >
       <CardActionArea
@@ -403,11 +405,33 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
           }}
         >
           <Box sx={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
-            <PriceWithUom
-              price={displayOption.price}
-              uom={displayOption.sellUom}
-              priceSx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-            />
+            {discountAmount && discountAmount > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <Box
+                  component="span"
+                  sx={{
+                    fontSize: '0.7rem',
+                    color: 'text.disabled',
+                    textDecoration: 'line-through',
+                    fontVariantNumeric: 'tabular-nums',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {formatCurrency(displayOption.price)}
+                </Box>
+                <PriceWithUom
+                  price={displayOption.price - discountAmount}
+                  uom={displayOption.sellUom}
+                  priceSx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, color: 'success.main' }}
+                />
+              </Box>
+            ) : (
+              <PriceWithUom
+                price={displayOption.price}
+                uom={displayOption.sellUom}
+                priceSx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+              />
+            )}
           </Box>
           <Chip
             label={stockLabel}
@@ -625,6 +649,15 @@ export function POSPage() {
     [products, discountRules],
   );
 
+  const discountAmountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of products) {
+      const amt = getProductDiscountAmount(p, p.sellingPrice, discountRules);
+      if (amt != null && amt > 0) map.set(p.id, amt);
+    }
+    return map;
+  }, [products, discountRules]);
+
   useEffect(() => {
     const el = productGridSentinelRef.current;
     if (!el || productsLoading) return;
@@ -812,6 +845,8 @@ export function POSPage() {
         loyaltyPointsRedeemed: payload.loyaltyPointsRedeemed,
         total: payload.total,
         paymentMethod: payload.method,
+        isOnlineOrder: payload.isOnlineOrder || undefined,
+        orderSource: payload.isOnlineOrder ? payload.orderSource : undefined,
         notes: payload.notes || undefined,
         saleDate,
         createdBy: user?.name ?? 'Cashier',
@@ -1012,6 +1047,7 @@ export function POSPage() {
                   product={product}
                   qtyInCart={cartQuantities.get(product.id) ?? 0}
                   discountLabel={discountMap.get(product.id)}
+                  discountAmount={discountAmountMap.get(product.id)}
                   onAdd={handleAddProduct}
                   onViewDetails={setDetailProduct}
                 />

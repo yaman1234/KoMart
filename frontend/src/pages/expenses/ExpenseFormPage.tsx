@@ -37,7 +37,7 @@ const schema = z.object({
   date: z.string().min(1, 'Date is required'),
   paidTo: z.string().optional(),
   billNo: z.string().optional(),
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.string().min(1, 'Payment method is required'),
   isSetupCost: z.boolean(),
   description: z.string().optional(),
 });
@@ -304,14 +304,18 @@ export function ExpenseFormPage() {
                 name="paymentMethod"
                 control={control}
                 render={({ field }) => (
-                  <FormControl fullWidth>
+                  <FormControl fullWidth required error={!!errors.paymentMethod}>
                     <InputLabel>Payment Method</InputLabel>
                     <Select label="Payment Method" {...field}>
-                      <MenuItem value="">— None —</MenuItem>
                       {PAYMENT_METHODS.map((m) => (
                         <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
                       ))}
                     </Select>
+                    {errors.paymentMethod && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                        {errors.paymentMethod.message}
+                      </Typography>
+                    )}
                   </FormControl>
                 )}
               />

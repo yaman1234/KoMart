@@ -277,14 +277,20 @@ export const mockApi = {
       todaysSales
         .filter((transaction) => transaction.paymentMethod === method)
         .reduce((total, transaction) => total + transaction.total, 0);
+    const todayExpenses = expenses.filter((expense) => expense.date === today);
+    const expenseByMethod = (method: string) =>
+      todayExpenses
+        .filter((e) => (e.paymentMethod ?? '') === method)
+        .reduce((total, e) => total + e.amount, 0);
     return {
       todaySale: todaysSales.reduce((total, transaction) => total + transaction.total, 0),
       todayCashSale: salesByMethod('cash'),
       todayBankSale: salesByMethod('bank'),
       todayEsewaSale: salesByMethod('esewa'),
-      todayExpense: expenses
-        .filter((expense) => expense.date === today)
-        .reduce((total, expense) => total + expense.amount, 0),
+      todayExpense: todayExpenses.reduce((total, expense) => total + expense.amount, 0),
+      todayCashExpense: expenseByMethod('cash'),
+      todayBankExpense: expenseByMethod('bank'),
+      todayEsewaExpense: expenseByMethod('esewa'),
     };
   },
 
@@ -1182,6 +1188,9 @@ export const mockApi = {
     }
     if (params?.endDate) {
       filtered = filtered.filter((e) => e.date <= String(params.endDate));
+    }
+    if (params?.paymentMethod) {
+      filtered = filtered.filter((e) => e.paymentMethod === params.paymentMethod);
     }
     return paginate<Expense>(filtered, params ?? {});
   },

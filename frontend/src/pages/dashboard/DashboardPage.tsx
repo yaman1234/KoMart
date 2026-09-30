@@ -29,6 +29,7 @@ import CallMadeIcon from '@mui/icons-material/CallMade';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import type { ReactNode } from 'react';
 import {
   ResponsiveContainer,
@@ -412,16 +413,111 @@ function TodaySalesTile({
                 borderRadius: 0.5,
                 textAlign: 'left',
                 color: 'text.secondary',
-                '&:hover': { bgcolor: 'action.hover', color: 'primary.main' },
+                '&:hover': { bgcolor: 'action.hover', color: 'primary.main', '& .nav-arrow': { opacity: 1 } },
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 {row.icon}
                 <Typography variant="caption" sx={{ fontWeight: 600 }}>{row.label}</Typography>
               </Box>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                {loading ? '…' : formatCurrency(row.amount)}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  {loading ? '…' : formatCurrency(row.amount)}
+                </Typography>
+                <ArrowForwardIcon className="nav-arrow" sx={{ fontSize: 11, opacity: 0, transition: 'opacity 0.15s' }} />
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TodayExpenseTile({
+  data,
+  loading,
+  today,
+  onNavigate,
+}: {
+  data?: {
+    todayExpense: number;
+    todayCashExpense: number;
+    todayBankExpense: number;
+    todayEsewaExpense: number;
+  };
+  loading: boolean;
+  today: string;
+  onNavigate: (path: string) => void;
+}) {
+  const rows: { label: string; method: string; amount: number; icon: ReactNode }[] = [
+    { label: 'Cash', method: 'cash', amount: data?.todayCashExpense ?? 0, icon: <PaymentsIcon sx={{ fontSize: 14 }} /> },
+    { label: 'eSewa', method: 'esewa', amount: data?.todayEsewaExpense ?? 0, icon: <PhoneAndroidIcon sx={{ fontSize: 14 }} /> },
+    { label: 'Bank', method: 'bank', amount: data?.todayBankExpense ?? 0, icon: <AccountBalanceIcon sx={{ fontSize: 14 }} /> },
+  ];
+
+  return (
+    <Card
+      sx={{
+        height: '100%',
+        background: 'linear-gradient(135deg, rgba(239,68,68,0.22) 0%, rgba(239,68,68,0.05) 100%)',
+        cursor: 'pointer',
+        transition: 'box-shadow 0.15s',
+        '&:hover': { boxShadow: 4 },
+      }}
+      onClick={() => onNavigate(`/expenses?startDate=${today}&endDate=${today}`)}
+    >
+      <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ display: 'flex', color: 'action.active', lineHeight: 0 }}>
+            <ReceiptLongIcon fontSize="small" />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.4 }}>
+            Today Expense
+          </Typography>
+        </Box>
+        {loading ? (
+          <Skeleton width="70%" height={32} />
+        ) : (
+          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2, my: 0.5 }}>
+            {formatCurrency(data?.todayExpense ?? 0)}
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+          {rows.map((row) => (
+            <Box
+              key={row.method}
+              component="button"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onNavigate(`/expenses?startDate=${today}&endDate=${today}&paymentMethod=${row.method}`);
+              }}
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                border: 0,
+                bgcolor: 'transparent',
+                p: 0.25,
+                m: 0,
+                cursor: 'pointer',
+                borderRadius: 0.5,
+                textAlign: 'left',
+                color: 'text.secondary',
+                '&:hover': { bgcolor: 'action.hover', color: 'error.main', '& .nav-arrow': { opacity: 1 } },
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {row.icon}
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>{row.label}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  {loading ? '…' : formatCurrency(row.amount)}
+                </Typography>
+                <ArrowForwardIcon className="nav-arrow" sx={{ fontSize: 11, opacity: 0, transition: 'opacity 0.15s' }} />
+              </Box>
             </Box>
           ))}
         </Box>
@@ -442,6 +538,9 @@ function DayWiseTransactionsSection({
     todayBankSale: number;
     todayEsewaSale: number;
     todayExpense: number;
+    todayCashExpense: number;
+    todayBankExpense: number;
+    todayEsewaExpense: number;
   };
   loading: boolean;
   dateLabel: string;
@@ -464,15 +563,7 @@ function DayWiseTransactionsSection({
         }}
       >
         <TodaySalesTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
-        <KpiTile
-          title="Today Expense"
-          icon={<ReceiptLongIcon fontSize="small" />}
-          main={formatCurrency(data?.todayExpense ?? 0)}
-          sub="Today"
-          loading={loading}
-          onClick={() => onNavigate(`/expenses?startDate=${today}&endDate=${today}`)}
-          gradient="linear-gradient(135deg, rgba(239,68,68,0.22) 0%, rgba(239,68,68,0.05) 100%)"
-        />
+        <TodayExpenseTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
       </Box>
     </Box>
   );

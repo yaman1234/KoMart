@@ -68,6 +68,7 @@ export function ExpensesPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [setupFilter, setSetupFilter] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(() => searchParams.get('paymentMethod') ?? '');
   const [startDate, setStartDate] = useState(() => searchParams.get('startDate') ?? monthStartIso());
   const [endDate, setEndDate] = useState(() => searchParams.get('endDate') ?? todayIso());
   const [page, setPage] = useState(0);
@@ -80,6 +81,7 @@ export function ExpensesPage() {
     search: search || undefined,
     category: category || undefined,
     isSetupCost: setupFilter || undefined,
+    paymentMethod: paymentMethod || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     page: page + 1,
@@ -165,6 +167,39 @@ export function ExpensesPage() {
           {row.paidTo ?? '—'}
         </Typography>
       ),
+    },
+    {
+      id: 'paymentMethod',
+      label: 'Payment Method',
+      minWidth: 130,
+      render: (row) => {
+        if (!row.paymentMethod) return <Typography variant="body2" color="text.secondary">—</Typography>;
+        const gradients: Record<string, { bg: string; color: string }> = {
+          cash:  { bg: 'linear-gradient(135deg, #d4edda 0%, #a8d5b5 100%)', color: '#1b5e20' },
+          bank:  { bg: 'linear-gradient(135deg, #cce5ff 0%, #90c4f9 100%)', color: '#0d47a1' },
+          esewa: { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffd97d 100%)', color: '#7c4a00' },
+        };
+        const c = gradients[row.paymentMethod] ?? { bg: 'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)', color: '#212121' };
+        return (
+          <Typography
+            component="span"
+            variant="caption"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: 999,
+              px: 1.25,
+              py: 0.5,
+              fontWeight: 700,
+              letterSpacing: 0.25,
+              background: c.bg,
+              color: c.color,
+            }}
+          >
+            {row.paymentMethod.toUpperCase()}
+          </Typography>
+        );
+      },
     },
     {
       id: 'amount',
@@ -280,6 +315,19 @@ export function ExpensesPage() {
             </FormControl>
             <ExpenseCategoryInfoIcon />
           </Box>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Payment Method</InputLabel>
+            <Select
+              label="Payment Method"
+              value={paymentMethod}
+              onChange={(e) => { setPaymentMethod(e.target.value); setPage(0); }}
+            >
+              <MenuItem value="">All Methods</MenuItem>
+              <MenuItem value="cash">Cash</MenuItem>
+              <MenuItem value="bank">Bank</MenuItem>
+              <MenuItem value="esewa">eSewa</MenuItem>
+            </Select>
+          </FormControl>
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Setup filter</InputLabel>
             <Select

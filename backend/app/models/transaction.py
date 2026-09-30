@@ -19,6 +19,14 @@ class TransactionStatus(str, Enum):
     voided = "voided"
 
 
+class OrderSource(str, Enum):
+    whatsapp = "whatsapp"
+    instagram = "instagram"
+    tiktok = "tiktok"
+    facebook = "facebook"
+    phone_call = "phone_call"
+
+
 class BatchAllocation(BaseModel):
     batch_id: str
     quantity: int
@@ -68,6 +76,8 @@ class Transaction(Document):
     status: TransactionStatus = TransactionStatus.completed
     void_reason: str = ""
     notes: str = ""
+    is_online_order: bool = False
+    order_source: Optional[OrderSource] = None
     voided_at: Optional[datetime] = None
     voided_by: Optional[str] = None
     created_by: str

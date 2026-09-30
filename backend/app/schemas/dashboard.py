@@ -20,6 +20,9 @@ class DayWiseTransactions(BaseModel):
     today_bank_sale: float
     today_esewa_sale: float
     today_expense: float
+    today_cash_expense: float
+    today_bank_expense: float
+    today_esewa_expense: float
 
 
 class RevenueDataPoint(BaseModel):

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -7,11 +7,15 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  IconButton,
   TextField,
   Grid,
   Alert,
+  Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -51,6 +55,13 @@ export function CustomersPage() {
   const [page, setPage] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [formError, setFormError] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const handleCopy = useCallback((id: string, phone: string) => {
+    void navigator.clipboard.writeText(phone).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    });
+  }, []);
 
   const { data, isLoading } = useCustomers({ search, page: page + 1, pageSize: 10 });
   const createMutation = useCreateCustomer();
@@ -62,7 +73,18 @@ export function CustomersPage() {
 
   const columns: Column<Customer>[] = [
     { id: 'name', label: 'Name', minWidth: 160, accessor: 'name' },
-    { id: 'phone', label: 'Phone', accessor: 'phone' },
+    { id: 'phone', label: 'Phone', render: (row) => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <span>{row.phone}</span>
+        {row.phone && (
+          <Tooltip title={copiedId === row.id ? 'Copied!' : 'Copy'}>
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleCopy(row.id, row.phone!); }} sx={{ p: 0.25 }}>
+              {copiedId === row.id ? <CheckIcon sx={{ fontSize: 13, color: 'success.main' }} /> : <ContentCopyIcon sx={{ fontSize: 13 }} />}
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+    ) },
     { id: 'email', label: 'Email', accessor: 'email' },
     {
       id: 'tier',

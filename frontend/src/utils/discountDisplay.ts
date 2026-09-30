@@ -71,3 +71,18 @@ export function buildProductDiscountMap(
   }
   return map;
 }
+
+/** Returns the flat discount amount (Rs.) for a product given its price, or null if no rule applies. */
+export function getProductDiscountAmount(
+  product: Pick<Product, 'id' | 'category'>,
+  price: number,
+  rules: DiscountRule[],
+): number | null {
+  const matched = getProductLineDiscountRules(product, rules);
+  const rule = matched[0];
+  if (!rule) return null;
+  if (rule.ruleType === 'product_bogo' || rule.ruleType.includes('percent')) {
+    return Math.round((price * rule.value) / 100 * 100) / 100;
+  }
+  return rule.value; // flat
+}
