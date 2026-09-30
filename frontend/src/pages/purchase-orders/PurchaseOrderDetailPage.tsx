@@ -29,6 +29,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
@@ -45,6 +46,8 @@ import {
   useRecordPurchaseOrderPayment,
   useUpdatePurchaseOrderBill,
 } from '@/hooks/usePurchaseOrders';
+import { usePurchaseReturns, useReturnableLines } from '@/hooks/usePurchaseReturns';
+import { PoReturnDialog } from '@/pages/purchase-orders/components/PoReturnDialog';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { useFormatDate } from '@/hooks/useFormatDate';
@@ -127,6 +130,7 @@ export function PurchaseOrderDetailPage() {
   const [receiveSelections, setReceiveSelections] = useState<Record<string, ReceiveSelection>>({});
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [returnOpen, setReturnOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
   const [billNumberEdit, setBillNumberEdit] = useState('');
   const [billImagesEdit, setBillImagesEdit] = useState<string[]>([]);
@@ -155,6 +159,10 @@ export function PurchaseOrderDetailPage() {
   const receiveMutation = useReceivePurchaseOrderItems();
   const paymentMutation = useRecordPurchaseOrderPayment();
   const billMutation = useUpdatePurchaseOrderBill();
+  const canReturnStatus = po?.status === 'partial' || po?.status === 'received';
+  const { data: returnableLines = [] } = useReturnableLines(id ?? '', Boolean(id && canReturnStatus));
+  const { data: returnsData } = usePurchaseReturns(id ?? '', Boolean(id && canReturnStatus));
+  const returns = returnsData?.data ?? [];
 
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
   const amountPaid = po?.amountPaid ?? 0;
@@ -162,6 +170,7 @@ export function PurchaseOrderDetailPage() {
   const overpaid = po ? Math.max(0, Math.round((amountPaid - po.totalAmount) * 100) / 100) : 0;
   const paymentStatus: PurchaseOrderPaymentStatus = po?.paymentStatus ?? 'unpaid';
   const canPay = Boolean(po && canManage && PAYABLE_STATUSES.has(po.status) && remaining > 0);
+  const canReturn = Boolean(canManage && canReturnStatus && returnableLines.length > 0);
 
   const getReceiveSelection = (productId: string, remaining: number): ReceiveSelection =>
     receiveSelections[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
@@ -380,6 +389,16 @@ export function PurchaseOrderDetailPage() {
                 onClick={openPaymentDialog}
               >
                 Record Payment
+              </Button>
+            )}
+            {canReturn && (
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<AssignmentReturnIcon />}
+                onClick={() => setReturnOpen(true)}
+              >
+                Return to supplier
               </Button>
             )}
             {canManage && nextStatuses.length > 0 && (
@@ -639,6 +658,51 @@ export function PurchaseOrderDetailPage() {
           </Paper>
         </Grid>
       </Grid>
+
+      {(canReturnStatus || returns.length > 0) && (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+            Purchase returns
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            Near-term mistakes on this order. For expired / slow stock later, use Supplier → Return goods.
+          </Typography>
+          {returns.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No returns yet.</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {returns.map((ret) => (
+                <Box
+                  key={ret.id}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    py: 0.75,
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                  }}
+                >
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {ret.returnNumber}
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        {ret.returnDate} · {ret.settlementType.replace('_', ' ')} · {ret.reason.replace('_', ' ')}
+                      </Typography>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {ret.items.map((i) => `${i.productName} × ${i.returnQty}`).join(', ')}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {formatCurrency(ret.totalAmount)}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Paper>
+      )}
 
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
@@ -1144,6 +1208,13 @@ export function PurchaseOrderDetailPage() {
           </Box>
         )}
       </FormModal>
+
+      <PoReturnDialog
+        open={returnOpen}
+        purchaseOrderId={po.id}
+        amountPaid={amountPaid}
+        onClose={() => setReturnOpen(false)}
+      />
     </Box>
   );
 }

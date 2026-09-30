@@ -12,14 +12,21 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useSupplier } from '@/hooks/useSuppliers';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { useProducts } from '@/hooks/useProducts';
+import {
+  useSupplierPurchaseReturns,
+  useSupplierReturnableLines,
+} from '@/hooks/usePurchaseReturns';
+import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierReturnDialog';
 import { useAuthStore } from '@/store';
-import { formatCurrency, getInitials, canManageSuppliers } from '@/utils';
+import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { PO_STATUS_LABELS, DROPDOWN_PAGE_SIZE } from '@/constants';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
@@ -99,6 +106,8 @@ export function SupplierDetailPage() {
   const user = useAuthStore((s) => s.user);
   const formatDate = useFormatDate();
   const canManage = canManageSuppliers(user?.role);
+  const canReturn = canManagePurchaseOrders(user?.role);
+  const [returnOpen, setReturnOpen] = useState(false);
 
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
   const { data: poData, isLoading: poLoading } = usePurchaseOrders(
@@ -109,6 +118,9 @@ export function SupplierDetailPage() {
     { supplierId: id, pageSize: DROPDOWN_PAGE_SIZE },
     { enabled: !!id },
   );
+  const { data: returnable = [] } = useSupplierReturnableLines(id ?? '', Boolean(id && canReturn));
+  const { data: returnsData } = useSupplierPurchaseReturns(id ?? '', Boolean(id && canReturn));
+  const returns = returnsData?.data ?? [];
 
   if (isLoading) {
     return (
@@ -140,7 +152,17 @@ export function SupplierDetailPage() {
         title={supplier.name}
         breadcrumbs={[{ label: 'Suppliers', path: '/suppliers' }, { label: supplier.name }]}
         action={
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {canReturn && returnable.length > 0 && (
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<AssignmentReturnIcon />}
+                onClick={() => setReturnOpen(true)}
+              >
+                Return goods
+              </Button>
+            )}
             {canManage && (
               <Button
                 variant="contained"
@@ -209,8 +231,55 @@ export function SupplierDetailPage() {
             onRowClick={(row) => navigate(`/products/${row.id}`)}
             emptyMessage="No products linked to this supplier"
           />
+
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, mt: 4 }}>
+            Purchase returns
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Aged / expired take-backs (not linked to a PO bill). Use Return goods above when leftover stock exists.
+          </Typography>
+          {returns.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No supplier returns yet.</Typography>
+          ) : (
+            <Paper sx={{ p: 2 }}>
+              {returns.map((ret, index) => (
+                <Box
+                  key={ret.id}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    py: 1,
+                    borderBottom: index < returns.length - 1 ? 1 : 0,
+                    borderColor: 'divider',
+                  }}
+                >
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {ret.returnNumber}
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        {ret.returnDate} · {ret.settlementType.replace('_', ' ')} · {ret.reason.replace('_', ' ')}
+                      </Typography>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {ret.items.map((i) => `${i.productName} × ${i.returnQty}`).join(', ')}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {formatCurrency(ret.totalAmount)}
+                  </Typography>
+                </Box>
+              ))}
+            </Paper>
+          )}
         </Grid>
       </Grid>
+
+      <SupplierReturnDialog
+        open={returnOpen}
+        supplierId={supplier.id}
+        onClose={() => setReturnOpen(false)}
+      />
     </Box>
   );
 }

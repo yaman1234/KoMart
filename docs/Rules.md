@@ -23,14 +23,15 @@
 
 1. **Never** allocate discount or additional charges into `unit_cost`, batch `unit_cost`, or product `cost_price` in v1.
 2. **Never** hard-delete a PO that is `ordered`, `partial`, or `received`.
-3. **Never** allow line edit or status cancel from `received` without a dedicated return/void flow (out of v1).
+3. **Never** allow status cancel from `partial`/`received` — use purchase return (PO-linked or supplier mode) for unsold leftover stock.
 4. **Never** trust client `total_amount` without verifying it matches the server formula (tolerance ≤ 0.01) or replacing it with the computed value.
-5. **Never** allow `total_amount < amount_paid` on create/update.
+5. **Never** allow `total_amount < amount_paid` on create/update (**exception:** PO-linked `reduce_payable` return confirm may leave overpay).
 6. **Never** allow `discount < 0` or `additional_charges < 0`.
 7. **Never** block Place Order because bill number/images are missing (optional evidence).
 8. **Never** void or rewrite sales transactions to “undo” a bad received PO.
 9. **Never** change payment remaining-balance formula away from `total_amount - amount_paid`.
 10. **Never** reopen full PO edit (lines/discount/charges) for `received`/`cancelled` just to change bill number/images — use `PATCH /{id}/bill` instead.
+11. **Never** change PO money fields on **supplier-mode** returns; **never** return more than leftover PO-tagged batch qty.
 
 **Always do:**
 

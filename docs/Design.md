@@ -119,6 +119,18 @@ Existing “N items · total” chip should use **Order total** (adjusted), not 
 - Column **Bill no.** after Supplier: show `billNumber` when set, else “—”.
 - Read-only; not a filter (F11 later). Does not change row click / Edit behavior.
 
+### Must-Have F13 — Purchase returns
+
+**List** (`/purchase-returns`): **Create return** picks a PO or supplier, then the same line dialog. Status chip Requested / Closed. Refund rows expose **Payment received**.
+
+**PO-linked** (`PurchaseOrderDetailPage`): header **Return to supplier** when leftover exists; dialog with search (if many lines), Line Total column, total under Line Total; Refund or Reduce payable. Refund stays Requested until payment is confirmed.
+
+**Supplier** (`SupplierDetailPage`): **Return goods** — search-first filtered scrollable list of returnable leftover only; Line Total + footer total; Refund or Stock only.
+
+**List page** `/purchase-returns`: all returns with mode/settlement/search filters; row opens PO or supplier.
+
+**Dashboard:** purchase-return **refund** wallet inflows count toward cash/bank/eSewa **inflow** (recovery), not Sales KPI.
+
 ---
 
 ## Responsive Behavior

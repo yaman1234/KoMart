@@ -465,6 +465,59 @@ export const purchaseOrderService = {
   },
 };
 
+export const purchaseReturnService = {
+  getAvailable: async (purchaseOrderId: string): Promise<import('@/types').PurchaseReturnableLine[]> => {
+    const { data } = await apiClient.get('/purchase-returns/available', {
+      params: { purchaseOrderId },
+    });
+    return data;
+  },
+  getAvailableBySupplier: async (supplierId: string): Promise<import('@/types').PurchaseReturnableLine[]> => {
+    const { data } = await apiClient.get('/purchase-returns/available-by-supplier', {
+      params: { supplierId },
+    });
+    return data;
+  },
+  getAll: async (params: {
+    purchaseOrderId?: string;
+    supplierId?: string;
+    page?: number;
+    pageSize?: number;
+    returnMode?: string;
+    settlementType?: string;
+    status?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<import('@/types').PurchaseReturnListResponse> => {
+    const { data } = await apiClient.get('/purchase-returns', {
+      params: {
+        purchaseOrderId: params.purchaseOrderId || undefined,
+        supplierId: params.supplierId || undefined,
+        page: params.page,
+        pageSize: params.pageSize,
+        returnMode: params.returnMode || undefined,
+        settlementType: params.settlementType || undefined,
+        status: params.status || undefined,
+        search: params.search || undefined,
+        dateFrom: params.dateFrom || undefined,
+        dateTo: params.dateTo || undefined,
+      },
+    });
+    return data;
+  },
+  create: async (
+    payload: import('@/types').PurchaseReturnCreatePayload,
+  ): Promise<import('@/types').PurchaseReturn> => {
+    const { data } = await apiClient.post('/purchase-returns', payload);
+    return data;
+  },
+  close: async (id: string): Promise<import('@/types').PurchaseReturn> => {
+    const { data } = await apiClient.post(`/purchase-returns/${id}/close`);
+    return data;
+  },
+};
+
 export const customerService = {
   getAll: async (params?: ListQueryParams): Promise<PaginatedResponse<Customer>> => {
     if (useMock()) return mockApi.getCustomers(params);

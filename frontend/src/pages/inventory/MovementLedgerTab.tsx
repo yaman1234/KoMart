@@ -31,6 +31,7 @@ const MOVEMENT_TYPES: { value: InventoryMovementQueryParams['movementType']; lab
   { value: 'void', label: 'Sale void' },
   { value: 'receive', label: 'Stock In' },
   { value: 'purchase_order', label: 'PO Receive' },
+  { value: 'purchase_return', label: 'Purchase Return' },
   { value: 'adjustment', label: 'Adjustment' },
   { value: 'damaged', label: 'Damaged / Expired' },
   { value: 'correction', label: 'Correction' },

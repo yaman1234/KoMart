@@ -444,6 +444,8 @@ async def day_totals(wallet: Wallet | str, day: str) -> dict[str, float]:
                 out["custody_in"] += amt
             else:
                 out["custody_out"] += amt
+        elif et == WalletEntryType.purchase_return.value and direction == WalletDirection.inflow.value:
+            out["other_in"] += amt
         elif direction == WalletDirection.inflow.value:
             out["other_in"] += amt
         else:

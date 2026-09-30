@@ -19,6 +19,7 @@ import WarehouseIcon from '@mui/icons-material/Warehouse';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -40,6 +41,7 @@ const iconMap: Record<string, React.ReactNode> = {
   Warehouse: <WarehouseIcon fontSize="small" />,
   LocalShipping: <LocalShippingIcon fontSize="small" />,
   Receipt: <ReceiptIcon fontSize="small" />,
+  AssignmentReturn: <AssignmentReturnIcon fontSize="small" />,
   People: <PeopleIcon fontSize="small" />,
   Assessment: <AssessmentIcon fontSize="small" />,
   Notifications: <NotificationsIcon fontSize="small" />,

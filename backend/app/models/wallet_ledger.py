@@ -24,6 +24,7 @@ class WalletEntryType(str, Enum):
     sale = "sale"
     expense = "expense"
     po_payment = "po_payment"
+    purchase_return = "purchase_return"
     transfer = "transfer"
     adjustment = "adjustment"
     custody = "custody"

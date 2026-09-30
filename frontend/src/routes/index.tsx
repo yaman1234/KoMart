@@ -17,6 +17,7 @@ import { InventoryDetailPage } from '@/pages/inventory/InventoryDetailPage';
 import { PurchaseOrdersPage } from '@/pages/purchase-orders/PurchaseOrdersPage';
 import { PurchaseOrderFormPage } from '@/pages/purchase-orders/PurchaseOrderFormPage';
 import { PurchaseOrderDetailPage } from '@/pages/purchase-orders/PurchaseOrderDetailPage';
+import { PurchaseReturnsPage } from '@/pages/purchase-returns/PurchaseReturnsPage';
 import { SalesPage } from '@/pages/sales/SalesPage';
 import { SaleDetailPage } from '@/pages/sales/SaleDetailPage';
 import { SalesBackfillPage } from '@/pages/sales/SalesBackfillPage';
@@ -100,6 +101,7 @@ export const router = createBrowserRouter([
               { path: '/purchase-orders/new', element: <PurchaseOrderFormPage /> },
               { path: '/purchase-orders/:id/edit', element: <PurchaseOrderFormPage /> },
               { path: '/purchase-orders/:id', element: <PurchaseOrderDetailPage /> },
+              { path: '/purchase-returns', element: <PurchaseReturnsPage /> },
               { path: '/expenses', element: <ExpensesPage /> },
               { path: '/expenses/new', element: <ExpenseFormPage /> },
               { path: '/expenses/:id/edit', element: <ExpenseFormPage /> },

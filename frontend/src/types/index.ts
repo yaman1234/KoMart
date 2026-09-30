@@ -314,6 +314,7 @@ export type MovementReferenceType =
   | 'void'
   | 'receive'
   | 'purchase_order'
+  | 'purchase_return'
   | 'adjustment'
   | 'damaged'
   | 'correction';
@@ -492,6 +493,76 @@ export interface PurchaseOrderReceiveItem {
   receiveQuantity: number;
   expiryDate?: string;
   unitsPerBuyUom?: number;
+}
+
+export type PurchaseReturnMode = 'po_linked' | 'supplier';
+export type PurchaseReturnStatus = 'requested' | 'closed';
+export type PurchaseReturnSettlement = 'refund' | 'reduce_payable' | 'stock_only';
+export type PurchaseReturnReason =
+  | 'damaged'
+  | 'wrong_item'
+  | 'expired'
+  | 'quality'
+  | 'other';
+
+export interface PurchaseReturnItem {
+  productId: string;
+  productName: string;
+  returnQty: number;
+  unitCost: number;
+  lineTotal: number;
+  baseUom?: string;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  returnNumber: string;
+  returnMode: PurchaseReturnMode;
+  purchaseOrderId?: string;
+  orderNumber?: string;
+  supplierId: string;
+  supplierName: string;
+  items: PurchaseReturnItem[];
+  totalAmount: number;
+  remarks?: string;
+  reason: PurchaseReturnReason;
+  settlementType: PurchaseReturnSettlement;
+  status: PurchaseReturnStatus | string;
+  paymentMethod?: string;
+  returnDate: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string | null;
+  closedAt?: string | null;
+}
+
+export interface PurchaseReturnableLine {
+  productId: string;
+  productName: string;
+  availableQty: number;
+  unitCost: number;
+  baseUom: string;
+  receivedQuantity?: number;
+  unitsPerBuyUom?: number;
+  sku?: string;
+}
+
+export interface PurchaseReturnCreatePayload {
+  returnMode: PurchaseReturnMode;
+  purchaseOrderId?: string;
+  supplierId?: string;
+  items: Array<{ productId: string; returnQty: number }>;
+  remarks?: string;
+  paymentMethod?: string;
+  returnDate?: string;
+  settlementType: PurchaseReturnSettlement;
+  reason?: PurchaseReturnReason;
+}
+
+export interface PurchaseReturnListResponse {
+  data: PurchaseReturn[];
+  total: number;
 }
 
 export type MembershipTier = 'bronze' | 'silver' | 'gold' | 'platinum';

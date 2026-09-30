@@ -297,6 +297,18 @@ async def build_cash_flow(days: int = 30) -> list[dict[str, Any]]:
         key = t.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
         inflows[key] = inflows.get(key, 0.0) + float(t.total or 0)
 
+    from app.models.wallet_ledger import WalletDirection, WalletEntryType, WalletLedgerEntry
+
+    return_entries = await WalletLedgerEntry.find(
+        {
+            "entry_type": WalletEntryType.purchase_return.value,
+            "direction": WalletDirection.inflow.value,
+            "date": {"$gte": start_d.isoformat(), "$lte": today.isoformat()},
+        }
+    ).to_list()
+    for e in return_entries:
+        inflows[e.date] = inflows.get(e.date, 0.0) + float(e.amount or 0)
+
     expenses = await Expense.find(
         {"date": {"$gte": start_d.isoformat(), "$lte": today.isoformat()}}
     ).to_list()
@@ -341,6 +353,19 @@ async def build_payment_method_flow(method: str) -> list[dict[str, Any]]:
             continue
         key = t.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
         inflows[key] = inflows.get(key, 0.0) + float(t.total or 0)
+
+    from app.models.wallet_ledger import WalletDirection, WalletEntryType, WalletLedgerEntry
+
+    return_entries = await WalletLedgerEntry.find(
+        {
+            "entry_type": WalletEntryType.purchase_return.value,
+            "direction": WalletDirection.inflow.value,
+            "wallet": method,
+            "date": {"$gte": fy_start_d.isoformat(), "$lte": today.isoformat()},
+        }
+    ).to_list()
+    for e in return_entries:
+        inflows[e.date] = inflows.get(e.date, 0.0) + float(e.amount or 0)
 
     expenses = await Expense.find(
         {"date": {"$gte": fy_start_d.isoformat(), "$lte": today.isoformat()}}

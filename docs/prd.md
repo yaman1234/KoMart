@@ -29,7 +29,7 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 - Percentage-based PO discounts.
 - Allocating discount or additional charges into inventory unit cost / landed cost on receive.
 - Hard-deleting purchase orders after they are ordered or received.
-- Building full purchase-return or reverse-receive UI in v1 (documented as later work).
+- Building F17 void-after-full-return status (Nice-to-Have later).
 - Requiring bill images or bill number before placing an order.
 - Changing POS, sales discounts, or supplier catalog pricing.
 
@@ -67,13 +67,13 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | F19 | Purchase price history tab on **Inventory** detail; last **Unit Cost** API | 5 |
 | F20 | Unit Cost change icon vs last purchase Unit Cost | 6 |
 | F21 | Batches: Received Qty, Remaining Qty (rename), Unit Cost | 7 |
+| F13 | Dual-mode purchase return: PO-linked (refund / reduce_payable) + supplier (refund / stock_only); refund is requested until payment received, then closed | 8 |
 
 ### Nice-to-Have later
 
 | ID | Feature |
 |----|---------|
 | F11 | Search/filter POs by bill number |
-| F13 | Purchase return / reverse-receive |
 | F14 | Percentage discount mode |
 | F15 | Allocate discount/charges into batch unit cost |
 | F16 | Soft-delete empty drafts only |
@@ -111,7 +111,7 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | Client sends inconsistent total vs lines | Wrong payments | Prefer server recompute of subtotal and total on create/update |
 | Editing total below amount already paid | Broken payment status | Reject update when new total &lt; amount_paid |
 | Staff expect freight to change product cost | COGS mismatch vs expectation | Document Non-Goal; show note in UI that charges are payable-only |
-| Received PO mistakes without return flow | Stuck with wrong stock | Document return path as Nice-to-Have; stock count as interim |
+| Received PO mistakes without return flow | Stuck with wrong stock | Phase 8 dual-mode returns (PO-linked + supplier) |
 
 ---
 

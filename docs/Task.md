@@ -87,6 +87,22 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 | T062 | Phase 7 tests + regression + Memory | T061 | Not Started |
 | T070 | Final E2E regression + Memory sign-off | T012,T024,T031,T042,T051,T062 | Not Started |
 
+## Phase 8 — Purchase returns (dual mode)
+
+| ID | Title | Depends | Status |
+|----|-------|---------|--------|
+| T080 | Docs: promote F13 dual-mode | — | Done |
+| T081 | Stock reverse + wallet/adjustment purchase_return | T080 | Done |
+| T082 | PurchaseReturn API (po_linked + supplier) | T081 | Done |
+| T083 | Backend P0 tests + regression | T082 | Done |
+| T084 | FE types/hooks + Accounts/Movement labels | T082 | Done |
+| T085 | PO detail Return dialog + list | T084 | Done |
+| T085b | Supplier Return goods dialog + history | T084 | Done |
+| T086 | Phase 8 Memory sign-off | T083,T085,T085b | Done |
+| T087 | Return dialog UX (empty/name/Line Total/search) | T086 | Done |
+| T088 | Dashboard purchase_return cash inflow + list page `/purchase-returns` | T087 | Done |
+| T089 | List create-return + requested/closed (refund closes on payment received) | T088 | Done |
+
 ---
 
 ## Locked decisions (summary)
@@ -99,3 +115,6 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 - Slim add-product dialog from PO
 - Purchase history on Inventory only
 - Cost compare: **Unit Cost** vs last purchase **Unit Cost**
+- **Returns:** PO-linked (`refund` / `reduce_payable`) from PO detail; supplier mode (`refund` / `stock_only`, no PO money) from Supplier detail; leftover PO-tagged batches only
+- **Return refunds** = cash recovery inflow on dashboard (not Sales) only after status `closed`; global list at `/purchase-returns` with Create return
+- Refund status: `requested` until payment received is confirmed, then `closed`. Reduce payable and stock only close on create

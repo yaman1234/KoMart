@@ -17,6 +17,7 @@ MOVEMENT_LABELS: dict[str, str] = {
     "void": "Sale void",
     "receive": "Stock In",
     "purchase_order": "PO Receive",
+    "purchase_return": "Purchase Return",
     "adjustment": "Adjustment",
     "damaged": "Damaged / Expired",
     "correction": "Correction",

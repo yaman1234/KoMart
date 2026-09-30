@@ -21,6 +21,7 @@ from app.models.wallet_ledger import WalletLedgerEntry
 from app.models.cache_entry import CacheEntry
 from app.models.cash_custody import CashCustody
 from app.models.stock_count import StockCount
+from app.models.purchase_return import PurchaseReturn
 
 __all__ = [
     "User",
@@ -47,4 +48,5 @@ __all__ = [
     "CacheEntry",
     "CashCustody",
     "StockCount",
+    "PurchaseReturn",
 ]

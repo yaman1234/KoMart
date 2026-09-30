@@ -4,6 +4,25 @@ running log of completed work — updated after each task, newest entries at top
 
 ## Completed Tasks
 
+### 2026-09-30 — Purchase return requested / closed
+- Create return from `/purchase-returns` (PO-linked or supplier leftover)
+- Refund creates `requested` (stock reversed, no wallet/payable yet); **Payment received** closes it and posts the refund
+- `reduce_payable` and `stock_only` close immediately
+- List shows status filter, status chip, and line detail
+
+### 2026-09-30 — Purchase return UX + list page
+- Supplier/PO return dialogs: no stale rows when API empty; product name+sku (not ObjectId); Line Total column + total under it; supplier search-first scrollable list
+- Dashboard cash-flow + cash/bank/esewa KPI include `purchase_return` wallet refunds as inflow (not Sales)
+- New `/purchase-returns` list page + nav; list API filters (mode, settlement, search, dates)
+- Tests: `test_purchase_return.py` + `test_purchase_return_cash_flow.py` green
+
+### 2026-09-30 — Phase 8 dual-mode purchase returns
+- Backend: `PurchaseReturn` model/API (`/purchase-returns`), `po_stock_reverse`, settlements `refund` / `reduce_payable` (PO-linked) and `refund` / `stock_only` (supplier)
+- Wallet `purchase_return` inflow; stock `AdjustmentType.purchase_return`; movement + Accounts filters
+- FE: PO detail **Return to supplier** + returns list; Supplier **Return goods** + history
+- Tests: `tests/test_purchase_return.py` (8 P0 cases) + PO bill/UX regression green
+- Cap return qty by leftover PO-tagged batches (sold stock excluded); cancel from received remains blocked
+
 ### 2026-09-30 — Status-independent PO bill number & images
 - Added `PATCH /purchase-orders/{id}/bill` (`PurchaseOrderBillUpdate`) — manager+; any status including received/cancelled; no `_po_is_editable`
 - Does not rewrite `PurchasePriceHistory` or reopen full PO edit

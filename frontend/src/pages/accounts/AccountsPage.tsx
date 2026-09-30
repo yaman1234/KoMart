@@ -78,6 +78,7 @@ function entryTypeLabel(type: string) {
     sale: 'Sale',
     expense: 'Expense',
     po_payment: 'PO payment',
+    purchase_return: 'Purchase return',
     transfer: 'Transfer',
     adjustment: 'Adjustment',
     opening: 'Opening',
@@ -682,7 +683,7 @@ export function AccountsPage() {
               }}
             >
               <MenuItem value="">All</MenuItem>
-              {['sale', 'expense', 'po_payment', 'transfer', 'adjustment', 'custody'].map((t) => (
+              {['sale', 'expense', 'po_payment', 'purchase_return', 'transfer', 'adjustment', 'custody'].map((t) => (
                 <MenuItem key={t} value={t}>
                   {entryTypeLabel(t)}
                 </MenuItem>
