@@ -235,6 +235,8 @@ def _to_response(txn: Transaction) -> TransactionResponse:
         status=getattr(txn, "status", TransactionStatus.completed),
         void_reason=getattr(txn, "void_reason", "") or "",
         notes=getattr(txn, "notes", "") or "",
+        is_online_order=getattr(txn, "is_online_order", False) or False,
+        order_source=getattr(txn, "order_source", None),
         created_by=txn.created_by,
         cashier_id=txn.cashier_id,
         created_at=to_utc_iso(txn.created_at),

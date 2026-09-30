@@ -37,7 +37,7 @@ import { useDiscountRules } from '@/hooks/useDiscounts';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { isAdminOrManager, canManagePurchaseOrders, productStatusColor, productStatusLabel, productStatusOf } from '@/utils';
-import { buildProductDiscountMap } from '@/utils/discountDisplay';
+import { buildProductDiscountMap, getProductDiscountAmount } from '@/utils/discountDisplay';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useAuthStore } from '@/store';
@@ -56,10 +56,11 @@ type ProductSortField = '' | 'name' | 'sku' | 'sellingPrice' | 'createdAt';
 interface ProductGridCardProps {
   product: Product;
   discountLabel?: string | null;
+  discountAmount?: number | null;
   onClick: () => void;
 }
 
-const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, onClick }: ProductGridCardProps) {
+const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, discountAmount, onClick }: ProductGridCardProps) {
   const stockColor =
     product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
   const stockLabel =
@@ -129,11 +130,33 @@ const ProductGridCard = memo(function ProductGridCard({ product, discountLabel, 
           )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 0.5, mt: 0.5, minWidth: 0 }}>
             <Box sx={{ minWidth: 0, overflow: 'hidden', flex: '1 1 auto' }}>
-              <PriceWithUom
-                price={product.sellingPrice}
-                uom={product.uom ?? ''}
-                priceSx={{ fontSize: '0.8125rem' }}
-              />
+              {discountAmount && discountAmount > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  <Box
+                    component="span"
+                    sx={{
+                      fontSize: '0.7rem',
+                      color: 'text.disabled',
+                      textDecoration: 'line-through',
+                      fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Rs. {product.sellingPrice}
+                  </Box>
+                  <PriceWithUom
+                    price={product.sellingPrice - discountAmount}
+                    uom={product.uom ?? ''}
+                    priceSx={{ fontSize: '0.8125rem', color: 'success.main' }}
+                  />
+                </Box>
+              ) : (
+                <PriceWithUom
+                  price={product.sellingPrice}
+                  uom={product.uom ?? ''}
+                  priceSx={{ fontSize: '0.8125rem' }}
+                />
+              )}
             </Box>
             <Chip
               label={stockLabel}
@@ -234,6 +257,16 @@ export function ProductsPage() {
     ),
     [viewMode, stockFilteredGrid, listProductsRaw, discountRules],
   );
+
+  const discountAmountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const source = viewMode === 'grid' ? stockFilteredGrid : listProductsRaw;
+    for (const p of source) {
+      const amt = getProductDiscountAmount(p, p.sellingPrice, discountRules);
+      if (amt != null && amt > 0) map.set(p.id, amt);
+    }
+    return map;
+  }, [viewMode, stockFilteredGrid, listProductsRaw, discountRules]);
 
   const filteredGridProducts = useMemo(
     () => (offerOnly ? stockFilteredGrid.filter((p) => discountMap.has(p.id)) : stockFilteredGrid),
@@ -509,6 +542,7 @@ export function ProductsPage() {
                   <ProductGridCard
                     product={product}
                     discountLabel={discountMap.get(product.id)}
+                    discountAmount={discountAmountMap.get(product.id)}
                     onClick={() => navigate(`/products/${product.id}`)}
                   />
                 </Grid>

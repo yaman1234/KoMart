@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ThemeMode, User, DashboardWidgetLayout } from '@/types';
+import type { ThemeMode, User, DashboardWidgetLayout, OrderSource } from '@/types';
 import { DEFAULT_DASHBOARD_LAYOUT } from '@/constants';
 import { isMockEnabled, isMockSession } from '@/config/mock';
 
@@ -148,6 +148,8 @@ interface CartState {
   customerId: string | null;
   loyaltyPointsRedeemed: number;
   saleDate: string;
+  isOnlineOrder: boolean;
+  orderSource: OrderSource | null;
   addItem: (item: import('@/types').CartItem) => void;
   removeItem: (productId: string, sellUom?: string) => void;
   updateQuantity: (productId: string, quantity: number, sellUom?: string) => void;
@@ -155,6 +157,7 @@ interface CartState {
   setCustomer: (customerId: string | null) => void;
   setLoyaltyPoints: (points: number) => void;
   setSaleDate: (saleDate: string) => void;
+  setOnlineOrder: (isOnline: boolean, source?: OrderSource | null) => void;
   replaceCart: (
     items: import('@/types').CartItem[],
     customerId: string | null,
@@ -168,6 +171,8 @@ export const useCartStore = create<CartState>()((set) => ({
   customerId: null,
   loyaltyPointsRedeemed: 0,
   saleDate: todayDateString(),
+  isOnlineOrder: false,
+  orderSource: null,
   addItem: (item) =>
     set((state) => {
       const key = cartLineKey(item.productId, item.sellUom);
@@ -210,6 +215,7 @@ export const useCartStore = create<CartState>()((set) => ({
         i.productId === productId ? { ...i, discount } : i,
       ),
     })),
+  setOnlineOrder: (isOnline, source = null) => set({ isOnlineOrder: isOnline, orderSource: isOnline ? (source ?? null) : null }),
   setCustomer: (customerId) => set({ customerId }),
   setLoyaltyPoints: (loyaltyPointsRedeemed) => set({ loyaltyPointsRedeemed }),
   setSaleDate: (saleDate) => set({ saleDate }),
@@ -225,5 +231,7 @@ export const useCartStore = create<CartState>()((set) => ({
       customerId: null,
       loyaltyPointsRedeemed: 0,
       saleDate: todayDateString(),
+      isOnlineOrder: false,
+      orderSource: null,
     }),
 }));

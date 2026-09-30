@@ -8,6 +8,7 @@ import {
   Box,
   Typography,
   Divider,
+  Switch,
   ToggleButtonGroup,
   ToggleButton,
   TextField,
@@ -34,7 +35,7 @@ import { promotionKey } from '@/hooks/useDiscounts';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { ReceiptView } from '@/components/pos/ReceiptView';
 import { ReceiptActions } from '@/components/pos/ReceiptActions';
-import type { AppliedPromotion, CartItem, ExcludedPromotion, PaymentMethod, ReceiptBranding, Transaction } from '@/types';
+import type { AppliedPromotion, CartItem, ExcludedPromotion, OrderSource, PaymentMethod, ReceiptBranding, Transaction } from '@/types';
 import { printTransactionReceipt } from '@/utils/receiptPrint';
 import { noNumberSpinnerSx } from '@/styles/inputStyles';
 
@@ -63,6 +64,8 @@ export interface PaymentConfirmPayload {
   excludedPromotions: ExcludedPromotion[];
   discount: number;
   roundOff: number;
+  isOnlineOrder?: boolean;
+  orderSource?: OrderSource;
 }
 
 interface PaymentModalProps {
@@ -141,6 +144,8 @@ export function PaymentModal({
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [tendered, setTendered] = useState('');
   const [roundOffEnabled, setRoundOffEnabled] = useState(false);
+  const [isOnlineOrder, setIsOnlineOrder] = useState(false);
+  const [orderSource, setOrderSource] = useState<OrderSource | null>(null);
   const printedTxnId = useRef<string | null>(null);
   const openSessionRef = useRef(false);
   const customerIdAtOpenRef = useRef<string | null>(customerId);
@@ -172,6 +177,8 @@ export function PaymentModal({
     setMethod(resolvedDefaultMethod);
     setTendered('');
     setRoundOffEnabled(false);
+    setIsOnlineOrder(false);
+    setOrderSource(null);
     printedTxnId.current = null;
   }, [
     open,
@@ -226,6 +233,8 @@ export function PaymentModal({
       promotionDiscount: draft.promotionDiscount,
       appliedPromotions: draft.appliedPromotions,
       excludedPromotions: draft.excludedPromotions,
+      isOnlineOrder: isOnlineOrder || undefined,
+      orderSource: isOnlineOrder ? (orderSource ?? undefined) : undefined,
       discount: breakdown.promotionCartDiscount + draft.manualDiscount + draft.loyaltyPointsRedeemed,
       roundOff: roundOffAmount,
     });
@@ -696,6 +705,48 @@ export function PaymentModal({
                 onCustomerChange={onCustomerChange}
                 onAddCustomer={onAddCustomer}
               />
+            </Paper>
+
+            {/* Online Order */}
+            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, flexShrink: 0, borderColor: isOnlineOrder ? 'primary.main' : 'divider', background: isOnlineOrder ? 'linear-gradient(135deg, #e8f4fd 0%, #f0f7ff 60%, #fafcff 100%)' : 'transparent' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: isOnlineOrder ? 0.75 : 0 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Online / Delivery Order</Typography>
+                <Switch
+                  size="small"
+                  checked={isOnlineOrder}
+                  onChange={(e) => { setIsOnlineOrder(e.target.checked); if (!e.target.checked) setOrderSource(null); }}
+                />
+              </Box>
+              {isOnlineOrder && (
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {([
+                    { value: 'whatsapp', label: 'WhatsApp', color: '#25D366' },
+                    { value: 'instagram', label: 'Instagram', color: '#E1306C' },
+                    { value: 'tiktok', label: 'TikTok', color: '#010101' },
+                    { value: 'facebook', label: 'Facebook', color: '#1877F2' },
+                    { value: 'phone_call', label: 'Phone', color: '#757575' },
+                  ] as { value: OrderSource; label: string; color: string }[]).map((src) => (
+                    <Chip
+                      key={src.value}
+                      label={src.label}
+                      size="small"
+                      onClick={() => setOrderSource(orderSource === src.value ? null : src.value)}
+                      sx={{
+                        height: 22,
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        bgcolor: orderSource === src.value ? src.color : 'action.hover',
+                        color: orderSource === src.value ? '#fff' : 'text.primary',
+                        border: '1px solid',
+                        borderColor: orderSource === src.value ? src.color : 'divider',
+                        '&:hover': { bgcolor: src.color, color: '#fff', borderColor: src.color },
+                        transition: 'all 0.15s',
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
             </Paper>
 
             <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, flexShrink: 0 }}>
