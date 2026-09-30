@@ -22,6 +22,7 @@ import type {
   PurchaseOrderStatus,
   PurchaseOrderReceiveItem,
   PurchaseOrderWritePayload,
+  PurchaseOrderBillPayload,
   Customer,
   Transaction,
   TransactionUpdatePayload,
@@ -412,6 +413,11 @@ export const purchaseOrderService = {
   update: async (id: string, payload: PurchaseOrderWritePayload): Promise<PurchaseOrder> => {
     if (useMock()) return mockApi.updatePurchaseOrder(id, payload);
     const { data } = await apiClient.patch(`/purchase-orders/${id}`, payload);
+    return data;
+  },
+  updateBill: async (id: string, payload: PurchaseOrderBillPayload): Promise<PurchaseOrder> => {
+    if (useMock()) return mockApi.updatePurchaseOrderBill(id, payload);
+    const { data } = await apiClient.patch(`/purchase-orders/${id}/bill`, payload);
     return data;
   },
   updateStatus: async (id: string, status: PurchaseOrderStatus): Promise<PurchaseOrder> => {

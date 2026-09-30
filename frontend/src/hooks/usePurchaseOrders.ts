@@ -7,6 +7,7 @@ import type {
   PurchaseOrderStatus,
   PurchaseOrderReceiveItem,
   PurchaseOrderWritePayload,
+  PurchaseOrderBillPayload,
   PurchaseOrderPaymentPayload,
 } from '@/types';
 import { invalidateCommerceQueries } from '@/hooks/invalidateCommerce';
@@ -53,6 +54,17 @@ export function useUpdatePurchaseOrder() {
     }) => purchaseOrderService.update(id, data),
     onSuccess: () => {
       // Prefix invalidates list (...params) and detail (...id) in one pass
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
+    },
+  });
+}
+
+export function useUpdatePurchaseOrderBill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: PurchaseOrderBillPayload }) =>
+      purchaseOrderService.updateBill(id, data),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
     },
   });

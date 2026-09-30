@@ -70,6 +70,11 @@ class PurchaseOrderStatusUpdate(BaseModel):
     status: POStatus
 
 
+class PurchaseOrderBillUpdate(BaseModel):
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
+
+
 class PurchaseOrderReceiveItem(BaseModel):
     product_id: str
     receive_quantity: int = Field(ge=1)

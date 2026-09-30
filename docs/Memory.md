@@ -4,6 +4,17 @@ running log of completed work — updated after each task, newest entries at top
 
 ## Completed Tasks
 
+### 2026-09-30 — Status-independent PO bill number & images
+- Added `PATCH /purchase-orders/{id}/bill` (`PurchaseOrderBillUpdate`) — manager+; any status including received/cancelled; no `_po_is_editable`
+- Does not rewrite `PurchasePriceHistory` or reopen full PO edit
+- FE: `updateBill` service/mock/hook; Detail **Edit bill** dialog (Cloudinary via env folder/preset) for managers on any status
+- FE: PO list **Bill no.** column (`PurchaseOrdersPage`)
+- Tests: `tests/test_po_bill.py`; docs prd/architecture/Rules/Design/Task/Memory updated
+
+### 2026-09-30 — PO bill images → Cloudinary folder from env
+- [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts): folder from `VITE_CLOUDINARY_FOLDER_PURCHASEORDER`; prefers `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`
+- Documented in `.env.example`, `vite-env.d.ts`, Rules, architecture
+
 ### 2026-09-27 — Removed Save financials (post-receive amend)
 - Removed `PATCH /purchase-orders/{id}/financials`, FE Save financials UI/hook/service, and `test_po_financials.py`
 - Discount / additional charges remain editable on PO create/edit; detail Order Summary is read-only

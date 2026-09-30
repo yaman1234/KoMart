@@ -14,7 +14,7 @@
 | Pydantic schemas in `app/schemas/purchase_order.py` | Same create/update/response pattern as today |
 | React + MUI on `PurchaseOrderFormPage` / Detail | Single place for create/edit and read-only summary |
 | Existing payment service (`po_payment.py`) | Already balances on `total_amount`; no new payment model |
-| Cloudinary (v1.1 only) | Same pattern as product images for bill photos |
+| Cloudinary (bill photos) | Folder/preset from env via `cloudinaryUpload.ts` |
 
 ---
 
@@ -115,11 +115,17 @@ Response (`PurchaseOrderResponse`) always includes `subtotal`, `discount`, `addi
 - `POST /{id}/receive` — unchanged cost logic.
 - `PATCH /{id}/status` — cancel rules unchanged (no cancel from `received`).
 
-### v1.1 (documented only)
+### Bill fields (status-independent)
 
-- Optional `bill_number`, `bill_images` on create/update/response.
-- Optional `GET` query `bill_number`.
-- Optional manager-only PATCH for financial fields when status = `received` (lines immutable).
+- `bill_number`, `bill_images` on create/update/list/detail response (optional).
+- Manager+ `PATCH /{id}/bill` — body `{ bill_number?, bill_images? }`; updates **only** those fields; allowed in **any** PO status (including `received` / `cancelled`); does not call `_po_is_editable`; does not rewrite `PurchasePriceHistory`.
+- General `PATCH /{id}` may still accept bill fields when the PO is editable; Detail always uses `/bill` for corrections.
+- List UI: **Bill no.** column reads `bill_number` from list payload (no extra endpoint).
+
+### Optional / deferred
+
+- Optional `GET` query / filter by `bill_number` (F11).
+- Manager-only PATCH for financial fields when status = `received` (lines immutable) — removed from product; do not reintroduce without ask.
 
 ---
 
@@ -135,10 +141,13 @@ backend/app/
   tests/test_po_totals.py       # new
 
 frontend/src/
-  types/index.ts                # PurchaseOrder fields
+  types/index.ts                # PurchaseOrder fields + PurchaseOrderBillPayload
   pages/purchase-orders/
-    PurchaseOrderFormPage.tsx   # Order Summary inputs
-    PurchaseOrderDetailPage.tsx # read-only breakdown
+    PurchaseOrderFormPage.tsx   # Order Summary + bill fields (editable statuses)
+    PurchaseOrderDetailPage.tsx # read-only breakdown + Edit bill (any status)
+    PurchaseOrdersPage.tsx      # list includes Bill no. column
+  hooks/usePurchaseOrders.ts    # useUpdatePurchaseOrderBill
+  utils/cloudinaryUpload.ts     # PO bill folder/preset from env
   utils/poTotals.ts             # shared client formula (optional mirror)
 ```
 
@@ -148,7 +157,7 @@ frontend/src/
 
 | Integration | v1 | v1.1 |
 |-------------|----|------|
-| Cloudinary bill upload | No | Yes (reuse frontend upload helper / PO preset if configured) |
+| Cloudinary bill upload | Yes | Folder + preset from env (`VITE_CLOUDINARY_FOLDER_PURCHASEORDER`, `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`) via [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts) |
 | Payment gateways | N/A | N/A |
 
 ---

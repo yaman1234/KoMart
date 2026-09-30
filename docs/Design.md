@@ -90,18 +90,33 @@ Existing “N items · total” chip should use **Order total** (adjusted), not 
 **Screen:** `/purchase-orders/:id` (`PurchaseOrderDetailPage`)
 
 - Near existing “Order Total” display, show the four-row summary.
-- Received/cancelled POs: summary remains visible; no edit controls.
+- Received/cancelled POs: summary remains visible; no edit controls for discount/charges.
 - Payments section unchanged; remaining balance uses Order total.
+
+### Supplier bill (Detail — any status)
+
+**Screen:** `/purchase-orders/:id` Supplier bill block
+
+- Manager+: **Edit bill** always available (draft through cancelled) — bill number + photo upload/remove; saves via `PATCH /bill`, not Edit Order.
+- Cashiers: read-only bill number + thumbnail gallery.
+- Not tied to `canEditPurchaseOrder` / Edit Order button.
 
 ### Must-Have F7–F8 — Payments & legacy
 
 - No new payment UI fields for v1.
 - Opening an old PO shows Discount `0.00`, Additional charges `0.00`, Subtotal ≈ historical total.
 
-### Should-Have (not v1 build, design note)
+### Form bill fields (create/edit)
 
-- Bill number text field + thumbnail strip under Order Summary.
-- Encourage attach on receive/payment with helper text: “Add supplier bill photo (optional)”.
+- Bill number text field + thumbnail strip on Form for editable POs (draft/ordered/partial).
+- Encourage attach with helper text: “Add supplier bill photo (optional)”.
+
+### Must-Have F9–F10 — PO list Bill no.
+
+**Screen:** `/purchase-orders` (`PurchaseOrdersPage`)
+
+- Column **Bill no.** after Supplier: show `billNumber` when set, else “—”.
+- Read-only; not a filter (F11 later). Does not change row click / Edit behavior.
 
 ---
 

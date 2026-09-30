@@ -17,7 +17,7 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 
 | ID | Title | Status |
 |----|-------|--------|
-| T000 | Align prd/architecture/Rules/Design/Task with expanded plan | In Progress |
+| T000 | Align prd/architecture/Rules/Design/Task with expanded plan | Done |
 
 ---
 
@@ -42,9 +42,19 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T020 | PO `bill_number` / `bill_images` fields + API | T004 | Not Started |
-| T021 | Form/Detail upload + gallery; payment billNo default | T020 | Not Started |
-| T022 | Phase 3 tests + regression + Memory | T021 | Not Started |
+| T020 | PO `bill_number` / `bill_images` fields + API | T004 | Done |
+| T021 | Form/Detail upload + gallery; payment billNo default | T020 | Done |
+| T022 | `PATCH /{id}/bill` status-independent (any status) | T020 | Done |
+| T023 | Detail Edit bill UI + service/hook (manager+, any status) | T022 | Done |
+| T024 | Phase 3 bill-independent tests + regression + Memory | T023 | Done |
+| T025 | PO list **Bill no.** column | T021 | Done |
+
+### T022–T025 acceptance (summary)
+
+- Manager can set/change bill on received/cancelled via Detail without Edit Order.
+- General Edit Order still blocked for received/cancelled.
+- `test_po_bill.py` covers received/cancelled/partial, clear empty number, cashier 403, general PATCH still 400 on received.
+- List shows Bill no. or “—”; list payload already includes `bill_number`.
 
 ## Phase 4 — Slim ProductCreateDialog
 
@@ -75,15 +85,17 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 | T060 | `received_quantity` on batches + API | T004 | Not Started |
 | T061 | Inventory columns Received / Remaining / Unit Cost | T060 | Not Started |
 | T062 | Phase 7 tests + regression + Memory | T061 | Not Started |
-| T070 | Final E2E regression + Memory sign-off | T012,T022,T031,T042,T051,T062 | Not Started |
+| T070 | Final E2E regression + Memory sign-off | T012,T024,T031,T042,T051,T062 | Not Started |
 
 ---
 
 ## Locked decisions (summary)
 
 - Flat discount + additional charges; payable-only
-- Received money amend allowed when partial/paid (overpay display)
-- Bill images: no max
+- Received money amend allowed when partial/paid (overpay display) — product later removed Save financials UI; keep decision documented
+- Bill images: no max; bill number/images **status-independent** via `PATCH /bill`
+- PO list shows **Bill no.** column
+- Cloudinary folder/preset from env (`VITE_CLOUDINARY_FOLDER_PURCHASEORDER`)
 - Slim add-product dialog from PO
 - Purchase history on Inventory only
 - Cost compare: **Unit Cost** vs last purchase **Unit Cost**

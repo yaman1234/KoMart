@@ -27,15 +27,17 @@
 4. **Never** trust client `total_amount` without verifying it matches the server formula (tolerance ≤ 0.01) or replacing it with the computed value.
 5. **Never** allow `total_amount < amount_paid` on create/update.
 6. **Never** allow `discount < 0` or `additional_charges < 0`.
-7. **Never** block Place Order because bill number/images are missing (those are v1.1 optional).
+7. **Never** block Place Order because bill number/images are missing (optional evidence).
 8. **Never** void or rewrite sales transactions to “undo” a bad received PO.
 9. **Never** change payment remaining-balance formula away from `total_amount - amount_paid`.
+10. **Never** reopen full PO edit (lines/discount/charges) for `received`/`cancelled` just to change bill number/images — use `PATCH /{id}/bill` instead.
 
 **Always do:**
 
 1. Normalize legacy documents on read (missing fields → 0 / derived subtotal).
 2. Keep receive path using line `unit_cost` only.
 3. Keep manager+ authorization on create/update.
+4. Allow `bill_number` / `bill_images` updates in **any** PO status via dedicated `PATCH /purchase-orders/{id}/bill` (does not rewrite `PurchasePriceHistory`).
 
 ---
 
@@ -51,6 +53,7 @@ Every Must-Have task that touches logic must include automated coverage as appli
 | Legacy read | document without new fields returns discount=0, charges=0 |
 | Payment | remaining balance uses adjusted total_amount |
 | Receive | cost_price / batch unit_cost unchanged when discount/charges set (regression) |
+| Bill PATCH | update on received/cancelled/partial; cashier 403; general PATCH on received still blocked |
 
 Frontend: at least one unit test or clearly manual QA checklist for Order Summary math if no test harness exists for the page.
 
@@ -80,7 +83,7 @@ Manual QA required before Done: create PO with discount only, charges only, both
 
 1. Create/update remain `require_manager_or_above`.
 2. Do not expose write of financial fields to cashiers.
-3. Bill image upload (v1.1) must use unsigned upload preset / existing Cloudinary pattern — no API secret in the frontend.
+3. Bill image upload must use [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts) with `VITE_CLOUDINARY_FOLDER_PURCHASEORDER` and prefer `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER` — no hardcoded folder; no API secret in the frontend.
 4. Do not log full payment or bill payloads with sensitive notes beyond existing audit practice.
 
 ---

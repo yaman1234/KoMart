@@ -447,6 +447,12 @@ export type PurchaseOrderWritePayload = Omit<
   items: Omit<PurchaseOrderItem, 'lineStatus'>[];
 };
 
+/** Status-independent bill update (PATCH /purchase-orders/{id}/bill) */
+export interface PurchaseOrderBillPayload {
+  billNumber?: string | null;
+  billImages?: string[];
+};
+
 export interface PurchaseOrder {
   id: string;
   orderNumber: string;

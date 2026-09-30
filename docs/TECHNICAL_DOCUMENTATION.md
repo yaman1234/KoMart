@@ -957,11 +957,17 @@ Brand is a **string field** on `Product.brand`. No dedicated brands table.
 | `supplier_id` / `supplier_name` | string | Yes |
 | `status` | enum | Yes (`draft`) |
 | `items` | array | Yes |
+| `subtotal` / `discount` / `additional_charges` | float | No (default 0; server-normalized) |
 | `total_amount` | float | Yes |
+| `amount_paid` / `payment_status` / `payments` | — | Payment tracking |
 | `expected_delivery` | string | No |
 | `ordered_by` / `received_by` | string | No |
 | `received_date` | string | No |
+| `bill_number` | string | No | Optional supplier invoice / bill no |
+| `bill_images` | list[string] | No | Cloudinary URLs; optional photos |
 | `created_at` / `updated_at` | datetime | Yes |
+
+**Bill update:** `bill_number` / `bill_images` may be changed in **any** status via `PATCH /purchase-orders/{id}/bill` (manager+). General `PATCH /{id}` remains status-gated for lines/totals.
 
 **Embedded `PurchaseOrderItem`:**
 
@@ -1563,12 +1569,14 @@ OAuth2 password form for Swagger UI (`username` = email).
 
 | Method | URL | Auth | Description |
 |--------|-----|------|-------------|
-| GET | `/purchase-orders` | User | List |
+| GET | `/purchase-orders` | User | List (includes `bill_number` / `bill_images`) |
 | POST | `/purchase-orders` | Manager+ | Create |
 | GET | `/purchase-orders/{id}` | User | Detail |
-| PATCH | `/purchase-orders/{id}` | Manager+ | Update (draft only) |
+| PATCH | `/purchase-orders/{id}` | Manager+ | Update when editable (`draft` / `ordered` no receipts / `partial`) |
+| PATCH | `/purchase-orders/{id}/bill` | Manager+ | Update `bill_number` / `bill_images` only — **any** status |
 | PATCH | `/purchase-orders/{id}/status` | Manager+ | Status transition |
 | POST | `/purchase-orders/{id}/receive` | Manager+ | Receive stock |
+| POST | `/purchase-orders/{id}/payments` | Manager+ | Record payment |
 
 ---
 

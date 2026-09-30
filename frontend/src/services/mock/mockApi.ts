@@ -15,6 +15,7 @@ import type {
   PurchaseOrderReceiveItem,
   PurchaseOrderLineStatus,
   PurchaseOrderWritePayload,
+  PurchaseOrderBillPayload,
   Customer,
   Transaction,
   AppNotification,
@@ -655,6 +656,27 @@ export const mockApi = {
       ...po,
       ...data,
       items: mergedItems,
+      updatedAt: new Date().toISOString(),
+    };
+    return purchaseOrders[idx];
+  },
+
+  async updatePurchaseOrderBill(
+    id: string,
+    data: PurchaseOrderBillPayload,
+  ): Promise<PurchaseOrder> {
+    await delay(400);
+    const idx = purchaseOrders.findIndex((p) => p.id === id);
+    if (idx === -1) throw new Error('Purchase order not found');
+    const po = purchaseOrders[idx];
+    const billNumber = (data.billNumber ?? '').trim() || undefined;
+    const billImages = (data.billImages ?? [])
+      .map((u) => String(u).trim())
+      .filter(Boolean);
+    purchaseOrders[idx] = {
+      ...po,
+      billNumber,
+      billImages,
       updatedAt: new Date().toISOString(),
     };
     return purchaseOrders[idx];

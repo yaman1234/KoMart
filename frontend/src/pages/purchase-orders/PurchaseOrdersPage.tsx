@@ -77,6 +77,12 @@ export function PurchaseOrdersPage() {
     { id: 'orderNumber', label: 'PO Number', minWidth: 140, accessor: 'orderNumber' },
     { id: 'supplier', label: 'Supplier', accessor: 'supplierName' },
     {
+      id: 'billNumber',
+      label: 'Bill no.',
+      minWidth: 120,
+      render: (row) => (row.billNumber?.trim() ? row.billNumber : '—'),
+    },
+    {
       id: 'status',
       label: 'Status',
       render: (row) => (

@@ -127,7 +127,10 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 
 ### Bill number & images (F9–F10)
 
-Attach optionally on create/edit; **encourage** at receive or first payment. Never block Place Order if missing.
+- Attach optionally on create/edit Form; **encourage** at receive or first payment. Never block Place Order if missing.
+- After place/receive/cancel: managers update bill number/photos from **Detail → Edit bill** (status-independent `PATCH /bill`). Do not use Edit Order for bills on `received`/`cancelled`.
+- List page shows **Bill no.** column (empty → “—”). Filter/search by bill number remains Nice-to-Have (F11).
+- Changing PO bill later does **not** rewrite `PurchasePriceHistory` rows copied at receive time.
 
 ### Incorrect PO — edit vs cancel vs return
 

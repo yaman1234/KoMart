@@ -17,6 +17,7 @@ from app.schemas.purchase_order import (
     PurchaseOrderCreate,
     PurchaseOrderUpdate,
     PurchaseOrderStatusUpdate,
+    PurchaseOrderBillUpdate,
     PurchaseOrderReceiveRequest,
     PurchaseOrderPaymentCreate,
     PurchaseOrderResponse,
@@ -475,6 +476,42 @@ async def update_purchase_order(
     await log_audit(
         module=AuditModule.purchase_orders,
         action="update",
+        user=current_user,
+        request=request,
+        entity_type="purchase_order",
+        entity_id=po_id,
+        previous=before,
+        new=po_snapshot(refreshed),  # type: ignore[arg-type]
+    )
+    return _to_response(refreshed)  # type: ignore[arg-type]
+
+
+@router.patch("/{po_id}/bill", response_model=PurchaseOrderResponse)
+async def update_purchase_order_bill(
+    po_id: str,
+    body: PurchaseOrderBillUpdate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    """Update bill_number / bill_images in any PO status (not gated by _po_is_editable)."""
+    po = await PurchaseOrder.get(po_id)
+    if not po:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
+
+    before = po_snapshot(po)
+    bill_number = (body.bill_number or "").strip() or None
+    bill_images = [str(u).strip() for u in (body.bill_images or []) if str(u).strip()]
+    await po.set(
+        {
+            "bill_number": bill_number,
+            "bill_images": bill_images,
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+    refreshed = await PurchaseOrder.get(po_id)
+    await log_audit(
+        module=AuditModule.purchase_orders,
+        action="update_bill",
         user=current_user,
         request=request,
         entity_type="purchase_order",

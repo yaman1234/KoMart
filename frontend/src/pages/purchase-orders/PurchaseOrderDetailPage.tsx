@@ -40,6 +40,7 @@ import {
   useUpdatePurchaseOrderStatus,
   useReceivePurchaseOrderItems,
   useRecordPurchaseOrderPayment,
+  useUpdatePurchaseOrderBill,
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
@@ -47,6 +48,7 @@ import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
+import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { PAYMENT_METHODS, PO_LINE_STATUS_LABELS, PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type {
@@ -122,6 +124,11 @@ export function PurchaseOrderDetailPage() {
   const [receiveSelections, setReceiveSelections] = useState<Record<string, ReceiveSelection>>({});
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [billOpen, setBillOpen] = useState(false);
+  const [billNumberEdit, setBillNumberEdit] = useState('');
+  const [billImagesEdit, setBillImagesEdit] = useState<string[]>([]);
+  const [billUploading, setBillUploading] = useState(false);
+  const [billError, setBillError] = useState('');
 
   const {
     register,
@@ -144,6 +151,7 @@ export function PurchaseOrderDetailPage() {
   const statusMutation = useUpdatePurchaseOrderStatus();
   const receiveMutation = useReceivePurchaseOrderItems();
   const paymentMutation = useRecordPurchaseOrderPayment();
+  const billMutation = useUpdatePurchaseOrderBill();
 
   const canReceive = po?.status === 'ordered' || po?.status === 'partial';
   const amountPaid = po?.amountPaid ?? 0;
@@ -291,6 +299,32 @@ export function PurchaseOrderDetailPage() {
       setPaymentOpen(false);
     } catch (err) {
       setPaymentError(getErrorMessage(err));
+    }
+  };
+
+  const openBillDialog = () => {
+    if (!po) return;
+    setBillNumberEdit(po.billNumber ?? '');
+    setBillImagesEdit(po.billImages ?? []);
+    setBillError('');
+    setBillOpen(true);
+  };
+
+  const handleSaveBill = async () => {
+    if (!po) return;
+    setBillError('');
+    try {
+      await billMutation.mutateAsync({
+        id: po.id,
+        data: {
+          billNumber: billNumberEdit.trim() || null,
+          billImages: billImagesEdit,
+        },
+      });
+      showSuccess('Supplier bill updated.');
+      setBillOpen(false);
+    } catch (err) {
+      setBillError(getErrorMessage(err));
     }
   };
 
@@ -812,9 +846,24 @@ export function PurchaseOrderDetailPage() {
           }}
         >
           <Box sx={{ flex: '1 1 220px', minWidth: 0, maxWidth: 420 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Supplier bill
-            </Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1,
+                mb: 0.5,
+              }}
+            >
+              <Typography variant="subtitle2" color="text.secondary">
+                Supplier bill
+              </Typography>
+              {canManage && (
+                <Button size="small" onClick={openBillDialog}>
+                  Edit bill
+                </Button>
+              )}
+            </Box>
             {po.billNumber ? (
               <Typography variant="body2" sx={{ mb: 1 }}>
                 Bill number:{' '}
@@ -979,6 +1028,92 @@ export function PurchaseOrderDetailPage() {
             />
           </Grid>
         </Grid>
+      </FormModal>
+
+      <FormModal
+        open={billOpen}
+        title="Edit supplier bill"
+        onClose={() => setBillOpen(false)}
+        onSubmit={() => void handleSaveBill()}
+        submitLabel="Save bill"
+        loading={billMutation.isPending || billUploading}
+        maxWidth="sm"
+      >
+        {billError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {billError}
+          </Alert>
+        )}
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Bill number and photos can be updated in any order status.
+        </Typography>
+        <TextField
+          label="Bill number"
+          size="small"
+          fullWidth
+          value={billNumberEdit}
+          onChange={(e) => setBillNumberEdit(e.target.value)}
+          placeholder="Optional supplier invoice / bill no"
+          sx={{ mb: 2 }}
+        />
+        <Button
+          component="label"
+          size="small"
+          variant="outlined"
+          disabled={billUploading || billMutation.isPending}
+        >
+          {billUploading ? 'Uploading…' : 'Add bill photos'}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = e.target.files;
+              if (!files?.length) return;
+              setBillUploading(true);
+              setBillError('');
+              void uploadImagesToCloudinary(files)
+                .then((urls) => setBillImagesEdit((prev) => [...prev, ...urls]))
+                .catch((err) =>
+                  setBillError(err instanceof Error ? err.message : 'Upload failed'),
+                )
+                .finally(() => {
+                  setBillUploading(false);
+                  e.target.value = '';
+                });
+            }}
+          />
+        </Button>
+        {billImagesEdit.length > 0 && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+            {billImagesEdit.map((url) => (
+              <Box key={url} sx={{ position: 'relative' }}>
+                <Box
+                  component="img"
+                  src={url}
+                  alt="Bill"
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    objectFit: 'cover',
+                    borderRadius: 1,
+                    border: 1,
+                    borderColor: 'divider',
+                  }}
+                />
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={() => setBillImagesEdit((prev) => prev.filter((u) => u !== url))}
+                  sx={{ minWidth: 0, p: 0, position: 'absolute', top: -6, right: -6, fontSize: 10 }}
+                >
+                  ×
+                </Button>
+              </Box>
+            ))}
+          </Box>
+        )}
       </FormModal>
     </Box>
   );
