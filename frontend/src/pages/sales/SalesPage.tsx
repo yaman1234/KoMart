@@ -8,7 +8,6 @@ import {
   DialogTitle,
   MenuItem,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -99,12 +98,10 @@ export function SalesPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <span>{r.transactionNumber}</span>
           {r.isOnlineOrder && (
-            <Tooltip title={r.orderSource ? r.orderSource.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Online Order'} arrow>
-              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 999, bgcolor: '#e3f2fd', color: '#1565c0', fontSize: 10, fontWeight: 700, cursor: 'default' }}>
-                <DeliveryDiningIcon sx={{ fontSize: 12 }} />
-                Online
-              </Box>
-            </Tooltip>
+            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 999, bgcolor: '#e3f2fd', color: '#1565c0', fontSize: 10, fontWeight: 700, cursor: 'default' }}>
+              <DeliveryDiningIcon sx={{ fontSize: 12 }} />
+              Online{r.orderSource ? ` · ${r.orderSource.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}` : ''}
+            </Box>
           )}
         </Box>
       ),
