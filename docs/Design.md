@@ -97,9 +97,10 @@ Existing “N items · total” chip should use **Order total** (adjusted), not 
 
 **Screen:** `/purchase-orders/:id` Supplier bill block
 
-- Manager+: **Edit bill** always available (draft through cancelled) — bill number + photo upload/remove; saves via `PATCH /bill`, not Edit Order.
-- Cashiers: read-only bill number + thumbnail gallery.
-- Not tied to `canEditPurchaseOrder` / Edit Order button.
+- Manager+: outlined **Edit bill** (edit icon) always available for every status — same dialog; saves via `PATCH /bill`.
+- Panel: subtitle “Supplier bill”; bill number as outlined chip when set; 72px photo thumbnails; muted empty states.
+- Dialog: helper “You can update this in any order status.”; photo add with image icon; remove via IconButton.
+- Cashiers: read-only gallery. Not tied to `canEditPurchaseOrder` / Edit Order.
 
 ### Must-Have F7–F8 — Payments & legacy
 

@@ -23,11 +23,14 @@ import {
   InputAdornment,
   InputLabel,
   FormControl,
+  IconButton,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -852,27 +855,32 @@ export function PurchaseOrderDetailPage() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: 1,
-                mb: 0.5,
+                mb: 1,
               }}
             >
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 Supplier bill
               </Typography>
               {canManage && (
-                <Button size="small" onClick={openBillDialog}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<EditIcon fontSize="small" />}
+                  onClick={openBillDialog}
+                >
                   Edit bill
                 </Button>
               )}
             </Box>
-            {po.billNumber ? (
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                Bill number:{' '}
-                <Typography component="span" variant="body2" sx={{ fontWeight: 600 }}>
-                  {po.billNumber}
-                </Typography>
-              </Typography>
+            {po.billNumber?.trim() ? (
+              <Chip
+                label={po.billNumber.trim()}
+                size="small"
+                variant="outlined"
+                sx={{ mb: 1.5, fontWeight: 600, maxWidth: '100%' }}
+              />
             ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                 No bill number
               </Typography>
             )}
@@ -885,18 +893,27 @@ export function PurchaseOrderDetailPage() {
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    sx={{
+                      display: 'block',
+                      lineHeight: 0,
+                      borderRadius: 1,
+                      overflow: 'hidden',
+                      border: 1,
+                      borderColor: 'divider',
+                      '&:hover': { borderColor: 'primary.main', opacity: 0.92 },
+                    }}
                   >
                     <Box
                       component="img"
                       src={url}
-                      alt="Bill"
-                      sx={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}
+                      alt="Supplier bill"
+                      sx={{ width: 72, height: 72, objectFit: 'cover', display: 'block' }}
                     />
                   </Box>
                 ))}
               </Box>
             ) : (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 No bill photos
               </Typography>
             )}
@@ -1045,7 +1062,7 @@ export function PurchaseOrderDetailPage() {
           </Alert>
         )}
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Bill number and photos can be updated in any order status.
+          You can update this in any order status.
         </Typography>
         <TextField
           label="Bill number"
@@ -1060,6 +1077,7 @@ export function PurchaseOrderDetailPage() {
           component="label"
           size="small"
           variant="outlined"
+          startIcon={<AddPhotoAlternateOutlinedIcon />}
           disabled={billUploading || billMutation.isPending}
         >
           {billUploading ? 'Uploading…' : 'Add bill photos'}
@@ -1086,30 +1104,41 @@ export function PurchaseOrderDetailPage() {
           />
         </Button>
         {billImagesEdit.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, mt: 2 }}>
             {billImagesEdit.map((url) => (
-              <Box key={url} sx={{ position: 'relative' }}>
+              <Box key={url} sx={{ position: 'relative', width: 72, height: 72 }}>
                 <Box
                   component="img"
                   src={url}
-                  alt="Bill"
+                  alt="Supplier bill"
                   sx={{
-                    width: 64,
-                    height: 64,
+                    width: 72,
+                    height: 72,
                     objectFit: 'cover',
                     borderRadius: 1,
                     border: 1,
                     borderColor: 'divider',
+                    display: 'block',
                   }}
                 />
-                <Button
+                <IconButton
                   size="small"
-                  color="error"
+                  aria-label="Remove bill photo"
                   onClick={() => setBillImagesEdit((prev) => prev.filter((u) => u !== url))}
-                  sx={{ minWidth: 0, p: 0, position: 'absolute', top: -6, right: -6, fontSize: 10 }}
+                  sx={{
+                    position: 'absolute',
+                    top: -8,
+                    right: -8,
+                    bgcolor: 'background.paper',
+                    border: 1,
+                    borderColor: 'divider',
+                    width: 24,
+                    height: 24,
+                    '&:hover': { bgcolor: 'error.light', color: 'error.contrastText' },
+                  }}
                 >
-                  ×
-                </Button>
+                  <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
               </Box>
             ))}
           </Box>

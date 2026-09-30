@@ -83,7 +83,7 @@ Manual QA required before Done: create PO with discount only, charges only, both
 
 1. Create/update remain `require_manager_or_above`.
 2. Do not expose write of financial fields to cashiers.
-3. Bill image upload must use [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts) with `VITE_CLOUDINARY_FOLDER_PURCHASEORDER` and prefer `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER` — no hardcoded folder; no API secret in the frontend.
+3. Bill image upload must use [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts) with `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER` (fallback general preset) — folder comes from the Cloudinary preset; no API secret in the frontend.
 4. Do not log full payment or bill payloads with sensitive notes beyond existing audit practice.
 
 ---

@@ -6,10 +6,8 @@ interface ImportMetaEnv {
 
   readonly VITE_CLOUDINARY_CLOUD_NAME: string;
   readonly VITE_CLOUDINARY_UPLOAD_PRESET: string;
-  /** Preferred unsigned preset for PO bill images. */
+  /** Preferred unsigned preset for PO bill images (folder set on the Cloudinary preset). */
   readonly VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER?: string;
-  /** Cloudinary folder for PO bill images (e.g. purchase_orders). */
-  readonly VITE_CLOUDINARY_FOLDER_PURCHASEORDER: string;
 }
 
 interface ImportMeta {

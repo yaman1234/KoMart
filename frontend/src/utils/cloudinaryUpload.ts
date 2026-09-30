@@ -1,16 +1,12 @@
-/** Upload PO bill images to Cloudinary (preset + folder from env). */
+/** Upload PO bill images to Cloudinary using the PO unsigned preset from env. */
 
 export async function uploadImageToCloudinary(file: File): Promise<string> {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset =
     import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER ||
     import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-  const folder = (import.meta.env.VITE_CLOUDINARY_FOLDER_PURCHASEORDER || '').trim();
   if (!cloudName || !uploadPreset) {
     throw new Error('Cloudinary configuration is missing.');
-  }
-  if (!folder) {
-    throw new Error('VITE_CLOUDINARY_FOLDER_PURCHASEORDER is missing.');
   }
   if (!file.type.startsWith('image/')) {
     throw new Error('Please select an image file.');
@@ -21,8 +17,6 @@ export async function uploadImageToCloudinary(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', uploadPreset);
-  // Unsigned preset must allow folder override (or leave folder empty in dashboard).
-  formData.append('folder', folder);
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
     { method: 'POST', body: formData },

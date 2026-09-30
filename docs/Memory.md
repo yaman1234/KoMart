@@ -7,13 +7,14 @@ running log of completed work — updated after each task, newest entries at top
 ### 2026-09-30 — Status-independent PO bill number & images
 - Added `PATCH /purchase-orders/{id}/bill` (`PurchaseOrderBillUpdate`) — manager+; any status including received/cancelled; no `_po_is_editable`
 - Does not rewrite `PurchasePriceHistory` or reopen full PO edit
-- FE: `updateBill` service/mock/hook; Detail **Edit bill** dialog (Cloudinary via env folder/preset) for managers on any status
+- FE: `updateBill` service/mock/hook; Detail **Edit bill** dialog (Cloudinary via `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`) for managers on any status
 - FE: PO list **Bill no.** column (`PurchaseOrdersPage`)
 - Tests: `tests/test_po_bill.py`; docs prd/architecture/Rules/Design/Task/Memory updated
 
-### 2026-09-30 — PO bill images → Cloudinary folder from env
-- [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts): folder from `VITE_CLOUDINARY_FOLDER_PURCHASEORDER`; prefers `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`
-- Documented in `.env.example`, `vite-env.d.ts`, Rules, architecture
+### 2026-09-30 — PO bill Cloudinary preset-only (no folder env)
+- [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts): uses `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER` only; folder comes from the Cloudinary preset
+- Removed `VITE_CLOUDINARY_FOLDER_PURCHASEORDER` from code, `.env.example`, and types
+- Detail Supplier bill UI polish: chip bill no., 72px thumbs, outlined Edit bill + dialog IconButton remove; Edit bill remains `canManage`-only for all statuses
 
 ### 2026-09-27 — Removed Save financials (post-receive amend)
 - Removed `PATCH /purchase-orders/{id}/financials`, FE Save financials UI/hook/service, and `test_po_financials.py`

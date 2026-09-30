@@ -14,7 +14,7 @@
 | Pydantic schemas in `app/schemas/purchase_order.py` | Same create/update/response pattern as today |
 | React + MUI on `PurchaseOrderFormPage` / Detail | Single place for create/edit and read-only summary |
 | Existing payment service (`po_payment.py`) | Already balances on `total_amount`; no new payment model |
-| Cloudinary (bill photos) | Folder/preset from env via `cloudinaryUpload.ts` |
+| Cloudinary (bill photos) | Preset from env via `cloudinaryUpload.ts` |
 
 ---
 
@@ -147,7 +147,7 @@ frontend/src/
     PurchaseOrderDetailPage.tsx # read-only breakdown + Edit bill (any status)
     PurchaseOrdersPage.tsx      # list includes Bill no. column
   hooks/usePurchaseOrders.ts    # useUpdatePurchaseOrderBill
-  utils/cloudinaryUpload.ts     # PO bill folder/preset from env
+  utils/cloudinaryUpload.ts     # PO bill preset from env
   utils/poTotals.ts             # shared client formula (optional mirror)
 ```
 
@@ -157,7 +157,7 @@ frontend/src/
 
 | Integration | v1 | v1.1 |
 |-------------|----|------|
-| Cloudinary bill upload | Yes | Folder + preset from env (`VITE_CLOUDINARY_FOLDER_PURCHASEORDER`, `VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`) via [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts) |
+| Cloudinary bill upload | Yes | Preset from env (`VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`) via [`cloudinaryUpload.ts`](../frontend/src/utils/cloudinaryUpload.ts); folder configured on the Cloudinary preset |
 | Payment gateways | N/A | N/A |
 
 ---

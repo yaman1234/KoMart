@@ -95,7 +95,7 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 - Received money amend allowed when partial/paid (overpay display) — product later removed Save financials UI; keep decision documented
 - Bill images: no max; bill number/images **status-independent** via `PATCH /bill`
 - PO list shows **Bill no.** column
-- Cloudinary folder/preset from env (`VITE_CLOUDINARY_FOLDER_PURCHASEORDER`)
+- Cloudinary PO bill preset from env (`VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`)
 - Slim add-product dialog from PO
 - Purchase history on Inventory only
 - Cost compare: **Unit Cost** vs last purchase **Unit Cost**
