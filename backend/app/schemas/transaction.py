@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
-from app.models.transaction import PaymentMethod, TransactionItem, AppliedPromotion, TransactionStatus
+from app.models.transaction import PaymentMethod, TransactionItem, AppliedPromotion, TransactionStatus, OrderSource
 from app.schemas.discount import ExcludedPromotion
 
 
@@ -23,6 +23,8 @@ class TransactionCreate(BaseModel):
     created_by: str
     notes: str = Field(default="", max_length=500)
     sale_date: Optional[str] = None
+    is_online_order: bool = False
+    order_source: Optional[OrderSource] = None
 
 
 class TransactionResponse(BaseModel):
@@ -46,6 +48,8 @@ class TransactionResponse(BaseModel):
     status: TransactionStatus = TransactionStatus.completed
     void_reason: str = ""
     notes: str = ""
+    is_online_order: bool = False
+    order_source: Optional[OrderSource] = None
     created_by: str
     cashier_id: Optional[str] = None
     created_at: str

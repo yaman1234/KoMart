@@ -523,6 +523,8 @@ export interface CartItem {
 
 export type TransactionStatus = 'completed' | 'voided';
 
+export type OrderSource = 'whatsapp' | 'instagram' | 'tiktok' | 'facebook' | 'phone_call';
+
 export interface Transaction {
   id: string;
   transactionNumber: string;
@@ -544,6 +546,8 @@ export interface Transaction {
   status?: TransactionStatus;
   voidReason?: string;
   notes?: string;
+  isOnlineOrder?: boolean;
+  orderSource?: OrderSource;
   saleDate?: string;
   roundOff?: number;
   createdAt: string;
@@ -662,6 +666,9 @@ export interface DayWiseTransactions {
   todayBankSale: number;
   todayEsewaSale: number;
   todayExpense: number;
+  todayCashExpense: number;
+  todayBankExpense: number;
+  todayEsewaExpense: number;
 }
 
 export interface RevenueDataPoint {
