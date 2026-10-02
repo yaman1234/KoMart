@@ -121,7 +121,9 @@ Existing “N items · total” chip should use **Order total** (adjusted), not 
 
 ### Must-Have F13 — Purchase returns
 
-**List** (`/purchase-returns`): **Create return** picks a PO or supplier, then the same line dialog. Status chip Requested / Closed. Refund rows expose **Payment received**.
+**User guide:** [guides/Purchase_Returns.md](./guides/Purchase_Returns.md)
+
+**List** (`/purchase-returns`): **Create return** picks a PO or supplier, then the same line dialog. Status chip Requested / Closed. Refund rows expose **Record payment** (full or partial). Requested refund balance shows under Receivable and feeds dashboard Receivables.
 
 **PO-linked** (`PurchaseOrderDetailPage`): header **Return to supplier** when leftover exists; dialog with search (if many lines), Line Total column, total under Line Total; Refund or Reduce payable. Refund stays Requested until payment is confirmed.
 
@@ -130,6 +132,13 @@ Existing “N items · total” chip should use **Order total** (adjusted), not 
 **List page** `/purchase-returns`: all returns with mode/settlement/search filters; row opens PO or supplier.
 
 **Dashboard:** purchase-return **refund** wallet inflows count toward cash/bank/eSewa **inflow** (recovery), not Sales KPI.
+
+**Stock-only loss (F13b):**
+
+- Return detail (stock_only): show **Stock-only loss** = formatted `totalAmount` with short helper: “Inventory write-off at cost — no cash or payable change.”
+- Dashboard / day cash: tile or row **Stock-only write-offs** (today + month) beside return inflows — use warning/muted tone, not success green used for cash in.
+- Do not mix stock-only amounts into Sales or Supplier refund chart series.
+- List filter already has settlement = Stock only; optional subtitle on those rows: “Write-off”.
 
 ---
 

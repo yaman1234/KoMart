@@ -68,6 +68,7 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | F20 | Unit Cost change icon vs last purchase Unit Cost | 6 |
 | F21 | Batches: Received Qty, Remaining Qty (rename), Unit Cost | 7 |
 | F13 | Dual-mode purchase return: PO-linked (refund / reduce_payable) + supplier (refund / stock_only); refund is requested until payment received, then closed | 8 |
+| F13b | Track **stock-only** supplier returns as inventory write-off / disposal **loss at cost** (report + dashboard; not silent qty drop; not sales COGS) | 8 |
 
 ### Nice-to-Have later
 
@@ -78,6 +79,7 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | F15 | Allocate discount/charges into batch unit cost |
 | F16 | Soft-delete empty drafts only |
 | F17 | “Void after full return” status |
+| F13c | Optional expense document for stock-only loss (non-cash / category) if Accounts must list write-offs |
 
 ---
 
@@ -90,6 +92,7 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | Payment remaining balance = Order Total − amount paid after discount/charges | Always |
 | Existing unpaid/paid POs without new fields still list and pay correctly | Zero regressions on payment status |
 | Time to enter discount + charges on create form | ≤ 10 seconds (two number fields) |
+| Stock-only return cost is visible as write-off loss (day/month), not only as stock OUT | Always for closed `stock_only` returns |
 
 ---
 
@@ -112,6 +115,7 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | Editing total below amount already paid | Broken payment status | Reject update when new total &lt; amount_paid |
 | Staff expect freight to change product cost | COGS mismatch vs expectation | Document Non-Goal; show note in UI that charges are payable-only |
 | Received PO mistakes without return flow | Stuck with wrong stock | Phase 8 dual-mode returns (PO-linked + supplier) |
+| Stock-only return with no money signal | Silent inventory loss; managers miss P&L impact | F13b: report/KPI write-off at cost; never treat as sales COGS |
 
 ---
 
@@ -143,3 +147,13 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 | Received + sales already made | Keep PO and sales. Return remaining unsold stock only. Create corrected PO if still needed |
 
 **Why not cancel a received PO?** Cancel without reversing batches leaves ghost stock; reversing after sales desyncs inventory and COGS. Receive locks history; corrections are compensating actions.
+
+### Stock-only vs refund vs reduce payable (F13 / F13b)
+
+| Settlement | Use when | Money | P&L meaning |
+|------------|----------|-------|-------------|
+| **Refund** | Supplier will pay cash/bank/eSewa | Wallet inflow on **Record payment**; receivable while Requested | Cash recovery (not sales) |
+| **Reduce payable** | Cut what you still owe on a PO | PO `total_amount` down | Saves future cash out |
+| **Stock only** | Supplier will not pay; not cutting a PO bill | No wallet / no PO change | **Inventory write-off at cost** — must be reported (F13b) |
+
+Stock-only is **not** sales COGS and **not** negative sales. It is operating / inventory disposal loss at batch cost (`PurchaseReturn.total_amount`).

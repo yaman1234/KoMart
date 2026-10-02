@@ -51,7 +51,6 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
   const [search, setSearch] = useState('');
   const [reason, setReason] = useState<PurchaseReturnReason>('expired');
   const [settlement, setSettlement] = useState<PurchaseReturnSettlement>('stock_only');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
 
@@ -115,12 +114,12 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
         items,
         settlementType: settlement,
         reason,
-        paymentMethod: settlement === 'refund' ? paymentMethod : undefined,
+        paymentMethod: undefined,
         remarks: remarks.trim() || undefined,
       });
       showSuccess(
         settlement === 'refund'
-          ? `Return requested — ${formatCurrency(selectedTotal)}. Confirm payment received to close it.`
+          ? `Return requested — ${formatCurrency(selectedTotal)}. Record payment when supplier pays.`
           : `Return closed (stock only) — ${formatCurrency(selectedTotal)}.`,
       );
       onClose();
@@ -301,22 +300,8 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
           }
         >
           <MenuItem value="stock_only">Stock only</MenuItem>
-          <MenuItem value="refund">Refund to wallet</MenuItem>
+          <MenuItem value="refund">Refund (collect later)</MenuItem>
         </TextField>
-        {settlement === 'refund' && (
-          <TextField
-            select
-            size="small"
-            label="Wallet"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="cash">Cash</MenuItem>
-            <MenuItem value="bank">Bank</MenuItem>
-            <MenuItem value="esewa">eSewa</MenuItem>
-          </TextField>
-        )}
       </Box>
 
       <TextField

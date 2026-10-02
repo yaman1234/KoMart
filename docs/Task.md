@@ -102,6 +102,12 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 | T087 | Return dialog UX (empty/name/Line Total/search) | T086 | Done |
 | T088 | Dashboard purchase_return cash inflow + list page `/purchase-returns` | T087 | Done |
 | T089 | List create-return + requested/closed (refund closes on payment received) | T088 | Done |
+| T090 | Cash tracking: split inflow, payment history, write-off, receivables drill-down | T089 | Done |
+| T091 | User guide: `docs/guides/Purchase_Returns.md` | T090 | Done |
+| T092 | Docs: F13b stock-only write-off tracking (prd→Memory) | T091 | Done |
+| T093 | Backend: aggregate stock-only loss (day/month) on dashboard KPI / returns summary | T092 | Not Started |
+| T094 | FE: return detail “Stock-only loss” + dashboard write-off tile | T093 | Not Started |
+| T095 | Tests + guide update for stock-only loss visibility | T094 | Not Started |
 
 ---
 
@@ -115,6 +121,7 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 - Slim add-product dialog from PO
 - Purchase history on Inventory only
 - Cost compare: **Unit Cost** vs last purchase **Unit Cost**
-- **Returns:** PO-linked (`refund` / `reduce_payable`) from PO detail; supplier mode (`refund` / `stock_only`, no PO money) from Supplier detail; leftover PO-tagged batches only
-- **Return refunds** = cash recovery inflow on dashboard (not Sales) only after status `closed`; global list at `/purchase-returns` with Create return
+- **Returns:** PO-linked (`refund` / `reduce_payable`) from PO detail; supplier mode (`refund` / `stock_only`, no PO money) from Supplier detail; leftover PO-tagged batches only — guide: [guides/Purchase_Returns.md](./guides/Purchase_Returns.md)
+- **Return refunds** = cash recovery inflow on dashboard (not Sales) only after payment is recorded; global list at `/purchase-returns` with Create return
 - Refund status: `requested` until payment received is confirmed, then `closed`. Reduce payable and stock only close on create
+- **Stock-only (F13b):** track as **inventory write-off loss at cost** via report/KPI aggregation of closed `stock_only` returns (`return_date`); not sales COGS; not wallet cash; expense document optional later (F13c)

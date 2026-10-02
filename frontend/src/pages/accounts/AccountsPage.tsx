@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -20,7 +20,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import TuneIcon from '@mui/icons-material/Tune';
 import TodayIcon from '@mui/icons-material/Today';
 import PersonIcon from '@mui/icons-material/Person';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
@@ -115,11 +115,26 @@ export function AccountsPage() {
   const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canAdjust = isAdminOrManager(user?.role);
+  const [searchParams] = useSearchParams();
 
   const [walletFilter, setWalletFilter] = useState<'' | WalletCode>('');
-  const [entryTypeFilter, setEntryTypeFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState(() => daysAgoIso(6));
-  const [dateTo, setDateTo] = useState(todayIso);
+  const [entryTypeFilter, setEntryTypeFilter] = useState(() => searchParams.get('entryType') || '');
+  const [referenceIdFilter, setReferenceIdFilter] = useState(() => searchParams.get('referenceId') || '');
+  const [dateFrom, setDateFrom] = useState(() =>
+    searchParams.get('referenceId') ? '' : daysAgoIso(6),
+  );
+  const [dateTo, setDateTo] = useState(() => (searchParams.get('referenceId') ? '' : todayIso()));
+
+  useEffect(() => {
+    const entryType = searchParams.get('entryType') || '';
+    const referenceId = searchParams.get('referenceId') || '';
+    if (entryType) setEntryTypeFilter(entryType);
+    if (referenceId) {
+      setReferenceIdFilter(referenceId);
+      setDateFrom('');
+      setDateTo('');
+    }
+  }, [searchParams]);
 
   const [transferOpen, setTransferOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -164,9 +179,10 @@ export function AccountsPage() {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       entryType: entryTypeFilter || undefined,
+      referenceId: referenceIdFilter || undefined,
       limit: 200,
     }),
-    [walletFilter, dateFrom, dateTo, entryTypeFilter],
+    [walletFilter, dateFrom, dateTo, entryTypeFilter, referenceIdFilter],
   );
   const { data: ledger = [], isLoading: ledgerLoading, isError: ledgerError } =
     useWalletLedger(ledgerParams);

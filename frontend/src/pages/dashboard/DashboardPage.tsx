@@ -64,6 +64,7 @@ import {
 import { useAuthStore } from '@/store';
 import { formatCurrency, canViewAdminReports } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
+import { useAllPurchaseReturns } from '@/hooks/usePurchaseReturns';
 
 const PIE_COLORS = ['#0d7377', '#14919b', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51', '#264653'];
 
@@ -88,7 +89,7 @@ const KPI_FLOW_TITLES: Record<KpiFlowMetric, string> = {
 const KPI_FLOW_SERIES: Record<KpiFlowMetric, { inflow: string; outflow: string }> = {
   sales: { inflow: 'Sales', outflow: '—' },
   purchase: { inflow: '—', outflow: 'Purchase paid' },
-  receivables: { inflow: 'Receivables', outflow: '—' },
+  receivables: { inflow: 'Refunds received', outflow: '—' },
   payables: { inflow: '—', outflow: 'Payments' },
   cash: { inflow: 'Inflow', outflow: 'Outflow' },
   bank: { inflow: 'Inflow', outflow: 'Outflow' },
@@ -541,6 +542,7 @@ function DayWiseTransactionsSection({
     todayCashExpense: number;
     todayBankExpense: number;
     todayEsewaExpense: number;
+    todayPurchaseReturnInflow?: number;
   };
   loading: boolean;
   dateLabel: string;
@@ -558,12 +560,34 @@ function DayWiseTransactionsSection({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
           gap: 1.5,
         }}
       >
         <TodaySalesTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
         <TodayExpenseTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
+        <Card
+          sx={{
+            height: '100%',
+            background: 'linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0.05) 100%)',
+            cursor: 'pointer',
+            transition: 'box-shadow 0.15s',
+            '&:hover': { boxShadow: 4 },
+          }}
+          onClick={() => onNavigate('/purchase-returns?status=closed')}
+        >
+          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.4 }}>
+              Today supplier refunds
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {loading ? '…' : formatCurrency(data?.todayPurchaseReturnInflow ?? 0)}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Cash received from purchase returns
+            </Typography>
+          </CardContent>
+        </Card>
       </Box>
     </Box>
   );
@@ -586,6 +610,13 @@ export function DashboardPage() {
   const { data: topSold = [], isLoading: soldLoading } = useTopSoldProducts(30, 6);
   const { data: salesCollection = [], isLoading: scLoading } = useSalesCollection(30);
   const { data: kpiFlow = [], isLoading: kpiFlowLoading } = useKpiFlow(kpiMetric);
+  const { data: openReceivables } = useAllPurchaseReturns({
+    status: 'requested',
+    settlementType: 'refund',
+    page: 1,
+    pageSize: 10,
+  });
+  const openReceivableRows = openReceivables?.data ?? [];
 
   const allQuickActions = [
     { label: 'New Sale', icon: <PointOfSaleIcon />, path: '/pos', adminOnly: false },
@@ -675,8 +706,8 @@ export function DashboardPage() {
         <KpiTile
           title="Receivables"
           icon={<CallReceivedIcon fontSize="small" />}
-          main={formatCurrency(0)}
-          sub="Month — · Day —"
+          main={formatCurrency(kpi?.receivables.outstanding ?? 0)}
+          sub={`Month received ${formatCurrency(kpi?.receivables.monthReceived ?? 0)} · Day ${formatCurrency(kpi?.receivables.dayReceived ?? 0)}`}
           loading={kpiLoading}
           onClick={() => setKpiMetric('receivables')}
           gradient="linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0.05) 100%)"
@@ -717,6 +748,36 @@ export function DashboardPage() {
             Fiscal year start
             {kpi?.fiscalYearStart ? ` (${formatDate(kpi.fiscalYearStart)})` : ''} → today
           </Typography>
+          {kpiMetric === 'receivables' && (
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle2">Open supplier refunds (receivable)</Typography>
+                <Button size="small" onClick={() => { setKpiMetric(null); navigate('/purchase-returns?status=requested'); }}>
+                  Open list
+                </Button>
+              </Box>
+              {openReceivableRows.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No open receivables.</Typography>
+              ) : (
+                <List dense disablePadding>
+                  {openReceivableRows.slice(0, 12).map((row) => (
+                    <ListItemButton
+                      key={row.id}
+                      onClick={() => {
+                        setKpiMetric(null);
+                        navigate('/purchase-returns?status=requested');
+                      }}
+                    >
+                      <ListItemText
+                        primary={`${row.returnNumber} · ${row.supplierName || 'Supplier'}`}
+                        secondary={`${row.returnDate} · due ${formatCurrency(row.amountOutstanding ?? row.totalAmount)}`}
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
+              )}
+            </Box>
+          )}
           <DashboardChartCard
             title={kpiMetric ? KPI_FLOW_TITLES[kpiMetric] : 'KPI Flow'}
             loading={kpiFlowLoading}
@@ -748,13 +809,21 @@ export function DashboardPage() {
           >
             {(_mode, height) => (
               <ResponsiveContainer width="100%" height={height}>
-                <AreaChart data={cashFlow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart
+                  data={cashFlow.map((d) => ({
+                    ...d,
+                    salesInflow: d.salesInflow ?? d.inflow,
+                    returnInflow: d.returnInflow ?? 0,
+                  }))}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d) => d.slice(5)} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v) => formatCurrency(Number(v))} />
                   <Legend />
-                  <Area type="monotone" dataKey="inflow" name="Inflow" stroke="#2a9d8f" fill="#2a9d8f55" />
+                  <Area type="monotone" dataKey="salesInflow" name="Sales" stroke="#2a9d8f" fill="#2a9d8f44" stackId="in" />
+                  <Area type="monotone" dataKey="returnInflow" name="Supplier refunds" stroke="#3b82f6" fill="#3b82f644" stackId="in" />
                   <Area type="monotone" dataKey="outflow" name="Outflow" stroke="#e76f51" fill="#e76f5155" />
                 </AreaChart>
               </ResponsiveContainer>

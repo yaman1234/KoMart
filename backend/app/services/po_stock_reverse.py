@@ -27,9 +27,32 @@ async def leftover_for_po(product_id: str, po_id: str) -> int:
     return sum(batch.quantity for batch in batches)
 
 
+async def leftover_by_product_for_po(po_id: str, product_ids: list[str] | None = None) -> dict[str, int]:
+    """One aggregation: leftover qty per product for a PO."""
+    match: dict = {
+        "purchase_order_id": po_id,
+        "quantity": {"$gt": 0},
+    }
+    if product_ids:
+        match["product_id"] = {"$in": list(product_ids)}
+    col = InventoryBatch.get_motor_collection()
+    rows = await col.aggregate(
+        [
+            {"$match": match},
+            {"$group": {"_id": "$product_id", "qty": {"$sum": "$quantity"}}},
+        ]
+    ).to_list(None)
+    return {str(r["_id"]): int(r.get("qty") or 0) for r in rows if r.get("_id")}
+
+
 async def _po_ids_for_supplier(supplier_id: str) -> list[str]:
-    pos = await PurchaseOrder.find(PurchaseOrder.supplier_id == supplier_id).to_list()
-    return [str(po.id) for po in pos if po.id]
+    """IDs only — no full PO document hydration."""
+    col = PurchaseOrder.get_motor_collection()
+    cursor = col.find(
+        {"supplier_id": supplier_id},
+        {"_id": 1},
+    )
+    return [str(doc["_id"]) for doc in await cursor.to_list(None)]
 
 
 async def leftover_for_supplier(product_id: str, supplier_id: str) -> int:
@@ -49,9 +72,61 @@ async def list_supplier_returnable_batches(supplier_id: str) -> list[InventoryBa
     if not po_ids:
         return []
     return await InventoryBatch.find(
-        {"purchase_order_id": {"$in": po_ids}},
-        InventoryBatch.quantity > 0,
+        {"purchase_order_id": {"$in": po_ids}, "quantity": {"$gt": 0}},
     ).to_list()
+
+
+async def aggregate_supplier_returnable_by_product(supplier_id: str) -> dict[str, dict]:
+    """qty / cost aggregates per product without loading full batch docs into Beanie."""
+    po_ids = await _po_ids_for_supplier(supplier_id)
+    if not po_ids:
+        return {}
+    col = InventoryBatch.get_motor_collection()
+    rows = await col.aggregate(
+        [
+            {
+                "$match": {
+                    "purchase_order_id": {"$in": po_ids},
+                    "quantity": {"$gt": 0},
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$product_id",
+                    "qty": {"$sum": "$quantity"},
+                    "cost_sum": {
+                        "$sum": {
+                            "$cond": [
+                                {"$gt": ["$unit_cost", 0]},
+                                {"$multiply": ["$unit_cost", "$quantity"]},
+                                0,
+                            ]
+                        }
+                    },
+                    "cost_qty": {
+                        "$sum": {
+                            "$cond": [
+                                {"$gt": ["$unit_cost", 0]},
+                                "$quantity",
+                                0,
+                            ]
+                        }
+                    },
+                }
+            },
+        ]
+    ).to_list(None)
+    out: dict[str, dict] = {}
+    for r in rows:
+        pid = str(r.get("_id") or "")
+        if not pid:
+            continue
+        out[pid] = {
+            "qty": int(r.get("qty") or 0),
+            "cost_sum": float(r.get("cost_sum") or 0),
+            "cost_qty": int(r.get("cost_qty") or 0),
+        }
+    return out
 
 
 async def _deduct_from_batches(

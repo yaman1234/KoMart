@@ -9,6 +9,8 @@ from fastapi import HTTPException, status
 
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
 from app.models.product import Product
+from app.models.purchase_order import PurchaseOrder
+from app.models.purchase_return import PurchaseReturn
 from app.models.transaction import Transaction
 from app.services.stock import get_current_stock
 
@@ -54,9 +56,21 @@ async def resolve_reference(
     return adj.type.value, adj.batch_id or ""
 
 
-def _reference_label(*, ref_type: str, txn_number: str, batch_number: str) -> str:
+def _reference_label(
+    *,
+    ref_type: str,
+    ref_id: str,
+    txn_number: str,
+    batch_number: str,
+    po_numbers: dict[str, str] | None = None,
+    return_numbers: dict[str, str] | None = None,
+) -> str:
     if ref_type == "sale":
         return txn_number
+    if ref_type == "purchase_order":
+        return (po_numbers or {}).get(ref_id, "") or batch_number
+    if ref_type == "purchase_return":
+        return (return_numbers or {}).get(ref_id, "") or batch_number
     return batch_number
 
 
@@ -66,6 +80,8 @@ async def build_movement_row(
     txn_numbers: dict[str, str] | None = None,
     batch_po_map: dict[str, str] | None = None,
     batch_numbers: dict[str, str] | None = None,
+    po_numbers: dict[str, str] | None = None,
+    return_numbers: dict[str, str] | None = None,
     sku_cache: dict[str, str] | None = None,
 ) -> dict:
     ref_type, ref_id = await resolve_reference(adj, batch_po_map)
@@ -73,7 +89,9 @@ async def build_movement_row(
     txn_number = ""
     if ref_type == "sale" and ref_id and txn_numbers:
         txn_number = txn_numbers.get(ref_id, "")
-    batch_key = adj.batch_id or (ref_id if ref_type != "sale" else "")
+    batch_key = adj.batch_id or ""
+    if not batch_key and ref_type not in ("sale", "purchase_order", "purchase_return"):
+        batch_key = ref_id
     batch_number = (batch_numbers or {}).get(batch_key, "") if batch_key else ""
 
     return {
@@ -87,8 +105,11 @@ async def build_movement_row(
         "reference_id": ref_id,
         "reference_label": _reference_label(
             ref_type=ref_type,
+            ref_id=ref_id,
             txn_number=txn_number,
             batch_number=batch_number,
+            po_numbers=po_numbers,
+            return_numbers=return_numbers,
         ),
         "transaction_number": txn_number,
         "type": adj.type.value,
@@ -151,6 +172,36 @@ async def load_txn_numbers(txn_ids: set[str]) -> dict[str, str]:
         return {}
     txns = await Transaction.find({"_id": {"$in": oids}}).to_list()
     return {str(t.id): t.transaction_number for t in txns}
+
+
+async def load_purchase_order_numbers(po_ids: set[str]) -> dict[str, str]:
+    if not po_ids:
+        return {}
+    oids = []
+    for pid in po_ids:
+        try:
+            oids.append(PydanticObjectId(pid))
+        except Exception:
+            continue
+    if not oids:
+        return {}
+    orders = await PurchaseOrder.find({"_id": {"$in": oids}}).to_list()
+    return {str(o.id): o.order_number for o in orders if o.order_number}
+
+
+async def load_purchase_return_numbers(return_ids: set[str]) -> dict[str, str]:
+    if not return_ids:
+        return {}
+    oids = []
+    for rid in return_ids:
+        try:
+            oids.append(PydanticObjectId(rid))
+        except Exception:
+            continue
+    if not oids:
+        return {}
+    returns = await PurchaseReturn.find({"_id": {"$in": oids}}).to_list()
+    return {str(r.id): r.return_number for r in returns if r.return_number}
 
 
 async def load_sku_cache(product_ids: set[str]) -> dict[str, str]:

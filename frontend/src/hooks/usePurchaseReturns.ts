@@ -69,7 +69,25 @@ export function useCreatePurchaseReturn() {
 export function useClosePurchaseReturn() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => purchaseReturnService.close(id),
+    mutationFn: ({
+      id,
+      paymentMethod,
+      amountReceived,
+      remarks,
+      receivedDate,
+    }: {
+      id: string;
+      paymentMethod?: string;
+      amountReceived?: number;
+      remarks?: string;
+      receivedDate?: string;
+    }) =>
+      purchaseReturnService.close(id, {
+        paymentMethod,
+        amountReceived,
+        remarks,
+        receivedDate,
+      }),
     onSuccess: (result) => {
       const poId = result.purchaseOrderId;
       const supplierId = result.supplierId;
@@ -86,6 +104,30 @@ export function useClosePurchaseReturn() {
       }
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.walletBalances });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
+    },
+  });
+}
+
+export function useWriteOffPurchaseReturn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      purchaseReturnService.writeOff(id, { reason }),
+    onSuccess: (result) => {
+      const poId = result.purchaseOrderId;
+      const supplierId = result.supplierId;
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnsAll });
+      if (poId) {
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(poId) });
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturns(poId) });
+      }
+      if (supplierId) {
+        void queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.purchaseReturnsBySupplier(supplierId),
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     },
   });

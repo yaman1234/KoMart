@@ -49,6 +49,8 @@ from app.services.inventory_movements import (
     count_out_of_sync_skus,
     list_integrity_rows,
     load_batch_lookups,
+    load_purchase_order_numbers,
+    load_purchase_return_numbers,
     load_sku_cache,
     load_txn_numbers,
     parse_movement_date_filters,
@@ -400,17 +402,25 @@ async def _query_movements(
     )
 
     batch_ids = {r.batch_id for r in rows if r.batch_id}
+    # Do not treat document refs (sale / PO / purchase return) as batch ids.
+    doc_ref_types = {"sale", "purchase_order", "purchase_return"}
     batch_ids.update(
         r.reference_id
         for r in rows
-        if r.reference_id and r.reference_type not in ("sale", "purchase_order")
+        if r.reference_id and r.reference_type not in doc_ref_types
     )
     txn_ids = {r.transaction_id for r in rows if r.transaction_id}
     txn_ids.update({r.reference_id for r in rows if r.reference_type == "sale" and r.reference_id})
+    po_ids = {r.reference_id for r in rows if r.reference_type == "purchase_order" and r.reference_id}
+    return_ids = {
+        r.reference_id for r in rows if r.reference_type == "purchase_return" and r.reference_id
+    }
     product_ids_set = {r.product_id for r in rows if not r.product_sku}
 
     batch_po_map, batch_numbers = await load_batch_lookups(batch_ids)
     txn_numbers = await load_txn_numbers(txn_ids)
+    po_numbers = await load_purchase_order_numbers(po_ids)
+    return_numbers = await load_purchase_return_numbers(return_ids)
     sku_cache = await load_sku_cache(product_ids_set)
 
     data = [
@@ -419,6 +429,8 @@ async def _query_movements(
             txn_numbers=txn_numbers,
             batch_po_map=batch_po_map,
             batch_numbers=batch_numbers,
+            po_numbers=po_numbers,
+            return_numbers=return_numbers,
             sku_cache=sku_cache,
         ))
         for row in rows

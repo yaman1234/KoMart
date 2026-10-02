@@ -595,7 +595,7 @@ export const mockDashboardKpi: DashboardKpiSummary = {
   fiscalYearStart: '2025-07-16',
   sales: { fiscalYear: 1850000, month: 342500, day: 12850 },
   purchase: { fiscalYear: 920000, month: 85000, day: 12000 },
-  receivables: { fiscalYear: 0, month: 0, day: 0 },
+  receivables: { outstanding: 0, monthReceived: 0, dayReceived: 0 },
   payables: { outstanding: 145000, monthPaid: 85000, dayPaid: 12000 },
   cashBank: {
     total: 327000,
@@ -611,9 +611,15 @@ export const mockCashFlow: CashFlowPoint[] = Array.from({ length: 30 }, (_, i) =
   const date = new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0];
   return {
     date,
-    inflow: Math.floor(Math.random() * 15000) + 5000,
+    salesInflow: Math.floor(Math.random() * 12000) + 4000,
+    returnInflow: Math.floor(Math.random() * 2000),
+    inflow: 0,
     outflow: Math.floor(Math.random() * 8000) + 2000,
   };
+});
+
+mockCashFlow.forEach((row) => {
+  row.inflow = (row.salesInflow ?? 0) + (row.returnInflow ?? 0);
 });
 
 export const mockOperationalExpenses: NamedAmountPoint[] = [

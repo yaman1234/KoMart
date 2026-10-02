@@ -128,6 +128,7 @@ class PurchaseOrderResponse(BaseModel):
     supplier_name: str
     status: POStatus
     items: list[PurchaseOrderItemResponse]
+    items_count: int = 0
     subtotal: float = 0.0
     discount: float = 0.0
     additional_charges: float = 0.0

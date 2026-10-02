@@ -49,7 +49,6 @@ export function PoReturnDialog({ open, purchaseOrderId, amountPaid, onClose }: P
   const [search, setSearch] = useState('');
   const [reason, setReason] = useState<PurchaseReturnReason>('wrong_item');
   const [settlement, setSettlement] = useState<PurchaseReturnSettlement>('reduce_payable');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
 
@@ -126,12 +125,11 @@ export function PoReturnDialog({ open, purchaseOrderId, amountPaid, onClose }: P
         items,
         settlementType: settlement,
         reason,
-        paymentMethod: settlement === 'refund' ? paymentMethod : undefined,
         remarks: remarks.trim() || undefined,
       });
       showSuccess(
         settlement === 'refund'
-          ? `Return requested — ${formatCurrency(selectedTotal)}. Confirm payment received to close it.`
+          ? `Return requested — ${formatCurrency(selectedTotal)}. Record payment when supplier pays.`
           : `Return closed — ${formatCurrency(selectedTotal)}.`,
       );
       onClose();
@@ -305,20 +303,6 @@ export function PoReturnDialog({ open, purchaseOrderId, amountPaid, onClose }: P
             Refund
           </MenuItem>
         </TextField>
-        {settlement === 'refund' && (
-          <TextField
-            select
-            size="small"
-            label="Wallet"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="cash">Cash</MenuItem>
-            <MenuItem value="bank">Bank</MenuItem>
-            <MenuItem value="esewa">eSewa</MenuItem>
-          </TextField>
-        )}
       </Box>
 
       <TextField

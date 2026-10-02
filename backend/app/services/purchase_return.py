@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request, status
 
@@ -20,14 +20,18 @@ from app.models.supplier import Supplier
 from app.models.user import User
 from app.models.wallet_ledger import WalletDirection, WalletEntryType
 from app.schemas.purchase_return import (
+    PurchaseReturnClose,
     PurchaseReturnCreate,
     PurchaseReturnItemResponse,
+    PurchaseReturnPaymentResponse,
     PurchaseReturnResponse,
     ReturnableLineResponse,
 )
 from app.services.audit import log_audit
 from app.services.payment_methods import normalize_payment_method
 from app.services.po_stock_reverse import (
+    aggregate_supplier_returnable_by_product,
+    leftover_by_product_for_po,
     leftover_for_po,
     leftover_for_supplier,
     list_supplier_returnable_batches,
@@ -35,7 +39,8 @@ from app.services.po_stock_reverse import (
     reverse_supplier_batches,
 )
 from app.services.response_cache import bump_commerce_caches
-from app.services.wallet_ledger import WALLETS, post_entry
+from app.services.wallet_ledger import WALLETS, find_by_reference, post_entry
+
 
 RETURNABLE_PO_STATUSES = {
     POStatus.ordered,
@@ -44,7 +49,51 @@ RETURNABLE_PO_STATUSES = {
 }
 
 
-def _to_response(doc: PurchaseReturn) -> PurchaseReturnResponse:
+def _parse_received_date(raw: str | None) -> str:
+    today = datetime.now(timezone.utc).date()
+    value = (raw or "").strip() or today.isoformat()
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="received_date must be YYYY-MM-DD") from exc
+    if parsed > today + timedelta(days=1):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="received_date cannot be far in the future")
+    return parsed.isoformat()
+
+
+async def _payments_for(return_id: str) -> list[PurchaseReturnPaymentResponse]:
+    entries = await find_by_reference("purchase_return", return_id)
+    entries = sorted(
+        entries,
+        key=lambda e: (e.date or "", e.created_at.isoformat() if e.created_at else ""),
+    )
+    out: list[PurchaseReturnPaymentResponse] = []
+    for e in entries:
+        wallet = e.wallet.value if hasattr(e.wallet, "value") else str(e.wallet)
+        out.append(
+            PurchaseReturnPaymentResponse(
+                id=str(e.id),
+                date=e.date or "",
+                amount=float(e.amount or 0),
+                wallet=wallet,
+                remarks=e.remarks or "",
+                created_by=e.created_by or "",
+            )
+        )
+    return out
+
+
+async def _to_response(doc: PurchaseReturn, *, include_payments: bool = False) -> PurchaseReturnResponse:
+    total = float(doc.total_amount or 0)
+    received = float(getattr(doc, "amount_received", 0) or 0)
+    write_off = float(getattr(doc, "write_off_amount", 0) or 0)
+    outstanding = (
+        round(max(0.0, total - received - write_off), 2)
+        if doc.status == PurchaseReturnStatus.requested
+        and doc.settlement_type == ReturnSettlementType.refund
+        else 0.0
+    )
+    payments = await _payments_for(str(doc.id)) if include_payments else []
     return PurchaseReturnResponse(
         id=str(doc.id),
         return_number=doc.return_number,
@@ -64,7 +113,10 @@ def _to_response(doc: PurchaseReturn) -> PurchaseReturnResponse:
             )
             for i in (doc.items or [])
         ],
-        total_amount=float(doc.total_amount or 0),
+        total_amount=total,
+        amount_received=received,
+        write_off_amount=write_off,
+        write_off_reason=getattr(doc, "write_off_reason", "") or "",
         remarks=doc.remarks or "",
         reason=doc.reason or ReturnReason.other,
         settlement_type=doc.settlement_type,
@@ -76,7 +128,11 @@ def _to_response(doc: PurchaseReturn) -> PurchaseReturnResponse:
         updated_at=doc.updated_at.isoformat() if doc.updated_at else "",
         confirmed_at=doc.confirmed_at.isoformat() if doc.confirmed_at else None,
         closed_at=doc.closed_at.isoformat() if doc.closed_at else None,
+        write_off_at=doc.write_off_at.isoformat() if getattr(doc, "write_off_at", None) else None,
+        amount_outstanding=outstanding,
+        payments=payments,
     )
+
 
 
 async def _next_return_number() -> str:
@@ -116,14 +172,22 @@ async def _load_products_by_id(product_ids: list[str]) -> dict:
 async def _po_line_names_for_supplier(supplier_id: str, product_ids: list[str]) -> dict[str, str]:
     if not product_ids:
         return {}
-    pos = await PurchaseOrder.find(PurchaseOrder.supplier_id == supplier_id).to_list()
-    names: dict[str, str] = {}
     wanted = set(product_ids)
-    for po in pos:
-        for item in po.items or []:
-            pid = item.product_id
-            if pid in wanted and pid not in names and (item.product_name or "").strip():
-                names[pid] = item.product_name.strip()
+    col = PurchaseOrder.get_motor_collection()
+    docs = await col.find(
+        {"supplier_id": supplier_id},
+        {"items.product_id": 1, "items.product_name": 1},
+    ).to_list(None)
+    names: dict[str, str] = {}
+    for po in docs:
+        for item in po.get("items") or []:
+            pid = str(item.get("product_id") or "")
+            if pid in wanted and pid not in names:
+                name = (item.get("product_name") or "").strip()
+                if name:
+                    names[pid] = name
+        if len(names) >= len(wanted):
+            break
     return names
 
 
@@ -133,13 +197,14 @@ async def list_returnable_lines_for_po(po: PurchaseOrder) -> list[ReturnableLine
     po_id = str(po.id)
     product_ids = list({i.product_id for i in (po.items or []) if i.product_id})
     products_by_id = await _load_products_by_id(product_ids)
+    leftovers = await leftover_by_product_for_po(po_id, product_ids)
 
     lines: list[ReturnableLineResponse] = []
     for item in po.items or []:
         received = int(getattr(item, "received_quantity", 0) or 0)
         if received <= 0:
             continue
-        leftover = await leftover_for_po(item.product_id, po_id)
+        leftover = int(leftovers.get(item.product_id, 0))
         if leftover <= 0:
             continue
         units = _units(item)
@@ -164,30 +229,14 @@ async def list_returnable_lines_for_po(po: PurchaseOrder) -> list[ReturnableLine
 
 
 async def list_returnable_lines_for_supplier(supplier_id: str) -> list[ReturnableLineResponse]:
-    batches = await list_supplier_returnable_batches(supplier_id)
-    if not batches:
+    by_product = await aggregate_supplier_returnable_by_product(supplier_id.strip())
+    if not by_product:
         return []
-
-    by_product: dict[str, dict] = {}
-    for batch in batches:
-        pid = batch.product_id
-        entry = by_product.setdefault(
-            pid,
-            {"qty": 0, "cost_sum": 0.0, "cost_qty": 0},
-        )
-        qty = int(batch.quantity or 0)
-        entry["qty"] += qty
-        cost = float(batch.unit_cost or 0)
-        if cost > 0 and qty > 0:
-            entry["cost_sum"] += cost * qty
-            entry["cost_qty"] += qty
 
     product_ids = list(by_product.keys())
     products_by_id = await _load_products_by_id(product_ids)
-    po_names = await _po_line_names_for_supplier(
-        supplier_id,
-        [pid for pid in product_ids if pid not in products_by_id],
-    )
+    missing = [pid for pid in product_ids if pid not in products_by_id]
+    po_names = await _po_line_names_for_supplier(supplier_id, missing) if missing else {}
 
     lines: list[ReturnableLineResponse] = []
     for pid, meta in by_product.items():
@@ -323,6 +372,7 @@ async def _apply_po_linked_settlement(
     return_number: str,
     return_id: str,
     current_user: User,
+    remarks_suffix: str = "",
 ) -> None:
     if total_amount <= 0 and settlement != ReturnSettlementType.stock_only:
         return
@@ -333,20 +383,23 @@ async def _apply_po_linked_settlement(
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    "Refund requires amount already paid covering the return total. "
-                    "Use Reduce payable for unpaid balance, or lower the return qty."
+                    "Refund requires amount already paid covering this payment. "
+                    "Use Reduce payable for unpaid balance, or lower the amount."
                 ),
             )
         method = normalize_payment_method(payment_method) or "cash"
         if method not in {w.value for w in WALLETS}:
             method = "cash"
+        note = f"Purchase return {return_number} ({po.order_number})"
+        if remarks_suffix:
+            note = f"{note} — {remarks_suffix}"
         await post_entry(
             wallet=method,
             direction=WalletDirection.inflow,
             amount=total_amount,
             entry_type=WalletEntryType.purchase_return,
             date=return_date,
-            remarks=f"Purchase return {return_number} ({po.order_number})",
+            remarks=note,
             reference_type="purchase_return",
             reference_id=return_id,
             created_by=current_user.name,
@@ -386,6 +439,7 @@ async def _apply_supplier_settlement(
     return_id: str,
     order_hint: str,
     current_user: User,
+    remarks_suffix: str = "",
 ) -> None:
     if settlement == ReturnSettlementType.stock_only:
         return
@@ -399,13 +453,16 @@ async def _apply_supplier_settlement(
     method = normalize_payment_method(payment_method) or "cash"
     if method not in {w.value for w in WALLETS}:
         method = "cash"
+    note = f"Supplier return {return_number}" + (f" ({order_hint})" if order_hint else "")
+    if remarks_suffix:
+        note = f"{note} — {remarks_suffix}"
     await post_entry(
         wallet=method,
         direction=WalletDirection.inflow,
         amount=total_amount,
         entry_type=WalletEntryType.purchase_return,
         date=return_date,
-        remarks=f"Supplier return {return_number}" + (f" ({order_hint})" if order_hint else ""),
+        remarks=note,
         reference_type="purchase_return",
         reference_id=return_id,
         created_by=current_user.name,
@@ -638,15 +695,19 @@ async def close_purchase_return(
     *,
     current_user: User,
     request: Request | None = None,
+    payment_method: str | None = None,
+    amount_received: float | None = None,
+    remarks: str = "",
+    received_date: str | None = None,
 ) -> PurchaseReturn:
-    """Confirm payment received: apply refund money and mark the return closed."""
+    """Record supplier refund money. Full remaining closes; partial stays requested."""
     doc = await PurchaseReturn.get(return_id)
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase return not found")
     if doc.status != PurchaseReturnStatus.requested:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Only requested returns can be closed",
+            detail="Only requested returns can record payment",
         )
     if doc.settlement_type != ReturnSettlementType.refund:
         raise HTTPException(
@@ -654,8 +715,39 @@ async def close_purchase_return(
             detail="Only refund returns wait for payment confirmation",
         )
 
+    total = float(doc.total_amount or 0)
+    already = float(getattr(doc, "amount_received", 0) or 0)
+    write_off = float(getattr(doc, "write_off_amount", 0) or 0)
+    remaining = round(max(0.0, total - already - write_off), 2)
+    if remaining <= 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Nothing left to receive on this return",
+        )
+
+    if amount_received is None:
+        payment = remaining
+    else:
+        payment = round(float(amount_received), 2)
+    if payment <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Payment amount must be greater than 0")
+    if payment > remaining + 0.001:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Payment cannot exceed remaining receivable ({remaining})",
+        )
+    payment = min(payment, remaining)
+
+    method = normalize_payment_method(payment_method or doc.payment_method) or "cash"
+    money_date = _parse_received_date(received_date)
     now = datetime.now(timezone.utc)
     return_id_str = str(doc.id)
+    is_full = payment + 0.001 >= remaining
+    suffix = "full" if is_full else f"partial {payment}"
+    note = (remarks or "").strip()
+    if note:
+        suffix = f"{suffix}; {note}"
+
     if doc.return_mode == PurchaseReturnMode.po_linked:
         po = await PurchaseOrder.get(doc.purchase_order_id)
         if not po:
@@ -663,47 +755,125 @@ async def close_purchase_return(
         await _apply_po_linked_settlement(
             po=po,
             settlement=doc.settlement_type,
-            total_amount=float(doc.total_amount or 0),
-            payment_method=doc.payment_method or "cash",
-            return_date=doc.return_date or now.date().isoformat(),
+            total_amount=payment,
+            payment_method=method,
+            return_date=money_date,
             return_number=doc.return_number,
             return_id=return_id_str,
             current_user=current_user,
+            remarks_suffix=suffix,
         )
     else:
         await _apply_supplier_settlement(
             settlement=doc.settlement_type,
-            total_amount=float(doc.total_amount or 0),
-            payment_method=doc.payment_method or "cash",
-            return_date=doc.return_date or now.date().isoformat(),
+            total_amount=payment,
+            payment_method=method,
+            return_date=money_date,
             return_number=doc.return_number,
             return_id=return_id_str,
             order_hint=doc.supplier_name or "",
             current_user=current_user,
+            remarks_suffix=suffix,
         )
 
-    await doc.set({
-        "status": PurchaseReturnStatus.closed,
-        "closed_at": now,
-        "confirmed_at": now,
+    new_received = round(already + payment, 2)
+    updates: dict = {
+        "amount_received": new_received,
+        "payment_method": method,
         "updated_at": now,
-    })
+    }
+    if is_full:
+        updates["status"] = PurchaseReturnStatus.closed
+        updates["closed_at"] = now
+        updates["confirmed_at"] = now
+    if note:
+        existing = (doc.remarks or "").strip()
+        updates["remarks"] = f"{existing}\n{note}".strip() if existing else note
+
+    await doc.set(updates)
     await bump_commerce_caches()
     await log_audit(
         module=AuditModule.purchase_orders,
-        action="purchase_return_close",
+        action="purchase_return_close" if is_full else "purchase_return_partial_receive",
         user=current_user,
         request=request,
         entity_type="purchase_return",
         entity_id=return_id_str,
         new={
             "id": return_id_str,
-            "status": PurchaseReturnStatus.closed.value,
-            "settlement_type": doc.settlement_type.value,
-            "total_amount": doc.total_amount,
+            "status": (PurchaseReturnStatus.closed if is_full else PurchaseReturnStatus.requested).value,
+            "payment_method": method,
+            "payment_amount": payment,
+            "amount_received": new_received,
+            "received_date": money_date,
+            "total_amount": total,
         },
     )
     refreshed = await PurchaseReturn.get(return_id_str)
+    return refreshed or doc
+
+
+async def write_off_purchase_return(
+    return_id: str,
+    *,
+    reason: str,
+    current_user: User,
+    request: Request | None = None,
+) -> PurchaseReturn:
+    """Close remaining receivable without wallet cash (supplier will not pay rest)."""
+    doc = await PurchaseReturn.get(return_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase return not found")
+    if doc.status != PurchaseReturnStatus.requested:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Only requested returns can be written off",
+        )
+    if doc.settlement_type != ReturnSettlementType.refund:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Only refund returns have receivable to write off",
+        )
+    note = (reason or "").strip()
+    if not note:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Write-off reason is required")
+
+    total = float(doc.total_amount or 0)
+    already = float(getattr(doc, "amount_received", 0) or 0)
+    prior_write_off = float(getattr(doc, "write_off_amount", 0) or 0)
+    remaining = round(max(0.0, total - already - prior_write_off), 2)
+    if remaining <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Nothing left to write off")
+
+    now = datetime.now(timezone.utc)
+    existing = (doc.remarks or "").strip()
+    remarks = f"{existing}\nWrite-off: {note}".strip() if existing else f"Write-off: {note}"
+    await doc.set({
+        "write_off_amount": round(prior_write_off + remaining, 2),
+        "write_off_reason": note,
+        "write_off_at": now,
+        "status": PurchaseReturnStatus.closed,
+        "closed_at": now,
+        "confirmed_at": now,
+        "remarks": remarks,
+        "updated_at": now,
+    })
+    await bump_commerce_caches()
+    await log_audit(
+        module=AuditModule.purchase_orders,
+        action="purchase_return_write_off",
+        user=current_user,
+        request=request,
+        entity_type="purchase_return",
+        entity_id=str(doc.id),
+        new={
+            "id": str(doc.id),
+            "write_off_amount": remaining,
+            "reason": note,
+            "status": PurchaseReturnStatus.closed.value,
+        },
+    )
+    refreshed = await PurchaseReturn.get(str(doc.id))
     return refreshed or doc
 
 

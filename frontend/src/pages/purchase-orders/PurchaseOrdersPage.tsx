@@ -63,6 +63,8 @@ export function PurchaseOrdersPage() {
     pageSize: 10,
     status: status || undefined,
     paymentStatus: paymentStatus || undefined,
+    lean: true,
+    includeSummary: true,
   });
   const rows = data?.data ?? [];
 
@@ -112,7 +114,7 @@ export function PurchaseOrdersPage() {
       id: 'items',
       label: 'Items',
       align: 'right',
-      render: (row) => row.items.length,
+      render: (row) => row.itemsCount ?? row.items.length,
     },
     {
       id: 'total',

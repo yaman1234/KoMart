@@ -8,6 +8,7 @@ from typing import Any
 
 from app.models.expense import Expense, ExpenseCategory
 from app.models.purchase_order import POStatus, PurchaseOrder
+from app.models.purchase_return import PurchaseReturnStatus, ReturnSettlementType
 from app.models.settings import StoreSettings
 from app.models.transaction import Transaction, TransactionStatus
 from app.services.expense_helpers import is_setup_investment
@@ -164,6 +165,70 @@ async def total_payables() -> float:
     return round(float(rows[0].get("outstanding") or 0), 2)
 
 
+async def total_return_receivables() -> float:
+    """Outstanding supplier refunds on requested purchase returns."""
+    from app.models.purchase_return import PurchaseReturn
+
+    col = PurchaseReturn.get_motor_collection()
+    rows = await col.aggregate(
+        [
+            {
+                "$match": {
+                    "status": PurchaseReturnStatus.requested.value,
+                    "settlement_type": ReturnSettlementType.refund.value,
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "outstanding": {
+                        "$sum": {
+                            "$max": [
+                                0,
+                                {
+                                    "$subtract": [
+                                        {"$ifNull": ["$total_amount", 0]},
+                                        {
+                                            "$add": [
+                                                {"$ifNull": ["$amount_received", 0]},
+                                                {"$ifNull": ["$write_off_amount", 0]},
+                                            ]
+                                        },
+                                    ]
+                                },
+                            ]
+                        }
+                    },
+                }
+            },
+        ]
+    ).to_list(1)
+    if not rows:
+        return 0.0
+    return round(float(rows[0].get("outstanding") or 0), 2)
+
+
+async def _purchase_return_received_sum(date_gte: str, date_lte: str | None = None) -> float:
+    """Wallet purchase_return inflows in a date range (supplier refunds received)."""
+    from app.models.wallet_ledger import WalletDirection, WalletEntryType, WalletLedgerEntry
+
+    match: dict[str, Any] = {
+        "entry_type": WalletEntryType.purchase_return.value,
+        "direction": WalletDirection.inflow.value,
+        "date": {"$gte": date_gte},
+    }
+    if date_lte:
+        match["date"]["$lte"] = date_lte
+    col = WalletLedgerEntry.get_motor_collection()
+    rows = await col.aggregate(
+        [
+            {"$match": match},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+        ]
+    ).to_list(1)
+    return float(rows[0]["total"]) if rows else 0.0
+
+
 async def _wallet_period_net(date_gte: str, date_lte: str) -> float:
     """Sum signed ledger net across cash/bank/esewa for a date range."""
     from app.services.wallet_ledger import ledger_net, Wallet
@@ -197,6 +262,9 @@ async def build_kpi_summary() -> dict[str, Any]:
         purchase_month,
         purchase_day,
         payables,
+        receivables,
+        recv_month,
+        recv_day,
         cash,
         bank,
         esewa,
@@ -210,6 +278,9 @@ async def build_kpi_summary() -> dict[str, Any]:
         _expense_sum(month_str, today_str, category=ExpenseCategory.purchase_order.value),
         _expense_sum(today_str, today_str, category=ExpenseCategory.purchase_order.value),
         total_payables(),
+        total_return_receivables(),
+        _purchase_return_received_sum(month_str, today_str),
+        _purchase_return_received_sum(today_str, today_str),
         current_cash_balance(today),
         current_wallet_balance(settings, fy_start, method="bank"),
         current_wallet_balance(settings, fy_start, method="esewa"),
@@ -230,9 +301,9 @@ async def build_kpi_summary() -> dict[str, Any]:
             "day": round(purchase_day, 2),
         },
         "receivables": {
-            "fiscalYear": 0.0,
-            "month": 0.0,
-            "day": 0.0,
+            "outstanding": receivables,
+            "monthReceived": round(recv_month, 2),
+            "dayReceived": round(recv_day, 2),
         },
         "payables": {
             "outstanding": payables,
@@ -263,6 +334,7 @@ async def build_day_wise_transactions() -> dict[str, float]:
         cash_expense,
         bank_expense,
         esewa_expense,
+        return_inflow,
     ) = await asyncio.gather(
         _sales_in_range(day_start, day_end),
         _sales_by_payment(day_start, day_end, payment_method="cash"),
@@ -272,6 +344,7 @@ async def build_day_wise_transactions() -> dict[str, float]:
         _expense_sum(today_str, today_str, payment_method="cash"),
         _expense_sum(today_str, today_str, payment_method="bank"),
         _expense_sum(today_str, today_str, payment_method="esewa"),
+        _purchase_return_received_sum(today_str, today_str),
     )
     return {
         "today_sale": round(today_sale, 2),
@@ -282,6 +355,7 @@ async def build_day_wise_transactions() -> dict[str, float]:
         "today_cash_expense": round(cash_expense, 2),
         "today_bank_expense": round(bank_expense, 2),
         "today_esewa_expense": round(esewa_expense, 2),
+        "today_purchase_return_inflow": round(return_inflow, 2),
     }
 
 
@@ -292,13 +366,14 @@ async def build_cash_flow(days: int = 30) -> list[dict[str, Any]]:
     end = datetime(today.year, today.month, today.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
     txns = await fetch_transactions(start, end)
-    inflows: dict[str, float] = {}
+    sales_inflows: dict[str, float] = {}
     for t in txns:
         key = t.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
-        inflows[key] = inflows.get(key, 0.0) + float(t.total or 0)
+        sales_inflows[key] = sales_inflows.get(key, 0.0) + float(t.total or 0)
 
     from app.models.wallet_ledger import WalletDirection, WalletEntryType, WalletLedgerEntry
 
+    return_inflows: dict[str, float] = {}
     return_entries = await WalletLedgerEntry.find(
         {
             "entry_type": WalletEntryType.purchase_return.value,
@@ -307,7 +382,7 @@ async def build_cash_flow(days: int = 30) -> list[dict[str, Any]]:
         }
     ).to_list()
     for e in return_entries:
-        inflows[e.date] = inflows.get(e.date, 0.0) + float(e.amount or 0)
+        return_inflows[e.date] = return_inflows.get(e.date, 0.0) + float(e.amount or 0)
 
     expenses = await Expense.find(
         {"date": {"$gte": start_d.isoformat(), "$lte": today.isoformat()}}
@@ -320,10 +395,14 @@ async def build_cash_flow(days: int = 30) -> list[dict[str, Any]]:
     current = start_d
     while current <= today:
         key = current.isoformat()
+        sales = round(sales_inflows.get(key, 0.0), 2)
+        returns = round(return_inflows.get(key, 0.0), 2)
         series.append(
             {
                 "date": key,
-                "inflow": round(inflows.get(key, 0.0), 2),
+                "salesInflow": sales,
+                "returnInflow": returns,
+                "inflow": round(sales + returns, 2),
                 "outflow": round(outflows.get(key, 0.0), 2),
             }
         )
@@ -413,7 +492,31 @@ async def build_kpi_flow(metric: str) -> list[dict[str, Any]]:
     end = datetime(today.year, today.month, today.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
     if metric == "receivables":
-        return _empty_fy_series(fy_start_d, today)
+        from app.models.wallet_ledger import WalletDirection, WalletEntryType, WalletLedgerEntry
+
+        entries = await WalletLedgerEntry.find(
+            {
+                "entry_type": WalletEntryType.purchase_return.value,
+                "direction": WalletDirection.inflow.value,
+                "date": {"$gte": fy_start_d.isoformat(), "$lte": today.isoformat()},
+            }
+        ).to_list()
+        by_day: dict[str, float] = {}
+        for e in entries:
+            by_day[e.date] = by_day.get(e.date, 0.0) + float(e.amount or 0)
+        series: list[dict[str, Any]] = []
+        current = fy_start_d
+        while current <= today:
+            key = current.isoformat()
+            series.append(
+                {
+                    "date": key,
+                    "inflow": round(by_day.get(key, 0.0), 2),
+                    "outflow": 0.0,
+                }
+            )
+            current += timedelta(days=1)
+        return series
 
     if metric == "sales":
         txns = await fetch_transactions(start, end)

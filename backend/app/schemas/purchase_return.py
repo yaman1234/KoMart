@@ -26,6 +26,17 @@ class PurchaseReturnCreate(BaseModel):
     reason: ReturnReason = ReturnReason.other
 
 
+class PurchaseReturnClose(BaseModel):
+    payment_method: Optional[str] = None
+    amount_received: Optional[float] = Field(default=None, ge=0)
+    remarks: str = ""
+    received_date: Optional[str] = None
+
+
+class PurchaseReturnWriteOff(BaseModel):
+    reason: str = Field(min_length=1)
+
+
 class PurchaseReturnItemResponse(BaseModel):
     product_id: str
     product_name: str
@@ -33,6 +44,15 @@ class PurchaseReturnItemResponse(BaseModel):
     unit_cost: float
     line_total: float
     base_uom: str = "pcs"
+
+
+class PurchaseReturnPaymentResponse(BaseModel):
+    id: str
+    date: str
+    amount: float
+    wallet: str
+    remarks: str = ""
+    created_by: str = ""
 
 
 class PurchaseReturnResponse(BaseModel):
@@ -45,6 +65,9 @@ class PurchaseReturnResponse(BaseModel):
     supplier_name: str
     items: list[PurchaseReturnItemResponse]
     total_amount: float
+    amount_received: float = 0
+    write_off_amount: float = 0
+    write_off_reason: str = ""
     remarks: str
     reason: ReturnReason
     settlement_type: ReturnSettlementType
@@ -56,6 +79,9 @@ class PurchaseReturnResponse(BaseModel):
     updated_at: str
     confirmed_at: Optional[str] = None
     closed_at: Optional[str] = None
+    write_off_at: Optional[str] = None
+    amount_outstanding: float = 0
+    payments: list[PurchaseReturnPaymentResponse] = Field(default_factory=list)
 
 
 class ReturnableLineResponse(BaseModel):

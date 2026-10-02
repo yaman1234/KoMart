@@ -50,6 +50,7 @@ async def get_ledger(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     entry_type: str | None = Query(None),
+    reference_id: str | None = Query(None),
     limit: int = Query(200, ge=1, le=500),
     _: User = Depends(get_current_user),
 ):
@@ -59,6 +60,7 @@ async def get_ledger(
         date_from=date_from,
         date_to=date_to,
         entry_type=entry_type,
+        reference_id=reference_id,
         limit=limit,
     )
     return [_to_entry(e) for e in entries]

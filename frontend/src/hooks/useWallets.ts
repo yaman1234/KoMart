@@ -8,6 +8,7 @@ function ledgerFilterKey(params?: {
   dateFrom?: string;
   dateTo?: string;
   entryType?: string;
+  referenceId?: string;
   limit?: number;
 }) {
   return JSON.stringify(params ?? {});
@@ -28,6 +29,7 @@ export function useWalletLedger(
     dateFrom?: string;
     dateTo?: string;
     entryType?: string;
+    referenceId?: string;
     limit?: number;
   },
   enabled = true,

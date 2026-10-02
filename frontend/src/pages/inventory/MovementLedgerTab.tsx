@@ -185,6 +185,24 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
             </Button>
           );
         }
+        if (row.referenceType === 'purchase_return' && row.referenceId) {
+          const label = row.referenceLabel || 'Return';
+          return (
+            <Button
+              onClick={() =>
+                window.open(
+                  `/purchase-returns?search=${encodeURIComponent(label)}`,
+                  '_blank',
+                )
+              }
+              size="small"
+              variant="text"
+              sx={{ textTransform: 'none', p: 0, minWidth: 0, cursor: 'pointer' }}
+            >
+              {label}
+            </Button>
+          );
+        }
         return row.referenceLabel || '—';
       },
     },

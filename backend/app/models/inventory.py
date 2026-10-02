@@ -32,6 +32,8 @@ class InventoryBatch(Document):
             IndexModel([("product_id", ASCENDING), ("expiry_date", ASCENDING)]),
             IndexModel([("expiry_date", ASCENDING)]),
             IndexModel([("product_id", ASCENDING), ("quantity", ASCENDING)]),
+            IndexModel([("purchase_order_id", ASCENDING), ("quantity", ASCENDING)]),
+            IndexModel([("purchase_order_id", ASCENDING), ("product_id", ASCENDING)]),
         ]
 
 

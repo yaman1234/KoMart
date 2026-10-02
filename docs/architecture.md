@@ -191,8 +191,34 @@ frontend/src/
 - Money-only mistakes → optional v1.1 financial amend or supplier settlement outside stock.
 - Sales already made → never void sales to “undo” PO; return unsold remainder only.
 
+### F13b — Stock-only write-off tracking (report-first)
+
+**Problem:** `settlement_type=stock_only` already reverses inventory and closes, but posts **no wallet / no PO money** — loss is invisible in cash and sales profit views.
+
+**Locked approach (v1):** **Report-only aggregation** from existing `PurchaseReturn` documents (no fake cash wallet entry; no expense document unless F13c).
+
+```
+stockOnlyLoss(period) =
+  SUM(total_amount)
+  WHERE settlement_type = stock_only
+    AND status = closed
+    AND return_date in period
+```
+
+| Surface | Behavior |
+|---------|----------|
+| KPI / dashboard | Day + month **Stock-only write-off** (inventory loss at cost); separate from Sales and from `returnInflow` |
+| Return detail UI | Label **Stock-only loss** = `total_amount` (cost) |
+| Movement Ledger | Keep `purchase_return` OUT; cost already on adjustment — do not invent a second stock move |
+| Sales / COGS | **Never** include stock-only in sales profit or COGS |
+
+**API (implement with T092+):** expose sums on dashboard KPI and/or `GET /purchase-returns` summary fields / dedicated report helper — source of truth remains `PurchaseReturn`.
+
+**Out of scope for F13b:** posting wallet memo or Expense rows (Nice-to-Have F13c).
+
 ### Technical risks
 
 1. **Reports** that sum `total_amount` will include charges/discounts automatically — verify purchase-order summary reports still make sense (subtotal vs payable). Flag for QA.
 2. **Partial PO edit** while `amount_paid > 0`: lowering discount increases total (OK); raising discount may violate `total >= amount_paid`.
 3. **Float rounding** must match frontend display (2 dp) to avoid 0.01 payment remainder bugs.
+4. **Stock-only loss double-count** if someone later posts an expense (F13c) without excluding F13b KPI — keep one canonical source or mark F13c as replacing report-only.

@@ -94,8 +94,13 @@ async def test_purchase_return_refund_in_cash_flow_inflow():
 
     today = date.today().isoformat()
     before = await build_cash_flow(7)
-    before_today = next((r for r in before if r["date"] == today), {"inflow": 0})
+    before_today = next(
+        (r for r in before if r["date"] == today),
+        {"inflow": 0, "returnInflow": 0, "salesInflow": 0},
+    )
     before_inflow = float(before_today["inflow"])
+    before_return = float(before_today.get("returnInflow") or 0)
+    before_sales = float(before_today.get("salesInflow") or 0)
 
     created = await create_purchase_return(
         PurchaseReturnCreate(
@@ -110,8 +115,12 @@ async def test_purchase_return_refund_in_cash_flow_inflow():
         request=_mock_request(),
     )
     mid = await build_cash_flow(7)
-    mid_today = next((r for r in mid if r["date"] == today), {"inflow": 0})
+    mid_today = next(
+        (r for r in mid if r["date"] == today),
+        {"inflow": 0, "returnInflow": 0},
+    )
     assert float(mid_today["inflow"]) == pytest.approx(before_inflow, abs=0.01)
+    assert float(mid_today.get("returnInflow") or 0) == pytest.approx(before_return, abs=0.01)
 
     await close_purchase_return(
         str(created.id),
@@ -120,8 +129,13 @@ async def test_purchase_return_refund_in_cash_flow_inflow():
     )
 
     after = await build_cash_flow(7)
-    after_today = next((r for r in after if r["date"] == today), {"inflow": 0})
+    after_today = next(
+        (r for r in after if r["date"] == today),
+        {"inflow": 0, "returnInflow": 0, "salesInflow": 0},
+    )
     assert float(after_today["inflow"]) == pytest.approx(before_inflow + 40.0, abs=0.01)
+    assert float(after_today.get("returnInflow") or 0) == pytest.approx(before_return + 40.0, abs=0.01)
+    assert float(after_today.get("salesInflow") or 0) == pytest.approx(before_sales, abs=0.01)
 
     cash_flow = await build_payment_method_flow("cash")
     cash_today = next((r for r in cash_flow if r["date"] == today), {"inflow": 0})

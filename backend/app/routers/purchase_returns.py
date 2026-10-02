@@ -5,9 +5,11 @@ from app.models.purchase_order import PurchaseOrder
 from app.models.purchase_return import PurchaseReturn
 from app.models.user import User
 from app.schemas.purchase_return import (
+    PurchaseReturnClose,
     PurchaseReturnCreate,
     PurchaseReturnListResponse,
     PurchaseReturnResponse,
+    PurchaseReturnWriteOff,
     ReturnableLineResponse,
 )
 from app.services.purchase_return import (
@@ -16,6 +18,7 @@ from app.services.purchase_return import (
     list_returnable_lines_for_po,
     list_returnable_lines_for_supplier,
     to_response,
+    write_off_purchase_return,
 )
 
 router = APIRouter(prefix="/purchase-returns", tags=["Purchase Returns"])
@@ -51,7 +54,7 @@ async def list_purchase_returns(
     date_from: str = Query(""),
     date_to: str = Query(""),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(10, ge=1, le=50),
     _: User = Depends(get_current_user),
 ):
     query: dict = {}
@@ -90,10 +93,8 @@ async def list_purchase_returns(
         .limit(page_size)
         .to_list()
     )
-    return PurchaseReturnListResponse(
-        data=[to_response(d) for d in docs],
-        total=total,
-    )
+    data = [await to_response(d, include_payments=False) for d in docs]
+    return PurchaseReturnListResponse(data=data, total=total)
 
 
 @router.post("", response_model=PurchaseReturnResponse, status_code=status.HTTP_201_CREATED)
@@ -103,17 +104,43 @@ async def create_return(
     current_user: User = Depends(require_manager_or_above),
 ):
     doc = await create_purchase_return(body, current_user=current_user, request=request)
-    return to_response(doc)
+    return await to_response(doc, include_payments=True)
 
 
 @router.post("/{return_id}/close", response_model=PurchaseReturnResponse)
 async def close_return(
     return_id: str,
     request: Request,
+    body: PurchaseReturnClose | None = None,
     current_user: User = Depends(require_manager_or_above),
 ):
-    doc = await close_purchase_return(return_id, current_user=current_user, request=request)
-    return to_response(doc)
+    payload = body or PurchaseReturnClose()
+    doc = await close_purchase_return(
+        return_id,
+        current_user=current_user,
+        request=request,
+        payment_method=payload.payment_method,
+        amount_received=payload.amount_received,
+        remarks=payload.remarks or "",
+        received_date=payload.received_date,
+    )
+    return await to_response(doc, include_payments=True)
+
+
+@router.post("/{return_id}/write-off", response_model=PurchaseReturnResponse)
+async def write_off_return(
+    return_id: str,
+    body: PurchaseReturnWriteOff,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    doc = await write_off_purchase_return(
+        return_id,
+        reason=body.reason,
+        current_user=current_user,
+        request=request,
+    )
+    return await to_response(doc, include_payments=True)
 
 
 @router.get("/{return_id}", response_model=PurchaseReturnResponse)
@@ -124,4 +151,4 @@ async def get_purchase_return(
     doc = await PurchaseReturn.get(return_id)
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase return not found")
-    return to_response(doc)
+    return await to_response(doc, include_payments=True)

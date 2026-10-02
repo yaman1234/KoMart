@@ -3,10 +3,14 @@ import { QUERY_KEYS } from '@/constants';
 import { supplierService } from '@/services';
 import type { ListQueryParams, Supplier } from '@/types';
 
-export function useSuppliers(params?: ListQueryParams) {
+export function useSuppliers(
+  params?: ListQueryParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: [...QUERY_KEYS.suppliers, params],
     queryFn: () => supplierService.getAll(params),
+    enabled: options?.enabled ?? true,
   });
 }
 

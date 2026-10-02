@@ -22,13 +22,12 @@ import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { useProducts } from '@/hooks/useProducts';
 import {
   useSupplierPurchaseReturns,
-  useSupplierReturnableLines,
 } from '@/hooks/usePurchaseReturns';
 import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierReturnDialog';
 import { useAuthStore } from '@/store';
 import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { PO_STATUS_LABELS, DROPDOWN_PAGE_SIZE } from '@/constants';
+import { PO_STATUS_LABELS } from '@/constants';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
@@ -56,7 +55,7 @@ const basePoColumns: Column<PurchaseOrder>[] = [
     id: 'items',
     label: 'Items',
     align: 'right',
-    render: (row) => row.items.length,
+    render: (row) => row.itemsCount ?? row.items.length,
   },
   {
     id: 'total',
@@ -111,14 +110,13 @@ export function SupplierDetailPage() {
 
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
   const { data: poData, isLoading: poLoading } = usePurchaseOrders(
-    { supplierId: id, pageSize: 25 },
+    { supplierId: id, pageSize: 10, lean: true, includeSummary: false },
     { enabled: !!id },
   );
   const { data: productsData, isLoading: productsLoading } = useProducts(
-    { supplierId: id, pageSize: DROPDOWN_PAGE_SIZE },
+    { supplierId: id, pageSize: 10 },
     { enabled: !!id },
   );
-  const { data: returnable = [] } = useSupplierReturnableLines(id ?? '', Boolean(id && canReturn));
   const { data: returnsData } = useSupplierPurchaseReturns(id ?? '', Boolean(id && canReturn));
   const returns = returnsData?.data ?? [];
 
@@ -153,7 +151,7 @@ export function SupplierDetailPage() {
         breadcrumbs={[{ label: 'Suppliers', path: '/suppliers' }, { label: supplier.name }]}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {canReturn && returnable.length > 0 && (
+            {canReturn && (
               <Button
                 variant="outlined"
                 color="warning"

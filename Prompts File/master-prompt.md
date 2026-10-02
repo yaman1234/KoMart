@@ -58,7 +58,7 @@ Requirements, Tone of Voice. Every Must-Have feature needs a matching
 screen/flow.
 
 ### 5. Task.md
-Read prd.md, architecture.md, Rules.md, Design.md. Break Must-Have (v1)
+Maintain a table for each tasks with status. Read prd.md, architecture.md, Rules.md, Design.md. Break Must-Have (v1)
 features into a sequential, buildable task list grouped into phases
 (Phase 0: Setup, Phase 1: Core Data Layer, Phase 2: Core Features —
 one group per Must-Have feature, Phase 3: Integration & Polish,
@@ -69,7 +69,7 @@ Tasks should be sized to ~1-4 hours each, ordered so dependencies come
 first. Do not start any task — plan only.
 
 ### 6. Memory.md
-Create this as an empty running log, ready for future updates. Include
+Maintain a table for each tasks with status. Create this as an empty running log, ready for future updates. Include
 just the header structure: a title, a one-line description of its purpose
 ("running log of completed work — updated after each task, newest entries
 at top, never compress or delete old entries"), and an empty

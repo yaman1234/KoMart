@@ -512,8 +512,32 @@ export const purchaseReturnService = {
     const { data } = await apiClient.post('/purchase-returns', payload);
     return data;
   },
-  close: async (id: string): Promise<import('@/types').PurchaseReturn> => {
-    const { data } = await apiClient.post(`/purchase-returns/${id}/close`);
+  close: async (
+    id: string,
+    payload?: {
+      paymentMethod?: string;
+      amountReceived?: number;
+      remarks?: string;
+      receivedDate?: string;
+    },
+  ): Promise<import('@/types').PurchaseReturn> => {
+    const { data } = await apiClient.post(`/purchase-returns/${id}/close`, {
+      paymentMethod: payload?.paymentMethod,
+      amountReceived: payload?.amountReceived,
+      remarks: payload?.remarks,
+      receivedDate: payload?.receivedDate,
+    });
+    return data;
+  },
+  writeOff: async (
+    id: string,
+    payload: { reason: string },
+  ): Promise<import('@/types').PurchaseReturn> => {
+    const { data } = await apiClient.post(`/purchase-returns/${id}/write-off`, payload);
+    return data;
+  },
+  getById: async (id: string): Promise<import('@/types').PurchaseReturn> => {
+    const { data } = await apiClient.get(`/purchase-returns/${id}`);
     return data;
   },
 };
@@ -1111,6 +1135,7 @@ export const walletService = {
     dateFrom?: string;
     dateTo?: string;
     entryType?: string;
+    referenceId?: string;
     limit?: number;
   }): Promise<import('@/types').WalletLedgerEntry[]> => {
     const { data } = await apiClient.get('/wallets/ledger', { params });

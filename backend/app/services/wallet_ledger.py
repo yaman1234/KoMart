@@ -524,6 +524,7 @@ async def list_ledger(
     date_from: str | None = None,
     date_to: str | None = None,
     entry_type: str | None = None,
+    reference_id: str | None = None,
     limit: int = 200,
 ) -> list[WalletLedgerEntry]:
     match: dict[str, Any] = {}
@@ -531,6 +532,8 @@ async def list_ledger(
         match["wallet"] = _parse_wallet(wallet).value
     if entry_type:
         match["entry_type"] = entry_type.strip().lower()
+    if reference_id and reference_id.strip():
+        match["reference_id"] = reference_id.strip()
     if date_from or date_to:
         match["date"] = {}
         if date_from:

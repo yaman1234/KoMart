@@ -1488,11 +1488,13 @@ Both call `receive_stock()` → batch insert → stock refresh → audit log (`t
 
 | Mode      | Entry                          | Stock                                            | Settlement                                                                                     |
 | --------- | ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| PO-linked | PO detail → Return to supplier | Leftover batches for that PO only                | `refund` (wallet inflow + ↓ amount_paid) or `reduce_payable` (↓ total_amount; overpay allowed) |
-| Supplier  | Supplier detail → Return goods | Leftover batches from that supplier’s POs (FEFO) | `refund` (wallet only) or `stock_only`                                                         |
+| PO-linked | PO detail → Return to supplier | Leftover batches for that PO only                | `refund` (wallet inflow on record payment + ↓ amount_paid) or `reduce_payable` (↓ total_amount; overpay allowed) |
+| Supplier  | Supplier detail → Return goods | Leftover batches from that supplier’s POs (FEFO) | `refund` (wallet on record payment) or `stock_only` (**write-off loss at cost**, F13b KPI; no wallet) |
 
 
-API: `GET/POST /api/v1/purchase-returns`, `POST /purchase-returns/{id}/close`, `GET .../available`, `GET .../available-by-supplier`. Status `requested` | `closed` (legacy `confirmed` loads as `closed`). Refund stays `requested` until close posts the wallet inflow and (PO-linked) reduces amount paid. `reduce_payable` and `stock_only` close on create. List filters: `return_mode`, `settlement_type`, `status`, `search`, `date_from`/`date_to`. Ledger type `purchase_return`. Refund inflows appear in dashboard cash-flow only after close (not Sales). UI list page: `/purchase-returns` (Create return). Does not rewrite `received_quantity`, `cost_price`, or purchase price history. Cancel from partial/received remains blocked.
+API: `GET/POST /api/v1/purchase-returns`, `POST /purchase-returns/{id}/close` (`payment_method`, optional `amount_received`, `received_date`, `remarks`), `POST /purchase-returns/{id}/write-off`, `GET .../available`, `GET .../available-by-supplier`. Status `requested` | `closed`. Refund stays `requested` with `amount_received` / `write_off_amount` / outstanding until fully paid or written off. Each payment posts wallet inflow dated `received_date`. Cash-flow series exposes `salesInflow` + `returnInflow`. Outstanding requested refunds feed dashboard Receivables. Get-by-id includes `payments[]` from wallet ledger. `reduce_payable` and `stock_only` close on create. **F13b (planned T093–T095):** aggregate closed `stock_only` `total_amount` by `return_date` as stock-only write-off loss on KPI/detail — not wallet, not sales COGS. List filters: `return_mode`, `settlement_type`, `status`, `search`, `date_from`/`date_to`. Ledger type `purchase_return`. UI: `/purchase-returns`, Accounts `?entryType=purchase_return&referenceId=`. Cancel from partial/received remains blocked.
+
+**User guide:** [guides/Purchase_Returns.md](./guides/Purchase_Returns.md) — change summary, how-to, settlements, rollout checklist.
 
 ## 6.5 Damaged Products
 

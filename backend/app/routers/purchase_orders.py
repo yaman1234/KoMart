@@ -123,13 +123,15 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
     payments = getattr(po, "payments", None) or []
     bill_number = (getattr(po, "bill_number", None) or "").strip() or None
     bill_images = [str(u).strip() for u in (getattr(po, "bill_images", None) or []) if str(u).strip()]
+    items = [item_to_response(i) for i in (po.items or [])]
     return PurchaseOrderResponse(
         id=str(po.id),
         order_number=po.order_number,
         supplier_id=po.supplier_id,
         supplier_name=po.supplier_name,
         status=po.status,
-        items=[item_to_response(i) for i in (po.items or [])],
+        items=items,
+        items_count=len(items),
         subtotal=totals["subtotal"],
         discount=totals["discount"],
         additional_charges=totals["additional_charges"],
@@ -182,6 +184,10 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
     except ValueError:
         po_status = POStatus.draft
 
+    items_count = int(doc.get("_items_count") or 0)
+    if not items_count and doc.get("items") is not None:
+        items_count = len(doc.get("items") or [])
+
     return PurchaseOrderResponse(
         id=str(doc.get("_id") or ""),
         order_number=str(doc.get("order_number") or ""),
@@ -189,6 +195,7 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
         supplier_name=str(doc.get("supplier_name") or ""),
         status=po_status,
         items=[],
+        items_count=items_count,
         subtotal=round(float(doc.get("subtotal") or total_amount or 0), 2),
         discount=round(float(doc.get("discount") or 0), 2),
         additional_charges=round(float(doc.get("additional_charges") or 0), 2),
@@ -228,11 +235,13 @@ async def _next_po_number() -> str:
 @router.get("", response_model=PurchaseOrderListResponse)
 async def list_purchase_orders(
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=500),
+    page_size: int = Query(10, ge=1, le=100),
     search: str = Query(""),
     supplier_id: str = Query(""),
     status: str = Query(""),
     payment_status: str = Query(""),
+    lean: bool = Query(False, description="Omit line items/payments/images for fast pickers"),
+    include_summary: bool = Query(True, description="Include store-wide KPI totals"),
     _: User = Depends(get_current_user),
 ):
     and_clauses: list[dict] = []
@@ -242,14 +251,20 @@ async def list_purchase_orders(
 
     status_filter = (status or "").strip().lower()
     if status_filter:
-        try:
-            po_status = POStatus(status_filter)
-        except ValueError as exc:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status. Use one of: {', '.join(s.value for s in POStatus)}",
-            ) from exc
-        and_clauses.append({"status": po_status.value})
+        status_parts = [p.strip() for p in status_filter.split(",") if p.strip()]
+        parsed_statuses: list[str] = []
+        for part in status_parts:
+            try:
+                parsed_statuses.append(POStatus(part).value)
+            except ValueError as exc:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid status. Use one of: {', '.join(s.value for s in POStatus)}",
+                ) from exc
+        if len(parsed_statuses) == 1:
+            and_clauses.append({"status": parsed_statuses[0]})
+        elif parsed_statuses:
+            and_clauses.append({"status": {"$in": parsed_statuses}})
 
     payment_filter = (payment_status or "").strip().lower()
     if payment_filter:
@@ -288,80 +303,99 @@ async def list_purchase_orders(
     else:
         match = {"$and": and_clauses}
 
-    # KPI match ignores status/payment filters so list cards stay store-wide.
-    kpi_clauses: list[dict] = []
-    if supplier_id:
-        kpi_clauses.append({"supplier_id": supplier_id})
-    if search:
-        kpi_clauses.append({
-            "$or": [
-                {"order_number": {"$regex": search, "$options": "i"}},
-                {"supplier_name": {"$regex": search, "$options": "i"}},
-            ]
-        })
-    if not kpi_clauses:
-        kpi_match: dict = {}
-    elif len(kpi_clauses) == 1:
-        kpi_match = kpi_clauses[0]
-    else:
-        kpi_match = {"$and": kpi_clauses}
-
     col = PurchaseOrder.get_motor_collection()
     total = await col.count_documents(match)
 
-    # Aggregate summary totals without loading every document into Python first.
-    summary_rows = await col.aggregate([
-        {"$match": kpi_match} if kpi_match else {"$match": {}},
-        {
-            "$group": {
-                "_id": None,
-                "received_total_amount": {
-                    "$sum": {
-                        "$cond": [
-                            {"$eq": ["$status", POStatus.received.value]},
-                            {"$ifNull": ["$total_amount", 0]},
-                            0,
-                        ]
-                    }
-                },
-                "outstanding_amount": {
-                    "$sum": {
-                        "$cond": [
-                            {"$ne": ["$status", POStatus.cancelled.value]},
-                            {
-                                "$max": [
-                                    0,
-                                    {
-                                        "$subtract": [
-                                            {"$ifNull": ["$total_amount", 0]},
-                                            {"$ifNull": ["$amount_paid", 0]},
-                                        ]
-                                    },
-                                ]
-                            },
-                            0,
-                        ]
-                    }
-                },
-            }
-        },
-    ]).to_list(1)
-    received_total_amount = (
-        round(float(summary_rows[0]["received_total_amount"] or 0), 2) if summary_rows else 0.0
-    )
-    outstanding_amount = (
-        round(float(summary_rows[0]["outstanding_amount"] or 0), 2) if summary_rows else 0.0
-    )
+    received_total_amount = 0.0
+    outstanding_amount = 0.0
+    if include_summary:
+        # KPI match ignores status/payment filters so list cards stay store-wide.
+        kpi_clauses: list[dict] = []
+        if supplier_id:
+            kpi_clauses.append({"supplier_id": supplier_id})
+        if search:
+            kpi_clauses.append({
+                "$or": [
+                    {"order_number": {"$regex": search, "$options": "i"}},
+                    {"supplier_name": {"$regex": search, "$options": "i"}},
+                ]
+            })
+        if not kpi_clauses:
+            kpi_match: dict = {}
+        elif len(kpi_clauses) == 1:
+            kpi_match = kpi_clauses[0]
+        else:
+            kpi_match = {"$and": kpi_clauses}
 
-    # Motor fetch + per-doc soft parse so one legacy/corrupt PO cannot 500 the list.
-    raw_docs = (
-        await col.find(match)
-        .sort([("created_at", -1)])
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-        .to_list(page_size)
-    )
-    data = [_doc_to_response(doc) for doc in raw_docs]
+        summary_rows = await col.aggregate([
+            {"$match": kpi_match} if kpi_match else {"$match": {}},
+            {
+                "$group": {
+                    "_id": None,
+                    "received_total_amount": {
+                        "$sum": {
+                            "$cond": [
+                                {"$eq": ["$status", POStatus.received.value]},
+                                {"$ifNull": ["$total_amount", 0]},
+                                0,
+                            ]
+                        }
+                    },
+                    "outstanding_amount": {
+                        "$sum": {
+                            "$cond": [
+                                {"$ne": ["$status", POStatus.cancelled.value]},
+                                {
+                                    "$max": [
+                                        0,
+                                        {
+                                            "$subtract": [
+                                                {"$ifNull": ["$total_amount", 0]},
+                                                {"$ifNull": ["$amount_paid", 0]},
+                                            ]
+                                        },
+                                    ]
+                                },
+                                0,
+                            ]
+                        }
+                    },
+                }
+            },
+        ]).to_list(1)
+        received_total_amount = (
+            round(float(summary_rows[0]["received_total_amount"] or 0), 2) if summary_rows else 0.0
+        )
+        outstanding_amount = (
+            round(float(summary_rows[0]["outstanding_amount"] or 0), 2) if summary_rows else 0.0
+        )
+
+    if lean:
+        # Keep item count without hydrating line payloads / payments / images.
+        raw_docs = await col.aggregate(
+            [
+                {"$match": match} if match else {"$match": {}},
+                {"$sort": {"created_at": -1}},
+                {"$skip": (page - 1) * page_size},
+                {"$limit": page_size},
+                {
+                    "$addFields": {
+                        "_items_count": {"$size": {"$ifNull": ["$items", []]}},
+                    }
+                },
+                {"$project": {"items": 0, "payments": 0, "bill_images": 0}},
+            ]
+        ).to_list(page_size)
+        data = [_soft_response_from_doc(doc) for doc in raw_docs]
+    else:
+        raw_docs = (
+            await col.find(match)
+            .sort([("created_at", -1)])
+            .skip((page - 1) * page_size)
+            .limit(page_size)
+            .to_list(page_size)
+        )
+        data = [_doc_to_response(doc) for doc in raw_docs]
     return PurchaseOrderListResponse(
         data=data,
         total=total,

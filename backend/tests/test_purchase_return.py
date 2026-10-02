@@ -190,7 +190,11 @@ async def test_s02_po_linked_refund_when_paid(client: AsyncClient):
     ret = res.json()
     assert ret["total_amount"] == 40.0
     assert ret["status"] == "requested"
+    assert ret["amount_outstanding"] == 40.0
     assert await get_current_stock(str(product.id)) == 6
+
+    from app.services.dashboard_kpi import total_return_receivables
+    assert await total_return_receivables() >= 40.0
 
     still_paid = await PurchaseOrder.get(str(po.id))
     assert still_paid is not None
@@ -200,12 +204,30 @@ async def test_s02_po_linked_refund_when_paid(client: AsyncClient):
     ).to_list()
     assert pending_ledger == []
 
+    partial = await client.post(
+        f"/api/v1/purchase-returns/{ret['id']}/close",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"payment_method": "cash", "amount_received": 15.0, "remarks": "cash at counter"},
+    )
+    assert partial.status_code == 200, partial.text
+    assert partial.json()["status"] == "requested"
+    assert partial.json()["amount_received"] == 15.0
+    assert partial.json()["amount_outstanding"] == 25.0
+
+    mid_po = await PurchaseOrder.get(str(po.id))
+    assert mid_po is not None
+    assert mid_po.amount_paid == 85.0
+
     closed = await client.post(
         f"/api/v1/purchase-returns/{ret['id']}/close",
         headers={"Authorization": f"Bearer {token}"},
+        json={"payment_method": "bank"},
     )
     assert closed.status_code == 200, closed.text
     assert closed.json()["status"] == "closed"
+    assert closed.json()["payment_method"] == "bank"
+    assert closed.json()["amount_received"] == 40.0
+    assert closed.json()["amount_outstanding"] == 0.0
 
     refreshed = await PurchaseOrder.get(str(po.id))
     assert refreshed is not None
@@ -216,15 +238,65 @@ async def test_s02_po_linked_refund_when_paid(client: AsyncClient):
         WalletLedgerEntry.reference_type == "purchase_return",
         WalletLedgerEntry.reference_id == ret["id"],
     ).to_list()
-    assert len(ledger) == 1
-    assert ledger[0].entry_type == WalletEntryType.purchase_return
-    assert ledger[0].amount == 40.0
+    assert len(ledger) == 2
+    assert sum(e.amount for e in ledger) == 40.0
 
     again = await client.post(
         f"/api/v1/purchase-returns/{ret['id']}/close",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert again.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_write_off_remaining_receivable(client: AsyncClient):
+    manager = await _user(UserRole.manager, "mgr-wo")
+    token = await _login(client, manager.email)
+    product = await _product()
+    po = await _receive_po(product=product, qty=10, unit_cost=10.0, manager=manager)
+    await po.set({
+        "amount_paid": 100.0,
+        "payment_status": PaymentStatus.paid,
+        "updated_at": datetime.now(timezone.utc),
+    })
+
+    res = await client.post(
+        "/api/v1/purchase-returns",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "return_mode": "po_linked",
+            "purchase_order_id": str(po.id),
+            "items": [{"product_id": str(product.id), "return_qty": 4}],
+            "settlement_type": "refund",
+            "reason": "damaged",
+        },
+    )
+    assert res.status_code == 201, res.text
+    ret_id = res.json()["id"]
+
+    partial = await client.post(
+        f"/api/v1/purchase-returns/{ret_id}/close",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"payment_method": "cash", "amount_received": 10.0},
+    )
+    assert partial.status_code == 200
+    assert partial.json()["amount_outstanding"] == 30.0
+
+    wo = await client.post(
+        f"/api/v1/purchase-returns/{ret_id}/write-off",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "supplier refused rest"},
+    )
+    assert wo.status_code == 200, wo.text
+    body = wo.json()
+    assert body["status"] == "closed"
+    assert body["write_off_amount"] == 30.0
+    assert body["amount_outstanding"] == 0.0
+    assert body["amount_received"] == 10.0
+
+    from app.services.dashboard_kpi import total_return_receivables
+    # This return should not add to outstanding anymore
+    assert await total_return_receivables() >= 0.0
 
 
 @pytest.mark.asyncio

@@ -224,6 +224,71 @@ async def test_movement_reference_shows_batch_number(
 
 
 @pytest.mark.asyncio
+async def test_purchase_return_movement_reference_label(
+    client: AsyncClient,
+    manager_user: User,
+    sample_movement,
+):
+    from app.models.purchase_return import (
+        PurchaseReturn,
+        PurchaseReturnMode,
+        PurchaseReturnStatus,
+        ReturnReason,
+        ReturnSettlementType,
+    )
+
+    _, product = sample_movement
+    pid = str(product.id)
+    pr = PurchaseReturn(
+        return_number="PR-LEDGER-01",
+        return_mode=PurchaseReturnMode.po_linked,
+        purchase_order_id="po-test",
+        order_number="PO-TEST",
+        supplier_id="sup-1",
+        supplier_name="Supplier",
+        items=[],
+        total_amount=40.0,
+        reason=ReturnReason.damaged,
+        settlement_type=ReturnSettlementType.stock_only,
+        status=PurchaseReturnStatus.closed,
+        return_date="2026-10-02",
+        created_by=manager_user.name,
+    )
+    await pr.insert()
+    adj = StockAdjustment(
+        product_id=pid,
+        product_name=product.name,
+        product_sku=product.sku,
+        type=AdjustmentType.purchase_return,
+        quantity=-4,
+        stock_before=10,
+        stock_after=6,
+        reason="Purchase return — reverse receive",
+        created_by=manager_user.name,
+        reference_type="purchase_return",
+        reference_id=str(pr.id),
+    )
+    await adj.insert()
+    try:
+        token = await _login(client, manager_user.email, "managerpass123")
+        res = await client.get(
+            "/api/v1/inventory/movements",
+            params={"product_id": pid, "movement_type": "purchase_return"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res.status_code == 200, res.text
+        row = next(r for r in res.json()["data"] if r["id"] == str(adj.id))
+        assert row["reference_type"] == "purchase_return"
+        assert row["reference_id"] == str(pr.id)
+        assert row["reference_label"] == "PR-LEDGER-01"
+        assert row["movement_label"] == "Purchase Return"
+        assert row["direction"] == "out"
+    finally:
+        await adj.delete()
+        await pr.delete()
+
+
+@pytest.mark.asyncio
 async def test_movement_summary_rollforward_matches_on_hand(
     client: AsyncClient,
     manager_user: User,

@@ -4,6 +4,30 @@ running log of completed work — updated after each task, newest entries at top
 
 ## Completed Tasks
 
+### 2026-10-02 — Docs: F13b stock-only write-off tracking
+- Locked: stock-only returns = inventory write-off **loss at cost** (report/KPI), not silent stock OUT, not sales COGS, not wallet cash
+- Updated prd (F13b / F13c), architecture, Rules, Design, Task (T092–T095), guide + TECHNICAL §6.4
+- Implementation of KPI/UI still T093–T095 (Not Started)
+
+### 2026-10-02 — Purchase returns user guide
+- Added [guides/Purchase_Returns.md](./guides/Purchase_Returns.md): change summary + how-to (modes, settlements, record payment, Movement Ledger / Receivables / Accounts)
+
+### 2026-10-02 — Purchase return cash tracking (phases 1–8)
+- Cash-flow chart splits Sales vs Supplier refunds (`salesInflow` / `returnInflow`)
+- Return detail shows payment history from wallet ledger; Record payment supports full / partial / write-off + received date
+- Create refund no longer asks wallet; money only at Record payment
+- Dashboard Receivables drill-down lists open requested refunds; day-wise tile for today’s return inflows
+- Accounts deep-link `?entryType=purchase_return&referenceId=`
+
+### 2026-10-02 — Return receivables + partial refund
+- Requested refund returns count toward dashboard Receivables (outstanding)
+- Month/day received from purchase_return wallet inflows
+- Close modal: full remaining or partial amount + payment type + note; partial stays Requested
+
+### 2026-10-02 — Close return: pick payment type
+- Confirm payment received modal: Cash / Bank / eSewa
+- `POST /purchase-returns/{id}/close` accepts `payment_method`; wallet inflow uses that method
+
 ### 2026-09-30 — Purchase return requested / closed
 - Create return from `/purchase-returns` (PO-linked or supplier leftover)
 - Refund creates `requested` (stock reversed, no wallet/payable yet); **Payment received** closes it and posts the refund

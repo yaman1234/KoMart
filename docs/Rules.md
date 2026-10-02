@@ -32,6 +32,8 @@
 9. **Never** change payment remaining-balance formula away from `total_amount - amount_paid`.
 10. **Never** reopen full PO edit (lines/discount/charges) for `received`/`cancelled` just to change bill number/images — use `PATCH /{id}/bill` instead.
 11. **Never** change PO money fields on **supplier-mode** returns; **never** return more than leftover PO-tagged batch qty.
+12. **Never** treat `stock_only` purchase returns as sales COGS, negative sales, or wallet cash inflow.
+13. **Never** leave stock-only returns as stock OUT only in product UX — F13b requires visible **write-off loss at cost** (report/KPI + return detail). Do not invent a second inventory movement for the same return.
 
 **Always do:**
 
@@ -39,6 +41,7 @@
 2. Keep receive path using line `unit_cost` only.
 3. Keep manager+ authorization on create/update.
 4. Allow `bill_number` / `bill_images` updates in **any** PO status via dedicated `PATCH /purchase-orders/{id}/bill` (does not rewrite `PurchasePriceHistory`).
+5. Compute stock-only loss as `SUM(PurchaseReturn.total_amount)` for closed `stock_only` rows by `return_date` (server-side).
 
 ---
 
@@ -55,6 +58,7 @@ Every Must-Have task that touches logic must include automated coverage as appli
 | Payment | remaining balance uses adjusted total_amount |
 | Receive | cost_price / batch unit_cost unchanged when discount/charges set (regression) |
 | Bill PATCH | update on received/cancelled/partial; cashier 403; general PATCH on received still blocked |
+| Stock-only loss (F13b) | closed `stock_only` returns sum into day/month write-off KPI; excluded from salesInflow / returnInflow / sales COGS |
 
 Frontend: at least one unit test or clearly manual QA checklist for Order Summary math if no test harness exists for the page.
 

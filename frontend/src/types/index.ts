@@ -461,6 +461,8 @@ export interface PurchaseOrder {
   supplierName: string;
   status: PurchaseOrderStatus;
   items: PurchaseOrderItem[];
+  /** Present on lean list responses when items[] is empty. */
+  itemsCount?: number;
   subtotal?: number;
   discount?: number;
   additionalCharges?: number;
@@ -514,6 +516,15 @@ export interface PurchaseReturnItem {
   baseUom?: string;
 }
 
+export interface PurchaseReturnPayment {
+  id: string;
+  date: string;
+  amount: number;
+  wallet: string;
+  remarks?: string;
+  createdBy?: string;
+}
+
 export interface PurchaseReturn {
   id: string;
   returnNumber: string;
@@ -524,6 +535,10 @@ export interface PurchaseReturn {
   supplierName: string;
   items: PurchaseReturnItem[];
   totalAmount: number;
+  amountReceived?: number;
+  amountOutstanding?: number;
+  writeOffAmount?: number;
+  writeOffReason?: string;
   remarks?: string;
   reason: PurchaseReturnReason;
   settlementType: PurchaseReturnSettlement;
@@ -535,6 +550,8 @@ export interface PurchaseReturn {
   updatedAt: string;
   confirmedAt?: string | null;
   closedAt?: string | null;
+  writeOffAt?: string | null;
+  payments?: PurchaseReturnPayment[];
 }
 
 export interface PurchaseReturnableLine {
@@ -746,6 +763,7 @@ export interface DayWiseTransactions {
   todayCashExpense: number;
   todayBankExpense: number;
   todayEsewaExpense: number;
+  todayPurchaseReturnInflow?: number;
 }
 
 export interface RevenueDataPoint {
@@ -783,7 +801,11 @@ export interface DashboardKpiSummary {
   fiscalYearStart: string;
   sales: KpiPeriodAmount;
   purchase: KpiPeriodAmount;
-  receivables: KpiPeriodAmount;
+  receivables: {
+    outstanding: number;
+    monthReceived: number;
+    dayReceived: number;
+  };
   payables: {
     outstanding: number;
     monthPaid: number;
@@ -803,6 +825,8 @@ export interface CashFlowPoint {
   date: string;
   inflow: number;
   outflow: number;
+  salesInflow?: number;
+  returnInflow?: number;
 }
 
 export interface NamedAmountPoint {
@@ -1064,6 +1088,8 @@ export interface ListQueryParams {
   status?: string;
   startDate?: string;
   endDate?: string;
+  lean?: boolean;
+  includeSummary?: boolean;
   [key: string]: string | number | boolean | undefined;
 }
 

@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Autocomplete, MenuItem, TextField } from '@mui/material';
 import { FormModal } from '@/components/common/FormModal';
-import { DROPDOWN_PAGE_SIZE } from '@/constants';
+import { DEFAULT_PAGE_SIZE } from '@/constants';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { PoReturnDialog } from '@/pages/purchase-orders/components/PoReturnDialog';
 import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierReturnDialog';
 import type { PurchaseReturnMode } from '@/types';
 
-const RETURNABLE_PO = new Set(['ordered', 'partial', 'received']);
+const RETURNABLE_PO_STATUS = 'ordered,partial,received';
 
 interface CreatePurchaseReturnDialogProps {
   open: boolean;
@@ -22,17 +22,21 @@ export function CreatePurchaseReturnDialog({ open, onClose }: CreatePurchaseRetu
   const [linesOpen, setLinesOpen] = useState(false);
 
   const { data: poData, isLoading: poLoading } = usePurchaseOrders(
-    { page: 1, pageSize: DROPDOWN_PAGE_SIZE },
-    { enabled: open && mode === 'po_linked' },
+    {
+      page: 1,
+      pageSize: DEFAULT_PAGE_SIZE,
+      status: RETURNABLE_PO_STATUS,
+      lean: true,
+      includeSummary: false,
+    },
+    { enabled: open && mode === 'po_linked' && !linesOpen },
   );
   const { data: supplierData, isLoading: supplierLoading } = useSuppliers(
-    { page: 1, pageSize: DROPDOWN_PAGE_SIZE },
+    { page: 1, pageSize: DEFAULT_PAGE_SIZE },
+    { enabled: open && mode === 'supplier' && !linesOpen },
   );
 
-  const purchaseOrders = useMemo(
-    () => (poData?.data ?? []).filter((po) => RETURNABLE_PO.has(po.status)),
-    [poData],
-  );
+  const purchaseOrders = useMemo(() => poData?.data ?? [], [poData]);
   const suppliers = supplierData?.data ?? [];
   const selectedPo = purchaseOrders.find((po) => po.id === poId);
 

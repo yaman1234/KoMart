@@ -56,6 +56,10 @@ class PurchaseReturn(Document):
     supplier_name: str = ""
     items: list[PurchaseReturnItem] = Field(default_factory=list)
     total_amount: float = Field(default=0, ge=0)
+    amount_received: float = Field(default=0, ge=0)
+    write_off_amount: float = Field(default=0, ge=0)
+    write_off_reason: str = ""
+    write_off_at: Optional[datetime] = None
     remarks: str = ""
     reason: ReturnReason = ReturnReason.other
     settlement_type: ReturnSettlementType = ReturnSettlementType.refund
