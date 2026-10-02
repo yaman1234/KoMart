@@ -113,8 +113,9 @@ Before this feature, stock mistakes after receive were hard to correct: cancel w
 | All returns | `/purchase-returns` (filters: mode, settlement, status, search) |
 | Money trail | Return detail → **Accounts**, or Accounts filtered by purchase return |
 | Stock trail | Inventory → **Movement Ledger** → type Purchase Return → reference `PR-…` |
-| Open refunds owed to you | Dashboard **Receivables** (requested refund outstanding) |
-| Day cash | Dashboard cash-flow: **Sales** vs **Supplier refunds** |
+| Open refunds owed to you | **Purchase Returns** KPI strip (open receivable) or Dashboard **Receivables** tile |
+| Refunds cash received (today / month) | **Purchase Returns** KPI strip only (not Dashboard Day Wise) |
+| Day cash trend | Dashboard cash-flow: **Sales** vs **Supplier refunds** |
 | Stock-only loss (F13b) | Dashboard **Stock-only write-offs** (day/month) + return detail label (after T093–T095) |
 
 ---
@@ -123,6 +124,7 @@ Before this feature, stock mistakes after receive were hard to correct: cancel w
 
 ```
 Purchase Returns list
+  ├─ KPI strip (open receivable, today/month refunds received, open requests)
   ├─ Create return → PO picker or Supplier picker → line dialog
   ├─ Row click → Detail modal (totals, items, payments, links)
   └─ Record payment / Write-off (requested refunds)

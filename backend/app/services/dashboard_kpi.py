@@ -240,6 +240,37 @@ async def _wallet_period_net(date_gte: str, date_lte: str) -> float:
     return round(cash + bank + esewa, 2)
 
 
+async def build_purchase_return_summary() -> dict[str, Any]:
+    """KPI strip for Purchase Returns list page."""
+    from app.models.purchase_return import PurchaseReturn
+
+    today = date.today()
+    today_str = today.isoformat()
+    month_str = month_start_date(today).isoformat()
+    (
+        outstanding,
+        refunds_today,
+        refunds_month,
+        open_count,
+    ) = await asyncio.gather(
+        total_return_receivables(),
+        _purchase_return_received_sum(today_str, today_str),
+        _purchase_return_received_sum(month_str, today_str),
+        PurchaseReturn.find(
+            {
+                "status": PurchaseReturnStatus.requested.value,
+                "settlement_type": ReturnSettlementType.refund.value,
+            }
+        ).count(),
+    )
+    return {
+        "outstanding_receivable": outstanding,
+        "refunds_received_today": round(refunds_today, 2),
+        "refunds_received_month": round(refunds_month, 2),
+        "open_requested_count": int(open_count or 0),
+    }
+
+
 async def build_kpi_summary() -> dict[str, Any]:
     settings = await get_store_settings()
     today = date.today()
@@ -263,8 +294,6 @@ async def build_kpi_summary() -> dict[str, Any]:
         purchase_day,
         payables,
         receivables,
-        recv_month,
-        recv_day,
         cash,
         bank,
         esewa,
@@ -279,8 +308,6 @@ async def build_kpi_summary() -> dict[str, Any]:
         _expense_sum(today_str, today_str, category=ExpenseCategory.purchase_order.value),
         total_payables(),
         total_return_receivables(),
-        _purchase_return_received_sum(month_str, today_str),
-        _purchase_return_received_sum(today_str, today_str),
         current_cash_balance(today),
         current_wallet_balance(settings, fy_start, method="bank"),
         current_wallet_balance(settings, fy_start, method="esewa"),
@@ -302,8 +329,6 @@ async def build_kpi_summary() -> dict[str, Any]:
         },
         "receivables": {
             "outstanding": receivables,
-            "monthReceived": round(recv_month, 2),
-            "dayReceived": round(recv_day, 2),
         },
         "payables": {
             "outstanding": payables,
@@ -334,7 +359,6 @@ async def build_day_wise_transactions() -> dict[str, float]:
         cash_expense,
         bank_expense,
         esewa_expense,
-        return_inflow,
     ) = await asyncio.gather(
         _sales_in_range(day_start, day_end),
         _sales_by_payment(day_start, day_end, payment_method="cash"),
@@ -344,7 +368,6 @@ async def build_day_wise_transactions() -> dict[str, float]:
         _expense_sum(today_str, today_str, payment_method="cash"),
         _expense_sum(today_str, today_str, payment_method="bank"),
         _expense_sum(today_str, today_str, payment_method="esewa"),
-        _purchase_return_received_sum(today_str, today_str),
     )
     return {
         "today_sale": round(today_sale, 2),
@@ -355,7 +378,6 @@ async def build_day_wise_transactions() -> dict[str, float]:
         "today_cash_expense": round(cash_expense, 2),
         "today_bank_expense": round(bank_expense, 2),
         "today_esewa_expense": round(esewa_expense, 2),
-        "today_purchase_return_inflow": round(return_inflow, 2),
     }
 
 

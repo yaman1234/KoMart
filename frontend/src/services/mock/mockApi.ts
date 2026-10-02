@@ -77,6 +77,7 @@ import {
   mockTopProducts,
   mockSoldProducts,
   mockDashboardKpi,
+  mockPurchaseReturnSummary,
   mockCashFlow,
   mockOperationalExpenses,
   mockTopProfitProducts,
@@ -266,6 +267,11 @@ export const mockApi = {
   async getDashboardKpiSummary(): Promise<DashboardKpiSummary> {
     await delay(300);
     return mockDashboardKpi;
+  },
+
+  async getPurchaseReturnSummary(): Promise<import('@/types').PurchaseReturnSummary> {
+    await delay(200);
+    return mockPurchaseReturnSummary;
   },
 
   async getDashboardDayWiseTransactions(): Promise<DayWiseTransactions> {

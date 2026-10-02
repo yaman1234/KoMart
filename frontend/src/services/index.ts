@@ -478,6 +478,11 @@ export const purchaseReturnService = {
     });
     return data;
   },
+  getSummary: async (): Promise<import('@/types').PurchaseReturnSummary> => {
+    if (useMock()) return mockApi.getPurchaseReturnSummary();
+    const { data } = await apiClient.get('/purchase-returns/summary');
+    return data;
+  },
   getAll: async (params: {
     purchaseOrderId?: string;
     supplierId?: string;

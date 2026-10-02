@@ -7,6 +7,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Grid,
   MenuItem,
   Paper,
   TextField,
@@ -17,11 +18,13 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { PageHeader } from '@/components/common/PageHeader';
+import { StatCard } from '@/components/common/StatCard';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import {
   useAllPurchaseReturns,
   useClosePurchaseReturn,
+  usePurchaseReturnSummary,
   useWriteOffPurchaseReturn,
 } from '@/hooks/usePurchaseReturns';
 import { purchaseReturnService } from '@/services';
@@ -126,8 +129,15 @@ export function PurchaseReturnsPage() {
     page: page + 1,
     pageSize: 10,
   });
+  const { data: summary, isLoading: summaryLoading } = usePurchaseReturnSummary();
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
+
+  const applyOpenReceivableFilters = () => {
+    setStatusFilter('requested');
+    setSettlementType('refund');
+    setPage(0);
+  };
 
   const confirmClose = async () => {
     if (!closeTarget) return;
@@ -281,6 +291,51 @@ export function PurchaseReturnsPage() {
           </Button>
         }
       />
+
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Open receivable"
+            value={formatCurrency(summary?.outstandingReceivable ?? 0)}
+            subtitle="Requested refunds"
+            loading={summaryLoading}
+            gradient={['#fff8e1', '#fde68a']}
+            color="#92400e"
+            onClick={applyOpenReceivableFilters}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Today refunds received"
+            value={formatCurrency(summary?.refundsReceivedToday ?? 0)}
+            subtitle="Cash in from returns"
+            loading={summaryLoading}
+            gradient={['#eff6ff', '#bfdbfe']}
+            color="#1d4ed8"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Month refunds received"
+            value={formatCurrency(summary?.refundsReceivedMonth ?? 0)}
+            subtitle="This calendar month"
+            loading={summaryLoading}
+            gradient={['#eff6ff', '#dbeafe']}
+            color="#2563eb"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <StatCard
+            title="Open requests"
+            value={summary?.openRequestedCount ?? 0}
+            subtitle="Refund returns awaiting payment"
+            loading={summaryLoading}
+            gradient={['#fef3c7', '#fde68a']}
+            color="#b45309"
+            onClick={applyOpenReceivableFilters}
+          />
+        </Grid>
+      </Grid>
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>

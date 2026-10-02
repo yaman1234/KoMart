@@ -231,6 +231,7 @@ export const QUERY_KEYS = {
   purchaseOrder: (id: string) => ['purchaseOrders', id] as const,
   purchaseReturns: (purchaseOrderId: string) => ['purchaseReturns', purchaseOrderId] as const,
   purchaseReturnsAll: ['purchaseReturns', 'all'] as const,
+  purchaseReturnSummary: ['purchaseReturns', 'summary'] as const,
   purchaseReturnable: (purchaseOrderId: string) => ['purchaseReturnable', purchaseOrderId] as const,
   purchaseReturnsBySupplier: (supplierId: string) => ['purchaseReturns', 'supplier', supplierId] as const,
   purchaseReturnableBySupplier: (supplierId: string) =>

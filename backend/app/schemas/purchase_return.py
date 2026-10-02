@@ -98,3 +98,10 @@ class ReturnableLineResponse(BaseModel):
 class PurchaseReturnListResponse(BaseModel):
     data: list[PurchaseReturnResponse]
     total: int
+
+
+class PurchaseReturnSummaryResponse(BaseModel):
+    outstanding_receivable: float = 0.0
+    refunds_received_today: float = 0.0
+    refunds_received_month: float = 0.0
+    open_requested_count: int = 0

@@ -542,7 +542,6 @@ function DayWiseTransactionsSection({
     todayCashExpense: number;
     todayBankExpense: number;
     todayEsewaExpense: number;
-    todayPurchaseReturnInflow?: number;
   };
   loading: boolean;
   dateLabel: string;
@@ -560,34 +559,12 @@ function DayWiseTransactionsSection({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
           gap: 1.5,
         }}
       >
         <TodaySalesTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
         <TodayExpenseTile data={data} loading={loading} today={today} onNavigate={onNavigate} />
-        <Card
-          sx={{
-            height: '100%',
-            background: 'linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0.05) 100%)',
-            cursor: 'pointer',
-            transition: 'box-shadow 0.15s',
-            '&:hover': { boxShadow: 4 },
-          }}
-          onClick={() => onNavigate('/purchase-returns?status=closed')}
-        >
-          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.4 }}>
-              Today supplier refunds
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5 }}>
-              {loading ? '…' : formatCurrency(data?.todayPurchaseReturnInflow ?? 0)}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Cash received from purchase returns
-            </Typography>
-          </CardContent>
-        </Card>
       </Box>
     </Box>
   );
@@ -707,7 +684,7 @@ export function DashboardPage() {
           title="Receivables"
           icon={<CallReceivedIcon fontSize="small" />}
           main={formatCurrency(kpi?.receivables.outstanding ?? 0)}
-          sub={`Month received ${formatCurrency(kpi?.receivables.monthReceived ?? 0)} · Day ${formatCurrency(kpi?.receivables.dayReceived ?? 0)}`}
+          sub="Open supplier refunds — see Purchase Returns"
           loading={kpiLoading}
           onClick={() => setKpiMetric('receivables')}
           gradient="linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0.05) 100%)"

@@ -496,3 +496,79 @@ async def test_s02_refund_blocked_when_unpaid(client: AsyncClient):
         },
     )
     assert res.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_purchase_return_summary_endpoint(client: AsyncClient):
+    manager = await _user(UserRole.manager, "mgr-pr-summary")
+    token = await _login(client, manager.email)
+    product = await _product()
+    po = await _receive_po(product=product, qty=5, unit_cost=10.0, manager=manager)
+    await po.set({
+        "amount_paid": 50.0,
+        "payment_status": PaymentStatus.paid,
+        "updated_at": datetime.now(timezone.utc),
+    })
+
+    create = await client.post(
+        "/api/v1/purchase-returns",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "return_mode": "po_linked",
+            "purchase_order_id": str(po.id),
+            "items": [{"product_id": str(product.id), "return_qty": 2}],
+            "settlement_type": "refund",
+            "payment_method": "cash",
+        },
+    )
+    assert create.status_code == 201, create.text
+
+    summary_res = await client.get(
+        "/api/v1/purchase-returns/summary",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert summary_res.status_code == 200, summary_res.text
+    body = summary_res.json()
+    assert "outstanding_receivable" in body or "outstandingReceivable" in body
+    outstanding = body.get("outstanding_receivable", body.get("outstandingReceivable"))
+    assert float(outstanding) >= 20.0
+    open_count = body.get("open_requested_count", body.get("openRequestedCount"))
+    assert int(open_count) >= 1
+
+
+@pytest.mark.asyncio
+async def test_purchase_return_summary_endpoint(client: AsyncClient):
+    manager = await _user(UserRole.manager, "mgr-pr-summary")
+    token = await _login(client, manager.email)
+    product = await _product()
+    po = await _receive_po(product=product, qty=5, unit_cost=10.0, manager=manager)
+    await po.set({
+        "amount_paid": 50.0,
+        "payment_status": PaymentStatus.paid,
+        "updated_at": datetime.now(timezone.utc),
+    })
+
+    create = await client.post(
+        "/api/v1/purchase-returns",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "return_mode": "po_linked",
+            "purchase_order_id": str(po.id),
+            "items": [{"product_id": str(product.id), "return_qty": 2}],
+            "settlement_type": "refund",
+            "payment_method": "cash",
+        },
+    )
+    assert create.status_code == 201, create.text
+
+    summary_res = await client.get(
+        "/api/v1/purchase-returns/summary",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert summary_res.status_code == 200, summary_res.text
+    body = summary_res.json()
+    assert "outstanding_receivable" in body or "outstandingReceivable" in body
+    outstanding = body.get("outstanding_receivable", body.get("outstandingReceivable"))
+    assert float(outstanding) >= 20.0
+    open_count = body.get("open_requested_count", body.get("openRequestedCount"))
+    assert int(open_count) >= 1

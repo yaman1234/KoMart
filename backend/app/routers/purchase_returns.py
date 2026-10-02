@@ -9,9 +9,11 @@ from app.schemas.purchase_return import (
     PurchaseReturnCreate,
     PurchaseReturnListResponse,
     PurchaseReturnResponse,
+    PurchaseReturnSummaryResponse,
     PurchaseReturnWriteOff,
     ReturnableLineResponse,
 )
+from app.services.dashboard_kpi import build_purchase_return_summary
 from app.services.purchase_return import (
     close_purchase_return,
     create_purchase_return,
@@ -41,6 +43,11 @@ async def get_returnable_lines_by_supplier(
     _: User = Depends(get_current_user),
 ):
     return await list_returnable_lines_for_supplier(supplier_id.strip())
+
+
+@router.get("/summary", response_model=PurchaseReturnSummaryResponse)
+async def get_purchase_return_summary(_: User = Depends(get_current_user)):
+    return PurchaseReturnSummaryResponse(**await build_purchase_return_summary())
 
 
 @router.get("", response_model=PurchaseReturnListResponse)

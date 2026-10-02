@@ -45,6 +45,7 @@ export function useCreatePurchaseReturn() {
       const supplierId = result.supplierId;
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnsAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnSummary });
       if (poId) {
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(poId) });
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturns(poId) });
@@ -93,6 +94,7 @@ export function useClosePurchaseReturn() {
       const supplierId = result.supplierId;
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnsAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnSummary });
       if (poId) {
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(poId) });
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturns(poId) });
@@ -119,6 +121,7 @@ export function useWriteOffPurchaseReturn() {
       const supplierId = result.supplierId;
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnsAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturnSummary });
       if (poId) {
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrder(poId) });
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseReturns(poId) });
@@ -158,5 +161,12 @@ export function useAllPurchaseReturns(params?: {
         dateFrom: params?.dateFrom,
         dateTo: params?.dateTo,
       }),
+  });
+}
+
+export function usePurchaseReturnSummary() {
+  return useQuery({
+    queryKey: QUERY_KEYS.purchaseReturnSummary,
+    queryFn: () => purchaseReturnService.getSummary(),
   });
 }

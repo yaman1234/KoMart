@@ -595,7 +595,7 @@ export const mockDashboardKpi: DashboardKpiSummary = {
   fiscalYearStart: '2025-07-16',
   sales: { fiscalYear: 1850000, month: 342500, day: 12850 },
   purchase: { fiscalYear: 920000, month: 85000, day: 12000 },
-  receivables: { outstanding: 0, monthReceived: 0, dayReceived: 0 },
+  receivables: { outstanding: 0 },
   payables: { outstanding: 145000, monthPaid: 85000, dayPaid: 12000 },
   cashBank: {
     total: 327000,
@@ -605,6 +605,13 @@ export const mockDashboardKpi: DashboardKpiSummary = {
     monthNet: 125000,
     dayNet: 8500,
   },
+};
+
+export const mockPurchaseReturnSummary: import('@/types').PurchaseReturnSummary = {
+  outstandingReceivable: 12500,
+  refundsReceivedToday: 1500,
+  refundsReceivedMonth: 8200,
+  openRequestedCount: 3,
 };
 
 export const mockCashFlow: CashFlowPoint[] = Array.from({ length: 30 }, (_, i) => {

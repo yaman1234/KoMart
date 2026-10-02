@@ -582,6 +582,13 @@ export interface PurchaseReturnListResponse {
   total: number;
 }
 
+export interface PurchaseReturnSummary {
+  outstandingReceivable: number;
+  refundsReceivedToday: number;
+  refundsReceivedMonth: number;
+  openRequestedCount: number;
+}
+
 export type MembershipTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
 export interface Customer {
@@ -763,7 +770,6 @@ export interface DayWiseTransactions {
   todayCashExpense: number;
   todayBankExpense: number;
   todayEsewaExpense: number;
-  todayPurchaseReturnInflow?: number;
 }
 
 export interface RevenueDataPoint {
@@ -803,8 +809,6 @@ export interface DashboardKpiSummary {
   purchase: KpiPeriodAmount;
   receivables: {
     outstanding: number;
-    monthReceived: number;
-    dayReceived: number;
   };
   payables: {
     outstanding: number;
