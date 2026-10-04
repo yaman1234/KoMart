@@ -1,7 +1,28 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 
-from app.models.product import ProductStatus, SellMode
+from app.models.product import BundleComponent, ProductStatus, SellMode
+
+MIN_BUNDLE_COMPONENTS = 2
+
+
+def normalize_bundle_components(
+    components: list[BundleComponent] | None,
+) -> list[BundleComponent]:
+    """Merge duplicate component products by summing their quantities."""
+    merged: dict[str, int] = {}
+    order: list[str] = []
+    for component in components or []:
+        product_id = str(getattr(component, "product_id", "") or "").strip()
+        if not product_id:
+            continue
+        quantity = max(1, int(getattr(component, "quantity", 1) or 1))
+        if product_id not in merged:
+            merged[product_id] = quantity
+            order.append(product_id)
+        else:
+            merged[product_id] += quantity
+    return [BundleComponent(product_id=pid, quantity=merged[pid]) for pid in order]
 
 
 def pack_selling_price_required(
@@ -60,6 +81,8 @@ class ProductCreate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     is_popular: bool = False
     is_trending: bool = False
+    is_bundle: bool = False
+    bundle_components: list[BundleComponent] = Field(default_factory=list)
     cost_price_effective_from: Optional[str] = None
     selling_price_effective_from: Optional[str] = None
 
@@ -77,6 +100,24 @@ class ProductCreate(BaseModel):
                 seen.add(key)
                 out.append(tag)
         return out
+
+    @model_validator(mode="after")
+    def normalize_bundle(self) -> "ProductCreate":
+        self.bundle_components = normalize_bundle_components(self.bundle_components)
+        if not self.is_bundle:
+            if self.bundle_components:
+                raise ValueError("Only bundle products can define bundle components.")
+            return self
+        if len(self.bundle_components) < MIN_BUNDLE_COMPONENTS:
+            raise ValueError(
+                f"A combo needs at least {MIN_BUNDLE_COMPONENTS} different products."
+            )
+        # A bundle is sold as one line and deducted per component, so it must not
+        # carry its own unit conversion.
+        self.units_per_buy_uom = 1
+        self.sell_mode = SellMode.unit
+        self.pack_selling_price = 0.0
+        return self
 
     @model_validator(mode="after")
     def normalize_uoms(self) -> "ProductCreate":
@@ -147,6 +188,8 @@ class ProductUpdate(BaseModel):
     tags: Optional[list[str]] = None
     is_popular: Optional[bool] = None
     is_trending: Optional[bool] = None
+    is_bundle: Optional[bool] = None
+    bundle_components: Optional[list[BundleComponent]] = None
     cost_price_effective_from: Optional[str] = None
     selling_price_effective_from: Optional[str] = None
 
@@ -164,6 +207,15 @@ class ProductUpdate(BaseModel):
                 seen.add(key)
                 out.append(tag)
         return out
+
+    @field_validator("bundle_components", mode="before")
+    @classmethod
+    def normalize_bundle_components_field(
+        cls, value: object,
+    ) -> list[BundleComponent] | None:
+        if value is None:
+            return None
+        return normalize_bundle_components(value)  # type: ignore[arg-type]
 
 
 class ProductResponse(BaseModel):
@@ -200,6 +252,8 @@ class ProductResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
     is_popular: bool = False
     is_trending: bool = False
+    is_bundle: bool = False
+    bundle_components: list[BundleComponent] = Field(default_factory=list)
     cost_price_effective_from: Optional[str] = None
     selling_price_effective_from: Optional[str] = None
     created_at: str

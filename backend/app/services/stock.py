@@ -100,12 +100,15 @@ def classify_on_hand_stock(stock: int, threshold: int) -> str:
 
 
 async def refresh_product_stock(product: Product) -> int:
-    total = await get_batch_total(str(product.id))
+    from app.services.bundles import derived_stock_for
+
+    total = await derived_stock_for(product)
     await product.set({"stock": total, "updated_at": datetime.now(timezone.utc)})
     return total
 
 
 async def refresh_all_product_stocks() -> None:
+    # Bundles are refreshed from their components, never from their own batches.
     products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
     for product in products:
         await refresh_product_stock(product)

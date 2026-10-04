@@ -18,6 +18,7 @@ from app.models.stock_count import (
 )
 from app.models.user import User
 from app.services.stock import adjust_stock, get_current_stock_batch
+from app.services.bundles import NON_BUNDLE_FILTER
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -111,8 +112,9 @@ async def create_stock_count(
     count_date: str,
     user: User,
 ) -> StockCount:
-    # Resolve products
-    match: dict = {"is_active": True}
+    # Resolve products. Bundles are excluded: they have no physical stock to
+    # count, so counting them would always record a phantom variance.
+    match: dict = {"is_active": True, **NON_BUNDLE_FILTER}
     if count_type == CountType.category and category_filter:
         match["category"] = category_filter
     elif count_type == CountType.selected and product_ids:

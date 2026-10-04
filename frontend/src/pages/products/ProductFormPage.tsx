@@ -37,8 +37,10 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useUomOptions } from '@/hooks/useUoms';
 import { DROPDOWN_PAGE_SIZE, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
+import { MAX_BUNDLE_COMPONENTS, MIN_BUNDLE_COMPONENTS } from '@/constants/bundleLimits';
 import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
 import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
+import { BundleComponentsEditor } from '@/components/products/BundleComponentsEditor';
 import { formatCurrency } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
@@ -76,6 +78,11 @@ const schema = z.object({
   tags:              z.array(z.string().min(1)),
   isPopular:         z.boolean(),
   isTrending:        z.boolean(),
+  isBundle:          z.boolean(),
+  bundleComponents:  z.array(z.object({
+                      productId: z.string().min(1),
+                      quantity: z.number().int().min(1, 'Must be at least 1'),
+                    })),
   costPriceEffectiveFrom: z.string(),
   sellingPriceEffectiveFrom: z.string(),
   nutritionInfo:   z.string(),
@@ -118,6 +125,31 @@ const schema = z.object({
       message: 'Effective from is required',
       path: ['sellingPriceEffectiveFrom'],
     });
+  }
+  if (data.isBundle) {
+    const components = data.bundleComponents;
+    if (components.length < MIN_BUNDLE_COMPONENTS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `A combo needs at least ${MIN_BUNDLE_COMPONENTS} different products`,
+        path: ['bundleComponents'],
+      });
+    }
+    if (components.length > MAX_BUNDLE_COMPONENTS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `A combo cannot have more than ${MAX_BUNDLE_COMPONENTS} products`,
+        path: ['bundleComponents'],
+      });
+    }
+    const unique = new Set(components.map((c) => c.productId));
+    if (unique.size !== components.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Each product can only be listed once',
+        path: ['bundleComponents'],
+      });
+    }
   }
 });
 
@@ -197,6 +229,8 @@ export function ProductFormPage() {
       tags: [],
       isPopular: false,
       isTrending: false,
+      isBundle: false,
+      bundleComponents: [],
       costPriceEffectiveFrom: todayAd(),
       sellingPriceEffectiveFrom: todayAd(),
       nutritionInfo: '',
@@ -249,6 +283,11 @@ export function ProductFormPage() {
         tags:              product.tags ?? [],
         isPopular:         product.isPopular ?? false,
         isTrending:        product.isTrending ?? false,
+        isBundle:          product.isBundle ?? false,
+        bundleComponents:  (product.bundleComponents ?? []).map((c) => ({
+          productId: c.productId,
+          quantity: c.quantity,
+        })),
         costPriceEffectiveFrom: product.costPriceEffectiveFrom || todayAd(),
         sellingPriceEffectiveFrom: product.sellingPriceEffectiveFrom || todayAd(),
         nutritionInfo:    product.nutritionInfo ?? '',
@@ -275,9 +314,21 @@ export function ProductFormPage() {
   const offeredPrice = watch('offeredPrice');
   const packDiscountPercent = watch('packDiscountPercent');
   const packOfferedPrice = watch('packOfferedPrice');
+  const isBundle = watch('isBundle');
+
+  // A bundle is sold as one line and deducted per component, so unit conversion,
+  // pack pricing and pack selling must not apply to it.
+  useEffect(() => {
+    if (!isBundle) return;
+    setValue('unitsPerBuyUom', 1);
+    setValue('uom', buyUom || '');
+    setValue('sellMode', 'unit');
+    setValue('packSellingPrice', 0);
+  }, [isBundle, buyUom, setValue]);
+
   const packSellEnabled =
-    (sellMode === 'unit' || sellMode === 'both') && hasUomConversion(unitsPerBuyUom);
-  const usesConversion = hasUomConversion(unitsPerBuyUom);
+    !isBundle && (sellMode === 'unit' || sellMode === 'both') && hasUomConversion(unitsPerBuyUom);
+  const usesConversion = !isBundle && hasUomConversion(unitsPerBuyUom);
   const suggestedPackPrice = sellingPrice * unitsPerBuyUom;
 
   useEffect(() => {
@@ -393,10 +444,18 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       });
       const images = imageUrl ? [imageUrl] : [];
       const supplier = suppliers.find((s) => s.id === values.supplierId);
+      const asBundle = values.isBundle;
       const payload = {
         ...rest,
         ...uoms,
-        sellMode: hasUomConversion(uoms.unitsPerBuyUom) ? rest.sellMode : 'unit',
+        // Bundle sell fields are server-normalized too; mirror them here so the
+        // payload matches what the backend will store.
+        unitsPerBuyUom: asBundle ? 1 : uoms.unitsPerBuyUom,
+        uom: asBundle ? uoms.buyUom : uoms.uom,
+        sellMode: asBundle
+          ? 'unit'
+          : hasUomConversion(uoms.unitsPerBuyUom) ? rest.sellMode : 'unit',
+        packSellingPrice: asBundle ? 0 : rest.packSellingPrice,
         images,
         stock: product?.stock ?? 0,
         supplierName: supplier?.name ?? product?.supplierName ?? '',
@@ -657,6 +716,52 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               </Grid>
 
               <Grid size={{ xs: 12 }}>
+                <Controller
+                  name="isBundle"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                      }
+                      label="This product is a combo (bundle of other products)"
+                    />
+                  )}
+                />
+                {isBundle && (
+                  <Alert severity="info" sx={{ mt: 0.5 }}>
+                    A combo holds no stock of its own. Its availability is derived from
+                    its components, and selling one deducts every component.
+                  </Alert>
+                )}
+              </Grid>
+
+              {isBundle && (
+                <Grid size={{ xs: 12 }}>
+                  <Controller
+                    name="bundleComponents"
+                    control={control}
+                    render={({ field }) => (
+                      <BundleComponentsEditor
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={errors.bundleComponents?.message
+                          ?? (field.value.length > 0 && field.value.some((c) => !c.productId || c.quantity < 1)
+                            ? 'Every product needs a quantity of at least 1'
+                            : undefined)}
+                        disabledIds={id ? [id] : []}
+                      />
+                    )}
+                  />
+                </Grid>
+              )}
+
+              {!isBundle && (
+                <>
+              <Grid size={{ xs: 12 }}>
                 <Divider sx={{ my: 1 }} />
                 <UomSectionTitle>Primary Unit (purchase)</UomSectionTitle>
               </Grid>
@@ -781,6 +886,8 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                   </Grid>
                 </>
               )}
+                </>
+              )}
 
               <Grid size={{ xs: 12 }}>
                 <TextField
@@ -789,6 +896,8 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                   fullWidth
                   multiline
                   rows={3}
+                  helperText={isBundle ? 'Generated from the combo contents when saved' : undefined}
+                  slotProps={isBundle ? { input: { readOnly: true } } : undefined}
                 />
               </Grid>
             </Grid>

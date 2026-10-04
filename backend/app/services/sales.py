@@ -30,6 +30,7 @@ from app.services.stock import (
     restock_from_deductions,
 )
 from app.services.store_settings import get_store_settings
+from app.services.bundles import expand_bundle, is_bundle
 from app.services.time_nepal import ensure_utc, resolve_sale_created_at, to_utc_iso
 from beanie import PydanticObjectId
 
@@ -273,6 +274,21 @@ async def record_sale(
         )
     product_map = await _load_products_map([i.product_id for i in body.items])
 
+    # A bundle (combo) is one sale line but is stocked as its components, so each
+    # line expands into the (component_product_id, quantity) pairs to deduct.
+    component_ids: set[str] = set()
+    for i in body.items:
+        product = product_map.get(i.product_id)
+        if product and is_bundle(product):
+            component_ids |= {cid for cid, _ in expand_bundle(product, 1)}
+    if component_ids:
+        component_map = await _load_products_map(sorted(component_ids))
+        for pid in component_ids:
+            found = component_map.get(pid)
+            if found is not None:
+                product_map.setdefault(pid, found)
+
+    item_targets: list[list[tuple[str, int]]] = []
     for item in body.items:
         product = product_map.get(item.product_id)
         if not product:
@@ -282,7 +298,20 @@ async def record_sale(
                 status.HTTP_400_BAD_REQUEST,
                 detail=billable_rejection_detail(product),
             )
-        await check_stock_available(item.product_id, _base_quantity(item))
+        if is_bundle(product):
+            targets = expand_bundle(product, item.quantity)
+            if not targets:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail=f"Combo '{product.name}' has no products configured",
+                )
+        else:
+            targets = [(item.product_id, _base_quantity(item))]
+        item_targets.append(targets)
+
+    for targets in item_targets:
+        for target_id, target_qty in targets:
+            await check_stock_available(target_id, target_qty)
 
     txn_number = await _next_txn_number()
     all_deductions: list[BatchDeduction] = []
@@ -291,60 +320,78 @@ async def record_sale(
     txn_id: str | None = None
 
     try:
-        for item in body.items:
+        for item, targets in zip(body.items, item_targets):
             product = product_map[item.product_id]
-            stock_before = await get_current_stock(item.product_id)
             base_qty = _base_quantity(item)
+            line_allocations: list[BatchAllocation] = []
+            line_cost_total = 0.0
 
-            deductions = await deduct_stock_fefo(item.product_id, base_qty)
-            all_deductions.extend(deductions)
+            for target_id, target_qty in targets:
+                target_product = product_map.get(target_id)
+                if not target_product:
+                    raise HTTPException(
+                        status.HTTP_404_NOT_FOUND,
+                        detail=f"Product not found for combo '{product.name}'",
+                    )
+                stock_before = await get_current_stock(target_id)
 
-            rows = await log_signed_batch_moves(
-                product=product,
-                moves=[
-                    SignedBatchMove(
+                deductions = await deduct_stock_fefo(target_id, target_qty)
+                all_deductions.extend(deductions)
+
+                is_bundle_line = is_bundle(product)
+                rows = await log_signed_batch_moves(
+                    product=target_product,
+                    moves=[
+                        SignedBatchMove(
+                            batch_id=d.batch_id,
+                            quantity=-d.quantity,
+                            unit_cost=d.unit_cost,
+                        )
+                        for d in deductions
+                    ],
+                    stock_before=stock_before,
+                    adjustment_type=AdjustmentType.sale,
+                    reason=(
+                        f"Sale {txn_number} (combo: {product.name})"
+                        if is_bundle_line
+                        else f"Sale {txn_number}"
+                    ),
+                    created_by=body.created_by,
+                    # Revenue belongs to the combo SKU, not to the components, so
+                    # component movements must not carry the bundle's price.
+                    unit_selling_price=0.0 if is_bundle_line else item.price,
+                    line_discount=0.0 if is_bundle_line else item.discount,
+                    category=target_product.category,
+                )
+                adjustment_ids.extend(str(row.id) for row in rows)
+                running_stock = stock_before - sum(d.quantity for d in deductions)
+                await assert_stock_matches_ledger(
+                    target_id,
+                    stock_before,
+                    -target_qty,
+                    running_stock,
+                )
+                line_cost_total += sum(d.quantity * d.unit_cost for d in deductions)
+                line_allocations.extend(
+                    BatchAllocation(
                         batch_id=d.batch_id,
-                        quantity=-d.quantity,
+                        quantity=d.quantity,
                         unit_cost=d.unit_cost,
+                        product_id=target_id if is_bundle(product) else "",
                     )
                     for d in deductions
-                ],
-                stock_before=stock_before,
-                adjustment_type=AdjustmentType.sale,
-                reason=f"Sale {txn_number}",
-                created_by=body.created_by,
-                unit_selling_price=item.price,
-                line_discount=item.discount,
-                category=product.category,
-            )
-            adjustment_ids.extend(str(row.id) for row in rows)
-            running_stock = stock_before - sum(d.quantity for d in deductions)
-            await assert_stock_matches_ledger(
-                item.product_id,
-                stock_before,
-                -base_qty,
-                running_stock,
-            )
-
-            total_line_cost = sum(d.quantity * d.unit_cost for d in deductions)
-            weighted_cost = (
-                total_line_cost / base_qty if base_qty else product.cost_price
-            )
-            allocations = [
-                BatchAllocation(
-                    batch_id=d.batch_id,
-                    quantity=d.quantity,
-                    unit_cost=d.unit_cost,
                 )
-                for d in deductions
-            ]
+
+            weighted_cost = (
+                line_cost_total / base_qty if base_qty else product.cost_price
+            )
             enriched_items.append(
                 item.model_copy(
                     update={
                         "list_price": item.price,
                         "unit_cost": round(weighted_cost, 4),
                         "category": product.category,
-                        "batch_allocations": allocations,
+                        "batch_allocations": line_allocations,
                     }
                 )
             )
@@ -667,6 +714,11 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
         if not isinstance(new_items_raw, list) or len(new_items_raw) == 0:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Items list cannot be empty")
 
+        # Bundle lines are stocked as their components, so re-allocating stock
+        # on edit would attribute component batches to the combo SKU. Void and
+        # re-record instead of corrupting the inventory ledger.
+        await _assert_no_bundle_items(txn)
+
         old_by_pid = {i.product_id: i for i in txn.items}
         validated: list[TransactionItem] = []
         for raw in new_items_raw:
@@ -771,6 +823,28 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
     return _to_response(refreshed)
 
 
+async def _assert_no_bundle_items(txn: Transaction) -> None:
+    """Refuse item edits on a sale containing a combo line.
+
+    A bundle's stock lives on its components, so editing the lines would need
+    component-aware re-allocation. Until that exists, void + re-record is the
+    safe path and keeps the inventory ledger attributable.
+    """
+    if not txn.items:
+        return
+    products = await _load_products_map([item.product_id for item in txn.items])
+    for item in txn.items:
+        product = products.get(item.product_id)
+        if product and is_bundle(product):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot edit the items of this sale because it contains the combo "
+                    f"'{product.name}'. Void the sale and record it again instead."
+                ),
+            )
+
+
 async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResponse:
     """Void a completed sale; restock from stored batch allocations and reverse loyalty."""
     txn = await Transaction.get(txn_id)
@@ -804,9 +878,12 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
     deductions: list[BatchDeduction] = []
     for item in txn.items:
         for alloc in item.batch_allocations:
+            # A bundle line's batches belong to its components, so prefer the
+            # allocation's own product_id over the line's product_id.
+            owner = getattr(alloc, "product_id", "") or item.product_id
             deductions.append(
                 BatchDeduction(
-                    product_id=item.product_id,
+                    product_id=owner,
                     batch_id=alloc.batch_id,
                     quantity=alloc.quantity,
                     unit_cost=alloc.unit_cost,

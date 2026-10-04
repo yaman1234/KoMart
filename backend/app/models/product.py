@@ -1,5 +1,5 @@
 from beanie import Document, Indexed
-from pydantic import Field
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
 from enum import Enum
@@ -10,6 +10,13 @@ class ProductStatus(str, Enum):
     active = "active"
     discontinued = "discontinued"
     seasonal = "seasonal"
+
+
+class BundleComponent(BaseModel):
+    """One item inside a bundle. Quantity is always in the component's base UOM."""
+
+    product_id: str
+    quantity: int = Field(default=1, ge=1)
 
 
 class SellMode(str, Enum):
@@ -110,6 +117,11 @@ class Product(Document):
     tags: list[str] = Field(default_factory=list)
     is_popular: bool = False
     is_trending: bool = False
+    # Bundle (combo) products: sold as a single line but made from other products.
+    # They hold no stock of their own — availability and cost are derived from
+    # bundle_components. See app.services.bundles.
+    is_bundle: bool = False
+    bundle_components: list[BundleComponent] = Field(default_factory=list)
     cost_price_effective_from: Optional[str] = None  # AD YYYY-MM-DD
     selling_price_effective_from: Optional[str] = None  # AD YYYY-MM-DD
     is_active: bool = True

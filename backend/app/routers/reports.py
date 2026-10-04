@@ -68,6 +68,7 @@ from app.services.reporting import (
     parse_date_range,
 )
 from app.services.stock import expiring_product_ids, get_current_stock, get_current_stock_batch
+from app.services.bundles import NON_BUNDLE_FILTER
 from app.services.time_nepal import to_npt
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
@@ -420,7 +421,7 @@ async def low_stock_report(
     product_status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     _: User = Depends(require_manager_or_above),
 ):
-    query = Product.find(Product.is_active == True)  # noqa: E712
+    query = Product.find(Product.is_active == True, NON_BUNDLE_FILTER)  # noqa: E712
     if product_status:
         query = query.find(Product.status == ProductStatus(product_status))
 
@@ -755,6 +756,7 @@ async def dead_stock_report(
 
     products = await Product.find(
         Product.is_active == True,  # noqa: E712
+        NON_BUNDLE_FILTER,
     ).to_list()
 
     if product_status:

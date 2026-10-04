@@ -12,6 +12,7 @@ from app.models.inventory import InventoryBatch
 from app.models.product import Product
 from app.models.transaction import Transaction, TransactionItem, TransactionStatus
 from app.services.stock import classify_on_hand_stock, get_current_stock_batch
+from app.services.bundles import NON_BUNDLE_FILTER
 
 
 def parse_date_range(start_date: str, end_date: str) -> tuple[datetime, datetime]:
@@ -169,7 +170,12 @@ async def aggregate_batch_inventory_value() -> float:
 
 
 async def aggregate_product_inventory_stats() -> dict[str, float | int]:
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    # Bundles are derived from component stock, not stocked themselves, so they
+    # must not inflate the SKU / low-stock / out-of-stock inventory KPIs.
+    products = await Product.find(
+        Product.is_active == True,  # noqa: E712
+        NON_BUNDLE_FILTER,
+    ).to_list()
     product_ids = [str(p.id) for p in products]
     stock_map = await get_current_stock_batch(product_ids)
 
@@ -264,7 +270,10 @@ def days_until(expiry: str) -> int:
 
 
 async def aggregate_inventory_by_category() -> list[dict[str, Any]]:
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    products = await Product.find(
+        Product.is_active == True,  # noqa: E712
+        NON_BUNDLE_FILTER,
+    ).to_list()
     product_ids = [str(p.id) for p in products]
     stock_map = await get_current_stock_batch(product_ids)
 

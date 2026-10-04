@@ -31,6 +31,9 @@ class BatchAllocation(BaseModel):
     batch_id: str
     quantity: int
     unit_cost: float = 0.0
+    # Set only for bundle (combo) lines, where the batches belong to component
+    # products rather than to the line's own product_id.
+    product_id: str = ""
 
 
 class TransactionItem(BaseModel):

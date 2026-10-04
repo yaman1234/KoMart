@@ -36,6 +36,7 @@ from app.services.stock import (
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit
 from app.services.reporting import aggregate_product_inventory_stats
+from app.services.bundles import NON_BUNDLE_FILTER, is_bundle
 from app.services.response_cache import (
     INVENTORY_STATS_KEY,
     get_cached,
@@ -158,7 +159,8 @@ async def list_inventory(
     category: str = Query(""),
     _: User = Depends(get_current_user),
 ):
-    match: dict = {"is_active": True}
+    # Bundles hold no stock of their own, so they are not inventory rows.
+    match: dict = {"is_active": True, **NON_BUNDLE_FILTER}
     if supplier_id:
         match["supplier_id"] = supplier_id
     if category:
@@ -237,6 +239,13 @@ async def get_inventory_item(
     product = await Product.get(product_id)
     if not product or not product.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+    if is_bundle(product):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"'{product.name}' is a combo and holds no stock of its own."
+            ),
+        )
     batches = await get_sorted_batches(product_id)
     return await _item_response(product, batches)
 
@@ -251,6 +260,14 @@ async def receive_batch(
     product = await Product.get(body.product_id)
     if not product or not product.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+    if is_bundle(product):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"'{product.name}' is a combo made from other products. "
+                "Receive stock for its individual products instead."
+            ),
+        )
 
     stock_before = await get_current_stock(body.product_id)
     before_cost = product.cost_price
@@ -569,6 +586,14 @@ async def adjust_stock_endpoint(
 ):
     product = await Product.get(body.product_id)
     stock_before = await get_current_stock(body.product_id) if product else 0
+    if product and is_bundle(product):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"'{product.name}' is a combo made from other products, so its stock "
+                "cannot be adjusted directly. Adjust its individual products instead."
+            ),
+        )
 
     new_stock = await adjust_stock(
         body.product_id,

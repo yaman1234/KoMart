@@ -53,8 +53,8 @@ import type {
   SalesByDayOfWeek,
   SalesByCashier,
   DeadStockProduct,
-  DiscountRule,
-  EvaluateDiscountResult,
+DiscountRule,
+EvaluateDiscountResult,
   AuditLog,
   AuditLogQueryParams,
 } from '@/types';
@@ -1597,12 +1597,16 @@ export const mockApi = {
     excludedPromotions?: Array<{ ruleId: string; productId?: string; sellUom?: string }>;
   }): Promise<EvaluateDiscountResult> {
     await delay(150);
+    const lineItems = payload.items.map((item) => ({
+      productId: item.productId,
+      sellUom: item.sellUom,
+      perUnitDiscount: 0,
+      lineDiscount: 0,
+    }));
+
+    // Mock mode has no rule engine: every discount resolves to zero.
     return {
-      lineItems: payload.items.map((item) => ({
-        productId: item.productId,
-        perUnitDiscount: 0,
-        lineDiscount: 0,
-      })),
+      lineItems,
       lineDiscountTotal: 0,
       cartDiscount: 0,
       promotionDiscountTotal: 0,

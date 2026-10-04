@@ -25,6 +25,7 @@ from app.models.supplier import Supplier
 from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderReceiveItem
 from app.services.audit import log_audit, po_snapshot
+from app.services.bundles import is_bundle
 from app.services.inventory_sync import log_receive_price_change
 
 
@@ -279,6 +280,15 @@ async def receive_purchase_order_items(
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND,
                 detail=f"Product {plan.item.product_name} not found",
+            )
+        received_product = product_map[plan.item.product_id]
+        if is_bundle(received_product):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"'{received_product.name}' is a combo made from other products. "
+                    "Receive stock for its individual products instead."
+                ),
             )
 
     supplier: Supplier | None = None

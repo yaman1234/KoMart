@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
+from beanie import PydanticObjectId
 from math import ceil
 from datetime import datetime, timezone
 import logging
@@ -13,6 +14,7 @@ from app.models.purchase_order import (
     PaymentStatus,
     compute_payment_status,
 )
+from app.models.product import Product
 from app.schemas.purchase_order import (
     PurchaseOrderCreate,
     PurchaseOrderUpdate,
@@ -148,6 +150,26 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         created_at=_dt_iso(getattr(po, "created_at", None)),
         updated_at=_dt_iso(getattr(po, "updated_at", None)),
     )
+
+
+async def _reject_bundle_items(items: list) -> None:
+    """Bundles are built from their components and cannot be purchased directly."""
+    ids = list({item.product_id for item in items if item.product_id})
+    object_ids = [PydanticObjectId(pid) for pid in ids if PydanticObjectId.is_valid(pid)]
+    if not object_ids:
+        return
+    bundles = await Product.find(
+        {"_id": {"$in": object_ids}, "is_bundle": True}
+    ).to_list()
+    if bundles:
+        names = ", ".join(f"'{b.name}'" for b in bundles)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"{names} is a combo made from other products. "
+                "Order its individual products instead."
+            ),
+        )
 
 
 def _parse_po_doc(doc: dict) -> PurchaseOrder | None:
@@ -413,6 +435,7 @@ async def create_purchase_order(
     request: Request,
     current_user: User = Depends(require_manager_or_above),
 ):
+    await _reject_bundle_items(body.items)
     po_data = body.model_dump()
     totals = compute_po_totals(body.items, body.discount, body.additional_charges)
     po_data.update(totals)
@@ -471,6 +494,7 @@ async def update_purchase_order(
             detail="Invalid status for this purchase order update",
         )
 
+    await _reject_bundle_items(body.items)
     before = po_snapshot(po)
     try:
         merged_items = _merge_items(po, body.items)

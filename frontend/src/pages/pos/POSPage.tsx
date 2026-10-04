@@ -305,6 +305,9 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
             }}
           >
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, minWidth: 0, flex: '1 1 auto', pr: 0.5 }}>
+              {product.isBundle && (
+                <Chip label="Combo" size="small" sx={POS_IMAGE_CHIP_SX} />
+              )}
               {visibleTags.map((tag) => (
                 <Chip key={tag} label={tag} size="small" sx={POS_IMAGE_CHIP_SX} />
               ))}

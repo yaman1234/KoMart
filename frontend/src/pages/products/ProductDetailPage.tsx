@@ -25,6 +25,7 @@ import { useProduct, useDeleteProduct } from '@/hooks/useProducts';
 import { useAuthStore } from '@/store';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { UomConversionHint } from '@/components/uom/UomUi';
+import { BundleContentsView } from '@/components/products/BundleContentsView';
 import { isAdminOrManager, productStatusColor, productStatusLabel, uomLabel } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
@@ -242,7 +243,11 @@ export function ProductDetailPage() {
                 )}
               </Box>
               <Chip
-                label={`Stock: ${formatStockQty(product.stock, product.uom ?? '')}`}
+                label={
+                  product.isBundle
+                    ? `${product.stock} combos available`
+                    : `Stock: ${formatStockQty(product.stock, product.uom ?? '')}`
+                }
                 color={stockStatus.color}
                 sx={{ fontWeight: 600 }}
               />
@@ -278,7 +283,7 @@ export function ProductDetailPage() {
               </Box>
             )}
 
-            {canEdit && (
+            {canEdit && !product.isBundle && (
               <Button
                 variant="outlined"
                 onClick={() => navigate(`/inventory/${product.id}`)}
@@ -286,6 +291,20 @@ export function ProductDetailPage() {
               >
                 Manage in Inventory
               </Button>
+            )}
+
+            {product.isBundle && (
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  label="Combo"
+                  color="info"
+                  sx={{ fontWeight: 600 }}
+                />
+                <Chip
+                  label={`${(product.bundleComponents?.length ?? 0)} products`}
+                  variant="outlined"
+                />
+              </Box>
             )}
 
             <Divider />
@@ -335,6 +354,10 @@ export function ProductDetailPage() {
         <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           {product.description || 'No description provided.'}
         </Typography>
+
+        {product.isBundle && (product.bundleComponents?.length ?? 0) > 0 && (
+          <BundleContentsView components={product.bundleComponents ?? []} />
+        )}
 
         {(product.nutritionInfo || product.allergenInfo) && (
           <>

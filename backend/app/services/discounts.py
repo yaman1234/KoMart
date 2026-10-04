@@ -228,6 +228,7 @@ async def evaluate_discounts(
                 )
             )
 
+    # ── Cart phase ─────────────────────────────────────────────────────────────
     cart_base = max(0.0, subtotal - line_discount_total)
     cart_discount = 0.0
     best_cart_rule: DiscountRule | None = None

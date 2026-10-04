@@ -6,6 +6,7 @@ from app.models.notification import Notification, NotificationType
 from app.models.product import Product
 from app.models.purchase_order import POStatus, PurchaseOrder
 from app.models.inventory import InventoryBatch
+from app.services.bundles import NON_BUNDLE_FILTER
 from app.services.stock import expiring_product_ids, get_current_stock_batch
 from app.services.store_settings import get_store_settings
 
@@ -49,7 +50,7 @@ async def sync_notifications() -> None:
     within_days = settings.expiry_warning_days
     active_keys: set[str] = set()
 
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
+    products = await Product.find(Product.is_active == True, NON_BUNDLE_FILTER).to_list()  # noqa: E712
     product_ids = [str(p.id) for p in products]
     stock_map = await get_current_stock_batch(product_ids)
 

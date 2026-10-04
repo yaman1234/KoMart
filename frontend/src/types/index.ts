@@ -105,6 +105,11 @@ export interface AppliedPromotion {
   sellUom?: string;
 }
 
+export interface BundleComponent {
+  productId: string;
+  quantity: number;
+}
+
 export interface ExcludedPromotion {
   ruleId: string;
   productId?: string;
@@ -200,6 +205,8 @@ export interface Product {
   tags?: string[];
   isPopular?: boolean;
   isTrending?: boolean;
+  isBundle?: boolean;
+  bundleComponents?: BundleComponent[];
   costPriceEffectiveFrom?: string;
   sellingPriceEffectiveFrom?: string;
   createdAt: string;

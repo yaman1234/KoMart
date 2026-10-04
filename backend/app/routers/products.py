@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
+from beanie import PydanticObjectId
 from datetime import datetime, timezone
 from math import ceil
 import re
@@ -31,9 +32,72 @@ from app.services.product_pricing import compute_product_pricing, apply_pricing_
 from app.services.sku import generate_unique_sku, peek_unique_sku
 from app.services.store_settings import get_store_settings
 from app.services.product_list import to_list_lean
+from app.services.bundles import (
+    MAX_BUNDLE_COMPONENTS,
+    build_bundle_description,
+    derived_stock_for,
+    is_bundle,
+    stock_map_for,
+)
+from app.schemas.product import MIN_BUNDLE_COMPONENTS, normalize_bundle_components
 from app.services.stock import get_current_stock, get_current_stock_batch
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+async def _resolve_bundle_fields(
+    components: list,
+    *,
+    self_id: str | None = None,
+) -> tuple[list[dict], str]:
+    """Validate bundle components and return them plus an auto description.
+
+    Bundles may not contain other bundles: keeping derivation one level deep is
+    what makes bundle stock cheap and cycle-free on every product list render.
+    """
+    normalized = normalize_bundle_components(components)
+    if len(normalized) < MIN_BUNDLE_COMPONENTS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"A combo needs at least {MIN_BUNDLE_COMPONENTS} different products",
+        )
+    if len(normalized) > MAX_BUNDLE_COMPONENTS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"A combo cannot have more than {MAX_BUNDLE_COMPONENTS} products",
+        )
+
+    ids = [str(c.product_id) for c in normalized]
+    found = {
+        str(p.id): p
+        for p in await Product.find(
+            {"_id": {"$in": [PydanticObjectId(pid) for pid in ids if PydanticObjectId.is_valid(pid)]}}
+        ).to_list()
+    }
+    name_map: dict[str, str] = {}
+    for product_id in ids:
+        child = found.get(product_id)
+        if not child:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Combo product {product_id} no longer exists",
+            )
+        if self_id and product_id == str(self_id):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="A combo cannot contain itself",
+            )
+        if is_bundle(child):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"'{child.name}' is itself a combo. "
+                    "Combos cannot be nested inside another combo."
+                ),
+            )
+        name_map[product_id] = child.name
+
+    return [c.model_dump() for c in normalized], build_bundle_description(normalized, name_map)
 
 
 async def _resolve_supplier(supplier_id: str) -> Supplier:
@@ -114,6 +178,32 @@ async def _apply_product_update(
     eff_sell_mode = update_data.get("sell_mode", product.sell_mode)
     eff_units = update_data.get("units_per_buy_uom", product.units_per_buy_uom)
     eff_pack_price = update_data.get("pack_selling_price", product.pack_selling_price)
+
+    eff_is_bundle = update_data.get("is_bundle", getattr(product, "is_bundle", False))
+    if eff_is_bundle:
+        # A bundle is one sale line deducted per component: no unit conversion.
+        update_data["units_per_buy_uom"] = 1
+        update_data["sell_mode"] = SellMode.unit
+        update_data["pack_selling_price"] = 0.0
+        eff_sell_mode = SellMode.unit
+        eff_units = 1
+        eff_pack_price = 0.0
+
+        raw_components = update_data.get(
+            "bundle_components",
+            [c.model_dump() for c in (getattr(product, "bundle_components", None) or [])],
+        )
+        components, auto_description = await _resolve_bundle_fields(
+            raw_components, self_id=str(product.id),
+        )
+        update_data["bundle_components"] = components
+        update_data["description"] = auto_description
+    elif "bundle_components" in update_data and update_data["bundle_components"]:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Only combo products can define bundle components.",
+        )
+
     if not pack_selling_price_required(eff_sell_mode, eff_units, eff_pack_price):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -156,7 +246,7 @@ async def _apply_product_update(
 
 async def _to_response(p: Product, *, lean: bool = False, include_images: bool = True, stock: int | None = None) -> ProductResponse:
     if stock is None:
-        stock = await get_current_stock(str(p.id))
+        stock = await derived_stock_for(p)
     # List endpoints omit long text; optionally keep first image for POS/Products cards.
     if lean:
         images = list(p.images or [])[:1] if include_images else []
@@ -202,6 +292,8 @@ async def _to_response(p: Product, *, lean: bool = False, include_images: bool =
         tags=p.tags if hasattr(p, "tags") and p.tags else [],
         is_popular=bool(getattr(p, "is_popular", False)),
         is_trending=bool(getattr(p, "is_trending", False)),
+        is_bundle=bool(getattr(p, "is_bundle", False)),
+        bundle_components=list(getattr(p, "bundle_components", None) or []),
         cost_price_effective_from=getattr(p, "cost_price_effective_from", None),
         selling_price_effective_from=getattr(p, "selling_price_effective_from", None),
         created_at=p.created_at.isoformat(),
@@ -283,8 +375,7 @@ async def list_products(
     else:
         products = await query.skip(skip).limit(page_size).to_list()
 
-    product_ids = [str(p.id) for p in products]
-    stock_map = await get_current_stock_batch(product_ids)
+    stock_map = await stock_map_for(products)
     data = [
         await _to_response(p, lean=lean, include_images=include_images, stock=stock_map.get(str(p.id), 0))
         for p in products
@@ -350,6 +441,11 @@ async def create_product(
         supplier_name = supplier.name
     data = body.model_dump()
     data["sku"] = sku
+    if body.is_bundle:
+        components, auto_description = await _resolve_bundle_fields(body.bundle_components)
+        data["bundle_components"] = components
+        # The description is generated from the components, as requested.
+        data["description"] = auto_description
     category = data.pop("category", None)
     cat_id, cat_name = await resolve_category_fields(
         category_id=data.pop("category_id", None) or None,
