@@ -27,6 +27,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
+import BalanceIcon from '@mui/icons-material/Balance';
 import { NAV_ITEMS } from '@/constants';
 import { AppBrand } from '@/components/common/AppBrand';
 import { useUIStore, useAuthStore } from '@/store';
@@ -49,6 +50,7 @@ const iconMap: Record<string, React.ReactNode> = {
   AccountBalance: <AccountBalanceIcon fontSize="small" />,
   AccountBalanceWallet: <AccountBalanceWalletIcon fontSize="small" />,
   FactCheck: <FactCheckIcon fontSize="small" />,
+  Balance: <BalanceIcon fontSize="small" />,
 };
 
 /** Mobile temporary drawer width */

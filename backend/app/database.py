@@ -31,6 +31,8 @@ from app.models import (
     PurchasePriceHistory,
     PurchaseReturn,
 )
+from app.models.bank_reconciliation import BankReconciliation
+from app.models.cash_reconciliation import CashReconciliation
 
 _motor_client: AsyncIOMotorClient | None = None
 
@@ -149,6 +151,8 @@ async def init_db() -> None:
             StockCount,
             PurchasePriceHistory,
             PurchaseReturn,
+            BankReconciliation,
+            CashReconciliation,
         ],
     )
 

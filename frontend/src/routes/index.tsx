@@ -37,6 +37,7 @@ import { StockCountsPage } from '@/pages/stock-count/StockCountsPage';
 import { StockCountFormPage } from '@/pages/stock-count/StockCountFormPage';
 import { StockCountDetailPage } from '@/pages/stock-count/StockCountDetailPage';
 import { StockCountCountPage } from '@/pages/stock-count/StockCountCountPage';
+import { ReconciliationPage } from '@/pages/reconciliation/ReconciliationPage';
 
 export const router = createBrowserRouter([
   // Public catalog routes (no auth)
@@ -106,6 +107,7 @@ export const router = createBrowserRouter([
               { path: '/expenses/new', element: <ExpenseFormPage /> },
               { path: '/expenses/:id/edit', element: <ExpenseFormPage /> },
               { path: '/accounts', element: <AccountsPage /> },
+              { path: '/reconciliation', element: <ReconciliationPage /> },
               { path: '/reports', element: <ReportsPage /> },
               { path: '/reports/daily', element: <DailyReportPage /> },
               { path: '/settings', element: <SettingsPage /> },

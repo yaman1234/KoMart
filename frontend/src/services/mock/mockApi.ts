@@ -100,6 +100,7 @@ let customers = [...mockCustomers];
 let transactions = [...mockTransactions];
 let expenses = [...mockExpenses];
 let dayCloses: import('@/types').DayCloseRecord[] = [];
+let reconciliations: import('@/types').BankReconciliation[] = [];
 /** Keys: `${date}:${wallet}` for posted day-close variance adjustments */
 let dayCloseVariancePosted = new Set<string>();
 
@@ -1541,6 +1542,151 @@ export const mockApi = {
       createdBy: 'Admin User',
       createdAt: new Date().toISOString(),
     };
+  },
+
+  // ── Reconciliation ─────────────────────────────────────────────────────
+  async getReconciliations(params?: {
+    page?: number;
+    pageSize?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<import('@/types').BankReconciliationListResponse> {
+    await delay(250);
+    let filtered = [...reconciliations].sort((a, b) => b.date.localeCompare(a.date));
+    if (params?.startDate) filtered = filtered.filter((r) => r.date >= params.startDate!);
+    if (params?.endDate) filtered = filtered.filter((r) => r.date <= params.endDate!);
+    const page = params?.page ?? 1;
+    const pageSize = params?.pageSize ?? 25;
+    const total = filtered.length;
+    const start = (page - 1) * pageSize;
+    return {
+      data: filtered.slice(start, start + pageSize),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  },
+
+  async getReconciliationByDate(date: string): Promise<import('@/types').BankReconciliation | null> {
+    await delay(150);
+    return reconciliations.find((r) => r.date === date) ?? null;
+  },
+
+  async getReconciliationDayData(date: string): Promise<import('@/types').BankReconciliationDayData> {
+    await delay(200);
+    const dayTxns = transactions.filter(
+      (t) => t.status !== 'voided' && t.createdAt.slice(0, 10) === date,
+    );
+    const dayExpenses = expenses.filter((e) => e.date === date);
+    const normalize = (m: string) => (m === 'card' ? 'bank' : m);
+    const todayBankSalesIn = Math.round(
+      dayTxns
+        .filter((t) => normalize(t.paymentMethod) === 'bank')
+        .reduce((s, t) => s + t.total, 0) * 100,
+    ) / 100;
+    const todayBankExpenses = Math.round(
+      dayExpenses
+        .filter((e) => normalize(e.paymentMethod ?? '') === 'bank')
+        .reduce((s, e) => s + e.amount, 0) * 100,
+    ) / 100;
+    // Find most recent reconciliation before this date
+    const sorted = [...reconciliations]
+      .filter((r) => r.date < date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const previousRecord = sorted[0] ?? null;
+    return { date, todayBankSalesIn, todayBankExpenses,
+      todayTransfersIn: 0, todayTransfersOut: 0,
+      todayAdjustmentsIn: 0, todayAdjustmentsOut: 0,
+      todayCustodyIn: 0, todayCustodyOut: 0,
+      previousRecord };
+  },
+
+  async createReconciliation(
+    payload: import('@/types').BankReconciliationCreatePayload,
+  ): Promise<import('@/types').BankReconciliation> {
+    await delay(300);
+    // If a record already exists for this date, update it instead
+    const existingIdx = reconciliations.findIndex((r) => r.date === payload.date);
+    if (existingIdx !== -1) return this.updateReconciliation(payload.date, payload);
+    const dayData = await this.getReconciliationDayData(payload.date);
+    const prevBank = payload.isInitial
+      ? (payload.previousBankBalance ?? 0)
+      : (dayData.previousRecord?.todayBankBalance ?? 0);
+    const prevFonePay = payload.isInitial
+      ? (payload.previousFonePayBalance ?? 0)
+      : (dayData.previousRecord?.todayFonePayBalance ?? 0);
+    const expected = Math.round(
+      (prevBank + prevFonePay + dayData.todayBankSalesIn + payload.todayOtherBankIn - dayData.todayBankExpenses) * 100,
+    ) / 100;
+    const actual = Math.round((payload.todayBankBalance + payload.todayFonePayBalance) * 100) / 100;
+    const difference = Math.round((actual - expected) * 100) / 100;
+    const now = new Date().toISOString();
+    const record: import('@/types').BankReconciliation = {
+      id: `recon-${generateId().slice(0, 8)}`,
+      date: payload.date,
+      isInitial: payload.isInitial,
+      previousBankBalance: prevBank,
+      previousFonePayBalance: prevFonePay,
+      todayBankSalesIn: dayData.todayBankSalesIn,
+      todayOtherBankIn: payload.todayOtherBankIn,
+      todayBankExpenses: dayData.todayBankExpenses,
+      todayTransfersIn: 0, todayTransfersOut: 0,
+      todayAdjustmentsIn: 0, todayAdjustmentsOut: 0,
+      todayCustodyIn: 0, todayCustodyOut: 0,
+      expectedBalance: expected,
+      todayBankBalance: payload.todayBankBalance,
+      todayFonePayBalance: payload.todayFonePayBalance,
+      actualBalance: actual,
+      difference,
+      status: Math.abs(difference) < 0.01 ? 'reconciled' : 'difference',
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'Admin User',
+    };
+    reconciliations = [record, ...reconciliations];
+    return record;
+  },
+
+  async updateReconciliation(
+    date: string,
+    payload: import('@/types').BankReconciliationCreatePayload,
+  ): Promise<import('@/types').BankReconciliation> {
+    await delay(300);
+    const idx = reconciliations.findIndex((r) => r.date === date);
+    // If not found (e.g. after page reload), fall back to create
+    if (idx === -1) return this.createReconciliation(payload);
+    const dayData = await this.getReconciliationDayData(date);
+    const prevBank = payload.isInitial
+      ? (payload.previousBankBalance ?? 0)
+      : (dayData.previousRecord?.todayBankBalance ?? 0);
+    const prevFonePay = payload.isInitial
+      ? (payload.previousFonePayBalance ?? 0)
+      : (dayData.previousRecord?.todayFonePayBalance ?? 0);
+    const expected = Math.round(
+      (prevBank + prevFonePay + dayData.todayBankSalesIn + payload.todayOtherBankIn - dayData.todayBankExpenses) * 100,
+    ) / 100;
+    const actual = Math.round((payload.todayBankBalance + payload.todayFonePayBalance) * 100) / 100;
+    const difference = Math.round((actual - expected) * 100) / 100;
+    const updated: import('@/types').BankReconciliation = {
+      ...reconciliations[idx],
+      isInitial: payload.isInitial,
+      previousBankBalance: prevBank,
+      previousFonePayBalance: prevFonePay,
+      todayBankSalesIn: dayData.todayBankSalesIn,
+      todayOtherBankIn: payload.todayOtherBankIn,
+      todayBankExpenses: dayData.todayBankExpenses,
+      expectedBalance: expected,
+      todayBankBalance: payload.todayBankBalance,
+      todayFonePayBalance: payload.todayFonePayBalance,
+      actualBalance: actual,
+      difference,
+      status: Math.abs(difference) < 0.01 ? 'reconciled' : 'difference',
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'Admin User',
+    };
+    reconciliations[idx] = updated;
+    return updated;
   },
 
   // ── Discounts ─────────────────────────────────────────────────────────────
