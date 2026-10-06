@@ -52,6 +52,7 @@ export const NAV_ITEMS = [
   { label: 'Purchase Returns', path: '/purchase-returns', icon: 'AssignmentReturn', roles: ['admin', 'manager'] },
   { label: 'Expenses', path: '/expenses', icon: 'AccountBalance', roles: ['admin', 'manager'] },
   { label: 'Accounts', path: '/accounts', icon: 'AccountBalanceWallet', roles: ['admin', 'manager'] },
+  { label: 'Reconciliation', path: '/reconciliation', icon: 'Balance', roles: ['admin', 'manager'] },
   { label: 'Customers', path: '/customers', icon: 'People', roles: ['admin', 'manager', 'cashier'] },
   { label: 'Reports', path: '/reports', icon: 'Assessment', roles: ['admin', 'manager'] },
   { label: 'Notifications', path: '/notifications', icon: 'Notifications', roles: ['admin', 'manager', 'cashier'] },
@@ -273,4 +274,10 @@ export const QUERY_KEYS = {
   stockCounts: ['stockCounts'] as const,
   stockCount: (id: string) => ['stockCounts', id] as const,
   stockCountList: (filters?: string) => ['stockCounts', 'list', filters] as const,
+  reconciliations: ['reconciliations'] as const,
+  reconciliation: (date: string) => ['reconciliations', date] as const,
+  reconciliationDayData: (date: string) => ['reconciliations', 'dayData', date] as const,
+  cashReconciliations: ['cashReconciliations'] as const,
+  cashReconciliation: (date: string) => ['cashReconciliations', date] as const,
+  cashReconciliationDayData: (date: string) => ['cashReconciliations', 'dayData', date] as const,
 } as const;

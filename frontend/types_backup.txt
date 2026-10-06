@@ -1,0 +1,2 @@
+fatal: path 'frontend/src/types/index.ts' exists, but not 'src/types/index.ts'
+hint: Did you mean 'cb2dc09:frontend/src/types/index.ts' aka 'cb2dc09:./src/types/index.ts'?
