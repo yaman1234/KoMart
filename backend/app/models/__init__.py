@@ -22,6 +22,7 @@ from app.models.cache_entry import CacheEntry
 from app.models.cash_custody import CashCustody
 from app.models.stock_count import StockCount
 from app.models.purchase_return import PurchaseReturn
+from app.models.bank_reconciliation import BankReconciliation
 
 __all__ = [
     "User",
@@ -49,4 +50,5 @@ __all__ = [
     "CashCustody",
     "StockCount",
     "PurchaseReturn",
+    "BankReconciliation",
 ]

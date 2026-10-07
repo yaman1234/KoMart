@@ -1086,6 +1086,103 @@ export const stockCountService = {
   },
 };
 
+export const reconciliationService = {
+  getAll: async (params?: {
+    page?: number;
+    pageSize?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<import('@/types').BankReconciliationListResponse> => {
+    if (useMock()) return mockApi.getReconciliations(params);
+    const { data } = await apiClient.get('/reconciliations', { params });
+    return data;
+  },
+  getByDate: async (date: string): Promise<import('@/types').BankReconciliation | null> => {
+    if (useMock()) return mockApi.getReconciliationByDate(date);
+    try {
+      const { data } = await apiClient.get(`/reconciliations/${date}`);
+      return data;
+    } catch {
+      return null;
+    }
+  },
+  getDayData: async (date: string): Promise<import('@/types').BankReconciliationDayData> => {
+    if (useMock()) return mockApi.getReconciliationDayData(date);
+    const { data } = await apiClient.get(`/reconciliations/${date}/day-data`);
+    return data;
+  },
+  create: async (
+    payload: import('@/types').BankReconciliationCreatePayload,
+  ): Promise<import('@/types').BankReconciliation> => {
+    if (useMock()) return mockApi.createReconciliation(payload);
+    const { data } = await apiClient.post('/reconciliations', payload);
+    return data;
+  },
+  update: async (
+    date: string,
+    payload: import('@/types').BankReconciliationCreatePayload,
+  ): Promise<import('@/types').BankReconciliation> => {
+    if (useMock()) return mockApi.updateReconciliation(date, payload);
+    const { data } = await apiClient.put(`/reconciliations/${date}`, payload);
+    return data;
+  },
+};
+
+export const cashReconciliationService = {
+  getAll: async (params?: {
+    page?: number;
+    pageSize?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<import('@/types').CashReconciliationListResponse> => {
+    const { data } = await apiClient.get('/cash-reconciliations', { params });
+    return data;
+  },
+  getByDate: async (date: string): Promise<import('@/types').CashReconciliation | null> => {
+    try {
+      const { data } = await apiClient.get(`/cash-reconciliations/${date}`);
+      return data;
+    } catch {
+      return null;
+    }
+  },
+  getDayData: async (date: string): Promise<import('@/types').CashReconciliationDayData> => {
+    const { data } = await apiClient.get(`/cash-reconciliations/${date}/day-data`);
+    return data;
+  },
+  create: async (
+    payload: import('@/types').CashReconciliationCreatePayload,
+  ): Promise<import('@/types').CashReconciliation> => {
+    const { data } = await apiClient.post('/cash-reconciliations', {
+      date: payload.date,
+      is_initial: payload.isInitial,
+      opening_cash: payload.openingCash,
+      today_other_cash_in: payload.todayOtherCashIn,
+      actual_closing_cash: payload.actualClosingCash,
+      notes: payload.notes,
+      cash_count_mode: payload.cashCountMode,
+      denominations: payload.denominations,
+    });
+    return data;
+  },
+  update: async (
+    date: string,
+    payload: import('@/types').CashReconciliationCreatePayload,
+  ): Promise<import('@/types').CashReconciliation> => {
+    const { data } = await apiClient.put(`/cash-reconciliations/${date}`, {
+      date: payload.date,
+      is_initial: payload.isInitial,
+      opening_cash: payload.openingCash,
+      today_other_cash_in: payload.todayOtherCashIn,
+      actual_closing_cash: payload.actualClosingCash,
+      notes: payload.notes,
+      cash_count_mode: payload.cashCountMode,
+      denominations: payload.denominations,
+    });
+    return data;
+  },
+};
+
 export const auditLogService = {
   getAll: async (params?: AuditLogQueryParams): Promise<PaginatedResponse<AuditLog>> => {
     if (useMock()) return mockApi.getAuditLogs(params);

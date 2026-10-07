@@ -1470,3 +1470,133 @@ export interface AuditLogQueryParams {
   startDate?: string;
   endDate?: string;
 }
+// ── Bank & FonePay Reconciliation ────────────────────────────────────────────
+
+export type ReconciliationStatus = 'reconciled' | 'difference';
+
+export interface BankReconciliation {
+  id: string;
+  date: string;
+  isInitial: boolean;
+  previousBankBalance: number;
+  previousFonePayBalance: number;
+  todayBankSalesIn: number;
+  todayOtherBankIn: number;
+  todayBankExpenses: number;
+  todayTransfersIn: number;
+  todayTransfersOut: number;
+  todayAdjustmentsIn: number;
+  todayAdjustmentsOut: number;
+  todayCustodyIn: number;
+  todayCustodyOut: number;
+  expectedBalance: number;
+  todayBankBalance: number;
+  todayFonePayBalance: number;
+  actualBalance: number;
+  difference: number;
+  status: ReconciliationStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy?: string;
+}
+
+export interface BankReconciliationCreatePayload {
+  date: string;
+  isInitial: boolean;
+  previousBankBalance?: number;
+  previousFonePayBalance?: number;
+  todayOtherBankIn: number;
+  todayBankBalance: number;
+  todayFonePayBalance: number;
+  notes?: string;
+}
+
+export interface BankReconciliationListResponse {
+  data: BankReconciliation[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface BankReconciliationDayData {
+  date: string;
+  todayBankSalesIn: number;
+  todayBankExpenses: number;
+  todayTransfersIn: number;
+  todayTransfersOut: number;
+  todayAdjustmentsIn: number;
+  todayAdjustmentsOut: number;
+  todayCustodyIn: number;
+  todayCustodyOut: number;
+  previousRecord: BankReconciliation | null;
+}
+
+// ── Cash Reconciliation (Daily Cash Book) ────────────────────────────────────
+
+export interface CashDenomination {
+  denomination: number;
+  quantity: number;
+  amount: number;
+}
+
+export interface CashReconciliation {
+  id: string;
+  date: string;
+  isInitial: boolean;
+  openingCash: number;
+  todayCashSalesIn: number;
+  todayOtherCashIn: number;
+  todayCashExpenses: number;
+  todayTransfersIn: number;
+  todayTransfersOut: number;
+  todayAdjustmentsIn: number;
+  todayAdjustmentsOut: number;
+  todayCustodyIn: number;
+  todayCustodyOut: number;
+  expectedClosingCash: number;
+  actualClosingCash: number;
+  difference: number;
+  status: ReconciliationStatus;
+  notes?: string;
+  cashCountMode?: 'direct' | 'denomination';
+  denominations?: CashDenomination[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy?: string;
+}
+
+export interface CashReconciliationCreatePayload {
+  date: string;
+  isInitial: boolean;
+  openingCash?: number;
+  todayOtherCashIn: number;
+  actualClosingCash: number;
+  notes?: string;
+  cashCountMode?: 'direct' | 'denomination';
+  denominations?: CashDenomination[];
+}
+
+export interface CashReconciliationListResponse {
+  data: CashReconciliation[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface CashReconciliationDayData {
+  date: string;
+  todayCashSalesIn: number;
+  todayCashExpenses: number;
+  todayTransfersIn: number;
+  todayTransfersOut: number;
+  todayAdjustmentsIn: number;
+  todayAdjustmentsOut: number;
+  todayCustodyIn: number;
+  todayCustodyOut: number;
+  previousRecord: CashReconciliation | null;
+}

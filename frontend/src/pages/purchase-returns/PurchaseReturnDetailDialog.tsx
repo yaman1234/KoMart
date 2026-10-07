@@ -139,7 +139,7 @@ export function PurchaseReturnDetailDialog({
           <Typography variant="h6" component="span" sx={{ fontWeight: 700, display: 'block' }}>
             {detail.returnNumber}
           </Typography>
-          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+          <Stack direction="row" spacing={0.75} useFlexGap sx={{ mt: 1, flexWrap: 'wrap' }}>
             <Chip
               size="small"
               label={STATUS_LABELS[status] ?? status}
@@ -307,7 +307,7 @@ export function PurchaseReturnDetailDialog({
           justifyContent: 'space-between',
         }}
       >
-        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
           {isRefund && (
             <Button
               size="small"
