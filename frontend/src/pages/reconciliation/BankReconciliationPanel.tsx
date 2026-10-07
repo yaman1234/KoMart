@@ -22,12 +22,11 @@ import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import type { BankReconciliation } from '@/types';
-import { todayIso, shiftDate, LineRow, StatusChip, SectionHeader, ColHeader } from './shared';
+import { todayIso, shiftDate, LineRow, StatusChip, SectionHeader } from './shared';
 
 function BankEntryTab({ onSaved }: { onSaved: () => void }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const formatDate = useFormatDate();
   const [date, setDate] = useState(todayIso);
   const [isInitial, setIsInitial] = useState(false);
   const [initialBank, setInitialBank] = useState('0');
