@@ -20,6 +20,7 @@ from app.models.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
     compute_po_status,
+    line_can_receive,
 )
 from app.models.supplier import Supplier
 from app.models.user import User
@@ -133,6 +134,7 @@ async def _commit_writes(ctx: _ReceiveWriteContext, *, session: Any | None) -> N
             "stock_after": sa,
             "unit_cost": round(cost, 4),
             "extended_cost": round(qty_abs * cost, 2),
+            "batch_number": plan.batch_number,
             "unit_selling_price": product.selling_price,
             "extended_revenue": round(qty_abs * product.selling_price, 2),
             "line_discount": 0.0,
@@ -235,6 +237,12 @@ async def receive_purchase_order_items(
         if buy_delta <= 0:
             continue
 
+        if not line_can_receive(item):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"{item.product_name} is already received",
+            )
+
         remaining_ordered = item.quantity - item.received_quantity
         if buy_delta > remaining_ordered:
             raise HTTPException(
@@ -325,6 +333,10 @@ async def receive_purchase_order_items(
         if plan.landed_cost > 0 and plan.landed_cost != product.cost_price:
             product.cost_price = plan.landed_cost
             pu["cost_price"] = plan.landed_cost
+        new_sp = float(getattr(plan.item, "new_selling_price", 0) or 0)
+        if new_sp > 0 and abs(new_sp - float(product.selling_price or 0)) > 0.0001:
+            product.selling_price = new_sp
+            pu["selling_price"] = new_sp
         plan.batch_number = _batch_number_for_line(
             po.order_number,
             plan.line_index,

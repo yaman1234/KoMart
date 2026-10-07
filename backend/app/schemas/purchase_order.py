@@ -19,6 +19,10 @@ class PurchaseOrderItemResponse(BaseModel):
     order_uom: str = "pcs"
     base_uom: str = "pcs"
     units_per_buy_uom: int = 1
+    snapshot_unit_cost: float = 0.0
+    selling_price: float = 0.0
+    new_selling_price: float = 0.0
+    unit_cost_before_vat: float = 0.0
     line_status: LineStatus
 
 
@@ -32,6 +36,10 @@ def item_to_response(item: PurchaseOrderItem) -> PurchaseOrderItemResponse:
         order_uom=getattr(item, "order_uom", None) or "pcs",
         base_uom=getattr(item, "base_uom", None) or "pcs",
         units_per_buy_uom=getattr(item, "units_per_buy_uom", None) or 1,
+        snapshot_unit_cost=float(getattr(item, "snapshot_unit_cost", 0) or 0),
+        selling_price=float(getattr(item, "selling_price", 0) or 0),
+        new_selling_price=float(getattr(item, "new_selling_price", 0) or 0),
+        unit_cost_before_vat=float(getattr(item, "unit_cost_before_vat", 0) or 0),
         line_status=line_status(item),
     )
 
@@ -49,6 +57,7 @@ class PurchaseOrderCreate(BaseModel):
     ordered_by: Optional[str] = None
     bill_number: Optional[str] = None
     bill_images: list[str] = Field(default_factory=list)
+    vat_bill: bool = False
 
 
 class PurchaseOrderUpdate(BaseModel):
@@ -64,6 +73,7 @@ class PurchaseOrderUpdate(BaseModel):
     ordered_by: Optional[str] = None
     bill_number: Optional[str] = None
     bill_images: list[str] = Field(default_factory=list)
+    vat_bill: bool = False
 
 
 class PurchaseOrderStatusUpdate(BaseModel):
@@ -142,6 +152,7 @@ class PurchaseOrderResponse(BaseModel):
     received_date: Optional[str]
     bill_number: Optional[str] = None
     bill_images: list[str] = Field(default_factory=list)
+    vat_bill: bool = False
     created_at: str
     updated_at: str
 

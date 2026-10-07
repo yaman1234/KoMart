@@ -8,7 +8,13 @@ export interface PoLineItem {
   quantityInput: string;
   buyUom: string;
   unitsPerBuyUom: number;
+  /** User edited units per pack; do not overwrite from the product. */
+  unitsPerPackTouched?: boolean;
   unitCost: number;
+  unitCostBeforeVat: number;
+  snapshotUnitCost: number;
+  sellingPrice: number;
+  newSellingPrice: number;
   /** Last received purchase Unit Cost (buy/pack UOM); null = none / first buy */
   lastPurchaseUnitCost?: number | null;
   receivedQuantity: number;
@@ -25,6 +31,10 @@ export function emptyPoLineItem(id: number, primaryUom = ''): PoLineItem {
     buyUom: primaryUom,
     unitsPerBuyUom: 1,
     unitCost: 0,
+    unitCostBeforeVat: 0,
+    snapshotUnitCost: 0,
+    sellingPrice: 0,
+    newSellingPrice: 0,
     receivedQuantity: 0,
   };
 }

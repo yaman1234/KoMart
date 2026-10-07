@@ -19,6 +19,7 @@ class BatchDeduction:
     batch_id: str
     quantity: int
     unit_cost: float = 0.0
+    batch_number: str = ""
 
 
 def batch_unit_cost(batch: InventoryBatch, product: Product | None) -> float:
@@ -182,6 +183,7 @@ async def deduct_stock_fefo(product_id: str, quantity: int) -> list[BatchDeducti
             batch_id=str(batch.id),
             quantity=deduct,
             unit_cost=batch_unit_cost(batch, product),
+            batch_number=batch.batch_number or "",
         ))
         remaining -= deduct
 
@@ -228,6 +230,7 @@ async def _insert_adjustment(
     stock_before: int,
     stock_after: int,
     batch_id: str | None = None,
+    batch_number: str = "",
     transaction_id: str | None = None,
     reference_type: str = "",
     reference_id: str = "",
@@ -246,6 +249,7 @@ async def _insert_adjustment(
         product_name=product.name,
         product_sku=product.sku,
         batch_id=batch_id,
+        batch_number=(batch_number or "").strip(),
         transaction_id=transaction_id,
         reference_type=reference_type,
         reference_id=reference_id,
@@ -271,6 +275,22 @@ class SignedBatchMove:
     batch_id: str | None
     quantity: int
     unit_cost: float = 0.0
+    batch_number: str = ""
+
+
+async def _lookup_batch_numbers(batch_ids: set[str]) -> dict[str, str]:
+    oids: list[BsonObjectId] = []
+    for bid in batch_ids:
+        if not bid:
+            continue
+        try:
+            oids.append(BsonObjectId(bid))
+        except Exception:
+            continue
+    if not oids:
+        return {}
+    batches = await InventoryBatch.find({"_id": {"$in": oids}}).to_list()
+    return {str(b.id): (b.batch_number or "") for b in batches}
 
 
 async def log_signed_batch_moves(
@@ -292,8 +312,15 @@ async def log_signed_batch_moves(
     rows: list[StockAdjustment] = []
     running = stock_before
     pending = [m for m in moves if m.quantity != 0]
+    missing_ids = {
+        m.batch_id
+        for m in pending
+        if m.batch_id and not (m.batch_number or "").strip()
+    }
+    names = await _lookup_batch_numbers(missing_ids) if missing_ids else {}
     for index, move in enumerate(pending):
         after = running + move.quantity
+        batch_number = (move.batch_number or "").strip() or names.get(move.batch_id or "", "")
         row = await record_inventory_change(
             product=product,
             quantity=move.quantity,
@@ -303,6 +330,7 @@ async def log_signed_batch_moves(
             stock_before=running,
             stock_after=after,
             batch_id=move.batch_id,
+            batch_number=batch_number,
             transaction_id=transaction_id,
             reference_type=reference_type,
             reference_id=reference_id,
@@ -341,6 +369,7 @@ async def record_inventory_change(
     stock_before: int,
     stock_after: int,
     batch_id: str | None = None,
+    batch_number: str = "",
     transaction_id: str | None = None,
     reference_type: str = "",
     reference_id: str = "",
@@ -368,6 +397,7 @@ async def record_inventory_change(
         stock_before=stock_before,
         stock_after=stock_after,
         batch_id=batch_id,
+        batch_number=batch_number,
         transaction_id=transaction_id,
         reference_type=ref_type,
         reference_id=ref_id,
@@ -433,6 +463,7 @@ async def receive_stock(
         stock_before=stock_before,
         stock_after=stock_after,
         batch_id=str(batch.id),
+        batch_number=batch.batch_number or batch_number,
         reference_type=ref_type,
         reference_id=ref_id,
         unit_cost=landed_cost,
@@ -461,6 +492,7 @@ async def adjust_stock(
 
     stock_before = await get_current_stock(product_id)
     affected_batch_id = batch_id
+    ledger_batch_number = ""
 
     if batch_id:
         batch = await InventoryBatch.get(batch_id)
@@ -480,6 +512,7 @@ async def adjust_stock(
             {"_id": batch.id},
             {"$set": {"quantity": new_qty}},
         )
+        ledger_batch_number = batch.batch_number or ""
     elif quantity < 0:
         await deduct_stock_fefo(product_id, abs(quantity))
     else:
@@ -492,6 +525,7 @@ async def adjust_stock(
         )
         await batch.insert()
         affected_batch_id = str(batch.id)
+        ledger_batch_number = batch.batch_number or ""
 
     stock_after = await get_current_stock(product_id)
     actual_qty = stock_after - stock_before
@@ -514,6 +548,7 @@ async def adjust_stock(
         stock_before=stock_before,
         stock_after=stock_after,
         batch_id=affected_batch_id,
+        batch_number=ledger_batch_number,
         reference_type=adjustment_type.value,
         reference_id=affected_batch_id or "",
         unit_cost=product.cost_price,

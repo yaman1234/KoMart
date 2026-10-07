@@ -47,17 +47,32 @@ export function searchProducts(
   return matches;
 }
 
+function productPackUnits(product: Product): number {
+  const units = product.unitsPerBuyUom ?? 1;
+  return units >= 1 ? units : 1;
+}
+
 export function applyProductToLine(line: PoLineItem, product: Product): PoLineItem {
+  const productChanged = !line.product || line.product.id !== product.id;
+  const units = !productChanged && line.unitsPerPackTouched
+    ? Math.max(1, line.unitsPerBuyUom || 1)
+    : productPackUnits(product);
+  const packCost = product.costPrice * units;
+  const catalogPackCost = product.costPrice * productPackUnits(product);
+  const keepCosts = !productChanged && line.unitCost > 0;
   return {
     ...line,
     skuInput: product.sku || product.name,
     product,
     productNameFallback: product.name,
-    buyUom: line.buyUom || product.buyUom || product.uom || '',
-    unitsPerBuyUom: line.unitsPerBuyUom || product.unitsPerBuyUom || 1,
-    unitCost: line.unitCost > 0
-      ? line.unitCost
-      : product.costPrice * (product.unitsPerBuyUom ?? 1),
+    buyUom: productChanged ? (product.buyUom || product.uom || line.buyUom || '') : (line.buyUom || product.buyUom || product.uom || ''),
+    unitsPerBuyUom: units,
+    unitsPerPackTouched: productChanged ? false : line.unitsPerPackTouched,
+    unitCost: keepCosts ? line.unitCost : packCost,
+    unitCostBeforeVat: keepCosts && line.unitCostBeforeVat > 0 ? line.unitCostBeforeVat : packCost,
+    snapshotUnitCost: productChanged || !(line.snapshotUnitCost > 0) ? catalogPackCost : line.snapshotUnitCost,
+    sellingPrice: productChanged || !(line.sellingPrice > 0) ? product.sellingPrice : line.sellingPrice,
+    newSellingPrice: productChanged ? product.sellingPrice : (line.newSellingPrice ?? product.sellingPrice),
     resolveError: undefined,
   };
 }

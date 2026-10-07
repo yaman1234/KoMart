@@ -2,15 +2,27 @@ export const PO_LABELS = {
   sku: 'SKU',
   product: 'Product',
   packQty: 'Pack qty',
+  packQtyHint: 'How many packs',
   buyUom: 'Primary Unit',
   unitsPerPack: 'Units per pack',
+  unitsPerPackHint: 'Pieces inside one pack',
   totalUnits: 'Total units',
   ordered: 'Ordered',
   received: 'Received',
+  existingCost: 'Existing cost',
+  existingCostHint: 'Product cost / pack',
+  sellingPrice: 'Selling price',
+  sellingPriceHint: 'Current price',
+  newSellingPrice: 'New selling price',
+  unitCostBeforeVat: 'Before VAT',
   unitCost: 'Unit cost',
   lineTotal: 'Line total',
   expiryOptional: 'Expiry (optional)',
+  alreadyReceived: 'Already received',
 } as const;
+
+export const PO_PACKING_NOTE =
+  'Pack qty × units per pack = total units added to stock. Example: 12 packs × 5 = 60 units.';
 
 export const PO_PASTE_HINT = `${PO_LABELS.sku} · ${PO_LABELS.product} · ${PO_LABELS.packQty} · ${PO_LABELS.buyUom} · ${PO_LABELS.unitsPerPack} · ${PO_LABELS.unitCost}`;
 

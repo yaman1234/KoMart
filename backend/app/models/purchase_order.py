@@ -77,6 +77,11 @@ class PurchaseOrderItem(BaseModel):
     order_uom: str = "pcs"
     base_uom: str = "pcs"
     units_per_buy_uom: int = Field(default=1, ge=1)
+    # Product cost (pack UOM) and selling price captured when the line was written.
+    snapshot_unit_cost: float = Field(default=0.0, ge=0)
+    selling_price: float = Field(default=0.0, ge=0)
+    new_selling_price: float = Field(default=0.0, ge=0)
+    unit_cost_before_vat: float = Field(default=0.0, ge=0)
 
     @field_validator("product_id", "product_name", mode="before")
     @classmethod
@@ -94,7 +99,14 @@ class PurchaseOrderItem(BaseModel):
             return 1
         return n if n >= 1 else 1
 
-    @field_validator("unit_cost", mode="before")
+    @field_validator(
+        "unit_cost",
+        "snapshot_unit_cost",
+        "selling_price",
+        "new_selling_price",
+        "unit_cost_before_vat",
+        mode="before",
+    )
     @classmethod
     def _coerce_unit_cost(cls, v: Any) -> Any:
         if v is None:
@@ -135,6 +147,11 @@ class PurchaseOrderItem(BaseModel):
     @property
     def base_quantity_ordered(self) -> int:
         return self.quantity * self.units_per_buy_uom
+
+
+def line_can_receive(item: PurchaseOrderItem) -> bool:
+    """False once the ordered pack qty has already been received."""
+    return item.received_quantity < item.quantity
 
 
 def line_status(item: PurchaseOrderItem) -> LineStatus:
@@ -196,6 +213,7 @@ class PurchaseOrder(Document):
     received_date: Optional[str] = None
     bill_number: Optional[str] = None
     bill_images: list[str] = Field(default_factory=list)
+    vat_bill: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -237,6 +255,17 @@ class PurchaseOrder(Document):
         except (TypeError, ValueError):
             return 0.0
         return n if n >= 0 else 0.0
+
+    @field_validator("vat_bill", mode="before")
+    @classmethod
+    def _coerce_vat_bill(cls, v: Any) -> bool:
+        if v is None or v == "":
+            return False
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return bool(v)
+        return str(v).strip().lower() in {"1", "true", "yes", "y"}
 
     @field_validator("bill_number", mode="before")
     @classmethod

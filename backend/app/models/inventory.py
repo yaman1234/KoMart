@@ -42,6 +42,7 @@ class StockAdjustment(Document):
     product_name: str = ""
     product_sku: str = ""
     batch_id: Optional[str] = None
+    batch_number: str = ""
     transaction_id: Optional[str] = None
     reference_type: str = ""
     reference_id: str = ""
