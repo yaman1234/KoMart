@@ -5,13 +5,22 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+      {
+        find: /^react-transition-group\/TransitionGroupContext$/,
+        replacement: path.resolve(__dirname, './node_modules/react-transition-group/esm/TransitionGroupContext.js'),
+      },
+    ],
   },
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    server: {
+      deps: {
+        inline: ['@mui/material'],
+      },
+    },
   },
   server: {
     port: 5173,

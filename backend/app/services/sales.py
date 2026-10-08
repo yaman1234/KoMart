@@ -336,6 +336,7 @@ async def record_sale(
                     batch_id=d.batch_id,
                     quantity=d.quantity,
                     unit_cost=d.unit_cost,
+                    batch_number=d.batch_number,
                 )
                 for d in deductions
             ]
@@ -538,6 +539,7 @@ async def reallocate_batches(txn: Transaction, new_items: list[dict]) -> dict[st
                         batch_id=d.batch_id,
                         quantity=d.quantity,
                         unit_cost=d.unit_cost,
+                        batch_number=d.batch_number,
                     )
                     for d in deductions
                 ]

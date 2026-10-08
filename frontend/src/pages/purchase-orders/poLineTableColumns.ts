@@ -1,3 +1,9 @@
+/** Column width constants for the PO create-form and detail-page flat tables.
+ *
+ * The create-form table no longer renders sell-UOM / sell-mode / existing-cost /
+ * selling-price columns — those values stay on the line for the payload and are
+ * only shown on the detail (receive) table. */
+
 export const PO_FORM_COLUMNS = {
   sn: 36,
   sku: 110,
@@ -5,11 +11,8 @@ export const PO_FORM_COLUMNS = {
   qty: 88,
   buyUom: 88,
   unitsPerPack: 96,
-  existingCost: 96,
-  sellingPrice: 96,
-  newSellingPrice: 104,
-  beforeVat: 96,
   unitCost: 96,
+  beforeVat: 96,
   lineTotal: 88,
   actions: 40,
 } as const;
@@ -22,11 +25,8 @@ export function poFormColWidths(vatBill = false): number[] {
     PO_FORM_COLUMNS.qty,
     PO_FORM_COLUMNS.buyUom,
     PO_FORM_COLUMNS.unitsPerPack,
-    PO_FORM_COLUMNS.existingCost,
-    PO_FORM_COLUMNS.sellingPrice,
-    PO_FORM_COLUMNS.newSellingPrice,
-    ...(vatBill ? [PO_FORM_COLUMNS.beforeVat] : []),
     PO_FORM_COLUMNS.unitCost,
+    ...(vatBill ? [PO_FORM_COLUMNS.beforeVat] : []),
     PO_FORM_COLUMNS.lineTotal,
     PO_FORM_COLUMNS.actions,
   ];
@@ -47,15 +47,15 @@ export const PO_DETAIL_FLAT_COLUMNS = {
   totalUnits: 88,
   expiry: 90,
   status: 110,
-  existingCost: 96,
-  sellingPrice: 96,
-  newSellingPrice: 104,
-  beforeVat: 96,
-  unitCost: 90,
+  buyPrice: 96,
+  sellPrice: 96,
+  sellPcs: 96,
+  lastBuy: 96,
   lineTotal: 100,
 } as const;
 
 export function poDetailFlatColWidths(canReceive: boolean, vatBill = false): number[] {
+  void vatBill;
   const widths: number[] = [
     ...(canReceive ? [PO_DETAIL_FLAT_COLUMNS.checkbox] : []),
     PO_DETAIL_FLAT_COLUMNS.sn,
@@ -75,16 +75,16 @@ export function poDetailFlatColWidths(canReceive: boolean, vatBill = false): num
   }
   widths.push(
     PO_DETAIL_FLAT_COLUMNS.status,
-    PO_DETAIL_FLAT_COLUMNS.existingCost,
-    PO_DETAIL_FLAT_COLUMNS.sellingPrice,
-    PO_DETAIL_FLAT_COLUMNS.newSellingPrice,
-    ...(vatBill ? [PO_DETAIL_FLAT_COLUMNS.beforeVat] : []),
-    PO_DETAIL_FLAT_COLUMNS.unitCost,
+    PO_DETAIL_FLAT_COLUMNS.buyPrice,
+    PO_DETAIL_FLAT_COLUMNS.sellPrice,
+    PO_DETAIL_FLAT_COLUMNS.sellPcs,
+    PO_DETAIL_FLAT_COLUMNS.lastBuy,
     PO_DETAIL_FLAT_COLUMNS.lineTotal,
   );
   return widths;
 }
 
 export function poDetailTableMinWidth(canReceive: boolean, vatBill = false): number {
-  return poDetailFlatColWidths(canReceive, vatBill).reduce((sum, w) => sum + w, 0);
+  void vatBill;
+  return poDetailFlatColWidths(canReceive).reduce((sum, w) => sum + w, 0);
 }

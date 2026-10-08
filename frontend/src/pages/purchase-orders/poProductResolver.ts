@@ -1,6 +1,7 @@
 import type { Product } from '@/types';
 import type { PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { emptyPoLineItem } from '@/pages/purchase-orders/poFormTypes';
+import { defaultSellUomFor, packSellOption } from '@/utils/uomSell';
 
 export interface ProductCatalogIndex {
   bySku: Map<string, Product>;
@@ -60,6 +61,13 @@ export function applyProductToLine(line: PoLineItem, product: Product): PoLineIt
   const packCost = product.costPrice * units;
   const catalogPackCost = product.costPrice * productPackUnits(product);
   const keepCosts = !productChanged && line.unitCost > 0;
+  const buyUom = (product.buyUom || '').trim();
+  const seededSellMode = product.sellMode ?? 'unit';
+  const seededSellUom = defaultSellUomFor(product);
+  const seededNewSellingPrice =
+    seededSellUom === buyUom && buyUom
+      ? packSellOption(product)?.price ?? product.sellingPrice
+      : product.sellingPrice;
   return {
     ...line,
     skuInput: product.sku || product.name,
@@ -68,11 +76,13 @@ export function applyProductToLine(line: PoLineItem, product: Product): PoLineIt
     buyUom: productChanged ? (product.buyUom || product.uom || line.buyUom || '') : (line.buyUom || product.buyUom || product.uom || ''),
     unitsPerBuyUom: units,
     unitsPerPackTouched: productChanged ? false : line.unitsPerPackTouched,
+    sellMode: productChanged ? seededSellMode : line.sellMode || seededSellMode,
+    sellUom: productChanged ? seededSellUom : line.sellUom || seededSellUom,
     unitCost: keepCosts ? line.unitCost : packCost,
     unitCostBeforeVat: keepCosts && line.unitCostBeforeVat > 0 ? line.unitCostBeforeVat : packCost,
     snapshotUnitCost: productChanged || !(line.snapshotUnitCost > 0) ? catalogPackCost : line.snapshotUnitCost,
     sellingPrice: productChanged || !(line.sellingPrice > 0) ? product.sellingPrice : line.sellingPrice,
-    newSellingPrice: productChanged ? product.sellingPrice : (line.newSellingPrice ?? product.sellingPrice),
+    newSellingPrice: productChanged ? seededNewSellingPrice : (line.newSellingPrice ?? product.sellingPrice),
     resolveError: undefined,
   };
 }

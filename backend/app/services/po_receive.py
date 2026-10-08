@@ -27,6 +27,7 @@ from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderReceiveItem
 from app.services.audit import log_audit, po_snapshot
 from app.services.inventory_sync import log_receive_price_change
+from app.services.po_product_sync import compute_uom_changes
 
 
 @dataclass
@@ -214,6 +215,15 @@ async def receive_purchase_order_items(
             detail="Only ordered or partially received purchase orders can be processed",
         )
 
+    if not (po.bill_number or "").strip() or not po.bill_images:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Bill number and bill photos are required before processing "
+                "this purchase order. Attach them via Edit bill."
+            ),
+        )
+
     if not receive_items:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No items to receive")
 
@@ -312,6 +322,10 @@ async def receive_purchase_order_items(
             "selling_price": product_map[pid].selling_price,
             "supplier_id": product_map[pid].supplier_id,
             "supplier_name": product_map[pid].supplier_name,
+            "buy_uom": product_map[pid].buy_uom,
+            "uom": product_map[pid].uom,
+            "units_per_buy_uom": product_map[pid].units_per_buy_uom,
+            "sell_mode": product_map[pid].sell_mode,
             "updated_at": product_map[pid].updated_at,
         }
         for pid in product_ids
@@ -330,6 +344,20 @@ async def receive_purchase_order_items(
         plan.landed_cost = round(cost_per_buy / units, 4) if units else cost_per_buy
 
         pu = product_field_updates.setdefault(pid, {})
+        received_units = int(getattr(plan.receive, "units_per_buy_uom", None) or 0)
+        if received_units and received_units != int(
+            getattr(plan.item, "units_per_buy_uom", 1) or 1
+        ):
+            # Delivered pack size differs from the ordered one — follow it.
+            pu.update(
+                compute_uom_changes(
+                    product,
+                    getattr(plan.item, "order_uom", "") or "",
+                    getattr(plan.item, "sell_uom", "") or "",
+                    received_units,
+                    getattr(plan.item, "sell_mode", "") or "",
+                )
+            )
         if plan.landed_cost > 0 and plan.landed_cost != product.cost_price:
             product.cost_price = plan.landed_cost
             pu["cost_price"] = plan.landed_cost

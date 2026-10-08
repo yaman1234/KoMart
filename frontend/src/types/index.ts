@@ -427,6 +427,10 @@ export interface PurchaseOrderItem {
   newSellingPrice?: number;
   /** Editable pack cost before VAT when the PO is a VAT bill. */
   unitCostBeforeVat?: number;
+  /** Per-line sell unit override (buy UOM or base UOM). */
+  sellUom?: string;
+  /** Per-line sell mode override. */
+  sellMode?: 'unit' | 'piece' | 'both';
   lineStatus?: PurchaseOrderLineStatus;
 }
 

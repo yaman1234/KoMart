@@ -26,6 +26,8 @@ import {
 } from '@/utils';
 import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
 import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
+import { SELL_MODE_OPTIONS } from '@/constants';
+import { useUomOptions } from '@/hooks/useUoms';
 import type { Product } from '@/types';
 
 interface ProductQuickViewDialogProps {
@@ -42,6 +44,7 @@ export function ProductQuickViewDialog({
   discountLabel,
 }: ProductQuickViewDialogProps) {
   const user = useAuthStore((s) => s.user);
+  const uomOptions = useUomOptions();
   const canSeeCostPrice = isAdminOrManager(user?.role);
 
   if (!product) return null;
@@ -65,15 +68,21 @@ export function ProductQuickViewDialog({
     { label: 'Category', value: product.category },
     { label: 'Country', value: product.countryOfOrigin },
     { label: 'Supplier', value: product.supplierName ?? '—' },
-    { label: 'Primary Unit', value: uomLabel(product.buyUom ?? product.uom ?? '') || '—' },
-    { label: 'Secondary Unit', value: uomLabel(product.uom ?? '') || '—' },
+    { label: 'Buy Unit', value: uomLabel(product.buyUom ?? product.uom ?? '', uomOptions) || '—' },
+    { label: 'Sell Unit', value: uomLabel(product.uom ?? '', uomOptions) || '—' },
     {
       label: 'Conversion',
       value: formatConversion(
         product.buyUom ?? '',
         product.uom ?? '',
         product.unitsPerBuyUom ?? 1,
+        uomOptions,
       ) || '—',
+    },
+    {
+      label: 'Sell mode',
+      value:
+        SELL_MODE_OPTIONS.find((o) => o.value === product.sellMode)?.label ?? '—',
     },
   ];
 
@@ -112,7 +121,7 @@ export function ProductQuickViewDialog({
               minHeight: { xs: 200, sm: 320 },
             }}
           >
-            {product.images[0] ? (
+            {product.images?.[0] ? (
               <Box
                 component="img"
                 src={product.images[0]}
@@ -189,7 +198,7 @@ export function ProductQuickViewDialog({
                 )}
               </Box>
               <Chip
-                label={formatStockQty(product.stock, product.uom ?? '')}
+                label={formatStockQty(product.stock, product.uom ?? '', uomOptions)}
                 color={stockStatus.color}
                 size="small"
                 sx={{ fontWeight: 600 }}
@@ -220,6 +229,7 @@ export function ProductQuickViewDialog({
                 buyUom={product.buyUom ?? product.uom ?? ''}
                 baseUom={product.uom ?? ''}
                 factor={product.unitsPerBuyUom ?? 1}
+                uomOptions={uomOptions}
               />
             </Box>
 

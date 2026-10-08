@@ -18,16 +18,17 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { Tooltip } from '@mui/material';
 import { productService } from '@/services';
 import { useUomOptions } from '@/hooks/useUoms';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, uomLabel } from '@/utils';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { showSuccess } from '@/utils/toast';
 import { ProductCreateDialog } from '@/components/products/ProductCreateDialog';
+import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
 import type { Product } from '@/types';
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
 import {
@@ -44,6 +45,8 @@ import {
 } from '@/pages/purchase-orders/poProductResolver';
 import { PO_LABELS, PO_PACKING_NOTE, PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
 import { applyVatToUnitCost, packTotalUnits } from '@/pages/purchase-orders/poPricing';
+import { packSellOption, sellUomOptionsFor } from '@/utils/uomSell';
+import { SELL_MODE_OPTIONS } from '@/constants';
 import { PoProductAutocompleteCell } from '@/pages/purchase-orders/components/PoProductAutocompleteCell';
 
 const EDITABLE_COLS = [0, 1, 2, 3, 4, 5] as const;
@@ -105,6 +108,22 @@ function poCellKeyDown(
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
   return Number.isNaN(n) || n < 1 ? 1 : n;
+}
+
+/** Convert a per-sell-unit selling price when the sell unit changes (pack ↔ piece). */
+function convertSellingPrice(
+  line: PoLineItem,
+  from: string,
+  to: string,
+): number {
+  const product = line.product;
+  if (!product || line.newSellingPrice <= 0 || from === to) return line.newSellingPrice;
+  const units = line.unitsPerBuyUom || 1;
+  if (units <= 1) return line.newSellingPrice;
+  const buy = (product.buyUom || '').trim();
+  if (from === buy && to !== buy) return line.newSellingPrice / units;
+  if (to === buy && from !== buy) return line.newSellingPrice * units;
+  return line.newSellingPrice;
 }
 
 function lineFromPaste(
@@ -209,10 +228,6 @@ function HeaderLabel({ label, hint }: { label: string; hint?: string }) {
   );
 }
 
-function moneyOrDash(value: number): string {
-  return value > 0 ? formatCurrency(value) : '—';
-}
-
 export function PoLineItemsGrid({
   lines,
   onChange,
@@ -229,6 +244,7 @@ export function PoLineItemsGrid({
   const [focusedRow, setFocusedRow] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForLineIndex, setCreateForLineIndex] = useState(0);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef(lines);
   linesRef.current = lines;
@@ -236,6 +252,16 @@ export function PoLineItemsGrid({
   const nextId = () => {
     nextIdRef.current += 1;
     return nextIdRef.current;
+  };
+
+  const handleViewProduct = (product: Product) => {
+    setQuickViewProduct(product);
+    void productService
+      .getById(product.id)
+      .then((full) => {
+        setQuickViewProduct((current) => (current?.id === full.id ? full : current));
+      })
+      .catch(() => {});
   };
 
   const emptyLine = () => emptyPoLineItem(nextId(), primaryUom);
@@ -432,6 +458,7 @@ export function PoLineItemsGrid({
             tableLayout: 'fixed',
             minWidth: poFormTableMinWidth(vatBill),
             borderCollapse: 'collapse',
+            '& .MuiTableCell-root': { overflow: 'hidden' },
           }}
         >
           <colgroup>
@@ -441,28 +468,33 @@ export function PoLineItemsGrid({
           </colgroup>
           <TableHead>
             <TableRow>
-              <TableCell align="center" sx={headerSx}>#</TableCell>
+              <TableCell align="center" sx={headerSx}>{PO_LABELS.sn}</TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.sku}</TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.product}</TableCell>
               <TableCell align="right" sx={headerSx}>
                 <HeaderLabel label={PO_LABELS.packQty} hint={PO_LABELS.packQtyHint} />
               </TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.buyUom}</TableCell>
+              <TableCell sx={headerSx}>{PO_LABELS.sellUom}</TableCell>
+              <TableCell sx={headerSx}>{PO_LABELS.sellMode}</TableCell>
               <TableCell align="right" sx={headerSx}>
                 <HeaderLabel label={PO_LABELS.unitsPerPack} hint={PO_LABELS.unitsPerPackHint} />
               </TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.totalUnits}</TableCell>
               <TableCell align="right" sx={headerSx}>
                 <HeaderLabel label={PO_LABELS.existingCost} hint={PO_LABELS.existingCostHint} />
               </TableCell>
               <TableCell align="right" sx={headerSx}>
                 <HeaderLabel label={PO_LABELS.sellingPrice} hint={PO_LABELS.sellingPriceHint} />
               </TableCell>
-              <TableCell align="right" sx={headerSx}>{PO_LABELS.newSellingPrice}</TableCell>
+              <TableCell align="right" sx={headerSx}>
+                <HeaderLabel label={PO_LABELS.newSellingPrice} hint={PO_LABELS.newSellingPriceHint} />
+              </TableCell>
               {vatBill && (
                 <TableCell align="right" sx={headerSx}>{PO_LABELS.unitCostBeforeVat}</TableCell>
               )}
               <TableCell align="right" sx={headerSx}>
-                <HeaderLabel label={PO_LABELS.unitCost} hint={vatBill ? 'Includes VAT' : undefined} />
+                <HeaderLabel label={PO_LABELS.unitCost} hint={vatBill ? 'Includes VAT' : PO_LABELS.unitCostHint} />
               </TableCell>
               <TableCell align="right" sx={headerSx}>{PO_LABELS.lineTotal}</TableCell>
               <TableCell sx={headerSx} />
@@ -470,11 +502,11 @@ export function PoLineItemsGrid({
           </TableHead>
           <TableBody>
             {lines.map((line, index) => {
-              const qty = parseQuantity(line.quantityInput);
-              const locked = line.receivedQuantity > 0;
-              const lineReady = Boolean(line.product || line.skuInput.trim());
-              const totalUnits = packTotalUnits(qty, line.unitsPerBuyUom);
-              const lineTotal = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
+               const qty = parseQuantity(line.quantityInput);
+               const locked = line.receivedQuantity > 0;
+               const lineReady = Boolean(line.product || line.skuInput.trim());
+               const totalUnits = packTotalUnits(qty, line.unitsPerBuyUom);
+               const lineTotal = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
 
               return (
                 <TableRow
@@ -518,15 +550,17 @@ export function PoLineItemsGrid({
                         />
                       </Box>
                       {line.product && (
-                        <IconButton
-                          size="small"
-                          aria-label="Open product details"
-                          title="Product details"
-                          onClick={() => window.open(`/products/${line.product!.id}`, '_blank')}
-                          sx={{ mt: 0.25 }}
-                        >
-                          <OpenInNewIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
+                        <Tooltip title="View product details">
+                          <IconButton
+                            size="small"
+                            aria-label="View product details"
+                            title="View product details"
+                            onClick={() => handleViewProduct(line.product!)}
+                            sx={{ mt: 0.25, flexShrink: 0 }}
+                          >
+                            <VisibilityIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
                       )}
                     </Box>
                   </TableCell>
@@ -553,11 +587,6 @@ export function PoLineItemsGrid({
                         },
                       }}
                     />
-                    {lineReady && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', px: 0.5, lineHeight: 1.2 }}>
-                        {qty} × {line.unitsPerBuyUom} = {totalUnits}
-                      </Typography>
-                    )}
                   </TableCell>
                   <TableCell sx={cellPadSx}>
                     <TextField
@@ -575,6 +604,64 @@ export function PoLineItemsGrid({
                       }}
                     >
                       {uomOptions.map((o) => (
+                        <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </TableCell>
+                  <TableCell sx={cellPadSx}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={line.sellUom}
+                      disabled={locked || !lineReady}
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) => {
+                        const nextSellUom = e.target.value;
+                        updateLine(index, {
+                          sellUom: nextSellUom,
+                          newSellingPrice: convertSellingPrice(line, line.sellUom, nextSellUom),
+                        });
+                      }}
+                      sx={excelCellSx}
+                    >
+                      {(line.product
+                        ? sellUomOptionsFor(line.product, line.sellMode, uomOptions)
+                        : []
+                      ).map((o) => (
+                        <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </TableCell>
+                  <TableCell sx={cellPadSx}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={line.sellMode}
+                      disabled={locked || !lineReady}
+                      onFocus={() => setFocusedRow(index)}
+                      onChange={(e) => {
+                        const mode = e.target.value as PoLineItem['sellMode'];
+                        const options = line.product
+                          ? sellUomOptionsFor(line.product, mode, uomOptions)
+                          : [];
+                        const valid = options.some((o) => o.value === line.sellUom);
+                        const nextSellUom =
+                          valid || options.length === 0 ? line.sellUom : options[0].value;
+                        updateLine(index, {
+                          sellMode: mode,
+                          ...(nextSellUom !== line.sellUom
+                            ? {
+                                sellUom: nextSellUom,
+                                newSellingPrice: convertSellingPrice(line, line.sellUom, nextSellUom),
+                              }
+                            : {}),
+                        });
+                      }}
+                      sx={excelCellSx}
+                    >
+                      {SELL_MODE_OPTIONS.map((o) => (
                         <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                       ))}
                     </TextField>
@@ -604,22 +691,48 @@ export function PoLineItemsGrid({
                         },
                       }}
                     />
-                    {lineReady && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', px: 0.5, lineHeight: 1.2 }}>
-                        {totalUnits} units
-                      </Typography>
-                    )}
                   </TableCell>
-                  <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-                      {line.product ? moneyOrDash(line.snapshotUnitCost) : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-                      {line.product ? moneyOrDash(line.sellingPrice) : '—'}
-                    </Typography>
-                  </TableCell>
+                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
+                     <Typography
+                       variant="body2"
+                       sx={{ fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}
+                     >
+                       {lineReady
+                         ? `${line.sellUom === line.buyUom ? qty : totalUnits} ${uomLabel(line.sellUom, uomOptions)}`
+                         : '—'}
+                     </Typography>
+                   </TableCell>
+                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
+                     <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' }}>
+                       {line.product
+                         ? line.snapshotUnitCost > 0
+                           ? (() => {
+                               const units = line.unitsPerBuyUom || 1;
+                               const perSellUnit =
+                                 units > 1 && line.sellUom && line.sellUom !== line.buyUom
+                                   ? ` (${formatCurrency(line.snapshotUnitCost / units)} / ${uomLabel(line.sellUom, uomOptions)})`
+                                   : '';
+                               return `${formatCurrency(line.snapshotUnitCost)} / ${uomLabel(line.buyUom || '', uomOptions)}${perSellUnit}`;
+                             })()
+                           : '—'
+                         : '—'}
+                     </Typography>
+                   </TableCell>
+                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
+                     <Typography variant="body2" sx={{ fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' }}>
+                       {line.product
+                         ? (() => {
+                             const buy = (line.product!.buyUom || '').trim();
+                             const price = line.sellUom === buy
+                               ? packSellOption(line.product!)?.price ?? line.sellingPrice
+                               : line.sellingPrice;
+                             return price > 0
+                               ? `${formatCurrency(price)} / ${uomLabel(line.sellUom, uomOptions)}`
+                               : '—';
+                           })()
+                         : '—'}
+                     </Typography>
+                   </TableCell>
                   <TableCell align="right" sx={cellPadSx}>
                     <TextField
                       fullWidth
@@ -680,28 +793,32 @@ export function PoLineItemsGrid({
                         {lineReady ? formatCurrency(line.unitCost) : '—'}
                       </Typography>
                     ) : (() => {
-                      const prev = line.lastPurchaseUnitCost;
+                      const existing = line.snapshotUnitCost;
                       const curr = line.unitCost;
                       const showDelta =
-                        prev != null &&
-                        prev > 0 &&
+                        existing > 0 &&
                         Number.isFinite(curr) &&
-                        Math.abs(curr - prev) > 0.01;
-                      const up = showDelta && curr > prev;
-                      const pct = showDelta ? (((curr - prev) / prev) * 100).toFixed(1) : '';
+                        Math.abs(curr - existing) > 0.01;
+                      const up = showDelta && curr > existing;
+                      const pct = showDelta ? (((curr - existing) / existing) * 100).toFixed(1) : '';
+                      const lastPurchase = line.lastPurchaseUnitCost;
+                      const lastPurchaseNote =
+                        lastPurchase != null && lastPurchase > 0 && Math.abs(lastPurchase - existing) > 0.01
+                          ? ` · Last purchase ${formatCurrency(lastPurchase)}`
+                          : '';
                       return (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
                           {showDelta && (
                             <Tooltip
-                              title={`Previous Unit Cost ${formatCurrency(prev)} → now ${formatCurrency(curr)} (${up ? '+' : ''}${pct}%)`}
+                              title={`Existing ${formatCurrency(existing)} → New ${formatCurrency(curr)} (${up ? '+' : ''}${pct}%)${lastPurchaseNote}`}
                             >
                               {up ? (
                                 <TrendingUpIcon color="warning" sx={{ fontSize: 18 }} />
                               ) : (
                                 <TrendingDownIcon color="success" sx={{ fontSize: 18 }} />
                               )}
-                            </Tooltip>
-                          )}
+                             </Tooltip>
+                           )}
                           <TextField
                             fullWidth
                             size="small"
@@ -773,6 +890,11 @@ export function PoLineItemsGrid({
           onProductCreated?.(product);
           fetchLastPurchaseUnitCost(applied.id, product.id);
         }}
+      />
+      <ProductQuickViewDialog
+        product={quickViewProduct}
+        open={Boolean(quickViewProduct)}
+        onClose={() => setQuickViewProduct(null)}
       />
     </Paper>
   );

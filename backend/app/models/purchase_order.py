@@ -82,6 +82,9 @@ class PurchaseOrderItem(BaseModel):
     selling_price: float = Field(default=0.0, ge=0)
     new_selling_price: float = Field(default=0.0, ge=0)
     unit_cost_before_vat: float = Field(default=0.0, ge=0)
+    # Per-line sell unit / sell mode captured when the line was written.
+    sell_uom: str = ""
+    sell_mode: str = "unit"
 
     @field_validator("product_id", "product_name", mode="before")
     @classmethod
@@ -143,6 +146,17 @@ class PurchaseOrderItem(BaseModel):
     @classmethod
     def _coerce_uom(cls, v: Any) -> str:
         return _coerce_str(v, "pcs") or "pcs"
+
+    @field_validator("sell_uom", mode="before")
+    @classmethod
+    def _coerce_sell_uom(cls, v: Any) -> str:
+        return _coerce_str(v, "") or ""
+
+    @field_validator("sell_mode", mode="before")
+    @classmethod
+    def _coerce_sell_mode(cls, v: Any) -> str:
+        s = _coerce_str(v, "unit") or "unit"
+        return s if s in ("unit", "piece", "both") else "unit"
 
     @property
     def base_quantity_ordered(self) -> int:

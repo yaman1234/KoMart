@@ -13,8 +13,14 @@ export interface PoLineItem {
   unitCost: number;
   unitCostBeforeVat: number;
   snapshotUnitCost: number;
+  /** Product selling price (per base/piece UOM) at order time. */
   sellingPrice: number;
+  /** Selling price to apply on receive, expressed in the line sell UOM (pack or piece). */
   newSellingPrice: number;
+  /** Per-line sell unit override (buy UOM or base UOM). */
+  sellUom?: string;
+  /** Per-line sell mode override. */
+  sellMode?: 'unit' | 'piece' | 'both';
   /** Last received purchase Unit Cost (buy/pack UOM); null = none / first buy */
   lastPurchaseUnitCost?: number | null;
   receivedQuantity: number;
@@ -30,11 +36,14 @@ export function emptyPoLineItem(id: number, primaryUom = ''): PoLineItem {
     quantityInput: '1',
     buyUom: primaryUom,
     unitsPerBuyUom: 1,
+    unitsPerPackTouched: false,
     unitCost: 0,
     unitCostBeforeVat: 0,
     snapshotUnitCost: 0,
     sellingPrice: 0,
     newSellingPrice: 0,
+    sellUom: primaryUom,
+    sellMode: 'unit',
     receivedQuantity: 0,
   };
 }

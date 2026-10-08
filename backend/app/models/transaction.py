@@ -31,6 +31,7 @@ class BatchAllocation(BaseModel):
     batch_id: str
     quantity: int
     unit_cost: float = 0.0
+    batch_number: str = ""
 
 
 class TransactionItem(BaseModel):

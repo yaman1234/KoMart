@@ -16,9 +16,12 @@ from app.models.product import Product
 from app.models.purchase_order import POStatus, PurchaseOrder, PurchaseOrderItem, line_can_receive
 from app.models.user import User, UserRole
 from app.schemas.purchase_order import PurchaseOrderReceiveItem
+from app.schemas.transaction import PaymentMethod, TransactionCreate, TransactionItem
+from app.models.transaction import Transaction
 from app.services.inventory_movements import build_movement_row
 from app.services.po_pricing import apply_vat_to_items, inclusive_unit_cost
 from app.services.po_receive import receive_purchase_order_items
+from app.services.sales import record_sale
 from app.services.stock import SignedBatchMove, deduct_stock_fefo, get_current_stock, log_signed_batch_moves, receive_stock
 from app.services.store_settings import get_store_settings
 
@@ -173,6 +176,8 @@ async def test_receive_applies_new_selling_price_and_stores_batch_name():
         supplier_id="",
         supplier_name="",
         status=POStatus.ordered,
+        bill_number=f"BILL-SP-{uuid.uuid4().hex[:6]}",
+        bill_images=["https://example.com/bill-sp.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),
@@ -245,6 +250,8 @@ async def test_receive_rejects_already_received_line():
         supplier_id="",
         supplier_name="",
         status=POStatus.partial,
+        bill_number=f"BILL-DONE-{uuid.uuid4().hex[:6]}",
+        bill_images=["https://example.com/bill-done.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),
@@ -360,3 +367,121 @@ async def test_sale_ledger_stores_and_displays_batch_name():
         batch_numbers={str(batch.id): batch.batch_number},
     )
     assert looked_up["batch_number"] == batch_name
+
+
+@pytest.mark.asyncio
+async def test_receive_requires_bill_number_and_images():
+    sku = f"BILLREQ-{uuid.uuid4().hex[:6]}"
+    product = Product(
+        name="Bill Required Item",
+        sku=sku,
+        barcode=sku,
+        brand="T",
+        country_of_origin="Nepal",
+        category="Snacks",
+        supplier_id="",
+        supplier_name="",
+        cost_price=5.0,
+        selling_price=9.0,
+        is_active=True,
+    )
+    await product.insert()
+    po = PurchaseOrder(
+        order_number=f"PO-NOBILL-{uuid.uuid4().hex[:6]}",
+        supplier_id="",
+        supplier_name="",
+        status=POStatus.ordered,
+        items=[
+            PurchaseOrderItem(
+                product_id=str(product.id),
+                product_name=product.name,
+                quantity=2,
+                unit_cost=10,
+            )
+        ],
+        total_amount=20.0,
+    )
+    await po.insert()
+    manager = await _manager()
+    with pytest.raises(Exception) as exc:
+        await receive_purchase_order_items(
+            str(po.id),
+            [PurchaseOrderReceiveItem(product_id=str(product.id), receive_quantity=1)],
+            created_by=manager.name,
+            current_user=manager,
+            request=_mock_request(),
+        )
+    assert exc.value.status_code == 400
+    assert "bill" in str(exc.value.detail).lower()
+
+    po.bill_number = f"BILL-{uuid.uuid4().hex[:6]}"
+    po.bill_images = ["https://example.com/bill.png"]
+    await po.save()
+    await receive_purchase_order_items(
+        str(po.id),
+        [PurchaseOrderReceiveItem(product_id=str(product.id), receive_quantity=1)],
+        created_by=manager.name,
+        current_user=manager,
+        request=_mock_request(),
+    )
+    refreshed = await PurchaseOrder.get(po.id)
+    assert refreshed is not None
+    assert refreshed.status == POStatus.partial
+
+
+@pytest.mark.asyncio
+async def test_sale_allocations_store_batch_name():
+    sku = f"ALLOC-{uuid.uuid4().hex[:6]}"
+    product = Product(
+        name="Allocation Batch Item",
+        sku=sku,
+        barcode=sku,
+        brand="T",
+        country_of_origin="Nepal",
+        category="Snacks",
+        supplier_id="",
+        supplier_name="",
+        cost_price=8.0,
+        selling_price=12.0,
+        is_active=True,
+    )
+    await product.insert()
+    batch_name = f"SALE-ALLOC-{uuid.uuid4().hex[:6]}"
+    await receive_stock(
+        str(product.id),
+        batch_name,
+        5,
+        unit_cost=8.0,
+        created_by="test",
+    )
+    body = TransactionCreate(
+        customer_name="Walk-In",
+        items=[
+            TransactionItem(
+                product_id=str(product.id),
+                name=product.name,
+                sku=sku,
+                price=12.0,
+                quantity=2,
+            )
+        ],
+        subtotal=24.0,
+        tax=0.0,
+        total=24.0,
+        payment_method=PaymentMethod.cash,
+        created_by="test",
+    )
+    result = await record_sale(
+        body,
+        cashier_id="test-cashier",
+        apply_loyalty=False,
+        skip_server_pricing=True,
+    )
+    assert len(result.items) == 1
+    allocations = result.items[0].batch_allocations
+    assert len(allocations) == 1
+    assert allocations[0].batch_number == batch_name
+
+    stored = await Transaction.get(result.id)
+    assert stored is not None
+    assert stored.items[0].batch_allocations[0].batch_number == batch_name

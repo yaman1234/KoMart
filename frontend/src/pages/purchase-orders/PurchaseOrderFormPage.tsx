@@ -33,6 +33,7 @@ import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { computePoTotals } from '@/utils/poTotals';
 import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
+import { defaultSellUomFor } from '@/utils/uomSell';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
@@ -90,6 +91,8 @@ function poItemToLine(item: PurchaseOrderItem, id: number, catalogProducts: Prod
     buyUom: item.orderUom ?? product.buyUom ?? product.uom ?? 'pcs',
     unitsPerBuyUom: item.unitsPerBuyUom ?? product.unitsPerBuyUom ?? 1,
     unitsPerPackTouched: true,
+    sellMode: item.sellMode ?? product.sellMode ?? 'unit',
+    sellUom: item.sellUom || defaultSellUomFor(product),
     unitCost: item.unitCost,
     unitCostBeforeVat: item.unitCostBeforeVat ?? item.unitCost,
     snapshotUnitCost: item.snapshotUnitCost ?? 0,
@@ -267,6 +270,8 @@ export function PurchaseOrderFormPage() {
         orderUom: l.buyUom,
         baseUom: l.product!.uom ?? 'pcs',
         unitsPerBuyUom: l.unitsPerBuyUom,
+        sellUom: l.sellUom,
+        sellMode: l.sellMode,
       })),
     };
   };

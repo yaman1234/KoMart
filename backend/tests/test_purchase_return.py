@@ -101,6 +101,8 @@ async def _receive_po(
         supplier_id=supplier_id,
         supplier_name=supplier_name,
         status=POStatus.ordered,
+        bill_number=f"BILL-RET-{uuid.uuid4().hex[:6].upper()}",
+        bill_images=["https://example.com/bill-ret.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),

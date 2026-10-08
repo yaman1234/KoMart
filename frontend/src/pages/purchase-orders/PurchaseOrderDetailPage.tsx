@@ -40,7 +40,6 @@ import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { FormModal } from '@/components/common/FormModal';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
@@ -140,7 +139,6 @@ export function PurchaseOrderDetailPage() {
   const [billImagesEdit, setBillImagesEdit] = useState<string[]>([]);
   const [billUploading, setBillUploading] = useState(false);
   const [billError, setBillError] = useState('');
-  const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
 
   const {
     register,
@@ -281,7 +279,10 @@ export function PurchaseOrderDetailPage() {
     }
     const billMissing = !po.billNumber?.trim() || !(po.billImages && po.billImages.length > 0);
     if (billMissing) {
-      setReceiveConfirmOpen(true);
+      setReceiveError(
+        'Attach a bill number and bill photos before processing this purchase order.',
+      );
+      openBillDialog();
       return;
     }
     void handleReceive();
@@ -1098,23 +1099,6 @@ export function PurchaseOrderDetailPage() {
           </Box>
         </Box>
       </Paper>
-
-      <ConfirmDialog
-        open={receiveConfirmOpen}
-        title="Bill details missing"
-        message="Bill number or bill photos are missing. Add them now, or continue and process the receipt."
-        confirmLabel="Continue"
-        cancelLabel="Add bill"
-        loading={receiveMutation.isPending}
-        onCancel={() => {
-          setReceiveConfirmOpen(false);
-          openBillDialog();
-        }}
-        onConfirm={() => {
-          setReceiveConfirmOpen(false);
-          void handleReceive();
-        }}
-      />
 
       <FormModal
         open={paymentOpen}

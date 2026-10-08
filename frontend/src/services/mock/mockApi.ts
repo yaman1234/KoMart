@@ -209,6 +209,34 @@ function mockSuggestSkus(
   return { skus };
 }
 
+function syncProductUomsFromPoLines(items: PurchaseOrderWritePayload['items']) {
+  products = products.map((product) => {
+    const line = items.find((item) => item.productId === product.id);
+    if (!line) return product;
+    const buyUom = (line.orderUom ?? '').trim() || product.buyUom || '';
+    const sellUom = (line.sellUom ?? '').trim() || product.uom || '';
+    const units = Math.max(1, line.unitsPerBuyUom ?? 1);
+    const mode = line.sellMode ?? product.sellMode ?? 'unit';
+    const finalUom = units <= 1 ? buyUom : sellUom || buyUom;
+    const finalMode: 'unit' | 'piece' | 'both' = units <= 1 ? 'unit' : mode;
+    if (
+      (product.buyUom ?? '') === buyUom &&
+      product.uom === finalUom &&
+      (product.unitsPerBuyUom ?? 1) === units &&
+      (product.sellMode ?? 'unit') === finalMode
+    ) {
+      return product;
+    }
+    return {
+      ...product,
+      buyUom,
+      uom: finalUom,
+      unitsPerBuyUom: units,
+      sellMode: finalMode,
+    };
+  });
+}
+
 export const mockApi = {
   isMockEnabled: isMockEnabled(),
 
@@ -631,6 +659,7 @@ export const mockApi = {
       updatedAt: new Date().toISOString(),
     };
     purchaseOrders = [po, ...purchaseOrders];
+    syncProductUomsFromPoLines(data.items);
     return po;
   },
 
@@ -665,6 +694,7 @@ export const mockApi = {
       items: mergedItems,
       updatedAt: new Date().toISOString(),
     };
+    syncProductUomsFromPoLines(data.items);
     return purchaseOrders[idx];
   },
 
@@ -707,6 +737,11 @@ export const mockApi = {
     const po = purchaseOrders[idx];
     if (po.status !== 'ordered' && po.status !== 'partial') {
       throw new Error('Only ordered or partially received purchase orders can be processed');
+    }
+    if (!po.billNumber?.trim() || !(po.billImages && po.billImages.length > 0)) {
+      throw new Error(
+        'Bill number and bill photos are required before processing this purchase order. Attach them via Edit bill.',
+      );
     }
 
     const updatedItems = po.items.map((item) => {

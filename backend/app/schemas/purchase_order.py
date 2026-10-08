@@ -23,6 +23,8 @@ class PurchaseOrderItemResponse(BaseModel):
     selling_price: float = 0.0
     new_selling_price: float = 0.0
     unit_cost_before_vat: float = 0.0
+    sell_uom: str = ""
+    sell_mode: str = "unit"
     line_status: LineStatus
 
 
@@ -40,6 +42,8 @@ def item_to_response(item: PurchaseOrderItem) -> PurchaseOrderItemResponse:
         selling_price=float(getattr(item, "selling_price", 0) or 0),
         new_selling_price=float(getattr(item, "new_selling_price", 0) or 0),
         unit_cost_before_vat=float(getattr(item, "unit_cost_before_vat", 0) or 0),
+        sell_uom=getattr(item, "sell_uom", None) or "",
+        sell_mode=getattr(item, "sell_mode", None) or "unit",
         line_status=line_status(item),
     )
 

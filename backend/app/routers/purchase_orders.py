@@ -31,6 +31,7 @@ from app.services.audit import log_audit, po_snapshot
 from app.services.store_settings import get_store_settings
 from app.services.po_totals import compute_po_totals
 from app.services.po_pricing import apply_vat_to_items
+from app.services.po_product_sync import sync_product_uoms_from_po_lines
 
 logger = logging.getLogger(__name__)
 
@@ -440,6 +441,7 @@ async def create_purchase_order(
         **po_data,
     )
     await po.insert()
+    await sync_product_uoms_from_po_lines(po.items)
     await log_audit(
         module=AuditModule.purchase_orders,
         action="create",
@@ -522,6 +524,7 @@ async def update_purchase_order(
             updates["ordered_by"] = resolved
 
     await po.set(updates)
+    await sync_product_uoms_from_po_lines(priced_items)
     refreshed = await PurchaseOrder.get(po_id)
     await log_audit(
         module=AuditModule.purchase_orders,
