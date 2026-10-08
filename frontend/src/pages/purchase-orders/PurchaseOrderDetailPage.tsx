@@ -32,6 +32,7 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined';
 import CloseIcon from '@mui/icons-material/Close';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -70,9 +71,11 @@ import {
 } from '@/pages/purchase-orders/poLineTableColumns';
 import {
   PO_LABELS,
+  PO_PACKING_NOTE,
   PO_RECEIVE_HINT,
   PO_RECORD_PAYMENT_HINT,
 } from '@/pages/purchase-orders/poTerminology';
+import { isLineFullyReceived, packTotalUnits } from '@/pages/purchase-orders/poPricing';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
 
 const PAYMENT_SCHEMA = z.object({
@@ -182,7 +185,10 @@ export function PurchaseOrderDetailPage() {
     });
   };
 
-  const receivableItems = useMemo(() => po?.items ?? [], [po]);
+  const receivableItems = useMemo(
+    () => (po?.items ?? []).filter((item) => !isLineFullyReceived(item)),
+    [po],
+  );
 
   const selectAllState = useMemo(() => {
     if (receivableItems.length === 0) return { checked: false, indeterminate: false };
@@ -212,9 +218,10 @@ export function PurchaseOrderDetailPage() {
     if (!po) return [];
     return po.items
       .filter((item) => {
+        if (isLineFullyReceived(item)) return false;
         const remaining = item.quantity - item.receivedQuantity;
         const sel = getReceiveSelection(item.productId, remaining);
-        return sel.selected && sel.receiveQuantity > 0;
+        return sel.selected && sel.receiveQuantity > 0 && remaining > 0;
       })
       .map((item) => {
         const remaining = item.quantity - item.receivedQuantity;
@@ -262,6 +269,23 @@ export function PurchaseOrderDetailPage() {
     } catch (err) {
       setReceiveError(getErrorMessage(err));
     }
+  };
+
+  const requestReceive = () => {
+    if (!po) return;
+    if (itemsToReceive.length === 0) {
+      setReceiveError('Select at least one item with a pack qty');
+      return;
+    }
+    const billMissing = !po.billNumber?.trim() || !(po.billImages && po.billImages.length > 0);
+    if (billMissing) {
+      setReceiveError(
+        'Attach a bill number and bill photos before processing this purchase order.',
+      );
+      openBillDialog();
+      return;
+    }
+    void handleReceive();
   };
 
   const openPaymentDialog = () => {
@@ -375,7 +399,7 @@ export function PurchaseOrderDetailPage() {
               <Button
                 variant="contained"
                 startIcon={<InventoryIcon />}
-                onClick={() => void handleReceive()}
+                onClick={requestReceive}
                 loading={receiveMutation.isPending}
                 disabled={itemsToReceive.length === 0}
               >
@@ -708,9 +732,13 @@ export function PurchaseOrderDetailPage() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order Items</Typography>
-            {canReceive && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {PO_PACKING_NOTE}
+              {canReceive ? ` ${PO_RECEIVE_HINT}` : ''}
+            </Typography>
+            {po.vatBill && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {PO_RECEIVE_HINT}
+                VAT bill — unit cost includes VAT. Line totals use that inclusive cost.
               </Typography>
             )}
           </Box>
@@ -725,12 +753,12 @@ export function PurchaseOrderDetailPage() {
             size="small"
             sx={{
               tableLayout: 'auto',
-              minWidth: poDetailTableMinWidth(canReceive),
+              minWidth: poDetailTableMinWidth(canReceive, Boolean(po.vatBill)),
               '& .MuiTableCell-root': { verticalAlign: 'middle', py: 1.25 },
             }}
           >
             <colgroup>
-              {poDetailFlatColWidths(canReceive).map((width, i) => (
+              {poDetailFlatColWidths(canReceive, Boolean(po.vatBill)).map((width, i) => (
                 <col key={i} style={{ width, minWidth: width }} />
               ))}
             </colgroup>
@@ -751,24 +779,42 @@ export function PurchaseOrderDetailPage() {
                 <TableCell sx={headerCellSx}>Product</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.ordered}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.received}</TableCell>
-                {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packQty}</TableCell>}
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitsPerPack}</TableCell>
+                {canReceive && (
+                  <TableCell align="right" sx={headerCellSx}>
+                    {PO_LABELS.packQty}
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+                      {PO_LABELS.packQtyHint}
+                    </Typography>
+                  </TableCell>
+                )}
+                <TableCell align="right" sx={headerCellSx}>
+                  {PO_LABELS.unitsPerPack}
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+                    {PO_LABELS.unitsPerPackHint}
+                  </Typography>
+                </TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.totalUnits}</TableCell>
                 {canReceive && <TableCell sx={headerCellSx}>{PO_LABELS.expiryOptional}</TableCell>}
                 <TableCell sx={headerCellSx}>Status</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.existingCost}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.sellingPrice}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.newSellingPrice}</TableCell>
+                {po.vatBill && (
+                  <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitCostBeforeVat}</TableCell>
+                )}
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {po.items.map((item, index) => {
+                const fullyReceived = isLineFullyReceived(item);
                 const remaining = item.quantity - item.receivedQuantity;
                 const receiveSel = getReceiveSelection(item.productId, remaining);
-                const orderUom = item.orderUom ?? 'pcs';
                 const unitsPerBuy = receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
-                const orderedTotalUnits = item.quantity * (item.unitsPerBuyUom ?? 1);
+                const orderedTotalUnits = packTotalUnits(item.quantity, item.unitsPerBuyUom ?? 1);
                 const receiveTotalUnits = receiveSel.selected
-                  ? receiveSel.receiveQuantity * unitsPerBuy
+                  ? packTotalUnits(receiveSel.receiveQuantity, unitsPerBuy)
                   : 0;
                 const lineStatus = item.lineStatus ?? (
                   item.receivedQuantity <= 0 ? 'pending'
@@ -780,9 +826,11 @@ export function PurchaseOrderDetailPage() {
                 return (
                   <TableRow
                     key={item.productId}
-                    selected={canReceive && receiveSel.selected}
+                    selected={canReceive && receiveSel.selected && !fullyReceived}
                     sx={
-                      canReceive && receiveSel.selected
+                      fullyReceived
+                        ? { opacity: 0.55 }
+                        : canReceive && receiveSel.selected
                         ? {
                             // Keep row indicated without a heavy/red tint that hides inputs
                             '&.Mui-selected': {
@@ -802,7 +850,8 @@ export function PurchaseOrderDetailPage() {
                       <TableCell padding="checkbox">
                         <Checkbox
                           size="small"
-                          checked={receiveSel.selected}
+                          checked={!fullyReceived && receiveSel.selected}
+                          disabled={fullyReceived}
                           onChange={(e) =>
                             updateReceiveSelection(item.productId, remaining, {
                               selected: e.target.checked,
@@ -819,12 +868,24 @@ export function PurchaseOrderDetailPage() {
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ minWidth: PO_DETAIL_FLAT_COLUMNS.product }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }} title={item.productName}>
-                        {item.productName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {item.quantity} {orderUom} · {orderedTotalUnits} {PO_LABELS.totalUnits.toLowerCase()}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }} title={item.productName}>
+                            {item.productName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            {item.quantity} × {item.unitsPerBuyUom ?? 1} = {orderedTotalUnits} {PO_LABELS.totalUnits.toLowerCase()}
+                          </Typography>
+                        </Box>
+                        <IconButton
+                          size="small"
+                          aria-label="Open product details"
+                          title="Product details"
+                          onClick={() => window.open(`/products/${item.productId}`, '_blank')}
+                        >
+                          <OpenInNewIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Box>
                     </TableCell>
                     <TableCell align="right">{item.quantity}</TableCell>
                     <TableCell align="right">{item.receivedQuantity}</TableCell>
@@ -834,7 +895,7 @@ export function PurchaseOrderDetailPage() {
                           size="small"
                           type="number"
                           value={receiveSel.receiveQuantity}
-                          disabled={!receiveSel.selected}
+                          disabled={fullyReceived || !receiveSel.selected}
                           onChange={(e) => {
                             const raw = Math.max(1, parseInt(e.target.value, 10) || 1);
                             const capped = remaining > 0 ? Math.min(raw, remaining) : raw;
@@ -845,6 +906,11 @@ export function PurchaseOrderDetailPage() {
                           sx={{ width: '100%', minWidth: 72 }}
                           slotProps={{ htmlInput: { min: 1, max: Math.max(remaining, 1) } }}
                         />
+                        {receiveSel.selected && !fullyReceived && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right' }}>
+                            {receiveSel.receiveQuantity} × {unitsPerBuy} = {receiveTotalUnits}
+                          </Typography>
+                        )}
                       </TableCell>
                     )}
                     <TableCell align="right">
@@ -853,7 +919,7 @@ export function PurchaseOrderDetailPage() {
                           size="small"
                           type="number"
                           value={unitsPerBuy}
-                          disabled={!receiveSel.selected}
+                          disabled={fullyReceived || !receiveSel.selected}
                           onChange={(e) =>
                             updateReceiveSelection(item.productId, remaining, {
                               unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
@@ -879,7 +945,7 @@ export function PurchaseOrderDetailPage() {
                               updateReceiveSelection(item.productId, remaining, { expiryDate: d })
                             }
                             size="small"
-                            disabled={!receiveSel.selected}
+                            disabled={fullyReceived || !receiveSel.selected}
                             calendarSystem="AD"
                             helperText={undefined}
                           />
@@ -887,8 +953,26 @@ export function PurchaseOrderDetailPage() {
                       </TableCell>
                     )}
                     <TableCell>
-                      <Chip label={PO_LINE_STATUS_LABELS[lineStatus]} size="small" color={LINE_STATUS_COLORS[lineStatus]} />
+                      {fullyReceived ? (
+                        <Chip label={PO_LABELS.alreadyReceived} size="small" color="success" />
+                      ) : (
+                        <Chip label={PO_LINE_STATUS_LABELS[lineStatus]} size="small" color={LINE_STATUS_COLORS[lineStatus]} />
+                      )}
                     </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {(item.snapshotUnitCost ?? 0) > 0 ? formatCurrency(item.snapshotUnitCost ?? 0) : '—'}
+                    </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {(item.sellingPrice ?? 0) > 0 ? formatCurrency(item.sellingPrice ?? 0) : '—'}
+                    </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {(item.newSellingPrice ?? 0) > 0 ? formatCurrency(item.newSellingPrice ?? 0) : '—'}
+                    </TableCell>
+                    {po.vatBill && (
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        {(item.unitCostBeforeVat ?? 0) > 0 ? formatCurrency(item.unitCostBeforeVat ?? 0) : '—'}
+                      </TableCell>
+                    )}
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {formatCurrency(item.unitCost)}
                     </TableCell>

@@ -262,6 +262,7 @@ export const productService = {
   getLastPurchaseUnitCost: async (
     id: string,
   ): Promise<{ productId: string; unitCost: number | null; purchasedAt: string | null }> => {
+    if (useMock()) return { productId: id, unitCost: null, purchasedAt: null };
     const { data } = await apiClient.get(`/products/${id}/last-purchase-unit-cost`);
     return data;
   },

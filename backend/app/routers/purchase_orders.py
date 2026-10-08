@@ -30,6 +30,8 @@ from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, po_snapshot
 from app.services.store_settings import get_store_settings
 from app.services.po_totals import compute_po_totals
+from app.services.po_pricing import apply_vat_to_items
+from app.services.po_product_sync import sync_product_uoms_from_po_lines
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +147,7 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         received_date=po.received_date,
         bill_number=bill_number,
         bill_images=bill_images,
+        vat_bill=bool(getattr(po, "vat_bill", False)),
         created_at=_dt_iso(getattr(po, "created_at", None)),
         updated_at=_dt_iso(getattr(po, "updated_at", None)),
     )
@@ -209,6 +212,7 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
         received_date=doc.get("received_date"),
         bill_number=(str(doc.get("bill_number") or "").strip() or None),
         bill_images=[str(u).strip() for u in (doc.get("bill_images") or []) if str(u).strip()],
+        vat_bill=bool(doc.get("vat_bill") or False),
         created_at=_dt_iso(doc.get("created_at")),
         updated_at=_dt_iso(doc.get("updated_at")),
     )
@@ -414,7 +418,14 @@ async def create_purchase_order(
     current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
-    totals = compute_po_totals(body.items, body.discount, body.additional_charges)
+    settings = await get_store_settings()
+    priced_items = apply_vat_to_items(
+        body.items,
+        vat_bill=bool(body.vat_bill),
+        tax_rate=float(getattr(settings, "tax_rate", 0) or 0),
+    )
+    po_data["items"] = [item.model_dump() for item in priced_items]
+    totals = compute_po_totals(priced_items, body.discount, body.additional_charges)
     po_data.update(totals)
     placing_order = body.status == POStatus.ordered
     ordered_by = _resolve_ordered_by(body.ordered_by, current_user, placing_order)
@@ -430,6 +441,7 @@ async def create_purchase_order(
         **po_data,
     )
     await po.insert()
+    await sync_product_uoms_from_po_lines(po.items)
     await log_audit(
         module=AuditModule.purchase_orders,
         action="create",
@@ -472,8 +484,14 @@ async def update_purchase_order(
         )
 
     before = po_snapshot(po)
+    settings = await get_store_settings()
+    priced_items = apply_vat_to_items(
+        body.items,
+        vat_bill=bool(body.vat_bill),
+        tax_rate=float(getattr(settings, "tax_rate", 0) or 0),
+    )
     try:
-        merged_items = _merge_items(po, body.items)
+        merged_items = _merge_items(po, priced_items)
     except HTTPException:
         raise
 
@@ -506,6 +524,7 @@ async def update_purchase_order(
             updates["ordered_by"] = resolved
 
     await po.set(updates)
+    await sync_product_uoms_from_po_lines(priced_items)
     refreshed = await PurchaseOrder.get(po_id)
     await log_audit(
         module=AuditModule.purchase_orders,

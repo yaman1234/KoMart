@@ -67,6 +67,8 @@ async def test_purchase_return_refund_in_cash_flow_inflow():
         supplier_id="",
         supplier_name="",
         status=POStatus.ordered,
+        bill_number=f"BILL-CF-{uuid.uuid4().hex[:5].upper()}",
+        bill_images=["https://example.com/bill-cf.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),

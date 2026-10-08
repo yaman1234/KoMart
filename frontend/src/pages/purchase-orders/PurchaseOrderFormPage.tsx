@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
+  Checkbox,
   Chip,
+  FormControlLabel,
   Grid,
   Paper,
   TextField,
@@ -17,6 +19,7 @@ import dayjs from 'dayjs';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { DROPDOWN_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useProductCatalog } from '@/hooks/useProductCatalog';
@@ -30,6 +33,7 @@ import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { computePoTotals } from '@/utils/poTotals';
 import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
+import { defaultSellUomFor } from '@/utils/uomSell';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
@@ -40,6 +44,9 @@ import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poForm
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
 import { useUomOptions } from '@/hooks/useUoms';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
+import { PO_PACKING_NOTE } from '@/pages/purchase-orders/poTerminology';
+import { applyVatToUnitCost, formatPackMath } from '@/pages/purchase-orders/poPricing';
+import { useStoreSettings } from '@/hooks/useSettings';
 
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
@@ -83,7 +90,14 @@ function poItemToLine(item: PurchaseOrderItem, id: number, catalogProducts: Prod
     quantityInput: String(item.quantity),
     buyUom: item.orderUom ?? product.buyUom ?? product.uom ?? 'pcs',
     unitsPerBuyUom: item.unitsPerBuyUom ?? product.unitsPerBuyUom ?? 1,
+    unitsPerPackTouched: true,
+    sellMode: item.sellMode ?? product.sellMode ?? 'unit',
+    sellUom: item.sellUom || defaultSellUomFor(product),
     unitCost: item.unitCost,
+    unitCostBeforeVat: item.unitCostBeforeVat ?? item.unitCost,
+    snapshotUnitCost: item.snapshotUnitCost ?? 0,
+    sellingPrice: item.sellingPrice ?? product.sellingPrice ?? 0,
+    newSellingPrice: item.newSellingPrice ?? item.sellingPrice ?? product.sellingPrice ?? 0,
     receivedQuantity: item.receivedQuantity,
   };
 }
@@ -107,7 +121,9 @@ export function PurchaseOrderFormPage() {
   const [additionalChargesInput, setAdditionalChargesInput] = useState('0');
   const [billNumber, setBillNumber] = useState('');
   const [billImages, setBillImages] = useState<string[]>([]);
+  const [vatBill, setVatBill] = useState(false);
   const [billUploading, setBillUploading] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState<PurchaseOrderStatus | null>(null);
   const [lines, setLines] = useState<PoLineItem[]>(() => [emptyPoLineItem(0)]);
   const [error, setError] = useState('');
   const [pasteWarning, setPasteWarning] = useState('');
@@ -119,6 +135,8 @@ export function PurchaseOrderFormPage() {
   const { data: assignableUsers = [] } = useAssignableUsers();
   const uomOptions = useUomOptions();
   const primaryUom = defaultPrimaryUom(uomOptions);
+  const { data: storeSettings } = useStoreSettings();
+  const taxRate = storeSettings?.taxRate ?? 0;
   const createMutation = useCreatePurchaseOrder();
   const updateMutation = useUpdatePurchaseOrder();
 
@@ -131,6 +149,21 @@ export function PurchaseOrderFormPage() {
       navigate('/purchase-orders', { replace: true });
     }
   }, [canManage, navigate]);
+
+  useEffect(() => {
+    if (!vatBill || !storeSettings) return;
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((line) => {
+        if (!(line.unitCostBeforeVat > 0)) return line;
+        const inclusive = applyVatToUnitCost(line.unitCostBeforeVat, taxRate);
+        if (inclusive === line.unitCost) return line;
+        changed = true;
+        return { ...line, unitCost: inclusive };
+      });
+      return changed ? next : prev;
+    });
+  }, [vatBill, taxRate, storeSettings]);
 
   useEffect(() => {
     if (!currentUser && !orderedBy) return;
@@ -172,6 +205,7 @@ export function PurchaseOrderFormPage() {
     setAdditionalChargesInput(String(existingPo.additionalCharges ?? 0));
     setBillNumber(existingPo.billNumber ?? '');
     setBillImages(existingPo.billImages ?? []);
+    setVatBill(Boolean(existingPo.vatBill));
 
     if (existingPo.items.length > 0) {
       const loaded = existingPo.items.map((item) => {
@@ -220,6 +254,7 @@ export function PurchaseOrderFormPage() {
       totalAmount,
       billNumber: billNumber.trim() || undefined,
       billImages,
+      vatBill,
       expectedDelivery: expectedDelivery || undefined,
       orderedBy: orderedBy || undefined,
       items: validLines.map((l) => ({
@@ -227,10 +262,16 @@ export function PurchaseOrderFormPage() {
         productName: l.product!.name,
         quantity: parseQuantity(l.quantityInput),
         unitCost: l.unitCost,
+        unitCostBeforeVat: vatBill ? l.unitCostBeforeVat : 0,
+        snapshotUnitCost: l.snapshotUnitCost,
+        sellingPrice: l.sellingPrice,
+        newSellingPrice: l.newSellingPrice,
         receivedQuantity: receivedByProduct.get(l.product!.id) ?? l.receivedQuantity ?? 0,
         orderUom: l.buyUom,
         baseUom: l.product!.uom ?? 'pcs',
         unitsPerBuyUom: l.unitsPerBuyUom,
+        sellUom: l.sellUom,
+        sellMode: l.sellMode,
       })),
     };
   };
@@ -270,6 +311,23 @@ export function PurchaseOrderFormPage() {
     return true;
   };
 
+  const billMissing = !billNumber.trim() || billImages.length === 0;
+  const packSummary = validLines
+    .map((l) => formatPackMath(l.product!.name, parseQuantity(l.quantityInput), l.unitsPerBuyUom))
+    .join('\n');
+
+  const requestSubmit = (status: PurchaseOrderStatus) => {
+    const draftOrOrdered = status === 'draft' || status === 'ordered';
+    if (draftOrOrdered && !validateBeforeSave(status)) return;
+    if (!draftOrOrdered && !validateBeforeSave('draft')) return;
+    setConfirmStatus(status);
+  };
+
+  const focusBill = () => {
+    setConfirmStatus(null);
+    document.getElementById('po-supplier-bill')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const handleSubmit = async (status: PurchaseOrderStatus) => {
     const draftOrOrdered = status === 'draft' || status === 'ordered';
     if (draftOrOrdered && !validateBeforeSave(status)) return;
@@ -293,7 +351,24 @@ export function PurchaseOrderFormPage() {
 
   const handleSaveChanges = () => {
     if (!existingPo) return;
-    void handleSubmit(existingPo.status);
+    requestSubmit(existingPo.status);
+  };
+
+  const applyVatBill = (checked: boolean) => {
+    setVatBill(checked);
+    setLines((prev) => prev.map((line) => {
+      if (!line.product && line.unitCost <= 0 && line.unitCostBeforeVat <= 0) return line;
+      if (checked) {
+        const before = line.unitCostBeforeVat > 0 ? line.unitCostBeforeVat : line.unitCost;
+        return {
+          ...line,
+          unitCostBeforeVat: before,
+          unitCost: applyVatToUnitCost(before, taxRate),
+        };
+      }
+      const restored = line.unitCostBeforeVat > 0 ? line.unitCostBeforeVat : line.unitCost;
+      return { ...line, unitCost: restored };
+    }));
   };
 
   if (!canManage) return null;
@@ -348,13 +423,13 @@ export function PurchaseOrderFormPage() {
             </Button>
             {!isPlacedEdit && (
               <>
-                <Button variant="outlined" onClick={() => void handleSubmit('draft')} loading={isPending}>
+                <Button variant="outlined" onClick={() => requestSubmit('draft')} loading={isPending}>
                   Save as Draft
                 </Button>
                 <Button
                   variant="contained"
                   startIcon={<SaveIcon />}
-                  onClick={() => void handleSubmit('ordered')}
+                  onClick={() => requestSubmit('ordered')}
                   loading={isPending}
                 >
                   Place Order
@@ -446,6 +521,8 @@ export function PurchaseOrderFormPage() {
             lines={lines}
             onChange={setLines}
             catalogIndex={catalogIndex}
+            vatBill={vatBill}
+            taxRate={taxRate}
             pasteWarning={pasteWarning}
             onPasteWarning={setPasteWarning}
           />
@@ -462,10 +539,30 @@ export function PurchaseOrderFormPage() {
           mt: 1,
         }}
       >
-        <Box sx={{ flex: '1 1 220px', minWidth: 0, maxWidth: 420 }}>
+        <Box id="po-supplier-bill" sx={{ flex: '1 1 220px', minWidth: 0, maxWidth: 420 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
             Supplier bill
           </Typography>
+          <FormControlLabel
+            sx={{ mb: 1, ml: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={vatBill}
+                onChange={(e) => applyVatBill(e.target.checked)}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2">VAT bill</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {vatBill
+                    ? `Unit cost = before VAT + VAT (${taxRate}%). Line totals use the inclusive unit cost.`
+                    : 'Leave off to enter unit cost as today.'}
+                </Typography>
+              </Box>
+            }
+          />
           <TextField
             label="Bill number"
             size="small"
@@ -573,6 +670,30 @@ export function PurchaseOrderFormPage() {
           </Box>
         </Box>
       </Box>
+
+      <ConfirmDialog
+        open={confirmStatus !== null}
+        title={confirmStatus === 'ordered' && !isPlacedEdit ? 'Place order?' : 'Save purchase order?'}
+        message={[
+          PO_PACKING_NOTE,
+          packSummary || 'No lines yet.',
+          billMissing
+            ? 'Bill number or bill photos are missing. Add them now, or continue without a bill.'
+            : '',
+        ].filter(Boolean).join('\n\n')}
+        confirmLabel={billMissing ? 'Continue' : (confirmStatus === 'ordered' && !isPlacedEdit ? 'Place order' : 'Save')}
+        cancelLabel={billMissing ? 'Add bill' : 'Cancel'}
+        loading={isPending}
+        onCancel={() => {
+          if (billMissing) focusBill();
+          else setConfirmStatus(null);
+        }}
+        onConfirm={() => {
+          const status = confirmStatus;
+          setConfirmStatus(null);
+          if (status) void handleSubmit(status);
+        }}
+      />
     </Box>
   );
 }

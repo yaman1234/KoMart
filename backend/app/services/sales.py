@@ -306,6 +306,7 @@ async def record_sale(
                         batch_id=d.batch_id,
                         quantity=-d.quantity,
                         unit_cost=d.unit_cost,
+                        batch_number=d.batch_number,
                     )
                     for d in deductions
                 ],
@@ -335,6 +336,7 @@ async def record_sale(
                     batch_id=d.batch_id,
                     quantity=d.quantity,
                     unit_cost=d.unit_cost,
+                    batch_number=d.batch_number,
                 )
                 for d in deductions
             ]
@@ -514,13 +516,14 @@ async def reallocate_batches(txn: Transaction, new_items: list[dict]) -> dict[st
                 rows = await log_signed_batch_moves(
                     product=product,
                     moves=[
-                        SignedBatchMove(
-                            batch_id=d.batch_id,
-                            quantity=-d.quantity,
-                            unit_cost=d.unit_cost,
-                        )
-                        for d in deductions
-                    ],
+                    SignedBatchMove(
+                        batch_id=d.batch_id,
+                        quantity=-d.quantity,
+                        unit_cost=d.unit_cost,
+                        batch_number=getattr(d, "batch_number", "") or "",
+                    )
+                    for d in deductions
+                ],
                     stock_before=stock_before,
                     adjustment_type=AdjustmentType.sale,
                     reason=reason,
@@ -536,6 +539,7 @@ async def reallocate_batches(txn: Transaction, new_items: list[dict]) -> dict[st
                         batch_id=d.batch_id,
                         quantity=d.quantity,
                         unit_cost=d.unit_cost,
+                        batch_number=d.batch_number,
                     )
                     for d in deductions
                 ]
@@ -553,6 +557,7 @@ async def reallocate_batches(txn: Transaction, new_items: list[dict]) -> dict[st
                             batch_id=d.batch_id,
                             quantity=d.quantity,
                             unit_cost=d.unit_cost,
+                            batch_number=getattr(d, "batch_number", "") or "",
                         )
                         for d in restocks
                     ],
@@ -832,6 +837,7 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
                         batch_id=d.batch_id,
                         quantity=d.quantity,
                         unit_cost=d.unit_cost,
+                        batch_number=getattr(d, "batch_number", "") or "",
                     )
                     for d in product_deds
                 ],

@@ -325,6 +325,7 @@ export interface InventoryMovement {
   productName: string;
   productSku: string;
   batchId?: string;
+  batchNumber?: string;
   transactionId?: string;
   referenceType: MovementReferenceType | string;
   referenceId: string;
@@ -418,6 +419,18 @@ export interface PurchaseOrderItem {
   orderUom?: string;
   baseUom?: string;
   unitsPerBuyUom?: number;
+  /** Product cost per pack when the line was written. */
+  snapshotUnitCost?: number;
+  /** Product selling price when the line was written. */
+  sellingPrice?: number;
+  /** Selling price to apply when this line is received. */
+  newSellingPrice?: number;
+  /** Editable pack cost before VAT when the PO is a VAT bill. */
+  unitCostBeforeVat?: number;
+  /** Per-line sell unit override (buy UOM or base UOM). */
+  sellUom?: string;
+  /** Per-line sell mode override. */
+  sellMode?: 'unit' | 'piece' | 'both';
   lineStatus?: PurchaseOrderLineStatus;
 }
 
@@ -476,6 +489,7 @@ export interface PurchaseOrder {
   receivedDate?: string;
   billNumber?: string;
   billImages?: string[];
+  vatBill?: boolean;
   createdAt: string;
   updatedAt: string;
 }

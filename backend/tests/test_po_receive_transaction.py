@@ -82,6 +82,8 @@ async def test_po_receive_atomic_creates_batches_and_updates_po():
         supplier_id="",
         supplier_name="",
         status=POStatus.ordered,
+        bill_number=f"BILL-TEST-{uuid.uuid4().hex[:6]}",
+        bill_images=["https://example.com/bill-test.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(prod_a.id),
@@ -173,6 +175,8 @@ async def test_po_receive_batch_numbers_use_line_index():
         supplier_id="",
         supplier_name="",
         status=POStatus.ordered,
+        bill_number=f"BILL-LN-{uuid.uuid4().hex[:6]}",
+        bill_images=["https://example.com/bill-ln.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),

@@ -9,8 +9,12 @@ import {
   TableSortLabel,
   Paper,
   Typography,
-  CircularProgress,
+  Skeleton,
+  Box,
+  alpha,
+  useTheme,
 } from '@mui/material';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import type { ReactNode } from 'react';
 
 export interface Column<T> {
@@ -42,6 +46,8 @@ interface DataTableProps<T> {
   onSort?: (sortKey: string) => void;
 }
 
+const SKELETON_ROWS = 8;
+
 export function DataTable<T>({
   columns,
   rows,
@@ -59,9 +65,17 @@ export function DataTable<T>({
   sortOrder = 'asc',
   onSort,
 }: DataTableProps<T>) {
+  const theme = useTheme();
+  const stripe = theme.palette.mode === 'dark'
+    ? alpha(theme.palette.common.white, 0.04)
+    : alpha(theme.palette.common.black, 0.025);
+
   return (
-    <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', border: 1, borderColor: 'divider', borderRadius: 1 }}>
-      <TableContainer sx={{ maxHeight: 600, borderTop: 1, borderColor: 'divider' }}>
+    <Paper
+      variant="outlined"
+      sx={{ width: '100%', overflow: 'hidden', borderRadius: 2, borderColor: 'divider' }}
+    >
+      <TableContainer sx={{ maxHeight: 600 }}>
         <Table stickyHeader size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <TableHead>
             <TableRow>
@@ -70,7 +84,18 @@ export function DataTable<T>({
                   key={col.id}
                   align={col.align ?? 'left'}
                   sortDirection={col.sortable && sortBy === col.sortKey ? sortOrder : false}
-                  sx={{ minWidth: col.minWidth, fontWeight: 600, borderBottom: '1px solid', borderColor: 'divider' }}
+                  sx={{
+                    minWidth: col.minWidth,
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: 'text.secondary',
+                    backgroundColor: 'background.paper',
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    zIndex: 2,
+                  }}
                 >
                   {col.sortable && col.sortKey && onSort ? (
                     <TableSortLabel
@@ -89,15 +114,30 @@ export function DataTable<T>({
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} align="center" sx={{ py: 6 }}>
-                  <CircularProgress size={32} />
-                </TableCell>
-              </TableRow>
+              Array.from({ length: SKELETON_ROWS }, (_, rowIndex) => (
+                <TableRow key={`skeleton-${rowIndex}`} sx={{ '&:last-child td, &:last-child th': { borderBottom: 0 } }}>
+                  {columns.map((col) => (
+                    <TableCell
+                      key={col.id}
+                      align={col.align ?? 'left'}
+                      sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+                    >
+                      <Skeleton
+                        variant="text"
+                        width={col.align === 'right' ? '55%' : col.id === 'sn' ? '30%' : '80%'}
+                        height={18}
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} align="center" sx={{ py: 6 }}>
-                  <Typography color="text.secondary">{emptyMessage}</Typography>
+                <TableCell colSpan={columns.length} align="center" sx={{ py: 8 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <InboxOutlinedIcon sx={{ fontSize: 44, color: 'text.disabled' }} />
+                    <Typography color="text.secondary">{emptyMessage}</Typography>
+                  </Box>
                 </TableCell>
               </TableRow>
             ) : (
@@ -107,15 +147,33 @@ export function DataTable<T>({
                   hover
                   onClick={() => onRowClick?.(row)}
                   onDoubleClick={() => onRowDoubleClick?.(row)}
+                  tabIndex={onRowClick ? 0 : -1}
+                  onKeyDown={(e) => {
+                    if (onRowClick && e.key === 'Enter') {
+                      e.preventDefault();
+                      onRowClick(row);
+                    }
+                  }}
                   sx={{
                     cursor: onRowClick ? 'pointer' : 'default',
                     borderBottom: '1px solid',
                     borderColor: 'divider',
-                    '&:nth-of-type(even)': { backgroundColor: 'rgba(0, 0, 0, 0.02)' },
+                    '&:nth-of-type(even)': { backgroundColor: stripe },
+                    ...(onRowClick
+                      ? { '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: -2 } }
+                      : {}),
                   }}
                 >
                   {columns.map((col) => (
-                    <TableCell key={col.id} align={col.align ?? 'left'} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <TableCell
+                      key={col.id}
+                      align={col.align ?? 'left'}
+                      sx={{
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        ...(col.align === 'right' ? { fontVariantNumeric: 'tabular-nums' } : {}),
+                      }}
+                    >
                       {col.render
                         ? col.render(row, rowIndex + page * pageSize)
                         : col.accessor
@@ -141,6 +199,7 @@ export function DataTable<T>({
             onPageChange?.(0);
           }}
           rowsPerPageOptions={[10, 25, 50]}
+          sx={{ borderTop: 1, borderColor: 'divider' }}
         />
       )}
     </Paper>

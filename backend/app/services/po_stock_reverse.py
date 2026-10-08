@@ -173,6 +173,7 @@ async def _deduct_from_batches(
             batch_id=str(batch.id),
             quantity=deduct,
             unit_cost=batch_unit_cost(batch, product),
+            batch_number=batch.batch_number or "",
         ))
         remaining -= deduct
 
@@ -218,6 +219,7 @@ async def reverse_po_batches(
                 batch_id=d.batch_id,
                 quantity=-d.quantity,
                 unit_cost=d.unit_cost,
+                batch_number=d.batch_number,
             )
             for d in deductions
         ],
@@ -267,6 +269,7 @@ async def reverse_supplier_batches(
                 batch_id=d.batch_id,
                 quantity=-d.quantity,
                 unit_cost=d.unit_cost,
+                batch_number=d.batch_number,
             )
             for d in deductions
         ],

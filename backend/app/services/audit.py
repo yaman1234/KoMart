@@ -215,6 +215,7 @@ def po_snapshot(po: Any) -> dict[str, Any]:
         ),
         "item_count": len(po.items),
         "bill_number": (getattr(po, "bill_number", None) or None),
+        "vat_bill": bool(getattr(po, "vat_bill", False)),
     }
 
 
