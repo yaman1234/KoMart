@@ -234,7 +234,9 @@ export function PurchaseOrderDetailPage() {
 
   const seedReceiveSelection = (productId: string, remainingQty: number): ReceiveSelection => {
     const catalog = productById.get(productId);
-    const units = catalog?.unitsPerBuyUom ?? 1;
+    const line = po?.items.find((i) => i.productId === productId);
+    // Prefer PO line Per pack from Create; fall back to catalog product.
+    const units = line?.unitsPerBuyUom ?? catalog?.unitsPerBuyUom ?? 1;
     const mode = (catalog?.sellMode ?? (units > 1 ? 'both' : 'unit')) as SellModeValue;
     return {
       selected: false,
@@ -902,7 +904,7 @@ export function PurchaseOrderDetailPage() {
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.received}</TableCell>
                 {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.receive}</TableCell>}
                 <TableCell sx={headerCellSx}>{PO_LABELS.buyUom}</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.pcsInPack}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.perPack}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.stockIn}</TableCell>
                 <TableCell sx={headerCellSx}>{PO_LABELS.status}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPack}</TableCell>
