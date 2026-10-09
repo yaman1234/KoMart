@@ -44,6 +44,7 @@ import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
 import { productService } from '@/services';
+import type { Product } from '@/types';
 
 function todayAd(): string {
   return new Date().toISOString().slice(0, 10);
@@ -142,10 +143,21 @@ function buildPackPriceHelper(
 
 type FormValues = z.infer<typeof schema>;
 
-export function ProductFormPage() {
+export interface ProductFormPageProps {
+  /** When true, render inside a dialog (e.g. Create Product from PO). */
+  embedded?: boolean;
+  onCancel?: () => void;
+  onCreated?: (product: Product) => void;
+}
+
+export function ProductFormPage({
+  embedded = false,
+  onCancel,
+  onCreated,
+}: ProductFormPageProps = {}) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const isEditing = !!id;
+  const isEditing = !embedded && !!id;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageUploading, setImageUploading] = useState(false);
 
@@ -408,7 +420,11 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       } else {
         const created = await createMutation.mutateAsync(payload);
         showSuccess('Product created.');
-        navigate(`/products/${created.id}`);
+        if (onCreated) {
+          onCreated(created);
+        } else {
+          navigate(`/products/${created.id}`);
+        }
       }
     } catch (err) {
       showApiError(err, isEditing ? 'Product could not be saved.' : 'Product could not be created.');
@@ -440,10 +456,17 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
       <PageHeader
         title={isEditing ? 'Edit Product' : 'Add Product'}
-        breadcrumbs={[{ label: 'Products', path: '/products' }, { label: isEditing ? 'Edit' : 'New' }]}
+        breadcrumbs={
+          embedded
+            ? undefined
+            : [{ label: 'Products', path: '/products' }, { label: isEditing ? 'Edit' : 'New' }]
+        }
         action={
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/products')}>
+            <Button
+              startIcon={embedded ? undefined : <ArrowBackIcon />}
+              onClick={() => (onCancel ? onCancel() : navigate('/products'))}
+            >
               Cancel
             </Button>
             <Button
@@ -458,17 +481,19 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
         }
       />
 
-      <Alert severity="info" sx={{ mb: 2 }}>
-        Change <strong>sell price</strong> here. Change <strong>quantity</strong> from Inventory (Receive / Adjust) — stock is batch-based and cannot be edited on this form.
-        {isEditing && product && (
-          <>
-            {' '}Current stock: <strong>{product.stock}</strong>.
-            <Button size="small" sx={{ ml: 1 }} onClick={() => navigate(`/inventory/${product.id}`)}>
-              Manage in Inventory
-            </Button>
-          </>
-        )}
-      </Alert>
+      {!embedded && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Change <strong>sell price</strong> here. Change <strong>quantity</strong> from Inventory (Receive / Adjust) — stock is batch-based and cannot be edited on this form.
+          {isEditing && product && (
+            <>
+              {' '}Current stock: <strong>{product.stock}</strong>.
+              <Button size="small" sx={{ ml: 1 }} onClick={() => navigate(`/inventory/${product.id}`)}>
+                Manage in Inventory
+              </Button>
+            </>
+          )}
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* ── Left column ─────────────────────────────────────────────────── */}

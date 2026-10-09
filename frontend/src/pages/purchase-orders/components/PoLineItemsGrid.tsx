@@ -671,12 +671,6 @@ export function PoLineItemsGrid({
       <ProductCreateDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        initialSku={lines[createForLineIndex]?.skuInput ?? ''}
-        initialName={
-          lines[createForLineIndex]?.resolveError
-            ? lines[createForLineIndex]?.skuInput ?? ''
-            : lines[createForLineIndex]?.productNameFallback ?? ''
-        }
         onCreated={(product) => {
           const idx = createForLineIndex;
           const line = lines[idx] ?? emptyLine();
