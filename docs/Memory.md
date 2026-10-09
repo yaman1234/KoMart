@@ -4,6 +4,45 @@ running log of completed work — updated after each task, newest entries at top
 
 ## Completed Tasks
 
+### 2026-10-09 — Docs: full PO UX documentation pass
+- Synced prd / architecture / Rules / Design / Task / Memory for all recent PO work (terminology, eye modal, full Add Product from PO, receive pack+sell prices, list filters/KPIs/sort)
+- F12 Save financials remains **removed** (do not reintroduce); F18 is **full** embedded Product form (not slim)
+- Task phases 1–7 + PO polish tasks marked Done to match shipped code; F13b KPI tasks T093–T095 still Not Started
+
+### 2026-10-09 — Remove global 1536px page max-width
+- Problem: MUI `Container` `maxWidth="xl"` capped the main content shell at 1536px, so tables/pages did not grow when zooming out or on wide monitors
+- [`MainLayout.tsx`](../frontend/src/layouts/MainLayout.tsx): `maxWidth={false}` for every authenticated route; `isFullWidth` still only controls POS / products bulk-add gutters and tighter padding (`disableGutters`, `py`, side padding)
+- [`CatalogLayout.tsx`](../frontend/src/layouts/CatalogLayout.tsx): `maxWidth={false}` to match the public catalog shell
+- Dialog / form `maxWidth` (xs–lg) unchanged — modal sizes only, not the page shell
+- Design Responsive Behavior updated: content area uses full available width beside the sidebar
+
+### 2026-10-09 — PO list sortable columns + filter/column polish
+- [`purchase_orders.py`](../backend/app/routers/purchase_orders.py): `sort_by` / `sort_order` on list; whitelist map; aggregation always `$addFields` `_items_count` then `$sort` (lean and full)
+- Sortable fields: order number, supplier, bill number, status, payment status, items count, total, paid, ordered by, created, received date, expected delivery (SN not sortable)
+- Default: `created_at` desc; tie-break `_id`
+- [`PurchaseOrdersPage.tsx`](../frontend/src/pages/purchase-orders/PurchaseOrdersPage.tsx): DataTable `sortable` / `sortKey` / `onSort` wired like Sales; Reset filters restores createdAt desc
+- Status / Payment filters default to empty (“All statuses” / “All payments”); Created date column before Expected Delivery; Bill no. shows “—” when empty
+- KPI cards: Total Received Value + Outstanding Payable; store-wide (ignore status/payment; still respect search/supplier via `include_summary`)
+- Mock [`mockApi.getPurchaseOrders`](../frontend/src/services/mock/mockApi.ts): snake→camel sort map including `items_count`
+
+### 2026-10-09 — PO shared labels + product eye modal + Buy/Sell display
+- Canonical copy in [`poTerminology.ts`](../frontend/src/pages/purchase-orders/poTerminology.ts): Buy unit, Per pack, Pcs in pack, Ordered / Already in / Receiving now / Stock added, Cost/Price / pack|pc, Sell as options, paste/receive hints, entry-flow steps
+- [`productFieldLabels.ts`](../frontend/src/constants/productFieldLabels.ts) reuses PO qty / buy unit / per pack / cost labels on product form/sheet
+- [`ProductCommerceSummary.tsx`](../frontend/src/components/products/ProductCommerceSummary.tsx) + [`PriceWithUom.tsx`](../frontend/src/components/products/PriceWithUom.tsx): Buy (Cost / pack when pack; Cost / pc) admin/manager only; Sell (Price / pack when pack sell; Price / pc); pack rows only when applicable else “—”
+- [`ProductQuickViewDialog.tsx`](../frontend/src/components/products/ProductQuickViewDialog.tsx): title “Product details”; loads `productService.getById` (full incl. images); used from PO form grid + PO detail (and POS/sales)
+- Eye on PO lines does **not** use lean catalog — always getById for images and commerce fields
+
+### 2026-10-09 — PO Create product = full Add Product modal
+- Replaced slim mini-create with [`ProductCreateDialog`](../frontend/src/components/products/ProductCreateDialog.tsx) `maxWidth="lg"` embedding [`ProductFormPage`](../frontend/src/pages/products/ProductFormPage.tsx) (`embedded`)
+- Always opens **empty** (same fields as Products → Add Product); no navigate-away; Cancel/Create stay in modal; `onCreated` applies product to focused PO line + refreshes catalog / last-purchase cost
+- Pack selling price validation uses full product form rules (not a reduced PO-only form)
+
+### 2026-10-09 — PO receive: per-pack seed + Sell as / prices on receipt
+- Detail receive table: Receiving now (packs), editable **Per pack** seeded from **PO line** `unitsPerBuyUom` then catalog; Stock added = Receiving now × Pcs in pack
+- Columns: Sell as, Price / pack, Price / pc, Cost / pack, Cost / pc, Last buy, Expiry; validate pack/piece prices before Process Receipt
+- `POST /purchase-orders/{id}/receive` accepts optional `units_per_buy_uom`, `sell_mode`, `selling_price`, `pack_selling_price`, `expiry_date` — updates product sell mode/prices/cost on receive; stock still packs × units per pack at line unit cost
+- Select-all / open lines + `PO_RECEIVE_HINT`; do not cancel after receive (returns instead)
+
 ### 2026-10-02 — Docs: F13b stock-only write-off tracking
 - Locked: stock-only returns = inventory write-off **loss at cost** (report/KPI), not silent stock OUT, not sales COGS, not wallet cash
 - Updated prd (F13b / F13c), architecture, Rules, Design, Task (T092–T095), guide + TECHNICAL §6.4

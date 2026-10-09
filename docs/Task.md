@@ -18,6 +18,7 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 | ID | Title | Status |
 |----|-------|--------|
 | T000 | Align prd/architecture/Rules/Design/Task with expanded plan | Done |
+| T000b | 2026-10-09 docs pass: terminology, eye, full Add Product, receive, list sort/KPIs | Done |
 
 ---
 
@@ -25,18 +26,18 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T001 | `compute_po_totals` helper + model fields | — | Not Started |
-| T002 | Schemas + create/update router recompute | T001 | Not Started |
-| T003 | Frontend types + `poTotals.ts` + Form/Detail Order Summary | T002 | Not Started |
-| T004 | Phase 1 tests + regression + Memory | T003 | Not Started |
+| T001 | `compute_po_totals` helper + model fields | — | Done |
+| T002 | Schemas + create/update router recompute | T001 | Done |
+| T003 | Frontend types + `poTotals.ts` + Form/Detail Order Summary | T002 | Done |
+| T004 | Phase 1 tests + regression + Memory | T003 | Done |
 
 ## Phase 2 — Received financial amend
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T010 | `PATCH .../financials` + overpay rules | T004 | Not Started |
-| T011 | Detail UI amend + overpay chip | T010 | Not Started |
-| T012 | Phase 2 tests + regression + Memory | T011 | Not Started |
+| T010 | `PATCH .../financials` + overpay rules | T004 | Done then **removed** |
+| T011 | Detail UI amend + overpay chip | T010 | Done then **removed** |
+| T012 | Phase 2 tests + regression + Memory | T011 | Superseded — financials removed; do not reintroduce |
 
 ## Phase 3 — Bill number & images
 
@@ -53,39 +54,39 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 
 - Manager can set/change bill on received/cancelled via Detail without Edit Order.
 - General Edit Order still blocked for received/cancelled.
-- `test_po_bill.py` covers received/cancelled/partial, clear empty number, cashier 403, general PATCH still 400 on received.
+- `test_po_bill.py` covers received/cancelled/partial, clear empty number, cashier 403, general PATCH on received still blocked.
 - List shows Bill no. or “—”; list payload already includes `bill_number`.
 
-## Phase 4 — Slim ProductCreateDialog
+## Phase 4 — Create product from PO (full form)
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T030 | ProductCreateDialog (essentials) + PO wire-up | T004 | Not Started |
-| T031 | Phase 4 tests + regression + Memory | T030 | Not Started |
+| T030 | ProductCreateDialog embeds full ProductFormPage + PO wire-up (empty on open) | T004 | Done |
+| T031 | Phase 4 tests + regression + Memory | T030 | Done |
 
 ## Phase 5 — Purchase price history
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T040 | Model + write on receive + list/last Unit Cost API | T004 | Not Started |
-| T041 | Inventory Purchase price history tab | T040 | Not Started |
-| T042 | Phase 5 tests + regression + Memory | T041 | Not Started |
+| T040 | Model + write on receive + list/last Unit Cost API | T004 | Done |
+| T041 | Inventory Purchase price history tab | T040 | Done |
+| T042 | Phase 5 tests + regression + Memory | T041 | Done |
 
 ## Phase 6 — Unit Cost delta icon
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T050 | Icon/tooltip vs last purchase Unit Cost | T042 | Not Started |
-| T051 | Phase 6 tests + regression + Memory | T050 | Not Started |
+| T050 | Icon/tooltip vs last purchase Unit Cost | T042 | Done |
+| T051 | Phase 6 tests + regression + Memory | T050 | Done |
 
 ## Phase 7 — Batch columns
 
 | ID | Title | Depends | Status |
 |----|-------|---------|--------|
-| T060 | `received_quantity` on batches + API | T004 | Not Started |
-| T061 | Inventory columns Received / Remaining / Unit Cost | T060 | Not Started |
-| T062 | Phase 7 tests + regression + Memory | T061 | Not Started |
-| T070 | Final E2E regression + Memory sign-off | T012,T024,T031,T042,T051,T062 | Not Started |
+| T060 | `received_quantity` on batches + API | T004 | Done |
+| T061 | Inventory columns Received / Remaining / Unit Cost | T060 | Done |
+| T062 | Phase 7 tests + regression + Memory | T061 | Done |
+| T070 | Final E2E regression + Memory sign-off | T024,T031,T042,T051,T062 | Done |
 
 ## Phase 8 — Purchase returns (dual mode)
 
@@ -109,19 +110,36 @@ After each phase 1–7: run phase feature tests, then regression pack (PO create
 | T094 | FE: return detail “Stock-only loss” + dashboard write-off tile | T093 | Not Started |
 | T095 | Tests + guide update for stock-only loss visibility | T094 | Not Started |
 
+## Phase 9 — PO UX polish (terminology, eye, receive, list)
+
+| ID | Title | Depends | Status |
+|----|-------|---------|--------|
+| T100 | `poTerminology` + `productFieldLabels` shared glossary | T070 | Done |
+| T101 | ProductCommerceSummary + PriceWithUom Buy/Sell display | T100 | Done |
+| T102 | ProductQuickViewDialog eye on PO form + detail (`getById`) | T101 | Done |
+| T103 | Receive table: Per pack from PO line, Sell as + prices, Stock added math | T100 | Done |
+| T104 | Receive API optional units/sell/prices on `POST .../receive` | T103 | Done |
+| T105 | PO list: empty status/payment defaults, date column order, KPI cards | T025 | Done |
+| T106 | PO list server + FE sortable columns (all data cols) | T105 | Done |
+| T107 | Docs sync Memory/Design/architecture/prd/Task/Rules for Phase 9 | T106 | Done |
+
 ---
 
 ## Locked decisions (summary)
 
 - Flat discount + additional charges; payable-only
-- Received money amend allowed when partial/paid (overpay display) — product later removed Save financials UI; keep decision documented
+- Received money amend (**F12**) was built then **removed** — no Save financials / no `/financials`; do not reintroduce without ask
 - Bill images: no max; bill number/images **status-independent** via `PATCH /bill`
-- PO list shows **Bill no.** column
+- PO list shows **Bill no.** column; Status/Payment filters default empty; Created date before Expected Delivery; all data columns sortable
+- List KPIs (received value / outstanding) ignore status/payment filters
 - Cloudinary PO bill preset from env (`VITE_CLOUDINARY_UPLOAD_PRESET_PURCHASEORDER`)
-- Slim add-product dialog from PO
+- **Create product from PO** = full Add Product modal (empty on open), not a slim form
+- Shared labels from `poTerminology.ts`; eye modal uses `getById` + Buy/Sell Cost|Price / pack·pc
+- Receive: Receiving now in packs; Per pack seeded from PO line; optional Sell as + prices update product; stock = packs × pcs in pack at line unit cost
 - Purchase history on Inventory only
 - Cost compare: **Unit Cost** vs last purchase **Unit Cost**
 - **Returns:** PO-linked (`refund` / `reduce_payable`) from PO detail; supplier mode (`refund` / `stock_only`, no PO money) from Supplier detail; leftover PO-tagged batches only — guide: [guides/Purchase_Returns.md](./guides/Purchase_Returns.md)
 - **Return refunds** = cash recovery inflow on dashboard (not Sales) only after payment is recorded; global list at `/purchase-returns` with Create return
 - Refund status: `requested` until payment received is confirmed, then `closed`. Reduce payable and stock only close on create
-- **Stock-only (F13b):** track as **inventory write-off loss at cost** via report/KPI aggregation of closed `stock_only` returns (`return_date`); not sales COGS; not wallet cash; expense document optional later (F13c)
+- **Stock-only (F13b):** track as **inventory write-off loss at cost** via report/KPI aggregation of closed `stock_only` returns (`return_date`); not sales COGS; not wallet cash; expense document optional later (F13c); KPI UI still T093–T095
+- App shell: no `maxWidth="xl"` (1536px) on MainLayout / CatalogLayout

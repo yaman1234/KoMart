@@ -34,14 +34,21 @@
 11. **Never** change PO money fields on **supplier-mode** returns; **never** return more than leftover PO-tagged batch qty.
 12. **Never** treat `stock_only` purchase returns as sales COGS, negative sales, or wallet cash inflow.
 13. **Never** leave stock-only returns as stock OUT only in product UX — F13b requires visible **write-off loss at cost** (report/KPI + return detail). Do not invent a second inventory movement for the same return.
+14. **Never** reintroduce `PATCH /purchase-orders/{id}/financials` or a Detail “Save financials” control without an explicit product ask.
+15. **Never** ship a slim/minimal Create-product form on PO — use the full embedded `ProductFormPage` in `ProductCreateDialog` (empty on open).
+16. **Never** invent alternate PO UI labels; use `poTerminology.ts` / `productFieldLabels.ts`.
+17. **Never** open the PO eye modal from lean catalog rows alone — always `productService.getById` for images and commerce fields.
+18. **Never** reintroduce `Container maxWidth="xl"` on `MainLayout` / `CatalogLayout`.
 
 **Always do:**
 
 1. Normalize legacy documents on read (missing fields → 0 / derived subtotal).
-2. Keep receive path using line `unit_cost` only.
+2. Keep receive path using line `unit_cost` for inventory/batch cost; optional receive payload may update product sell mode / prices / `units_per_buy_uom`.
 3. Keep manager+ authorization on create/update.
 4. Allow `bill_number` / `bill_images` updates in **any** PO status via dedicated `PATCH /purchase-orders/{id}/bill` (does not rewrite `PurchasePriceHistory`).
 5. Compute stock-only loss as `SUM(PurchaseReturn.total_amount)` for closed `stock_only` rows by `return_date` (server-side).
+6. Seed receive **Per pack** from the PO line first, then catalog.
+7. PO list KPI summary (`include_summary`) ignores status/payment filters; list sorting uses the server whitelist.
 
 ---
 
@@ -97,17 +104,20 @@ Manual QA required before Done: create PO with discount only, charges only, both
 
 **Decide without asking:**
 
-- Label copy: “Discount”, “Additional charges”, “Subtotal”, “Order total”.
+- Label copy for money summary: “Discount”, “Additional charges”, “Subtotal”, “Order total”.
+- All other PO field labels: follow `poTerminology.ts` / `productFieldLabels.ts`.
 - Clamp discount to subtotal instead of hard-erroring when UI races with line edits (still validate on server).
 - Server overwrites `total_amount` with computed value.
 
 **Ask before changing:**
 
 - Allocating charges into inventory cost.
-- Allowing edit of discount/charges on `received` POs.
+- Reintroducing edit of discount/charges on `received` POs / `PATCH .../financials` (explicitly removed).
+- Replacing full Add Product modal with a slim PO-only create form.
 - Percentage discount.
 - Hard delete of any non-draft PO.
 - Max bill image count or making bill number required.
+- Re-capping MainLayout/CatalogLayout with `maxWidth="xl"`.
 
 ---
 

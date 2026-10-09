@@ -58,17 +58,20 @@ Separately, managers need a clear policy for attaching supplier bill evidence an
 
 ### Must-Have (scheduled build)
 
-| ID | Feature | Phase |
-|----|---------|-------|
-| F1–F8 | Discount, Additional charges, Order Summary, payable total, legacy | 1 |
-| F12 | Manager financial amend on **received** POs (allowed when partial/paid; overpay/credit display) | 2 |
-| F9–F10 | Optional bill number + bill images (no max count) | 3 |
-| F18 | Slim **Create product** dialog from PO form | 4 |
-| F19 | Purchase price history tab on **Inventory** detail; last **Unit Cost** API | 5 |
-| F20 | Unit Cost change icon vs last purchase Unit Cost | 6 |
-| F21 | Batches: Received Qty, Remaining Qty (rename), Unit Cost | 7 |
-| F13 | Dual-mode purchase return: PO-linked (refund / reduce_payable) + supplier (refund / stock_only); refund is requested until payment received, then closed | 8 |
-| F13b | Track **stock-only** supplier returns as inventory write-off / disposal **loss at cost** (report + dashboard; not silent qty drop; not sales COGS) | 8 |
+| ID | Feature | Phase | Status |
+|----|---------|-------|--------|
+| F1–F8 | Discount, Additional charges, Order Summary, payable total, legacy | 1 | Shipped |
+| F12 | Manager financial amend on **received** POs | 2 | **Removed** — do not ship Save financials / `PATCH .../financials`; discount/charges only on create/edit |
+| F9–F10 | Optional bill number + bill images (no max count); status-independent Edit bill; list Bill no. | 3 | Shipped |
+| F18 | **Create product** from PO form = full Add Product modal (same fields as Products page; empty on open) | 4 | Shipped |
+| F19 | Purchase price history tab on **Inventory** detail; last **Unit Cost** API | 5 | Shipped |
+| F20 | Unit Cost change icon vs last purchase Unit Cost (PO form grid) | 6 | Shipped |
+| F21 | Batches: Received Qty, Remaining Qty (rename), Unit Cost | 7 | Shipped |
+| F22 | Shared PO terminology + product eye modal (Buy/Sell Cost/Price pack·pc; getById quick view) | — | Shipped |
+| F23 | Receive UX: Receiving now (packs), Per pack from PO line, Sell as + prices on receipt | — | Shipped |
+| F24 | PO list: empty status/payment defaults, Created before Expected Delivery, sortable columns, KPI cards | — | Shipped |
+| F13 | Dual-mode purchase return: PO-linked (refund / reduce_payable) + supplier (refund / stock_only); refund is requested until payment received, then closed | 8 | Shipped |
+| F13b | Track **stock-only** supplier returns as inventory write-off / disposal **loss at cost** (report + dashboard; not silent qty drop; not sales COGS) | 8 | Docs locked; KPI UI pending |
 
 ### Nice-to-Have later
 

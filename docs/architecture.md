@@ -109,11 +109,26 @@ Request body additions (`PurchaseOrderCreate` / `PurchaseOrderUpdate`):
 
 Response (`PurchaseOrderResponse`) always includes `subtotal`, `discount`, `additional_charges`, `total_amount`.
 
-### Unchanged endpoints
+### Payments & status
 
 - `POST /{id}/payments` — still uses `total_amount` for remaining balance.
-- `POST /{id}/receive` — unchanged cost logic.
-- `PATCH /{id}/status` — cancel rules unchanged (no cancel from `received`).
+- `PATCH /{id}/status` — cancel rules unchanged (no cancel from `received` / `partial`); do not set `partial`/`received` via status — use receive endpoint.
+
+### Receive `POST /{id}/receive`
+
+Body items (`PurchaseOrderReceiveItem`):
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `product_id` | yes | |
+| `receive_quantity` | yes | Packs (buy units) received this time, ≥ 1 |
+| `units_per_buy_uom` | no | Pcs in pack; when set, updates line/product conversion |
+| `sell_mode` | no | `unit` / `piece` / `both` — updates product |
+| `selling_price` | no | Piece sell price |
+| `pack_selling_price` | no | Pack sell price when pack sell applies |
+| `expiry_date` | no | |
+
+Stock in = `receive_quantity × units_per_buy_uom` (or line default). Inventory/batch cost still uses line `unit_cost` (no landed-cost allocation of discount/charges). Product cost/sell fields update from payload when provided.
 
 ### Bill fields (status-independent)
 
@@ -122,10 +137,20 @@ Response (`PurchaseOrderResponse`) always includes `subtotal`, `discount`, `addi
 - General `PATCH /{id}` may still accept bill fields when the PO is editable; Detail always uses `/bill` for corrections.
 - List UI: **Bill no.** column reads `bill_number` from list payload (no extra endpoint).
 
+### List `GET ""`
+
+- Query: `search`, `supplier_id`, `status`, `payment_status`, `lean`, `include_summary`, `sort_by` (default `created_at`), `sort_order` (`asc` | `desc`, default `desc`), pagination.
+- Sort whitelist maps FE/camel aliases to Mongo fields; `items` / `items_count` → computed `_items_count` via `$addFields` then `$sort` (lean and full list share this pipeline).
+- Allowed sort targets: `order_number`, `supplier_name`, `bill_number`, `status`, `payment_status`, `_items_count`, `total_amount`, `amount_paid`, `ordered_by`, `created_at`, `received_date`, `expected_delivery`.
+- Unknown `sort_by` falls back to `created_at`; secondary key `_id` for stable order.
+- `lean=true`: project out `items` / `payments` / `bill_images`; keep `_items_count` → response `items_count`.
+- `include_summary=true`: `received_total_amount` + `outstanding_amount` store-wide for current search/supplier (ignores status/payment filters).
+- App shell: `MainLayout` / `CatalogLayout` use `Container maxWidth={false}` (no 1536px xl cap).
+
 ### Optional / deferred
 
 - Optional `GET` query / filter by `bill_number` (F11).
-- Manager-only PATCH for financial fields when status = `received` (lines immutable) — removed from product; do not reintroduce without ask.
+- Manager-only PATCH for financial fields when status = `received` (lines immutable) — **removed**; do not reintroduce without ask.
 
 ---
 
@@ -141,12 +166,22 @@ backend/app/
   tests/test_po_totals.py       # new
 
 frontend/src/
-  types/index.ts                # PurchaseOrder fields + PurchaseOrderBillPayload
+  types/index.ts                # PurchaseOrder fields + PurchaseOrderBillPayload / receive payload
   pages/purchase-orders/
     PurchaseOrderFormPage.tsx   # Order Summary + bill fields (editable statuses)
-    PurchaseOrderDetailPage.tsx # read-only breakdown + Edit bill (any status)
-    PurchaseOrdersPage.tsx      # list includes Bill no. column
-  hooks/usePurchaseOrders.ts    # useUpdatePurchaseOrderBill
+    PurchaseOrderDetailPage.tsx # receive table + Edit bill (any status) + eye modal
+    PurchaseOrdersPage.tsx      # Bill no., KPIs, filters, sortable headers
+    poTerminology.ts            # shared PO labels / Sell as / flow hints
+    components/PoLineItemsGrid.tsx  # create product, eye, cost delta, paste
+  components/products/
+    ProductCreateDialog.tsx     # full ProductFormPage embedded (lg modal)
+    ProductQuickViewDialog.tsx  # eye → getById product details
+    ProductCommerceSummary.tsx  # Buy/Sell Cost|Price / pack·pc
+    PriceWithUom.tsx
+  constants/productFieldLabels.ts  # product form/sheet labels aligned with PO
+  layouts/MainLayout.tsx        # Container maxWidth={false}; POS/bulk gutters via isFullWidth
+  layouts/CatalogLayout.tsx     # Container maxWidth={false}
+  hooks/usePurchaseOrders.ts    # list + bill + receive mutations
   utils/cloudinaryUpload.ts     # PO bill preset from env
   utils/poTotals.ts             # shared client formula (optional mirror)
 ```
