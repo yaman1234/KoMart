@@ -191,6 +191,7 @@ export function PoLineItemsGrid({
   const [createOpen, setCreateOpen] = useState(false);
   const [createForLineIndex, setCreateForLineIndex] = useState(0);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [quickViewLoading, setQuickViewLoading] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef(lines);
   linesRef.current = lines;
@@ -205,6 +206,19 @@ export function PoLineItemsGrid({
   const nextId = () => {
     nextIdRef.current += 1;
     return nextIdRef.current;
+  };
+
+  /** Full product (images included) — catalog rows use includeImages:false. */
+  const openProductQuickView = async (productId: string, fallback: Product | null) => {
+    setQuickViewLoading(true);
+    try {
+      const full = await productService.getById(productId);
+      setQuickViewProduct(full);
+    } catch {
+      setQuickViewProduct(fallback);
+    } finally {
+      setQuickViewLoading(false);
+    }
   };
 
   const emptyLine = () => emptyPoLineItem(nextId(), primaryUom);
@@ -469,7 +483,8 @@ export function PoLineItemsGrid({
                           <IconButton
                             size="small"
                             aria-label="View product"
-                            onClick={() => setQuickViewProduct(line.product)}
+                            disabled={quickViewLoading}
+                            onClick={() => void openProductQuickView(line.product!.id, line.product)}
                             sx={{ flexShrink: 0 }}
                           >
                             <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />

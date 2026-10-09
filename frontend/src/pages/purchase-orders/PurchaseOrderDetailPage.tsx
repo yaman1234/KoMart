@@ -343,10 +343,10 @@ export function PurchaseOrderDetailPage() {
       const units = sel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
       const mode = sel.sellMode ?? 'unit';
       if (units > 1 && (mode === 'unit' || mode === 'both') && !(sel.packSellingPrice && sel.packSellingPrice > 0)) {
-        return `Set Pack price for ${item.productName}`;
+        return `Set Price / pack for ${item.productName}`;
       }
       if ((mode === 'piece' || mode === 'both' || units <= 1) && !(sel.sellingPrice && sel.sellingPrice > 0)) {
-        return `Set Piece price for ${item.productName}`;
+        return `Set Price / pc for ${item.productName}`;
       }
     }
     return null;

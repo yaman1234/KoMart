@@ -19,8 +19,8 @@ export const PO_LABELS = {
   status: 'Status',
   sell: 'Sell',
   sellAs: 'Sell as',
-  packPrice: 'Pack price',
-  piecePrice: 'Piece price',
+  packPrice: 'Price / pack',
+  piecePrice: 'Price / pc',
   lastBuy: 'Last buy',
 } as const;
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   Box,
   Chip,
@@ -7,17 +8,15 @@ import {
   Divider,
   Grid,
   IconButton,
-  Stack,
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ImageIcon from '@mui/icons-material/Image';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import { PriceWithUom } from '@/components/products/PriceWithUom';
-import { UomConversionHint } from '@/components/uom/UomUi';
+import { ProductCommerceSummary } from '@/components/products/ProductCommerceSummary';
+import { PO_LABELS, sellAsLabel } from '@/pages/purchase-orders/poTerminology';
 import { useAuthStore } from '@/store';
 import {
-  formatCurrency,
   isAdminOrManager,
   productStatusColor,
   productStatusLabel,
@@ -25,8 +24,6 @@ import {
   uomLabel,
 } from '@/utils';
 import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
-import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
-import { sellAsLabel } from '@/pages/purchase-orders/poTerminology';
 import type { Product } from '@/types';
 
 interface ProductQuickViewDialogProps {
@@ -34,6 +31,39 @@ interface ProductQuickViewDialogProps {
   open: boolean;
   onClose: () => void;
   discountLabel?: string | null;
+}
+
+function displayValue(value: string | number | null | undefined): string {
+  if (value == null) return '—';
+  const text = String(value).trim();
+  return text || '—';
+}
+
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <Grid size={{ xs: 12, sm: 6 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+        {label}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{ fontWeight: 600, color: value === '—' ? 'text.disabled' : 'text.primary' }}
+      >
+        {value}
+      </Typography>
+    </Grid>
+  );
+}
+
+function LabeledBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Box>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  );
 }
 
 export function ProductQuickViewDialog({
@@ -47,35 +77,39 @@ export function ProductQuickViewDialog({
 
   if (!product) return null;
 
+  const imageSrc = product.images?.find((url) => Boolean(url?.trim())) ?? '';
   const tags = product.tags ?? [];
-  const stockStatus =
-    product.stock === 0
-      ? { label: 'Out of Stock', color: 'error' as const }
-      : product.stock <= product.lowStockThreshold
-        ? { label: `Low Stock (${product.stock})`, color: 'warning' as const }
-        : { label: `In Stock (${product.stock})`, color: 'success' as const };
+  const stockColor =
+    product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
 
-  const showPackPrice = canSellAsPack(product);
-  const packOption = packSellOption(product);
-  const packPriceIsDerived = showPackPrice && (product.packSellingPrice ?? 0) <= 0;
-
-  const infoRows: { label: string; value: string }[] = [
-    { label: 'SKU', value: product.sku },
-    { label: 'Barcode', value: product.barcode },
-    { label: 'Brand', value: product.brand },
-    { label: 'Category', value: product.category },
-    { label: 'Country', value: product.countryOfOrigin },
-    { label: 'Supplier', value: product.supplierName ?? '—' },
-    { label: 'Buy unit', value: uomLabel(product.buyUom ?? product.uom ?? '') || '—' },
-    { label: 'Sell unit', value: uomLabel(product.uom ?? '') || '—' },
-    { label: 'Sell as', value: sellAsLabel(product.sellMode) },
+  const details: { label: string; value: string }[] = [
+    { label: PO_LABELS.sku, value: displayValue(product.sku) },
+    { label: 'Barcode', value: displayValue(product.barcode) },
+    { label: 'Brand', value: displayValue(product.brand) },
+    { label: 'Category', value: displayValue(product.category) },
+    { label: 'Country', value: displayValue(product.countryOfOrigin) },
+    { label: 'Supplier', value: displayValue(product.supplierName) },
     {
-      label: 'Pcs in pack',
-      value: formatConversion(
-        product.buyUom ?? '',
-        product.uom ?? '',
-        product.unitsPerBuyUom ?? 1,
-      ) || String(product.unitsPerBuyUom ?? 1),
+      label: PO_LABELS.buyUom,
+      value: displayValue(uomLabel(product.buyUom ?? product.uom ?? '')),
+    },
+    {
+      label: 'Sell unit',
+      value: displayValue(uomLabel(product.uom ?? '')),
+    },
+    {
+      label: PO_LABELS.sellAs,
+      value: displayValue(sellAsLabel(product.sellMode)),
+    },
+    {
+      label: PO_LABELS.pcsInPack,
+      value: displayValue(
+        formatConversion(
+          product.buyUom ?? '',
+          product.uom ?? '',
+          product.unitsPerBuyUom ?? 1,
+        ) || String(product.unitsPerBuyUom ?? 1),
+      ),
     },
   ];
 
@@ -84,244 +118,197 @@ export function ProductQuickViewDialog({
       <DialogTitle
         sx={{
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1,
           pr: 1,
+          py: 1.5,
         }}
       >
-        <Typography variant="h6" component="span" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-          {product.name}
+        <Typography variant="subtitle1" component="span" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+          Product details
         </Typography>
-        <IconButton aria-label="Close" onClick={onClose} size="small" sx={{ mt: -0.5 }}>
+        <IconButton aria-label="Close" onClick={onClose} size="small">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
 
       <DialogContent dividers sx={{ p: 0 }}>
-        <Grid container sx={{ minHeight: { xs: 'auto', sm: 320 } }}>
-          {/* Left — product image */}
+        <Grid container>
           <Grid
             size={{ xs: 12, sm: 5 }}
             sx={{
               bgcolor: 'action.hover',
               borderRight: { sm: 1 },
               borderColor: 'divider',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               p: { xs: 2, sm: 3 },
-              minHeight: { xs: 200, sm: 320 },
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
             }}
           >
-            {product.images[0] ? (
-              <Box
-                component="img"
-                src={product.images[0]}
-                alt={product.name}
-                loading="lazy"
-                decoding="async"
-                sx={{
-                  width: '100%',
-                  maxHeight: { xs: 220, sm: 360 },
-                  objectFit: 'contain',
-                  borderRadius: 1,
-                }}
-              />
-            ) : (
-              <Box
-                sx={{
-                  width: '100%',
-                  height: { xs: 160, sm: 280 },
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'text.disabled',
-                  gap: 1,
-                }}
-              >
-                <ImageIcon sx={{ fontSize: 64 }} />
-                <Typography variant="body2" color="text.secondary">
-                  No image
-                </Typography>
-              </Box>
-            )}
-          </Grid>
-
-          {/* Right — product details */}
-          <Grid size={{ xs: 12, sm: 7 }} sx={{ p: { xs: 2, sm: 3 } }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start', mb: 2 }}>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                {canSellAsPiece(product) && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Piece price
-                    </Typography>
-                    <PriceWithUom
-                      price={product.sellingPrice}
-                      uom={product.uom ?? ''}
-                      priceSx={{ fontSize: '1.25rem' }}
-                    />
-                  </Box>
-                )}
-                {showPackPrice && packOption && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Pack price
-                    </Typography>
-                    <PriceWithUom
-                      price={packOption.price}
-                      uom={product.buyUom ?? ''}
-                      priceSx={{ fontSize: '1.25rem' }}
-                    />
-                    {packPriceIsDerived && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                        Derived from piece price until pack price is set in product edit.
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-                {!canSellAsPiece(product) && !showPackPrice && (
-                  <PriceWithUom
-                    price={product.sellingPrice}
-                    uom={product.uom ?? ''}
-                    priceSx={{ fontSize: '1.25rem' }}
-                  />
-                )}
-              </Box>
-              <Chip
-                label={formatStockQty(product.stock, product.uom ?? '')}
-                color={stockStatus.color}
-                size="small"
-                sx={{ fontWeight: 600 }}
-              />
-              {productStatusOf(product.status) !== 'active' && (
-                <Chip
-                  label={productStatusLabel(product.status)}
-                  color={productStatusColor(product.status)}
-                  size="small"
-                  variant="outlined"
+            <Box
+              sx={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                maxHeight: { xs: 280, sm: 340 },
+                borderRadius: 1.5,
+                overflow: 'hidden',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {imageSrc ? (
+                <Box
+                  component="img"
+                  src={imageSrc}
+                  alt={product.name}
+                  loading="lazy"
+                  decoding="async"
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
                 />
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'text.disabled',
+                    gap: 1,
+                    p: 2,
+                  }}
+                >
+                  <ImageIcon sx={{ fontSize: 72 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    No image
+                  </Typography>
+                </Box>
               )}
             </Box>
 
-            {canSeeCostPrice && (
-              <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Cost / pc
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {formatCurrency(product.costPrice)} / {uomLabel(product.uom || product.buyUom || '') || 'pc'}
-                  </Typography>
-                </Box>
-                {(product.unitsPerBuyUom ?? 1) > 1 && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Cost / pack
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {formatCurrency(product.costPrice * (product.unitsPerBuyUom ?? 1))} /{' '}
-                      {uomLabel(product.buyUom ?? '') || 'pack'}
-                    </Typography>
-                  </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="h5"
+                component="h2"
+                sx={{
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                  fontSize: { xs: '1.25rem', sm: '1.375rem' },
+                  mb: 1.25,
+                }}
+              >
+                {displayValue(product.name)}
+              </Typography>
+
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                Available stock
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                <Chip
+                  label={formatStockQty(product.stock, product.uom ?? '')}
+                  color={stockColor}
+                  size="small"
+                  sx={{ fontWeight: 600 }}
+                />
+                {productStatusOf(product.status) !== 'active' && (
+                  <Chip
+                    label={productStatusLabel(product.status)}
+                    color={productStatusColor(product.status)}
+                    size="small"
+                    variant="outlined"
+                  />
                 )}
-                <Chip label={sellAsLabel(product.sellMode)} size="small" variant="outlined" sx={{ alignSelf: 'center' }} />
-              </Box>
-            )}
-
-            <Box sx={{ mb: 2 }}>
-              <UomConversionHint
-                buyUom={product.buyUom ?? product.uom ?? ''}
-                baseUom={product.uom ?? ''}
-                factor={product.unitsPerBuyUom ?? 1}
-              />
-            </Box>
-
-            {(discountLabel || tags.length > 0) && (
-              <Stack spacing={1.5} sx={{ mb: 2 }}>
                 {discountLabel && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                      Discount
-                    </Typography>
-                    <Chip
-                      icon={<LocalOfferIcon sx={{ fontSize: '0.875rem !important' }} />}
-                      label={discountLabel}
-                      size="small"
-                      color="success"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </Box>
+                  <Chip
+                    icon={<LocalOfferIcon sx={{ fontSize: '0.875rem !important' }} />}
+                    label={discountLabel}
+                    size="small"
+                    color="success"
+                    sx={{ fontWeight: 600 }}
+                  />
                 )}
-                {tags.length > 0 && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                      Tags
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {tags.map((tag) => (
-                        <Chip key={tag} label={tag} size="small" color="info" variant="outlined" />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </Stack>
-            )}
+              </Box>
+            </Box>
+          </Grid>
 
-            <Divider sx={{ mb: 2 }} />
+          <Grid size={{ xs: 12, sm: 7 }} sx={{ p: { xs: 2, sm: 3 } }}>
+            <ProductCommerceSummary
+              product={product}
+              canSeeCostPrice={canSeeCostPrice}
+              priceSize="md"
+            />
 
+            <Divider sx={{ my: 2.5 }} />
+            <Typography
+              variant="overline"
+              sx={{ display: 'block', fontWeight: 700, letterSpacing: 0.6, color: 'text.secondary', mb: 1.25 }}
+            >
+              Details
+            </Typography>
             <Grid container spacing={1.5}>
-              {infoRows.map((row) => (
-                <Grid key={row.label} size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    {row.label}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {row.value || '—'}
-                  </Typography>
-                </Grid>
+              {details.map((row) => (
+                <DetailField key={row.label} label={row.label} value={row.value} />
               ))}
             </Grid>
 
-            {product.description && (
-              <>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                  Description
+            <Divider sx={{ my: 2 }} />
+            <LabeledBlock label="Tags">
+              {tags.length > 0 ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {tags.map((tag) => (
+                    <Chip key={tag} label={tag} size="small" color="info" variant="outlined" />
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.disabled" sx={{ fontWeight: 600 }}>
+                  —
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {product.description}
-                </Typography>
-              </>
-            )}
+              )}
+            </LabeledBlock>
 
-            {(product.nutritionInfo || product.allergenInfo) && (
-              <>
-                <Divider sx={{ my: 2 }} />
-                {product.nutritionInfo && (
-                  <Box sx={{ mb: 1.5 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
-                      Nutrition
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {product.nutritionInfo}
-                    </Typography>
-                  </Box>
-                )}
-                {product.allergenInfo && (
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.25 }}>
-                      Allergens
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {product.allergenInfo}
-                    </Typography>
-                  </Box>
-                )}
-              </>
-            )}
+            <Divider sx={{ my: 2 }} />
+            <LabeledBlock label="Description">
+              <Typography
+                variant="body2"
+                color={product.description?.trim() ? 'text.secondary' : 'text.disabled'}
+                sx={{ fontWeight: product.description?.trim() ? 400 : 600 }}
+              >
+                {displayValue(product.description)}
+              </Typography>
+            </LabeledBlock>
+
+            <Divider sx={{ my: 2 }} />
+            <LabeledBlock label="Nutrition">
+              <Typography
+                variant="body2"
+                color={product.nutritionInfo?.trim() ? 'text.secondary' : 'text.disabled'}
+                sx={{ fontWeight: product.nutritionInfo?.trim() ? 400 : 600 }}
+              >
+                {displayValue(product.nutritionInfo)}
+              </Typography>
+            </LabeledBlock>
+
+            <Box sx={{ mt: 1.5 }}>
+              <LabeledBlock label="Allergens">
+                <Typography
+                  variant="body2"
+                  color={product.allergenInfo?.trim() ? 'text.secondary' : 'text.disabled'}
+                  sx={{ fontWeight: product.allergenInfo?.trim() ? 400 : 600 }}
+                >
+                  {displayValue(product.allergenInfo)}
+                </Typography>
+              </LabeledBlock>
+            </Box>
           </Grid>
         </Grid>
       </DialogContent>

@@ -207,7 +207,7 @@ export function ProductDetailPage() {
                 {canSellAsPiece(product) && (
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Piece price
+                      Price / pc
                     </Typography>
                     <PriceWithUom
                       price={product.sellingPrice}
@@ -219,7 +219,7 @@ export function ProductDetailPage() {
                 {showPackPrice && packOption && (
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Pack price
+                      Price / pack
                     </Typography>
                     <PriceWithUom
                       price={packOption.price}
