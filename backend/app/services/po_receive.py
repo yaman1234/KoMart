@@ -14,7 +14,7 @@ from pymongo.errors import OperationFailure
 from app.database import get_motor_client
 from app.models.audit_log import AuditModule
 from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
-from app.models.product import Product
+from app.models.product import Product, SellMode
 from app.models.purchase_order import (
     POStatus,
     PurchaseOrder,
@@ -26,6 +26,7 @@ from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderReceiveItem
 from app.services.audit import log_audit, po_snapshot
 from app.services.inventory_sync import log_receive_price_change
+from app.services.po_product_sync import uom_patch_for_receive_product
 
 
 @dataclass
@@ -302,8 +303,17 @@ async def receive_purchase_order_items(
         pid: {
             "cost_price": product_map[pid].cost_price,
             "selling_price": product_map[pid].selling_price,
+            "pack_selling_price": getattr(product_map[pid], "pack_selling_price", 0.0) or 0.0,
             "supplier_id": product_map[pid].supplier_id,
             "supplier_name": product_map[pid].supplier_name,
+            "buy_uom": product_map[pid].buy_uom,
+            "uom": product_map[pid].uom,
+            "units_per_buy_uom": product_map[pid].units_per_buy_uom,
+            "sell_mode": (
+                product_map[pid].sell_mode.value
+                if hasattr(product_map[pid].sell_mode, "value")
+                else product_map[pid].sell_mode
+            ),
             "updated_at": product_map[pid].updated_at,
         }
         for pid in product_ids
@@ -317,7 +327,15 @@ async def receive_purchase_order_items(
         before_cost = product.cost_price
         before_sell = product.selling_price
 
-        units = getattr(plan.item, "units_per_buy_uom", None) or 1
+        # Prefer units from this receive (may differ from ordered pack size)
+        units = (
+            plan.receive.units_per_buy_uom
+            or getattr(plan.item, "units_per_buy_uom", None)
+            or 1
+        )
+        # After item_updates, plan.item may still be the pre-update copy; use receive override
+        line_for_cost = updated_items[plan.line_index]
+        units = getattr(line_for_cost, "units_per_buy_uom", None) or units
         cost_per_buy = plan.item.unit_cost if plan.item.unit_cost > 0 else product.cost_price * units
         plan.landed_cost = round(cost_per_buy / units, 4) if units else cost_per_buy
 
@@ -325,6 +343,36 @@ async def receive_purchase_order_items(
         if plan.landed_cost > 0 and plan.landed_cost != product.cost_price:
             product.cost_price = plan.landed_cost
             pu["cost_price"] = plan.landed_cost
+
+        uom_patch = uom_patch_for_receive_product(
+            product,
+            line_for_cost,
+            units_override=int(units),
+        )
+        pu.update(uom_patch)
+
+        # Optional sell mode / prices from this receive (update products collection)
+        recv_mode = getattr(plan.receive, "sell_mode", None)
+        if recv_mode in (SellMode.unit.value, SellMode.piece.value, SellMode.both.value, "unit", "piece", "both"):
+            mode_val = recv_mode.value if hasattr(recv_mode, "value") else str(recv_mode)
+            product.sell_mode = SellMode(mode_val)
+            pu["sell_mode"] = mode_val
+
+        recv_piece = getattr(plan.receive, "selling_price", None)
+        if recv_piece is not None and float(recv_piece) >= 0:
+            piece_price = float(recv_piece)
+            if piece_price != product.selling_price:
+                product.selling_price = piece_price
+                pu["selling_price"] = piece_price
+
+        recv_pack = getattr(plan.receive, "pack_selling_price", None)
+        if recv_pack is not None and float(recv_pack) >= 0:
+            pack_price = float(recv_pack)
+            current_pack = float(getattr(product, "pack_selling_price", 0) or 0)
+            if pack_price != current_pack:
+                product.pack_selling_price = pack_price
+                pu["pack_selling_price"] = pack_price
+
         plan.batch_number = _batch_number_for_line(
             po.order_number,
             plan.line_index,

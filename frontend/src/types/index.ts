@@ -495,6 +495,9 @@ export interface PurchaseOrderReceiveItem {
   receiveQuantity: number;
   expiryDate?: string;
   unitsPerBuyUom?: number;
+  sellMode?: 'unit' | 'piece' | 'both';
+  sellingPrice?: number;
+  packSellingPrice?: number;
 }
 
 export type PurchaseReturnMode = 'po_linked' | 'supplier';

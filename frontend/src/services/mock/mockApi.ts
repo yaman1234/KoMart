@@ -716,6 +716,22 @@ export const mockApi = {
       if (delta <= 0) return item;
       const units = receive.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
       applyMockStockDelta(item.productId, delta * units);
+      const prodIdx = products.findIndex((p) => p.id === item.productId);
+      if (prodIdx !== -1) {
+        const prod = products[prodIdx];
+        const landed = item.unitCost > 0 ? item.unitCost / units : prod.costPrice;
+        products[prodIdx] = {
+          ...prod,
+          buyUom: item.orderUom ?? prod.buyUom,
+          uom: item.baseUom ?? prod.uom,
+          unitsPerBuyUom: units,
+          costPrice: landed > 0 ? landed : prod.costPrice,
+          ...(receive.sellMode ? { sellMode: receive.sellMode } : {}),
+          ...(receive.sellingPrice != null ? { sellingPrice: receive.sellingPrice } : {}),
+          ...(receive.packSellingPrice != null ? { packSellingPrice: receive.packSellingPrice } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+      }
       const receivedQuantity = item.receivedQuantity + delta;
       const lineStatus: PurchaseOrderLineStatus =
         receivedQuantity <= 0 ? 'pending'

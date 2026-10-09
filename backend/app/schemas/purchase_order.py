@@ -80,6 +80,9 @@ class PurchaseOrderReceiveItem(BaseModel):
     receive_quantity: int = Field(ge=1)
     expiry_date: Optional[str] = None
     units_per_buy_uom: int | None = Field(default=None, ge=1)
+    sell_mode: Optional[str] = None
+    selling_price: float | None = Field(default=None, ge=0)
+    pack_selling_price: float | None = Field(default=None, ge=0)
 
 
 class PurchaseOrderReceiveRequest(BaseModel):

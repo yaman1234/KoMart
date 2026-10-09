@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,21 +12,23 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import { Tooltip } from '@mui/material';
 import { productService } from '@/services';
 import { useUomOptions } from '@/hooks/useUoms';
 import { formatCurrency } from '@/utils';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { showSuccess } from '@/utils/toast';
 import { ProductCreateDialog } from '@/components/products/ProductCreateDialog';
+import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
 import type { Product } from '@/types';
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
 import {
@@ -41,64 +43,9 @@ import {
   resolveProductFromInput,
   type ProductCatalogIndex,
 } from '@/pages/purchase-orders/poProductResolver';
+import { applyVatToUnitCost, stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 import { PO_LABELS, PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
 import { PoProductAutocompleteCell } from '@/pages/purchase-orders/components/PoProductAutocompleteCell';
-
-const EDITABLE_COLS = [0, 1, 2, 3, 4] as const;
-type EditableCol = (typeof EDITABLE_COLS)[number];
-
-function focusPoCell(container: HTMLElement | null, row: number, col: EditableCol) {
-  const el = container?.querySelector<HTMLElement>(`[data-po-row="${row}"][data-po-col="${col}"]`);
-  const input = el?.matches('input, select, textarea')
-    ? el
-    : el?.querySelector<HTMLElement>('input, select, textarea');
-  input?.focus();
-  if (input instanceof HTMLInputElement && input.type !== 'date') {
-    input.select();
-  }
-}
-
-function handleSpreadsheetKeyDown(
-  e: React.KeyboardEvent,
-  rowIndex: number,
-  colIndex: EditableCol,
-  rowCount: number,
-  container: HTMLElement | null,
-) {
-  const key = e.key;
-  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) return;
-
-  const colIdx = EDITABLE_COLS.indexOf(colIndex);
-  let nextRow = rowIndex;
-  let nextCol = colIndex;
-
-  if (key === 'ArrowRight') {
-    if (colIdx < EDITABLE_COLS.length - 1) nextCol = EDITABLE_COLS[colIdx + 1];
-    else return;
-  } else if (key === 'ArrowLeft') {
-    if (colIdx > 0) nextCol = EDITABLE_COLS[colIdx - 1];
-    else return;
-  } else if (key === 'ArrowDown' || key === 'Enter') {
-    if (rowIndex < rowCount - 1) nextRow = rowIndex + 1;
-    else return;
-  } else if (key === 'ArrowUp') {
-    if (rowIndex > 0) nextRow = rowIndex - 1;
-    else return;
-  }
-
-  e.preventDefault();
-  focusPoCell(container, nextRow, nextCol);
-}
-
-function poCellKeyDown(
-  e: React.KeyboardEvent,
-  rowIndex: number,
-  colIndex: EditableCol,
-  rowCount: number,
-  container: HTMLElement | null,
-) {
-  handleSpreadsheetKeyDown(e, rowIndex, colIndex, rowCount, container);
-}
 
 function parseQuantity(input: string): number {
   const n = parseInt(input, 10);
@@ -155,6 +102,51 @@ function ensureTrailingEmptyRow(
   return lines;
 }
 
+function focusPoCell(container: HTMLElement | null, row: number, col: number) {
+  const el = container?.querySelector<HTMLElement>(`[data-po-row="${row}"][data-po-col="${col}"]`);
+  const input = el?.matches('input, select, textarea')
+    ? el
+    : el?.querySelector<HTMLElement>('input, select, textarea');
+  input?.focus();
+  if (input instanceof HTMLInputElement && input.type !== 'date') {
+    input.select();
+  }
+}
+
+function handleSpreadsheetKeyDown(
+  e: React.KeyboardEvent,
+  rowIndex: number,
+  colIndex: number,
+  editableCols: number[],
+  rowCount: number,
+  container: HTMLElement | null,
+) {
+  const key = e.key;
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) return;
+
+  const colIdx = editableCols.indexOf(colIndex);
+  if (colIdx < 0) return;
+  let nextRow = rowIndex;
+  let nextCol = colIndex;
+
+  if (key === 'ArrowRight') {
+    if (colIdx < editableCols.length - 1) nextCol = editableCols[colIdx + 1];
+    else return;
+  } else if (key === 'ArrowLeft') {
+    if (colIdx > 0) nextCol = editableCols[colIdx - 1];
+    else return;
+  } else if (key === 'ArrowDown' || key === 'Enter') {
+    if (rowIndex < rowCount - 1) nextRow = rowIndex + 1;
+    else return;
+  } else if (key === 'ArrowUp') {
+    if (rowIndex > 0) nextRow = rowIndex - 1;
+    else return;
+  }
+
+  e.preventDefault();
+  focusPoCell(container, nextRow, nextCol);
+}
+
 export interface PoLineItemsGridProps {
   lines: PoLineItem[];
   onChange: (lines: PoLineItem[]) => void;
@@ -162,17 +154,22 @@ export interface PoLineItemsGridProps {
   pasteWarning?: string;
   onPasteWarning?: (message: string) => void;
   onProductCreated?: (product: Product) => void;
+  vatBill?: boolean;
+  taxRate?: number;
 }
 
 const headerSx = {
   fontWeight: 700,
   fontSize: '0.75rem',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'nowrap' as const,
   py: 0.75,
   px: 1,
   bgcolor: 'action.hover',
   borderBottom: '1px solid',
   borderColor: 'divider',
+  position: 'sticky' as const,
+  top: 0,
+  zIndex: 2,
 };
 
 const cellPadSx = { p: 0, borderBottom: '1px solid', borderColor: 'divider' };
@@ -184,6 +181,8 @@ export function PoLineItemsGrid({
   pasteWarning,
   onPasteWarning,
   onProductCreated,
+  vatBill = false,
+  taxRate = 0,
 }: PoLineItemsGridProps) {
   const uomOptions = useUomOptions();
   const primaryUom = defaultPrimaryUom(uomOptions);
@@ -191,9 +190,17 @@ export function PoLineItemsGrid({
   const [focusedRow, setFocusedRow] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForLineIndex, setCreateForLineIndex] = useState(0);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef(lines);
   linesRef.current = lines;
+
+  const editableCols = useMemo(
+    () => (vatBill ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4]),
+    [vatBill],
+  );
+  const costCol = vatBill ? 5 : 4;
+  const beforeVatCol = 4;
 
   const nextId = () => {
     nextIdRef.current += 1;
@@ -308,6 +315,12 @@ export function PoLineItemsGrid({
     }
   };
 
+  const onCellKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
+    handleSpreadsheetKeyDown(e, rowIndex, colIndex, editableCols, lines.length, tableRef.current);
+  };
+
+  const lineInactive = (line: PoLineItem) => !line.product && !line.skuInput.trim();
+
   return (
     <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
       <Box
@@ -325,7 +338,7 @@ export function PoLineItemsGrid({
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          Copy from Excel: <strong>{PO_PASTE_HINT}</strong> — click a row, then Ctrl+V
+          Paste: <strong>{PO_PASTE_HINT}</strong> — Ctrl+V
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           <IconButton
@@ -356,22 +369,29 @@ export function PoLineItemsGrid({
         <Alert severity="warning" sx={{ borderRadius: 0 }}>{pasteWarning}</Alert>
       )}
 
+      {vatBill && taxRate > 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1.5, py: 0.75 }}>
+          Cost includes {taxRate}% VAT
+        </Typography>
+      )}
+
       <TableContainer
         ref={tableRef}
         tabIndex={0}
         onPaste={handlePaste}
-        sx={{ overflowX: 'auto', outline: 'none' }}
+        sx={{ overflowX: 'auto', outline: 'none', maxHeight: '70vh' }}
       >
         <Table
           size="small"
+          stickyHeader
           sx={{
             tableLayout: 'fixed',
-            minWidth: poFormTableMinWidth(),
+            minWidth: poFormTableMinWidth(vatBill),
             borderCollapse: 'collapse',
           }}
         >
           <colgroup>
-            {poFormColWidths().map((w, i) => (
+            {poFormColWidths(vatBill).map((w, i) => (
               <col key={i} style={{ width: w, minWidth: w }} />
             ))}
           </colgroup>
@@ -380,11 +400,15 @@ export function PoLineItemsGrid({
               <TableCell align="center" sx={headerSx}>#</TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.sku}</TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.product}</TableCell>
-              <TableCell align="right" sx={headerSx}>{PO_LABELS.packQty}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.qty}</TableCell>
               <TableCell sx={headerSx}>{PO_LABELS.buyUom}</TableCell>
-              <TableCell align="right" sx={headerSx}>{PO_LABELS.unitsPerPack}</TableCell>
-              <TableCell align="right" sx={headerSx}>{PO_LABELS.unitCost}</TableCell>
-              <TableCell align="right" sx={headerSx}>{PO_LABELS.lineTotal}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.perPack}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.totalUnits}</TableCell>
+              {vatBill && (
+                <TableCell align="right" sx={headerSx}>{PO_LABELS.costBeforeVat}</TableCell>
+              )}
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.cost}</TableCell>
+              <TableCell align="right" sx={headerSx}>{PO_LABELS.amount}</TableCell>
               <TableCell sx={headerSx} />
             </TableRow>
           </TableHead>
@@ -392,7 +416,12 @@ export function PoLineItemsGrid({
             {lines.map((line, index) => {
               const qty = parseQuantity(line.quantityInput);
               const locked = line.receivedQuantity > 0;
-              const lineTotal = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
+              const inactive = lineInactive(line);
+              const totalUnits = qty * (line.unitsPerBuyUom || 1);
+              const amount = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
+              const beforeVat = vatBill
+                ? stripVatFromUnitCost(line.unitCost, taxRate)
+                : 0;
 
               return (
                 <TableRow
@@ -416,7 +445,7 @@ export function PoLineItemsGrid({
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { skuInput: e.target.value, resolveError: undefined })}
                       onBlur={() => handleSkuBlur(index)}
-                      onKeyDown={(e) => poCellKeyDown(e, index, 0, lines.length, tableRef.current)}
+                      onKeyDown={(e) => onCellKeyDown(e, index, 0)}
                       error={!!line.resolveError}
                       sx={excelCellSx}
                       slotProps={{
@@ -425,13 +454,29 @@ export function PoLineItemsGrid({
                     />
                   </TableCell>
                   <TableCell sx={cellPadSx}>
-                    <PoProductAutocompleteCell
-                      line={line}
-                      catalogIndex={catalogIndex}
-                      disabled={locked}
-                      onFocus={() => setFocusedRow(index)}
-                      onLineChange={(updated) => handleProductChange(index, updated)}
-                    />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <PoProductAutocompleteCell
+                          line={line}
+                          catalogIndex={catalogIndex}
+                          disabled={locked}
+                          onFocus={() => setFocusedRow(index)}
+                          onLineChange={(updated) => handleProductChange(index, updated)}
+                        />
+                      </Box>
+                      {line.product && (
+                        <Tooltip title="View product">
+                          <IconButton
+                            size="small"
+                            aria-label="View product"
+                            onClick={() => setQuickViewProduct(line.product)}
+                            sx={{ flexShrink: 0 }}
+                          >
+                            <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell align="right" sx={cellPadSx}>
                     <TextField
@@ -439,13 +484,13 @@ export function PoLineItemsGrid({
                       size="small"
                       type="number"
                       value={line.quantityInput}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={locked || inactive}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { quantityInput: e.target.value })}
                       onBlur={() =>
                         updateLine(index, { quantityInput: String(parseQuantity(line.quantityInput)) })
                       }
-                      onKeyDown={(e) => poCellKeyDown(e, index, 1, lines.length, tableRef.current)}
+                      onKeyDown={(e) => onCellKeyDown(e, index, 1)}
                       sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
                       slotProps={{
                         htmlInput: {
@@ -463,10 +508,10 @@ export function PoLineItemsGrid({
                       fullWidth
                       size="small"
                       value={line.buyUom}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={locked || inactive}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { buyUom: e.target.value })}
-                      onKeyDown={(e) => poCellKeyDown(e, index, 2, lines.length, tableRef.current)}
+                      onKeyDown={(e) => onCellKeyDown(e, index, 2)}
                       sx={excelCellSx}
                       slotProps={{
                         htmlInput: { 'data-po-row': index, 'data-po-col': 2 },
@@ -483,14 +528,14 @@ export function PoLineItemsGrid({
                       size="small"
                       type="number"
                       value={line.unitsPerBuyUom}
-                      disabled={locked || (!line.product && !line.skuInput.trim())}
+                      disabled={locked || inactive}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) =>
                         updateLine(index, {
                           unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
                         })
                       }
-                      onKeyDown={(e) => poCellKeyDown(e, index, 3, lines.length, tableRef.current)}
+                      onKeyDown={(e) => onCellKeyDown(e, index, 3)}
                       sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
                       slotProps={{
                         htmlInput: {
@@ -502,6 +547,40 @@ export function PoLineItemsGrid({
                       }}
                     />
                   </TableCell>
+                  <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.8125rem', pr: 0.5, color: 'text.secondary' }}>
+                      {!inactive ? totalUnits : '—'}
+                    </Typography>
+                  </TableCell>
+                  {vatBill && (
+                    <TableCell align="right" sx={cellPadSx}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        value={inactive ? '' : beforeVat}
+                        disabled={locked || inactive}
+                        onFocus={() => setFocusedRow(index)}
+                        onChange={(e) => {
+                          const before = parseFloat(e.target.value) || 0;
+                          updateLine(index, {
+                            unitCost: applyVatToUnitCost(before, taxRate),
+                          });
+                        }}
+                        onKeyDown={(e) => onCellKeyDown(e, index, beforeVatCol)}
+                        sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
+                        slotProps={{
+                          htmlInput: {
+                            min: 0,
+                            step: 0.01,
+                            style: { textAlign: 'right' },
+                            'data-po-row': index,
+                            'data-po-col': beforeVatCol,
+                          },
+                        }}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell align="right" sx={cellPadSx}>
                     {(() => {
                       const prev = line.lastPurchaseUnitCost;
@@ -517,7 +596,7 @@ export function PoLineItemsGrid({
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
                           {showDelta && (
                             <Tooltip
-                              title={`Previous Unit Cost ${formatCurrency(prev)} → now ${formatCurrency(curr)} (${up ? '+' : ''}${pct}%)`}
+                              title={`Previous cost ${formatCurrency(prev)} → now ${formatCurrency(curr)} (${up ? '+' : ''}${pct}%)`}
                             >
                               {up ? (
                                 <TrendingUpIcon color="warning" sx={{ fontSize: 18 }} />
@@ -531,12 +610,12 @@ export function PoLineItemsGrid({
                             size="small"
                             type="number"
                             value={line.unitCost}
-                            disabled={locked || (!line.product && !line.skuInput.trim())}
+                            disabled={locked || inactive}
                             onFocus={() => setFocusedRow(index)}
                             onChange={(e) =>
                               updateLine(index, { unitCost: parseFloat(e.target.value) || 0 })
                             }
-                            onKeyDown={(e) => poCellKeyDown(e, index, 4, lines.length, tableRef.current)}
+                            onKeyDown={(e) => onCellKeyDown(e, index, costCol)}
                             sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
                             slotProps={{
                               htmlInput: {
@@ -544,7 +623,7 @@ export function PoLineItemsGrid({
                                 step: 0.01,
                                 style: { textAlign: 'right' },
                                 'data-po-row': index,
-                                'data-po-col': 4,
+                                'data-po-col': costCol,
                               },
                             }}
                           />
@@ -554,7 +633,7 @@ export function PoLineItemsGrid({
                   </TableCell>
                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem', pr: 0.5 }}>
-                      {lineTotal > 0 ? formatCurrency(lineTotal) : '—'}
+                      {amount > 0 ? formatCurrency(amount) : '—'}
                     </Typography>
                   </TableCell>
                   <TableCell sx={cellPadSx}>
@@ -596,6 +675,11 @@ export function PoLineItemsGrid({
           onProductCreated?.(product);
           fetchLastPurchaseUnitCost(applied.id, product.id);
         }}
+      />
+      <ProductQuickViewDialog
+        product={quickViewProduct}
+        open={Boolean(quickViewProduct)}
+        onClose={() => setQuickViewProduct(null)}
       />
     </Paper>
   );

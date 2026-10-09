@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -24,6 +24,7 @@ import {
   InputLabel,
   FormControl,
   IconButton,
+  Tooltip,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
@@ -32,6 +33,7 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined';
 import CloseIcon from '@mui/icons-material/Close';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,6 +41,8 @@ import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { FormModal } from '@/components/common/FormModal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
 import {
   usePurchaseOrder,
   useUpdatePurchaseOrderStatus,
@@ -47,17 +51,21 @@ import {
   useUpdatePurchaseOrderBill,
 } from '@/hooks/usePurchaseOrders';
 import { usePurchaseReturns, useReturnableLines } from '@/hooks/usePurchaseReturns';
+import { useProductCatalog } from '@/hooks/useProductCatalog';
 import { PoReturnDialog } from '@/pages/purchase-orders/components/PoReturnDialog';
 import { formatCurrency, canManagePurchaseOrders } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
+import { productService } from '@/services';
 import { showSuccess } from '@/utils/toast';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
 import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
+import { packSellOption } from '@/utils/uomSell';
 import { PAYMENT_METHODS, PO_LINE_STATUS_LABELS, PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type {
+  Product,
   PurchaseOrderLineStatus,
   PurchaseOrderPaymentStatus,
   PurchaseOrderReceiveItem,
@@ -68,12 +76,21 @@ import {
   poDetailFlatColWidths,
   poDetailTableMinWidth,
 } from '@/pages/purchase-orders/poLineTableColumns';
+import { isLineFullyReceived } from '@/pages/purchase-orders/poPricing';
 import {
   PO_LABELS,
   PO_RECEIVE_HINT,
   PO_RECORD_PAYMENT_HINT,
+  PO_SELL_AS_OPTIONS,
 } from '@/pages/purchase-orders/poTerminology';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
+import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
+
+type LastBuyInfo = {
+  unitCost: number | null;
+  purchasedAt: string | null;
+  orderNumber?: string | null;
+};
 
 const PAYMENT_SCHEMA = z.object({
   amount: z.number({ error: 'Amount is required' }).positive('Amount must be positive'),
@@ -109,11 +126,16 @@ const NEXT_STATUSES: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>>
 
 const PAYABLE_STATUSES = new Set<PurchaseOrderStatus>(['ordered', 'partial', 'received']);
 
+type SellModeValue = 'unit' | 'piece' | 'both';
+
 interface ReceiveSelection {
   selected: boolean;
   receiveQuantity: number;
   expiryDate: string;
   unitsPerBuyUom?: number;
+  sellMode?: SellModeValue;
+  sellingPrice?: number;
+  packSellingPrice?: number;
 }
 
 const headerCellSx = { fontWeight: 700, whiteSpace: 'nowrap', py: 1.25 };
@@ -136,6 +158,10 @@ export function PurchaseOrderDetailPage() {
   const [billImagesEdit, setBillImagesEdit] = useState<string[]>([]);
   const [billUploading, setBillUploading] = useState(false);
   const [billError, setBillError] = useState('');
+  const [lastBuyMap, setLastBuyMap] = useState<Record<string, LastBuyInfo>>({});
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [quickViewLoading, setQuickViewLoading] = useState(false);
+  const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
 
   const {
     register,
@@ -155,6 +181,7 @@ export function PurchaseOrderDetailPage() {
   });
 
   const { data: po, isLoading, isError } = usePurchaseOrder(id ?? '');
+  const { products: catalogProducts } = useProductCatalog();
   const statusMutation = useUpdatePurchaseOrderStatus();
   const receiveMutation = useReceivePurchaseOrderItems();
   const paymentMutation = useRecordPurchaseOrderPayment();
@@ -172,23 +199,91 @@ export function PurchaseOrderDetailPage() {
   const canPay = Boolean(po && canManage && PAYABLE_STATUSES.has(po.status) && remaining > 0);
   const canReturn = Boolean(canManage && canReturnStatus && returnableLines.length > 0);
 
-  const getReceiveSelection = (productId: string, remaining: number): ReceiveSelection =>
-    receiveSelections[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
+  const productById = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const p of catalogProducts) map.set(p.id, p);
+    return map;
+  }, [catalogProducts]);
 
-  const updateReceiveSelection = (productId: string, remaining: number, patch: Partial<ReceiveSelection>) => {
+  useEffect(() => {
+    if (!po?.items?.length) {
+      setLastBuyMap({});
+      return;
+    }
+    const ids = [...new Set(po.items.map((i) => i.productId))];
+    let cancelled = false;
+    void Promise.all(
+      ids.map(async (productId) => {
+        try {
+          const res = await productService.getLastPurchaseUnitCost(productId);
+          return [productId, {
+            unitCost: res.unitCost,
+            purchasedAt: res.purchasedAt,
+            orderNumber: res.orderNumber ?? null,
+          }] as const;
+        } catch {
+          return [productId, { unitCost: null, purchasedAt: null, orderNumber: null }] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setLastBuyMap(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
+  }, [po?.id, po?.items]);
+
+  const seedReceiveSelection = (productId: string, remainingQty: number): ReceiveSelection => {
+    const catalog = productById.get(productId);
+    const units = catalog?.unitsPerBuyUom ?? 1;
+    const mode = (catalog?.sellMode ?? (units > 1 ? 'both' : 'unit')) as SellModeValue;
+    return {
+      selected: false,
+      receiveQuantity: remainingQty || 1,
+      expiryDate: '',
+      unitsPerBuyUom: units,
+      sellMode: mode,
+      sellingPrice: catalog?.sellingPrice ?? 0,
+      packSellingPrice:
+        (catalog?.packSellingPrice && catalog.packSellingPrice > 0)
+          ? catalog.packSellingPrice
+          : (catalog ? packSellOption(catalog)?.price : 0) ?? 0,
+    };
+  };
+
+  const getReceiveSelection = (productId: string, remainingQty: number): ReceiveSelection =>
+    receiveSelections[productId] ?? seedReceiveSelection(productId, remainingQty);
+
+  const updateReceiveSelection = (productId: string, remainingQty: number, patch: Partial<ReceiveSelection>) => {
     setReceiveSelections((prev) => {
-      const base = prev[productId] ?? { selected: false, receiveQuantity: remaining || 1, expiryDate: '' };
+      const base = prev[productId] ?? seedReceiveSelection(productId, remainingQty);
       return { ...prev, [productId]: { ...base, ...patch } };
     });
   };
 
-  const receivableItems = useMemo(() => po?.items ?? [], [po]);
+  const openProductQuickView = async (productId: string) => {
+    setQuickViewLoading(true);
+    try {
+      const full = await productService.getById(productId);
+      setQuickViewProduct(full);
+    } catch {
+      const fallback = productById.get(productId) ?? null;
+      setQuickViewProduct(fallback);
+    } finally {
+      setQuickViewLoading(false);
+    }
+  };
+
+  /** Lines that can still receive stock (excludes fully received). */
+  const receivableItems = useMemo(
+    () => (po?.items ?? []).filter((item) => !isLineFullyReceived(item)),
+    [po],
+  );
 
   const selectAllState = useMemo(() => {
     if (receivableItems.length === 0) return { checked: false, indeterminate: false };
     const selectedCount = receivableItems.filter((item) => {
-      const remaining = item.quantity - item.receivedQuantity;
-      return getReceiveSelection(item.productId, remaining).selected;
+      const rem = item.quantity - item.receivedQuantity;
+      return getReceiveSelection(item.productId, rem).selected;
     }).length;
     return {
       checked: selectedCount === receivableItems.length,
@@ -200,9 +295,9 @@ export function PurchaseOrderDetailPage() {
     setReceiveSelections((prev) => {
       const next = { ...prev };
       for (const item of receivableItems) {
-        const remaining = item.quantity - item.receivedQuantity;
-        const base = next[item.productId] ?? { receiveQuantity: remaining > 0 ? remaining : 1, expiryDate: '', selected: false };
-        next[item.productId] = { ...base, selected: checked, receiveQuantity: remaining > 0 ? remaining : 1 };
+        const rem = item.quantity - item.receivedQuantity;
+        const base = next[item.productId] ?? seedReceiveSelection(item.productId, rem);
+        next[item.productId] = { ...base, selected: checked, receiveQuantity: rem > 0 ? rem : 1 };
       }
       return next;
     });
@@ -212,25 +307,50 @@ export function PurchaseOrderDetailPage() {
     if (!po) return [];
     return po.items
       .filter((item) => {
-        const remaining = item.quantity - item.receivedQuantity;
-        const sel = getReceiveSelection(item.productId, remaining);
+        if (isLineFullyReceived(item)) return false;
+        const rem = item.quantity - item.receivedQuantity;
+        const sel = getReceiveSelection(item.productId, rem);
         return sel.selected && sel.receiveQuantity > 0;
       })
       .map((item) => {
-        const remaining = item.quantity - item.receivedQuantity;
-        const sel = getReceiveSelection(item.productId, remaining);
+        const rem = item.quantity - item.receivedQuantity;
+        const sel = getReceiveSelection(item.productId, rem);
         const payload: PurchaseOrderReceiveItem = {
           productId: item.productId,
           receiveQuantity: sel.receiveQuantity,
         };
         if (sel.expiryDate) payload.expiryDate = sel.expiryDate;
         const lineUnits = item.unitsPerBuyUom ?? 1;
-        if (sel.unitsPerBuyUom && sel.unitsPerBuyUom !== lineUnits) {
+        const units = sel.unitsPerBuyUom ?? lineUnits;
+        if (units !== lineUnits) {
+          payload.unitsPerBuyUom = units;
+        } else if (sel.unitsPerBuyUom) {
           payload.unitsPerBuyUom = sel.unitsPerBuyUom;
         }
+        if (sel.sellMode) payload.sellMode = sel.sellMode;
+        if (sel.sellingPrice != null) payload.sellingPrice = sel.sellingPrice;
+        if (sel.packSellingPrice != null) payload.packSellingPrice = sel.packSellingPrice;
         return payload;
       });
   }, [po, receiveSelections]);
+
+  const validateReceivePrices = (): string | null => {
+    for (const item of po?.items ?? []) {
+      if (isLineFullyReceived(item)) continue;
+      const rem = item.quantity - item.receivedQuantity;
+      const sel = getReceiveSelection(item.productId, rem);
+      if (!sel.selected) continue;
+      const units = sel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
+      const mode = sel.sellMode ?? 'unit';
+      if (units > 1 && (mode === 'unit' || mode === 'both') && !(sel.packSellingPrice && sel.packSellingPrice > 0)) {
+        return `Set Pack price for ${item.productName}`;
+      }
+      if ((mode === 'piece' || mode === 'both' || units <= 1) && !(sel.sellingPrice && sel.sellingPrice > 0)) {
+        return `Set Piece price for ${item.productName}`;
+      }
+    }
+    return null;
+  };
 
   const handleStatusChange = async (status: PurchaseOrderStatus) => {
     if (!po) return;
@@ -246,21 +366,48 @@ export function PurchaseOrderDetailPage() {
     }
   };
 
+  const requestReceive = () => {
+    if (!po) return;
+    if (itemsToReceive.length === 0) {
+      setReceiveError('Select at least one item with a receive qty');
+      return;
+    }
+    const priceErr = validateReceivePrices();
+    if (priceErr) {
+      setReceiveError(priceErr);
+      return;
+    }
+    setReceiveError('');
+    setReceiveConfirmOpen(true);
+  };
+
   const handleReceive = async () => {
     if (!po) return;
     if (itemsToReceive.length === 0) {
-      setReceiveError('Select at least one item with a pack qty');
+      setReceiveError('Select at least one item with a receive qty');
+      setReceiveConfirmOpen(false);
+      return;
+    }
+    const priceErr = validateReceivePrices();
+    if (priceErr) {
+      setReceiveError(priceErr);
+      setReceiveConfirmOpen(false);
       return;
     }
     setReceiveError('');
     try {
       await receiveMutation.mutateAsync({ id: po.id, items: itemsToReceive });
       showSuccess(
-        `${itemsToReceive.length} line${itemsToReceive.length !== 1 ? 's' : ''} received. Stock and cost updated.`,
+        `${itemsToReceive.length} line${itemsToReceive.length !== 1 ? 's' : ''} received. Stock and product prices updated.`,
       );
       setReceiveSelections({});
+      setReceiveConfirmOpen(false);
+      if (quickViewProduct) {
+        void openProductQuickView(quickViewProduct.id);
+      }
     } catch (err) {
       setReceiveError(getErrorMessage(err));
+      setReceiveConfirmOpen(false);
     }
   };
 
@@ -375,11 +522,13 @@ export function PurchaseOrderDetailPage() {
               <Button
                 variant="contained"
                 startIcon={<InventoryIcon />}
-                onClick={() => void handleReceive()}
+                onClick={requestReceive}
                 loading={receiveMutation.isPending}
                 disabled={itemsToReceive.length === 0}
               >
-                Process Receipt
+                {itemsToReceive.length > 0
+                  ? `Process Receipt (${itemsToReceive.length})`
+                  : 'Process Receipt'}
               </Button>
             )}
             {canPay && (
@@ -748,69 +897,83 @@ export function PurchaseOrderDetailPage() {
                   </TableCell>
                 )}
                 <TableCell align="center" sx={headerCellSx}>#</TableCell>
-                <TableCell sx={headerCellSx}>Product</TableCell>
+                <TableCell sx={headerCellSx}>{PO_LABELS.product}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.ordered}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.received}</TableCell>
-                {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packQty}</TableCell>}
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitsPerPack}</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.totalUnits}</TableCell>
-                {canReceive && <TableCell sx={headerCellSx}>{PO_LABELS.expiryOptional}</TableCell>}
-                <TableCell sx={headerCellSx}>Status</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.unitCost}</TableCell>
-                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
+                {canReceive && <TableCell align="right" sx={headerCellSx}>{PO_LABELS.receive}</TableCell>}
+                <TableCell sx={headerCellSx}>{PO_LABELS.buyUom}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.pcsInPack}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.stockIn}</TableCell>
+                <TableCell sx={headerCellSx}>{PO_LABELS.status}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPack}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPc}</TableCell>
+                <TableCell sx={headerCellSx}>{PO_LABELS.sellAs}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packPrice}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.piecePrice}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lastBuy}</TableCell>
+                {canReceive && <TableCell sx={headerCellSx}>{PO_LABELS.expiry}</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
               {po.items.map((item, index) => {
-                const remaining = item.quantity - item.receivedQuantity;
-                const receiveSel = getReceiveSelection(item.productId, remaining);
-                const orderUom = item.orderUom ?? 'pcs';
+                const rem = item.quantity - item.receivedQuantity;
+                const fullyReceived = isLineFullyReceived(item);
+                const receiveSel = getReceiveSelection(item.productId, rem);
+                const buyUnit = item.orderUom ?? 'pcs';
+                const baseUnit = item.baseUom ?? 'pcs';
                 const unitsPerBuy = receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
                 const orderedTotalUnits = item.quantity * (item.unitsPerBuyUom ?? 1);
                 const receiveTotalUnits = receiveSel.selected
                   ? receiveSel.receiveQuantity * unitsPerBuy
                   : 0;
+                const costPack = item.unitCost;
+                const costPc = unitsPerBuy > 0 ? Math.round((costPack / unitsPerBuy) * 10000) / 10000 : costPack;
+                const sellMode = receiveSel.sellMode ?? (unitsPerBuy > 1 ? 'both' : 'unit');
+                const showPackPrice = unitsPerBuy > 1 && (sellMode === 'unit' || sellMode === 'both');
+                const showPiecePrice = sellMode === 'piece' || sellMode === 'both' || unitsPerBuy <= 1;
                 const lineStatus = item.lineStatus ?? (
                   item.receivedQuantity <= 0 ? 'pending'
                   : item.receivedQuantity >= item.quantity ? 'received'
                   : 'partial'
                 );
-                const defaultPackQty = remaining > 0 ? remaining : 1;
+                const defaultPackQty = rem > 0 ? rem : 1;
+                const lastBuy = lastBuyMap[item.productId];
+                const rowDisabled = canReceive && fullyReceived;
+                const inputsEnabled = canReceive && !fullyReceived && receiveSel.selected;
 
                 return (
                   <TableRow
                     key={item.productId}
-                    selected={canReceive && receiveSel.selected}
-                    sx={
-                      canReceive && receiveSel.selected
+                    selected={canReceive && !fullyReceived && receiveSel.selected}
+                    sx={{
+                      opacity: rowDisabled ? 0.55 : 1,
+                      ...(canReceive && !fullyReceived && receiveSel.selected
                         ? {
-                            // Keep row indicated without a heavy/red tint that hides inputs
-                            '&.Mui-selected': {
-                              bgcolor: 'action.hover',
-                            },
-                            '&.Mui-selected:hover': {
-                              bgcolor: 'action.selected',
-                            },
-                            '& .MuiTableCell-root': {
-                              bgcolor: 'transparent',
-                            },
+                            '&.Mui-selected': { bgcolor: 'action.hover' },
+                            '&.Mui-selected:hover': { bgcolor: 'action.selected' },
+                            '& .MuiTableCell-root': { bgcolor: 'transparent' },
                           }
-                        : undefined
-                    }
+                        : undefined),
+                    }}
                   >
                     {canReceive && (
                       <TableCell padding="checkbox">
-                        <Checkbox
-                          size="small"
-                          checked={receiveSel.selected}
-                          onChange={(e) =>
-                            updateReceiveSelection(item.productId, remaining, {
-                              selected: e.target.checked,
-                              receiveQuantity: receiveSel.receiveQuantity || defaultPackQty,
-                              unitsPerBuyUom: receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1,
-                            })
-                          }
-                        />
+                        <Tooltip title={fullyReceived ? 'Fully received' : ''}>
+                          <span>
+                            <Checkbox
+                              size="small"
+                              checked={!fullyReceived && receiveSel.selected}
+                              disabled={fullyReceived}
+                              onChange={(e) =>
+                                updateReceiveSelection(item.productId, rem, {
+                                  selected: e.target.checked,
+                                  receiveQuantity: receiveSel.receiveQuantity || defaultPackQty,
+                                  unitsPerBuyUom: receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1,
+                                })
+                              }
+                            />
+                          </span>
+                        </Tooltip>
                       </TableCell>
                     )}
                     <TableCell align="center">
@@ -819,14 +982,27 @@ export function PurchaseOrderDetailPage() {
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ minWidth: PO_DETAIL_FLAT_COLUMNS.product }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }} title={item.productName}>
-                        {item.productName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {item.quantity} {orderUom} · {orderedTotalUnits} {PO_LABELS.totalUnits.toLowerCase()}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }} title={item.productName} noWrap>
+                          {item.productName}
+                        </Typography>
+                        <Tooltip title="View product">
+                          <span>
+                            <IconButton
+                              size="small"
+                              aria-label="View product"
+                              disabled={quickViewLoading}
+                              onClick={() => void openProductQuickView(item.productId)}
+                            >
+                              <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Box>
                     </TableCell>
-                    <TableCell align="right">{item.quantity}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {item.quantity} {buyUnit}
+                    </TableCell>
                     <TableCell align="right">{item.receivedQuantity}</TableCell>
                     {canReceive && (
                       <TableCell align="right">
@@ -834,67 +1010,151 @@ export function PurchaseOrderDetailPage() {
                           size="small"
                           type="number"
                           value={receiveSel.receiveQuantity}
-                          disabled={!receiveSel.selected}
+                          disabled={!inputsEnabled}
                           onChange={(e) => {
                             const raw = Math.max(1, parseInt(e.target.value, 10) || 1);
-                            const capped = remaining > 0 ? Math.min(raw, remaining) : raw;
-                            updateReceiveSelection(item.productId, remaining, {
-                              receiveQuantity: capped,
-                            });
+                            const capped = rem > 0 ? Math.min(raw, rem) : raw;
+                            updateReceiveSelection(item.productId, rem, { receiveQuantity: capped });
                           }}
-                          sx={{ width: '100%', minWidth: 72 }}
-                          slotProps={{ htmlInput: { min: 1, max: Math.max(remaining, 1) } }}
+                          sx={{ width: '100%', minWidth: 72, ...noNumberSpinnerSx }}
+                          slotProps={{ htmlInput: { min: 1, max: Math.max(rem, 1) } }}
                         />
                       </TableCell>
                     )}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{buyUnit}</TableCell>
                     <TableCell align="right">
                       {canReceive ? (
                         <TextField
                           size="small"
                           type="number"
                           value={unitsPerBuy}
-                          disabled={!receiveSel.selected}
+                          disabled={!inputsEnabled}
                           onChange={(e) =>
-                            updateReceiveSelection(item.productId, remaining, {
+                            updateReceiveSelection(item.productId, rem, {
                               unitsPerBuyUom: Math.max(1, parseInt(e.target.value, 10) || 1),
                             })
                           }
-                          sx={{ width: '100%', minWidth: 72 }}
+                          sx={{ width: '100%', minWidth: 72, ...noNumberSpinnerSx }}
                           slotProps={{ htmlInput: { min: 1 } }}
                         />
                       ) : (
                         item.unitsPerBuyUom ?? 1
                       )}
                     </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {canReceive
+                        ? (inputsEnabled ? `${receiveTotalUnits} ${baseUnit}` : '—')
+                        : `${orderedTotalUnits} ${baseUnit}`}
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={PO_LINE_STATUS_LABELS[lineStatus]} size="small" color={LINE_STATUS_COLORS[lineStatus]} />
+                    </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {formatCurrency(costPack)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {formatCurrency(costPc)}
+                    </TableCell>
+                    <TableCell>
+                      {canReceive ? (
+                        <TextField
+                          select
+                          size="small"
+                          value={sellMode}
+                          disabled={!inputsEnabled}
+                          onChange={(e) =>
+                            updateReceiveSelection(item.productId, rem, {
+                              sellMode: e.target.value as SellModeValue,
+                            })
+                          }
+                          sx={{ ...excelCellSx, minWidth: 110 }}
+                        >
+                          {(unitsPerBuy > 1
+                            ? PO_SELL_AS_OPTIONS
+                            : PO_SELL_AS_OPTIONS.filter((o) => o.value === 'piece')
+                          ).map((o) => (
+                            <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        PO_SELL_AS_OPTIONS.find((o) => o.value === sellMode)?.label ?? sellMode
+                      )}
+                    </TableCell>
                     <TableCell align="right">
-                      {canReceive ? (receiveSel.selected ? receiveTotalUnits : '—') : orderedTotalUnits}
+                      {showPackPrice ? (
+                        canReceive ? (
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={receiveSel.packSellingPrice ?? ''}
+                            disabled={!inputsEnabled}
+                            onChange={(e) =>
+                              updateReceiveSelection(item.productId, rem, {
+                                packSellingPrice: Math.max(0, parseFloat(e.target.value) || 0),
+                              })
+                            }
+                            sx={{ width: '100%', minWidth: 80, ...noNumberSpinnerSx }}
+                            slotProps={{ htmlInput: { min: 0, step: 0.01, style: { textAlign: 'right' } } }}
+                          />
+                        ) : (
+                          formatCurrency(receiveSel.packSellingPrice ?? 0)
+                        )
+                      ) : '—'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {showPiecePrice ? (
+                        canReceive ? (
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={receiveSel.sellingPrice ?? ''}
+                            disabled={!inputsEnabled}
+                            onChange={(e) =>
+                              updateReceiveSelection(item.productId, rem, {
+                                sellingPrice: Math.max(0, parseFloat(e.target.value) || 0),
+                              })
+                            }
+                            sx={{ width: '100%', minWidth: 80, ...noNumberSpinnerSx }}
+                            slotProps={{ htmlInput: { min: 0, step: 0.01, style: { textAlign: 'right' } } }}
+                          />
+                        ) : (
+                          formatCurrency(receiveSel.sellingPrice ?? 0)
+                        )
+                      ) : '—'}
+                    </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {lastBuy?.unitCost != null && lastBuy.unitCost > 0 ? (
+                        <Tooltip
+                          title={[
+                            lastBuy.purchasedAt ? formatDate(lastBuy.purchasedAt) : null,
+                            lastBuy.orderNumber ? lastBuy.orderNumber : null,
+                          ].filter(Boolean).join(' · ') || 'Previous purchase'}
+                        >
+                          <span>{formatCurrency(lastBuy.unitCost)}</span>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title="No prior purchase">
+                          <span>—</span>
+                        </Tooltip>
+                      )}
                     </TableCell>
                     {canReceive && (
                       <TableCell>
-                        <Box sx={{ width: '100%', minWidth: 80 }}>
+                        <Box sx={{ width: '100%', minWidth: 90 }}>
                           <NepaliAwareDatePicker
                             label="Expiry"
                             value={receiveSel.expiryDate}
                             onChange={(d) =>
-                              updateReceiveSelection(item.productId, remaining, { expiryDate: d })
+                              updateReceiveSelection(item.productId, rem, { expiryDate: d })
                             }
                             size="small"
-                            disabled={!receiveSel.selected}
+                            disabled={!inputsEnabled}
                             calendarSystem="AD"
                             helperText={undefined}
                           />
                         </Box>
                       </TableCell>
                     )}
-                    <TableCell>
-                      <Chip label={PO_LINE_STATUS_LABELS[lineStatus]} size="small" color={LINE_STATUS_COLORS[lineStatus]} />
-                    </TableCell>
-                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {formatCurrency(item.unitCost)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {formatCurrency(item.quantity * item.unitCost)}
-                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -1214,6 +1474,24 @@ export function PurchaseOrderDetailPage() {
         purchaseOrderId={po.id}
         amountPaid={amountPaid}
         onClose={() => setReturnOpen(false)}
+      />
+
+      <ProductQuickViewDialog
+        product={quickViewProduct}
+        open={Boolean(quickViewProduct)}
+        onClose={() => setQuickViewProduct(null)}
+      />
+
+      <ConfirmDialog
+        open={receiveConfirmOpen}
+        title="Process receipt?"
+        message={`Receive ${itemsToReceive.length} line${itemsToReceive.length !== 1 ? 's' : ''}?\n\nStock will increase and product buy unit, cost, sell as, and sell prices will update.`}
+        confirmLabel="Process Receipt"
+        cancelLabel="Cancel"
+        confirmColor="primary"
+        loading={receiveMutation.isPending}
+        onConfirm={() => void handleReceive()}
+        onCancel={() => setReceiveConfirmOpen(false)}
       />
     </Box>
   );

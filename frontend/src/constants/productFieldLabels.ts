@@ -4,10 +4,10 @@ import { PO_LABELS } from '@/pages/purchase-orders/poTerminology';
 export const PRODUCT_FIELD_LABELS = {
   sku: 'SKU',
   name: 'Name',
-  packQty: PO_LABELS.packQty,
+  packQty: PO_LABELS.qty,
   buyUom: PO_LABELS.buyUom,
-  unitsPerPack: PO_LABELS.unitsPerPack,
-  poUnitCost: PO_LABELS.unitCost,
+  unitsPerPack: PO_LABELS.perPack,
+  poUnitCost: PO_LABELS.cost,
   brand: 'Brand',
   country: 'Country',
   category: 'Category',

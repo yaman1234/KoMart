@@ -3,8 +3,10 @@ import {
   Box,
   Button,
   Chip,
+  FormControlLabel,
   Grid,
   Paper,
+  Switch,
   TextField,
   Typography,
   MenuItem,
@@ -17,10 +19,12 @@ import dayjs from 'dayjs';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { DROPDOWN_PAGE_SIZE } from '@/constants';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useProductCatalog } from '@/hooks/useProductCatalog';
 import { useAssignableUsers } from '@/hooks/useAssignableUsers';
+import { useStoreSettings } from '@/hooks/useSettings';
 import {
   useCreatePurchaseOrder,
   usePurchaseOrder,
@@ -108,6 +112,8 @@ export function PurchaseOrderFormPage() {
   const [billNumber, setBillNumber] = useState('');
   const [billImages, setBillImages] = useState<string[]>([]);
   const [billUploading, setBillUploading] = useState(false);
+  const [vatBill, setVatBill] = useState(false);
+  const [billConfirmOpen, setBillConfirmOpen] = useState(false);
   const [lines, setLines] = useState<PoLineItem[]>(() => [emptyPoLineItem(0)]);
   const [error, setError] = useState('');
   const [pasteWarning, setPasteWarning] = useState('');
@@ -117,6 +123,8 @@ export function PurchaseOrderFormPage() {
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const { index: catalogIndex, products: catalogProducts, isLoading: catalogLoading } = useProductCatalog();
   const { data: assignableUsers = [] } = useAssignableUsers();
+  const { data: storeSettings } = useStoreSettings();
+  const taxRate = storeSettings?.taxRate ?? 0;
   const uomOptions = useUomOptions();
   const primaryUom = defaultPrimaryUom(uomOptions);
   const createMutation = useCreatePurchaseOrder();
@@ -270,6 +278,8 @@ export function PurchaseOrderFormPage() {
     return true;
   };
 
+  const billMissing = !billNumber.trim() || billImages.length === 0;
+
   const handleSubmit = async (status: PurchaseOrderStatus) => {
     const draftOrOrdered = status === 'draft' || status === 'ordered';
     if (draftOrOrdered && !validateBeforeSave(status)) return;
@@ -289,6 +299,15 @@ export function PurchaseOrderFormPage() {
     } catch (err) {
       setError(getErrorMessage(err));
     }
+  };
+
+  const requestPlaceOrder = () => {
+    if (!validateBeforeSave('ordered')) return;
+    if (billMissing) {
+      setBillConfirmOpen(true);
+      return;
+    }
+    void handleSubmit('ordered');
   };
 
   const handleSaveChanges = () => {
@@ -354,7 +373,7 @@ export function PurchaseOrderFormPage() {
                 <Button
                   variant="contained"
                   startIcon={<SaveIcon />}
-                  onClick={() => void handleSubmit('ordered')}
+                  onClick={requestPlaceOrder}
                   loading={isPending}
                 >
                   Place Order
@@ -448,6 +467,8 @@ export function PurchaseOrderFormPage() {
             catalogIndex={catalogIndex}
             pasteWarning={pasteWarning}
             onPasteWarning={setPasteWarning}
+            vatBill={vatBill}
+            taxRate={taxRate}
           />
         )}
       </Box>
@@ -466,6 +487,17 @@ export function PurchaseOrderFormPage() {
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
             Supplier bill
           </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={vatBill}
+                onChange={(e) => setVatBill(e.target.checked)}
+              />
+            }
+            label="VAT bill"
+            sx={{ mb: 1, display: 'flex', ml: 0 }}
+          />
           <TextField
             label="Bill number"
             size="small"
@@ -573,6 +605,27 @@ export function PurchaseOrderFormPage() {
           </Box>
         </Box>
       </Box>
+
+      <ConfirmDialog
+        open={billConfirmOpen}
+        title="Bill details missing"
+        message={
+          !billNumber.trim() && billImages.length === 0
+            ? 'Bill number and bill photos are not added. Place the order anyway?'
+            : !billNumber.trim()
+              ? 'Bill number is not added. Place the order anyway?'
+              : 'Bill photos are not added. Place the order anyway?'
+        }
+        confirmLabel="Place Order"
+        cancelLabel="Go back"
+        confirmColor="warning"
+        loading={isPending}
+        onConfirm={() => {
+          setBillConfirmOpen(false);
+          void handleSubmit('ordered');
+        }}
+        onCancel={() => setBillConfirmOpen(false)}
+      />
     </Box>
   );
 }

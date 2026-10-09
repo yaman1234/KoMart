@@ -26,6 +26,7 @@ import {
 } from '@/utils';
 import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
 import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
+import { sellAsLabel } from '@/pages/purchase-orders/poTerminology';
 import type { Product } from '@/types';
 
 interface ProductQuickViewDialogProps {
@@ -65,15 +66,16 @@ export function ProductQuickViewDialog({
     { label: 'Category', value: product.category },
     { label: 'Country', value: product.countryOfOrigin },
     { label: 'Supplier', value: product.supplierName ?? '—' },
-    { label: 'Primary Unit', value: uomLabel(product.buyUom ?? product.uom ?? '') || '—' },
-    { label: 'Secondary Unit', value: uomLabel(product.uom ?? '') || '—' },
+    { label: 'Buy unit', value: uomLabel(product.buyUom ?? product.uom ?? '') || '—' },
+    { label: 'Sell unit', value: uomLabel(product.uom ?? '') || '—' },
+    { label: 'Sell as', value: sellAsLabel(product.sellMode) },
     {
-      label: 'Conversion',
+      label: 'Pcs in pack',
       value: formatConversion(
         product.buyUom ?? '',
         product.uom ?? '',
         product.unitsPerBuyUom ?? 1,
-      ) || '—',
+      ) || String(product.unitsPerBuyUom ?? 1),
     },
   ];
 
@@ -205,13 +207,27 @@ export function ProductQuickViewDialog({
             </Box>
 
             {canSeeCostPrice && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  Cost Price (per base)
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {formatCurrency(product.costPrice)} / {product.uom || product.buyUom || '—'}
-                </Typography>
+              <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Cost / pc
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {formatCurrency(product.costPrice)} / {uomLabel(product.uom || product.buyUom || '') || 'pc'}
+                  </Typography>
+                </Box>
+                {(product.unitsPerBuyUom ?? 1) > 1 && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Cost / pack
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {formatCurrency(product.costPrice * (product.unitsPerBuyUom ?? 1))} /{' '}
+                      {uomLabel(product.buyUom ?? '') || 'pack'}
+                    </Typography>
+                  </Box>
+                )}
+                <Chip label={sellAsLabel(product.sellMode)} size="small" variant="outlined" sx={{ alignSelf: 'center' }} />
               </Box>
             )}
 
