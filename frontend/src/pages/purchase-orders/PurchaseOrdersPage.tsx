@@ -40,6 +40,21 @@ const PO_PAYMENT_OPTIONS: PurchaseOrderPaymentStatus[] = [
   'paid',
 ];
 
+const SORT_KEY_MAP: Record<string, string> = {
+  orderNumber: 'order_number',
+  supplierName: 'supplier_name',
+  billNumber: 'bill_number',
+  status: 'status',
+  paymentStatus: 'payment_status',
+  items: 'items_count',
+  totalAmount: 'total_amount',
+  amountPaid: 'amount_paid',
+  orderedBy: 'ordered_by',
+  createdAt: 'created_at',
+  receivedDate: 'received_date',
+  expectedDelivery: 'expected_delivery',
+};
+
 export function PurchaseOrdersPage() {
   const navigate = useNavigate();
   const formatDate = useFormatDate();
@@ -47,13 +62,27 @@ export function PurchaseOrdersPage() {
   const canManage = canManagePurchaseOrders(user?.role);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [status, setStatus] = useState<PurchaseOrderStatus | ''>('ordered');
-  const [paymentStatus, setPaymentStatus] = useState<PurchaseOrderPaymentStatus | ''>('unpaid');
+  const [status, setStatus] = useState<PurchaseOrderStatus | ''>('');
+  const [paymentStatus, setPaymentStatus] = useState<PurchaseOrderPaymentStatus | ''>('');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const resetFilters = () => {
     setSearch('');
     setStatus('');
     setPaymentStatus('');
+    setSortBy('createdAt');
+    setSortOrder('desc');
+    setPage(0);
+  };
+
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortOrder('desc');
+    }
     setPage(0);
   };
 
@@ -63,6 +92,8 @@ export function PurchaseOrdersPage() {
     pageSize: 10,
     status: status || undefined,
     paymentStatus: paymentStatus || undefined,
+    sortBy: SORT_KEY_MAP[sortBy] ?? 'created_at',
+    sortOrder,
     lean: true,
     includeSummary: true,
   });
@@ -76,17 +107,34 @@ export function PurchaseOrdersPage() {
       minWidth: 48,
       render: (row) => rows.findIndex((r) => r.id === row.id) + 1,
     },
-    { id: 'orderNumber', label: 'PO Number', minWidth: 140, accessor: 'orderNumber' },
-    { id: 'supplier', label: 'Supplier', accessor: 'supplierName' },
+    {
+      id: 'orderNumber',
+      label: 'PO Number',
+      minWidth: 140,
+      accessor: 'orderNumber',
+      sortable: true,
+      sortKey: 'orderNumber',
+    },
+    {
+      id: 'supplier',
+      label: 'Supplier',
+      accessor: 'supplierName',
+      sortable: true,
+      sortKey: 'supplierName',
+    },
     {
       id: 'billNumber',
       label: 'Bill no.',
       minWidth: 120,
+      sortable: true,
+      sortKey: 'billNumber',
       render: (row) => (row.billNumber?.trim() ? row.billNumber : '—'),
     },
     {
       id: 'status',
       label: 'Status',
+      sortable: true,
+      sortKey: 'status',
       render: (row) => (
         <Chip
           label={PO_STATUS_LABELS[row.status] ?? row.status}
@@ -98,6 +146,8 @@ export function PurchaseOrdersPage() {
     {
       id: 'payment',
       label: 'Payment',
+      sortable: true,
+      sortKey: 'paymentStatus',
       render: (row) => {
         const pay = row.paymentStatus ?? 'unpaid';
         return (
@@ -114,39 +164,53 @@ export function PurchaseOrdersPage() {
       id: 'items',
       label: 'Items',
       align: 'right',
+      sortable: true,
+      sortKey: 'items',
       render: (row) => row.itemsCount ?? row.items.length,
     },
     {
       id: 'total',
       label: 'Total',
       align: 'right',
+      sortable: true,
+      sortKey: 'totalAmount',
       render: (row) => formatCurrency(row.totalAmount),
     },
     {
       id: 'paid',
       label: 'Paid',
       align: 'right',
+      sortable: true,
+      sortKey: 'amountPaid',
       render: (row) => formatCurrency(row.amountPaid ?? 0),
     },
     {
       id: 'orderedBy',
       label: 'Ordered By',
+      sortable: true,
+      sortKey: 'orderedBy',
       render: (row) => row.orderedBy ?? '—',
     },
     {
-      id: 'delivery',
-      label: 'Expected Delivery',
-      render: (row) => row.expectedDelivery ? formatDate(row.expectedDelivery) : '—',
+      id: 'created',
+      label: 'Created date',
+      sortable: true,
+      sortKey: 'createdAt',
+      render: (row) => formatDate(row.createdAt),
     },
     {
       id: 'receivedDate',
       label: 'Received Date',
+      sortable: true,
+      sortKey: 'receivedDate',
       render: (row) => row.receivedDate ? formatDate(row.receivedDate) : '—',
     },
     {
-      id: 'created',
-      label: 'Created',
-      render: (row) => formatDate(row.createdAt),
+      id: 'delivery',
+      label: 'Expected Delivery',
+      sortable: true,
+      sortKey: 'expectedDelivery',
+      render: (row) => row.expectedDelivery ? formatDate(row.expectedDelivery) : '—',
     },
   ];
 
@@ -226,7 +290,7 @@ export function PurchaseOrdersPage() {
           }}
           sx={{ minWidth: 180 }}
         >
-          <MenuItem value="">All</MenuItem>
+          <MenuItem value="">All statuses</MenuItem>
           {PO_STATUS_OPTIONS.map((value) => (
             <MenuItem key={value} value={value}>
               {PO_STATUS_LABELS[value]}
@@ -244,7 +308,7 @@ export function PurchaseOrdersPage() {
           }}
           sx={{ minWidth: 160 }}
         >
-          <MenuItem value="">All</MenuItem>
+          <MenuItem value="">All payments</MenuItem>
           {PO_PAYMENT_OPTIONS.map((value) => (
             <MenuItem key={value} value={value}>
               {PO_PAYMENT_STATUS_LABELS[value]}
@@ -271,6 +335,9 @@ export function PurchaseOrdersPage() {
         onPageChange={setPage}
         getRowId={(r) => r.id}
         onRowClick={(r) => navigate(`/purchase-orders/${r.id}`)}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={handleSort}
       />
     </Box>
   );

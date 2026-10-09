@@ -29,7 +29,7 @@ export function MainLayout({ title }: MainLayoutProps) {
       >
         <TopBar title={title} />
         <Container
-          maxWidth={isFullWidth ? false : 'xl'}
+          maxWidth={false}
           disableGutters={isFullWidth}
           sx={{
             flex: 1,

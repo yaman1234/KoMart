@@ -102,7 +102,7 @@ export function CatalogLayout() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ flex: 1, py: 3 }}>
+      <Container maxWidth={false} sx={{ flex: 1, py: 3 }}>
         <Outlet />
       </Container>
     </Box>

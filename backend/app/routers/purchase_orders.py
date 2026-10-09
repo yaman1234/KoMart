@@ -233,6 +233,48 @@ async def _next_po_number() -> str:
     return f"{prefix}{str(count + 1).zfill(4)}"
 
 
+# Frontend sortBy (camelCase or snake) → Mongo field. `_items_count` is computed in aggregation.
+_PO_LIST_SORT_FIELDS: dict[str, str] = {
+    "order_number": "order_number",
+    "ordernumber": "order_number",
+    "supplier_name": "supplier_name",
+    "suppliername": "supplier_name",
+    "supplier": "supplier_name",
+    "bill_number": "bill_number",
+    "billnumber": "bill_number",
+    "status": "status",
+    "payment_status": "payment_status",
+    "paymentstatus": "payment_status",
+    "payment": "payment_status",
+    "items": "_items_count",
+    "items_count": "_items_count",
+    "itemscount": "_items_count",
+    "total_amount": "total_amount",
+    "totalamount": "total_amount",
+    "total": "total_amount",
+    "amount_paid": "amount_paid",
+    "amountpaid": "amount_paid",
+    "paid": "amount_paid",
+    "ordered_by": "ordered_by",
+    "orderedby": "ordered_by",
+    "created_at": "created_at",
+    "createdat": "created_at",
+    "created": "created_at",
+    "received_date": "received_date",
+    "receiveddate": "received_date",
+    "expected_delivery": "expected_delivery",
+    "expecteddelivery": "expected_delivery",
+    "delivery": "expected_delivery",
+}
+
+
+def _resolve_po_list_sort(sort_by: str, sort_order: str) -> tuple[str, int]:
+    key = (sort_by or "").strip().lower().replace("-", "_")
+    field = _PO_LIST_SORT_FIELDS.get(key, "created_at")
+    direction = 1 if (sort_order or "").strip().lower() == "asc" else -1
+    return field, direction
+
+
 @router.get("", response_model=PurchaseOrderListResponse)
 async def list_purchase_orders(
     page: int = Query(1, ge=1),
@@ -241,6 +283,8 @@ async def list_purchase_orders(
     supplier_id: str = Query(""),
     status: str = Query(""),
     payment_status: str = Query(""),
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("desc", pattern="^(|asc|desc)$"),
     lean: bool = Query(False, description="Omit line items/payments/images for fast pickers"),
     include_summary: bool = Query(True, description="Include store-wide KPI totals"),
     _: User = Depends(get_current_user),
@@ -371,32 +415,28 @@ async def list_purchase_orders(
             round(float(summary_rows[0]["outstanding_amount"] or 0), 2) if summary_rows else 0.0
         )
 
+    sort_field, sort_dir = _resolve_po_list_sort(sort_by, sort_order)
+    # Always compute item count so Items column sorting works on both lean/full list.
+    pipeline: list[dict] = [
+        {"$match": match} if match else {"$match": {}},
+        {
+            "$addFields": {
+                "_items_count": {"$size": {"$ifNull": ["$items", []]}},
+            }
+        },
+        {"$sort": {sort_field: sort_dir, "_id": sort_dir}},
+        {"$skip": (page - 1) * page_size},
+        {"$limit": page_size},
+    ]
     if lean:
-        # Keep item count without hydrating line payloads / payments / images.
-        raw_docs = await col.aggregate(
-            [
-                {"$match": match} if match else {"$match": {}},
-                {"$sort": {"created_at": -1}},
-                {"$skip": (page - 1) * page_size},
-                {"$limit": page_size},
-                {
-                    "$addFields": {
-                        "_items_count": {"$size": {"$ifNull": ["$items", []]}},
-                    }
-                },
-                {"$project": {"items": 0, "payments": 0, "bill_images": 0}},
-            ]
-        ).to_list(page_size)
-        data = [_soft_response_from_doc(doc) for doc in raw_docs]
-    else:
-        raw_docs = (
-            await col.find(match)
-            .sort([("created_at", -1)])
-            .skip((page - 1) * page_size)
-            .limit(page_size)
-            .to_list(page_size)
-        )
-        data = [_doc_to_response(doc) for doc in raw_docs]
+        pipeline.append({"$project": {"items": 0, "payments": 0, "bill_images": 0}})
+
+    raw_docs = await col.aggregate(pipeline).to_list(page_size)
+    data = (
+        [_soft_response_from_doc(doc) for doc in raw_docs]
+        if lean
+        else [_doc_to_response(doc) for doc in raw_docs]
+    )
     return PurchaseOrderListResponse(
         data=data,
         total=total,

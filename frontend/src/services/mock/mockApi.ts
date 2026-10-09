@@ -593,7 +593,42 @@ export const mockApi = {
       });
     }
 
-    const page = paginate(filtered, params);
+    const sortKeyMap: Record<string, keyof PurchaseOrder | 'itemsCount'> = {
+      order_number: 'orderNumber',
+      supplier_name: 'supplierName',
+      bill_number: 'billNumber',
+      status: 'status',
+      payment_status: 'paymentStatus',
+      items: 'itemsCount',
+      items_count: 'itemsCount',
+      total_amount: 'totalAmount',
+      amount_paid: 'amountPaid',
+      ordered_by: 'orderedBy',
+      created_at: 'createdAt',
+      received_date: 'receivedDate',
+      expected_delivery: 'expectedDelivery',
+    };
+    const sortField = sortKeyMap[(params.sortBy as string) || 'created_at'] ?? 'createdAt';
+    const order = params.sortOrder === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      const read = (po: PurchaseOrder) => {
+        if (sortField === 'itemsCount') {
+          return po.itemsCount ?? po.items.length;
+        }
+        return po[sortField as keyof PurchaseOrder];
+      };
+      const av = read(a);
+      const bv = read(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (av < bv) return -1 * order;
+      if (av > bv) return 1 * order;
+      return 0;
+    });
+
+    const { sortBy: _sortBy, sortOrder: _sortOrder, ...pageParams } = params;
+    const page = paginate(filtered, pageParams);
     return {
       ...page,
       receivedTotalAmount: Math.round(
