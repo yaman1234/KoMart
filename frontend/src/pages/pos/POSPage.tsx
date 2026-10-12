@@ -65,6 +65,7 @@ import { formatAmount, formatCurrency } from '@/utils';
 import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE } from '@/constants';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useStoreSettings } from '@/hooks/useSettings';
+import { useUomOptions } from '@/hooks/useUoms';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { cartLineKey } from '@/utils/cartLine';
 import { uomLabel } from '@/utils';
@@ -129,6 +130,7 @@ const POS_IMAGE_CHIP_SX = {
 } as const;
 
 const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabel, discountAmount, onAdd, onViewDetails }: ProductCardProps) {
+  const uomOptions = useUomOptions();
   const [sellAsPack, setSellAsPack] = useState(false);
   const dualSell = canSellAsPack(product) && canSellAsPiece(product);
   const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
@@ -384,14 +386,14 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
               }}
               sx={sellAsToggleSx}
             >
-              <ToggleButton value="piece">{uomLabel(product.uom || product.buyUom || '')}</ToggleButton>
-              <ToggleButton value="pack">{uomLabel(product.buyUom || '')}</ToggleButton>
+              <ToggleButton value="piece">{uomLabel(product.uom || product.buyUom || '', uomOptions)}</ToggleButton>
+              <ToggleButton value="pack">{uomLabel(product.buyUom || '', uomOptions)}</ToggleButton>
             </ToggleButtonGroup>
           </Box>
         )}
         {packOnly && !dualSell && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem', fontWeight: 600 }}>
-            Sell as: {uomLabel(product.buyUom || '')}
+            Sell as: {uomLabel(product.buyUom || '', uomOptions)}
           </Typography>
         )}
         <Box
@@ -619,6 +621,7 @@ export function POSPage() {
   }, [items, removeItem]);
   const user = useAuthStore((s) => s.user);
   const { data: storeSettings } = useStoreSettings();
+  const uomOptions = useUomOptions();
   const receiptBranding = storeSettings ? receiptBrandingFromSettings(storeSettings) : undefined;
   const createCustomerMutation = useCreateCustomer();
 
@@ -1175,6 +1178,7 @@ export function POSPage() {
             <TableContainer sx={{ width: '100%' }}>
               <Table
                 size="small"
+                stickyHeader
                 sx={{
                   tableLayout: 'fixed',
                   width: '100%',
@@ -1196,20 +1200,27 @@ export function POSPage() {
                   <col style={{ width: '8%' }} />
                 </colgroup>
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>SN</TableCell>
-                    <TableCell sx={{ fontWeight: 700, pl: 0, pr: 0.5, fontSize: '0.7rem' }}>Item</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Qty</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>UOM</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Price</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.7rem' }}>Total</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 700, px: 0, width: 32 }} />
+                  <TableRow>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary', bgcolor: 'background.paper', zIndex: 2 }}>SN</TableCell>
+                    <TableCell sx={{ fontWeight: 700, pl: 0, pr: 0.5, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary', bgcolor: 'background.paper', zIndex: 2 }}>Item</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary', bgcolor: 'background.paper', zIndex: 2 }}>Qty</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary', bgcolor: 'background.paper', zIndex: 2 }}>UOM</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary', bgcolor: 'background.paper', zIndex: 2 }}>Price</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, px: 0.25, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary', bgcolor: 'background.paper', zIndex: 2 }}>Total</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, px: 0, width: 32, bgcolor: 'background.paper', zIndex: 2 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {items.map((item, index) => {
                     return (
-                      <TableRow key={cartLineKey(item.productId, item.sellUom)} sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                      <TableRow
+                        key={cartLineKey(item.productId, item.sellUom)}
+                        hover
+                        sx={{
+                          '&:last-child td': { borderBottom: 0 },
+                          '&:nth-of-type(even)': { bgcolor: 'rgba(0, 0, 0, 0.02)' },
+                        }}
+                      >
                         <TableCell align="center" sx={{ px: 0.25 }}>
                           <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
                             {index + 1}
@@ -1240,7 +1251,7 @@ export function POSPage() {
 
                         <TableCell align="center" sx={{ px: 0.25 }}>
                           <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                            {uomLabel(item.sellUom || item.uom || '')}
+                            {uomLabel(item.sellUom || item.uom || '', uomOptions)}
                           </Typography>
                         </TableCell>
 

@@ -31,6 +31,7 @@ import { formatAmount, formatCurrency, uomLabel } from '@/utils';
 import { cartLineKey } from '@/utils/cartLine';
 import { cashTenderSuggestions } from '@/utils/cashTenderSuggestions';
 import { useCheckoutDraft, type CartMutators, type CheckoutDiscountType } from '@/hooks/useCheckoutDraft';
+import { useUomOptions } from '@/hooks/useUoms';
 import { promotionKey } from '@/hooks/useDiscounts';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { ReceiptView } from '@/components/pos/ReceiptView';
@@ -141,6 +142,7 @@ export function PaymentModal({
   onClose,
   onNewSale,
 }: PaymentModalProps) {
+  const uomOptions = useUomOptions();
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [tendered, setTendered] = useState('');
   const [roundOffEnabled, setRoundOffEnabled] = useState(false);
@@ -447,7 +449,7 @@ export function PaymentModal({
                           </IconButton>
                         </Box>
                         <Typography variant="caption" sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.7rem' }}>
-                          {uomLabel(item.sellUom || item.uom || '')}
+                          {uomLabel(item.sellUom || item.uom || '', uomOptions)}
                         </Typography>
                         <Typography variant="body2" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.8125rem' }}>
                           {formatAmount(item.price)}

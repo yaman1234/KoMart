@@ -71,6 +71,8 @@ async def test_po_receive_updates_product_sell_mode_and_prices():
         supplier_id="",
         supplier_name="",
         status=POStatus.ordered,
+        bill_number=f"BILL-SELL-{uuid.uuid4().hex[:6]}",
+        bill_images=["https://example.com/bill-sell.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),

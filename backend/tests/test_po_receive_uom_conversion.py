@@ -70,6 +70,8 @@ async def test_po_receive_converts_packs_to_base_pieces():
         supplier_id="",
         supplier_name="",
         status=POStatus.ordered,
+        bill_number=f"BILL-UOM-{uuid.uuid4().hex[:6]}",
+        bill_images=["https://example.com/bill-uom.png"],
         items=[
             PurchaseOrderItem(
                 product_id=str(product.id),
