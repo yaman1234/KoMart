@@ -23,7 +23,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import DeliveryDiningIcon from '@mui/icons-material/DeliveryDining';
-import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
+import { formatAmount, formatCurrency, formatDateTime, uomLabel } from '@/utils';
 import { PAYMENT_METHODS } from '@/constants';
 import { TransactionDiscountSummary } from '@/components/sales/TransactionDiscountSummary';
 import { getTransactionDiscountBreakdown } from '@/utils/transactionDiscounts';
@@ -165,6 +165,7 @@ export function SaleDetailView({ transaction: txn }: SaleDetailViewProps) {
                   <TableCell sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>Product</TableCell>
                   <TableCell sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>SKU</TableCell>
                   <TableCell align="right" sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>Qty</TableCell>
+                  <TableCell align="center" sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>UOM</TableCell>
                   <TableCell align="right" sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>Unit Price</TableCell>
                   <TableCell align="right" sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>Line Discount</TableCell>
                   <TableCell align="right" sx={{ border: '1px solid', borderColor: 'divider', fontWeight: 600 }}>Amount</TableCell>
@@ -206,6 +207,9 @@ export function SaleDetailView({ transaction: txn }: SaleDetailViewProps) {
                       </TableCell>
                       <TableCell sx={{ border: '1px solid', borderColor: 'divider' }}>{item.sku}</TableCell>
                       <TableCell align="right" sx={{ border: '1px solid', borderColor: 'divider' }}>{item.quantity}</TableCell>
+                      <TableCell align="center" sx={{ border: '1px solid', borderColor: 'divider' }}>
+                        {uomLabel(item.sellUom || item.uom || '') || '—'}
+                      </TableCell>
                       <TableCell align="right" sx={{ border: '1px solid', borderColor: 'divider' }}>{formatAmount(item.price)}</TableCell>
                       <TableCell align="right" sx={{ color: lineDiscount > 0 ? 'success.main' : 'text.secondary', border: '1px solid', borderColor: 'divider' }}>
                         {lineDiscount > 0 ? `− ${formatAmount(lineDiscount)}` : '—'}

@@ -13,7 +13,6 @@ export {
   printReceipt,
   printTransactionReceipt,
   downloadReceiptPdf,
-  downloadReceiptHtml,
   escapeHtml,
   receiptBrandingFromSettings,
 } from '@/utils/receiptPrint';

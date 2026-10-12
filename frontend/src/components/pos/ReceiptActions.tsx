@@ -2,12 +2,10 @@ import { useState } from 'react';
 import { Box, Button, ButtonGroup } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import DownloadIcon from '@mui/icons-material/Download';
 import type { ReceiptBranding, Transaction } from '@/types';
 import {
   printTransactionReceipt,
   downloadReceiptPdf,
-  downloadReceiptHtml,
 } from '@/utils/receiptPrint';
 import { showApiError, showError, showInfo, showSuccess } from '@/utils/toast';
 
@@ -54,15 +52,6 @@ export function ReceiptActions({
     }
   };
 
-  const handleHtml = () => {
-    try {
-      downloadReceiptHtml(transaction, tenderedAmount, branding);
-      showSuccess('HTML receipt downloaded.');
-    } catch (err) {
-      showApiError(err, 'Failed to download receipt.');
-    }
-  };
-
   const printLabel = showReprintLabel ? 'Reprint' : 'Print';
 
   if (compact) {
@@ -98,9 +87,6 @@ export function ReceiptActions({
       </Button>
       <Button startIcon={<PictureAsPdfIcon />} onClick={handlePdf}>
         Download PDF
-      </Button>
-      <Button startIcon={<DownloadIcon />} onClick={handleHtml}>
-        Download HTML
       </Button>
     </ButtonGroup>
   );

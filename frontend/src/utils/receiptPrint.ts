@@ -1,9 +1,10 @@
 /**
- * Receipt printing utilities — thermal 80mm layout, blob-URL print, PDF/HTML download.
+ * Receipt printing utilities — thermal 80mm layout, blob-URL print, PDF download.
  */
 
 import { jsPDF } from 'jspdf';
 import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
+import { formatSellLineSubtitle } from '@/utils/uomDisplay';
 import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
 import type { ReceiptBranding, StoreSettings, Transaction } from '@/types';
@@ -111,6 +112,12 @@ export function buildPrintDocument(bodyHtml: string): string {
 </html>`;
 }
 
+function receiptCustomerLabel(txn: Transaction): string {
+  return txn.customerName && txn.customerName !== 'Walk-In'
+    ? txn.customerName
+    : 'Walk-In Customer';
+}
+
 export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?: ReceiptBranding): string {
   const change = tendered !== undefined ? tendered - txn.total : undefined;
   const discountBreakdown = getTransactionDiscountBreakdown(txn);
@@ -120,9 +127,13 @@ export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?:
     const price = Number(item.price) || 0;
     const qty = Number(item.quantity) || 0;
     const name = escapeHtml(item.name || 'Item');
+    const subtitle = formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+    const subtitleHtml = subtitle
+      ? `<div style="font-size:10px;color:#555">${escapeHtml(subtitle)}</div>`
+      : '';
     return `
     <tr>
-      <td class="name">${name}</td>
+      <td class="name">${name}${subtitleHtml}</td>
       <td class="qty">${qty}</td>
       <td class="rate">${price.toFixed(2)}</td>
       <td class="amt">${(price * qty).toFixed(2)}</td>
@@ -131,9 +142,7 @@ export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?:
 
   const tableHead = `<th class="name">Item</th><th class="qty">Qty</th><th class="rate">Rate</th><th class="amt">Amount</th>`;
 
-  const customerLabel = txn.customerName && txn.customerName !== 'Walk-In'
-    ? escapeHtml(txn.customerName)
-    : 'Walk-In';
+  const customerLabel = escapeHtml(receiptCustomerLabel(txn));
 
   const subtotal = Number(txn.subtotal) || 0;
   const total = Number(txn.total) || 0;
@@ -267,89 +276,119 @@ export function printReceipt(htmlBody: string): PrintResult {
   return printViaIframe(docHtml);
 }
 
-/** Download receipt as standalone HTML (opens correctly in any browser). */
-export function downloadReceiptHtml(txn: Transaction, tendered?: number, branding?: ReceiptBranding): void {
-  const docHtml = buildPrintDocument(buildReceiptHtml(txn, tendered, branding));
-  const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${txn.transactionNumber}.html`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+type PdfLine =
+  | { kind: 'center'; text: string; bold?: boolean; size?: number }
+  | { kind: 'row'; left: string; right?: string; bold?: boolean; size?: number }
+  | { kind: 'sep' }
+  | { kind: 'itemHeader' }
+  | {
+      kind: 'item';
+      name: string;
+      qty: string;
+      rate: string;
+      amt: string;
+      subtitle?: string;
+    }
+  | { kind: 'block'; title: string; body: string };
 
-interface PdfLine {
-  left: string;
-  right?: string;
-  bold?: boolean;
-  size?: number;
-}
-
-function buildPdfLines(txn: Transaction, tendered?: number, branding?: ReceiptBranding): PdfLine[] {
+/** Exported for tests — builds the same structure used by Download PDF. */
+export function buildPdfLines(txn: Transaction, tendered?: number, branding?: ReceiptBranding): PdfLine[] {
   const storeName = branding?.storeName || APP_NAME;
   const lines: PdfLine[] = [
-    { left: storeName, bold: true, size: 11 },
+    { kind: 'center', text: storeName, bold: true, size: 11 },
   ];
   if (branding?.receiptHeader) {
     for (const line of branding.receiptHeader.split('\n').filter(Boolean)) {
-      lines.push({ left: line });
+      lines.push({ kind: 'center', text: line });
     }
   }
-  if (branding?.address) lines.push({ left: branding.address });
-  if (branding?.phone) lines.push({ left: branding.phone });
-  lines.push({ left: '--------------------------------' });
-  lines.push({ left: 'Date', right: formatDateTime(txn.createdAt) });
-  lines.push({ left: 'Bill No', right: txn.transactionNumber, bold: true });
-  lines.push({
-    left: 'Customer',
-    right: txn.customerName && txn.customerName !== 'Walk-In' ? txn.customerName : 'Walk-In',
-  });
-  lines.push({ left: 'Cashier', right: txn.createdBy });
-  lines.push({ left: '--------------------------------' });
-  lines.push({ left: 'Item', right: 'Amt', bold: true });
+  if (branding?.address) lines.push({ kind: 'center', text: branding.address });
+  if (branding?.phone) lines.push({ kind: 'center', text: branding.phone });
+  lines.push({ kind: 'sep' });
+  lines.push({ kind: 'row', left: 'Date', right: formatDateTime(txn.createdAt) });
+  lines.push({ kind: 'row', left: 'Bill No', right: txn.transactionNumber, bold: true });
+  lines.push({ kind: 'row', left: 'Customer', right: receiptCustomerLabel(txn) });
+  lines.push({ kind: 'row', left: 'Cashier', right: txn.createdBy });
+  lines.push({ kind: 'sep' });
+  lines.push({ kind: 'itemHeader' });
 
   for (const item of txn.items ?? []) {
     const price = Number(item.price) || 0;
     const qty = Number(item.quantity) || 0;
-    const name = (item.name || 'Item').slice(0, 22);
-    lines.push({ left: `${name} x${qty}`, right: (price * qty).toFixed(2) });
+    const subtitle = formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+    lines.push({
+      kind: 'item',
+      name: item.name || 'Item',
+      qty: String(qty),
+      rate: price.toFixed(2),
+      amt: (price * qty).toFixed(2),
+      subtitle: subtitle || undefined,
+    });
   }
 
-  lines.push({ left: '--------------------------------' });
-  lines.push({ left: 'Subtotal', right: formatAmount(txn.subtotal) });
+  lines.push({ kind: 'sep' });
+  lines.push({ kind: 'row', left: 'Subtotal', right: formatAmount(txn.subtotal) });
 
   const discountLines = getTransactionDiscountLines(txn);
   for (const line of discountLines) {
     const label = line.label.length > 18 ? `${line.label.slice(0, 17)}…` : line.label;
-    lines.push({ left: label, right: `- ${formatAmount(line.amount)}` });
+    lines.push({ kind: 'row', left: label, right: `- ${formatAmount(line.amount)}` });
   }
   const breakdown = getTransactionDiscountBreakdown(txn);
   if (breakdown.hasDiscounts) {
-    lines.push({ left: 'Total savings', right: `- ${formatAmount(breakdown.totalDiscount)}`, bold: true });
+    lines.push({
+      kind: 'row',
+      left: 'Total savings',
+      right: `- ${formatAmount(breakdown.totalDiscount)}`,
+      bold: true,
+    });
   }
 
-  lines.push({ left: 'TOTAL', right: formatCurrency(txn.total), bold: true, size: 11 });
-  lines.push({ left: '--------------------------------' });
-  lines.push({ left: 'Payment', right: txn.paymentMethod.toUpperCase(), bold: true });
+  lines.push({ kind: 'row', left: 'TOTAL', right: formatCurrency(txn.total), bold: true, size: 11 });
+  lines.push({ kind: 'sep' });
+  lines.push({ kind: 'row', left: 'Payment', right: txn.paymentMethod.toUpperCase(), bold: true });
   if (tendered !== undefined) {
-    lines.push({ left: 'Tendered', right: formatAmount(tendered) });
+    lines.push({ kind: 'row', left: 'Tendered', right: formatAmount(tendered) });
     const change = tendered - txn.total;
     if (change >= 0) {
-      lines.push({ left: 'Change', right: formatAmount(change), bold: true });
+      lines.push({ kind: 'row', left: 'Change', right: formatAmount(change), bold: true });
     }
   }
-  lines.push({ left: '--------------------------------' });
+
+  if (txn.notes?.trim()) {
+    lines.push({ kind: 'sep' });
+    lines.push({ kind: 'block', title: 'Remarks', body: txn.notes.trim() });
+  }
+
+  lines.push({ kind: 'sep' });
   if (branding?.receiptFooter) {
     for (const line of branding.receiptFooter.split('\n').filter(Boolean)) {
-      lines.push({ left: line });
+      lines.push({ kind: 'center', text: line });
     }
   } else {
-    lines.push({ left: `Thank you for shopping at ${storeName}!` });
-    lines.push({ left: 'Please come again' });
+    lines.push({ kind: 'center', text: `Thank you for shopping at ${storeName}!` });
+    lines.push({ kind: 'center', text: 'Please come again' });
   }
 
   return lines;
+}
+
+function estimatePdfHeight(lines: PdfLine[], lineHeight: number, margin: number): number {
+  let rows = 0;
+  for (const line of lines) {
+    if (line.kind === 'item') {
+      rows += 1 + (line.subtitle ? 1 : 0);
+      // name wrap allowance
+      rows += Math.max(0, Math.ceil(line.name.length / 22) - 1);
+    } else if (line.kind === 'block') {
+      rows += 1 + Math.max(1, Math.ceil(line.body.length / 36));
+    } else if (line.kind === 'center') {
+      rows += Math.max(1, Math.ceil(line.text.length / 36));
+    } else {
+      rows += 1;
+    }
+  }
+  return Math.max(120, margin * 2 + rows * lineHeight + 10);
 }
 
 /** Generate and download a PDF receipt sized for 80mm thermal printers. */
@@ -357,7 +396,14 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
   const lines = buildPdfLines(txn, tendered, branding);
   const lineHeight = 4;
   const margin = 4;
-  const heightMm = Math.max(120, margin * 2 + lines.length * lineHeight + 10);
+  const heightMm = estimatePdfHeight(lines, lineHeight, margin);
+
+  // Column anchors for Item | Qty | Rate | Amt (mirrors print HTML proportions)
+  const nameX = margin;
+  const nameMaxW = 34;
+  const qtyX = margin + 38;
+  const rateX = RECEIPT_WIDTH_MM - margin - 17;
+  const amtX = RECEIPT_WIDTH_MM - margin;
 
   const doc = new jsPDF({
     unit: 'mm',
@@ -369,24 +415,88 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
   let y = margin + 4;
 
   for (const line of lines) {
-    const size = line.size ?? 9;
-    doc.setFontSize(size);
-    doc.setFont(THERMAL_FONT, line.bold ? 'bold' : 'normal');
+    if (line.kind === 'sep') {
+      doc.setFontSize(9);
+      doc.setFont(THERMAL_FONT, 'normal');
+      doc.text('--------------------------------', RECEIPT_WIDTH_MM / 2, y, { align: 'center' });
+      y += lineHeight;
+      continue;
+    }
 
-    if (line.right) {
-      doc.text(line.left, margin, y);
-      doc.text(line.right, RECEIPT_WIDTH_MM - margin, y, { align: 'right' });
-    } else {
-      const text = line.left;
+    if (line.kind === 'center') {
+      const size = line.size ?? 9;
+      doc.setFontSize(size);
+      doc.setFont(THERMAL_FONT, line.bold ? 'bold' : 'normal');
       const maxWidth = RECEIPT_WIDTH_MM - margin * 2;
-      const wrapped = doc.splitTextToSize(text, maxWidth) as string[];
+      const wrapped = doc.splitTextToSize(line.text, maxWidth) as string[];
       for (const w of wrapped) {
         doc.text(w, RECEIPT_WIDTH_MM / 2, y, { align: 'center' });
         y += lineHeight;
       }
-      y -= lineHeight;
+      continue;
     }
-    y += lineHeight;
+
+    if (line.kind === 'row') {
+      const size = line.size ?? 9;
+      doc.setFontSize(size);
+      doc.setFont(THERMAL_FONT, line.bold ? 'bold' : 'normal');
+      doc.text(line.left, margin, y);
+      if (line.right) {
+        doc.text(line.right, amtX, y, { align: 'right' });
+      }
+      y += lineHeight;
+      continue;
+    }
+
+    if (line.kind === 'itemHeader') {
+      doc.setFontSize(8);
+      doc.setFont(THERMAL_FONT, 'bold');
+      doc.text('Item', nameX, y);
+      doc.text('Qty', qtyX, y, { align: 'right' });
+      doc.text('Rate', rateX, y, { align: 'right' });
+      doc.text('Amt', amtX, y, { align: 'right' });
+      y += lineHeight;
+      continue;
+    }
+
+    if (line.kind === 'item') {
+      doc.setFontSize(8);
+      doc.setFont(THERMAL_FONT, 'normal');
+      const nameLines = doc.splitTextToSize(line.name, nameMaxW) as string[];
+      const first = nameLines[0] ?? '';
+      doc.text(first, nameX, y);
+      doc.text(line.qty, qtyX, y, { align: 'right' });
+      doc.text(line.rate, rateX, y, { align: 'right' });
+      doc.text(line.amt, amtX, y, { align: 'right' });
+      y += lineHeight;
+      for (let i = 1; i < nameLines.length; i++) {
+        doc.text(nameLines[i], nameX, y);
+        y += lineHeight;
+      }
+      if (line.subtitle) {
+        doc.setFontSize(7);
+        const subLines = doc.splitTextToSize(line.subtitle, nameMaxW) as string[];
+        for (const s of subLines) {
+          doc.text(s, nameX, y);
+          y += lineHeight;
+        }
+        doc.setFontSize(8);
+      }
+      continue;
+    }
+
+    if (line.kind === 'block') {
+      doc.setFontSize(9);
+      doc.setFont(THERMAL_FONT, 'bold');
+      doc.text(line.title, margin, y);
+      y += lineHeight;
+      doc.setFont(THERMAL_FONT, 'normal');
+      const bodyLines = doc.splitTextToSize(line.body, RECEIPT_WIDTH_MM - margin * 2) as string[];
+      for (const b of bodyLines) {
+        doc.text(b, margin, y);
+        y += lineHeight;
+      }
+    }
   }
 
   doc.save(`${txn.transactionNumber}.pdf`);

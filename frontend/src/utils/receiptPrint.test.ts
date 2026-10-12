@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, buildReceiptHtml, buildPrintDocument } from './receiptPrint';
+import { escapeHtml, buildReceiptHtml, buildPrintDocument, buildPdfLines } from './receiptPrint';
 import type { Transaction } from '@/types';
 
 const sampleTxn: Transaction = {
@@ -14,6 +14,9 @@ const sampleTxn: Transaction = {
       price: 150,
       quantity: 2,
       discount: 0,
+      sellUom: 'pack',
+      unitFactor: 12,
+      uom: 'pcs',
     },
   ],
   subtotal: 300,
@@ -39,6 +42,14 @@ describe('receiptPrint', () => {
     expect(html).toContain('Change');
   });
 
+  it('buildReceiptHtml includes UOM subtitle and Walk-In Customer', () => {
+    const html = buildReceiptHtml(sampleTxn);
+    expect(html).toContain('Walk-In Customer');
+    expect(html).toMatch(/Sell:.*[Pp]ack/);
+    expect(html).toContain('150.00');
+    expect(html).toContain('300.00');
+  });
+
   it('buildReceiptHtml includes discount breakdown when present', () => {
     const html = buildReceiptHtml({
       ...sampleTxn,
@@ -62,10 +73,46 @@ describe('receiptPrint', () => {
     expect(html).toContain('Namaste!');
   });
 
+  it('buildReceiptHtml includes remarks when notes present', () => {
+    const html = buildReceiptHtml({ ...sampleTxn, notes: 'Leave at door' });
+    expect(html).toContain('Remarks');
+    expect(html).toContain('Leave at door');
+  });
+
   it('buildPrintDocument wraps body in full HTML document', () => {
     const doc = buildPrintDocument('<div>test</div>');
     expect(doc).toContain('<!DOCTYPE html>');
     expect(doc).toContain('80mm');
     expect(doc).toContain('<div>test</div>');
+  });
+
+  it('buildPdfLines matches on-screen columns with UOM, customer, and remarks', () => {
+    const lines = buildPdfLines(
+      { ...sampleTxn, notes: 'Gift wrap' },
+      500,
+    );
+
+    expect(lines.some((l) => l.kind === 'itemHeader')).toBe(true);
+
+    const item = lines.find((l) => l.kind === 'item');
+    expect(item).toBeDefined();
+    if (item?.kind === 'item') {
+      expect(item.name).toBe('Kimchi <Special>');
+      expect(item.qty).toBe('2');
+      expect(item.rate).toBe('150.00');
+      expect(item.amt).toBe('300.00');
+      expect(item.subtitle).toMatch(/Sell:.*[Pp]ack/);
+    }
+
+    const customer = lines.find(
+      (l) => l.kind === 'row' && l.left === 'Customer',
+    );
+    expect(customer).toMatchObject({ kind: 'row', right: 'Walk-In Customer' });
+
+    const remarks = lines.find((l) => l.kind === 'block');
+    expect(remarks).toMatchObject({ kind: 'block', title: 'Remarks', body: 'Gift wrap' });
+
+    expect(lines.some((l) => l.kind === 'row' && l.left === 'Tendered')).toBe(true);
+    expect(lines.some((l) => l.kind === 'row' && l.left === 'Change')).toBe(true);
   });
 });
