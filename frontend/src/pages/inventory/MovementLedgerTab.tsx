@@ -157,20 +157,33 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
     { id: 'before', label: 'Before', align: 'right', render: (row) => row.stockBefore },
     { id: 'after', label: 'After', align: 'right', render: (row) => row.stockAfter },
     {
+      id: 'batch',
+      label: 'Batch',
+      minWidth: 140,
+      render: (row) => row.batchNumber || '—',
+    },
+    {
       id: 'reference',
       label: 'Reference',
       minWidth: 140,
       render: (row) => {
         if (row.referenceType === 'sale' && row.referenceId) {
           return (
-            <Button
-              onClick={() => window.open(`/sales/${row.referenceId}`, '_blank')}
-              size="small"
-              variant="text"
-              sx={{ textTransform: 'none', p: 0, minWidth: 0, cursor: 'pointer' }}
-            >
-              {row.transactionNumber || row.referenceLabel}
-            </Button>
+            <Box>
+              <Button
+                onClick={() => window.open(`/sales/${row.referenceId}`, '_blank')}
+                size="small"
+                variant="text"
+                sx={{ textTransform: 'none', p: 0, minWidth: 0, cursor: 'pointer' }}
+              >
+                {row.transactionNumber || row.referenceLabel}
+              </Button>
+              {row.batchNumber ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  {row.batchNumber}
+                </Typography>
+              ) : null}
+            </Box>
           );
         }
         if (row.referenceType === 'purchase_order' && row.referenceId) {

@@ -92,7 +92,8 @@ async def build_movement_row(
     batch_key = adj.batch_id or ""
     if not batch_key and ref_type not in ("sale", "purchase_order", "purchase_return"):
         batch_key = ref_id
-    batch_number = (batch_numbers or {}).get(batch_key, "") if batch_key else ""
+    looked_up = (batch_numbers or {}).get(batch_key, "") if batch_key else ""
+    batch_number = (getattr(adj, "batch_number", None) or "").strip() or looked_up
 
     return {
         "id": str(adj.id),
@@ -100,6 +101,7 @@ async def build_movement_row(
         "product_name": adj.product_name,
         "product_sku": sku,
         "batch_id": adj.batch_id,
+        "batch_number": batch_number,
         "transaction_id": adj.transaction_id,
         "reference_type": ref_type,
         "reference_id": ref_id,

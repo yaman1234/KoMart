@@ -1,19 +1,17 @@
-import { PO_LABELS } from '@/pages/purchase-orders/poTerminology';
-
 /** Shared product field labels — keep in sync across sheet, form, and inventory. */
 export const PRODUCT_FIELD_LABELS = {
   sku: 'SKU',
   name: 'Name',
-  packQty: PO_LABELS.qty,
-  buyUom: PO_LABELS.buyUom,
-  unitsPerPack: PO_LABELS.perPack,
-  poUnitCost: PO_LABELS.cost,
+  packQty: 'Pack qty',
+  buyUom: 'Buy unit',
+  unitsPerPack: 'Units per pack',
+  poUnitCost: 'Unit cost',
   brand: 'Brand',
   country: 'Country',
   category: 'Category',
   barcode: 'Barcode',
   supplier: 'Supplier',
-  baseUom: 'Secondary Unit',
+  baseUom: 'Sell unit',
   sellMode: 'Sell mode',
   unitCost: 'Unit cost',
   packCost: 'Pack cost',

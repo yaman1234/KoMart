@@ -1,18 +1,46 @@
 export const PO_LABELS = {
+  sn: 'SN',
   sku: 'SKU',
   product: 'Product',
-  qty: 'Qty',
+  packQty: 'Buy qty',
+  packQtyHint: 'How many packs to buy',
   buyUom: 'Buy unit',
+  unitsPerPack: 'Units per pack',
+  unitsPerPackHint: 'Pieces inside one pack',
+  sellUom: 'Sell unit',
+  sellMode: 'Sell mode',
+  totalUnits: 'Total units',
+  ordered: 'Ordered',
+  received: 'Received',
+  existingCost: 'Existing cost',
+  existingCostHint: 'Product cost / pack',
+  sellingPrice: 'Selling price',
+  sellingPriceHint: 'Current price',
+  newSellingPrice: 'New selling price',
+  newSellingPriceHint: 'Applied to the product when this line is received',
+  buyPrice: 'Buy price',
+  buyPriceHint: 'Product cost / buy unit',
+  sellPrice: 'Sell price',
+  sellPriceHint: 'Current price / sell unit',
+  sellPcs: 'Sell price (pcs)',
+  sellPcsHint: 'Per sell unit',
+  lastBuy: 'Last buy',
+  lastBuyHint: 'Last purchase unit cost / buy unit',
+  unitCostBeforeVat: 'Before VAT',
+  unitCost: 'Line price',
+  unitCostHint: 'Per buy unit',
+  lineTotal: 'Line total',
+  expiryOptional: 'Expiry (optional)',
+  alreadyReceived: 'Already received',
+  // Labels used by the product summary / quick view that landed on dev.
+  qty: 'Qty',
   perPack: 'Per pack',
   pcsInPack: 'Pcs in pack',
-  totalUnits: 'Total units',
   costBeforeVat: 'Cost before VAT',
   cost: 'Cost',
   costPack: 'Cost / pack',
   costPc: 'Cost / pc',
   amount: 'Amount',
-  ordered: 'Ordered',
-  received: 'Already in',
   receive: 'Receiving now',
   stockIn: 'Stock added',
   expiry: 'Expiry',
@@ -21,7 +49,6 @@ export const PO_LABELS = {
   sellAs: 'Sell as',
   packPrice: 'Price / pack',
   piecePrice: 'Price / pc',
-  lastBuy: 'Last buy',
 } as const;
 
 export const PO_SELL_AS_OPTIONS = [
@@ -35,15 +62,18 @@ export function sellAsLabel(mode: string | undefined): string {
   return found?.label ?? 'Pack only';
 }
 
-export const PO_PASTE_HINT = `${PO_LABELS.sku} · ${PO_LABELS.product} · ${PO_LABELS.qty} · ${PO_LABELS.buyUom} · ${PO_LABELS.perPack} · ${PO_LABELS.cost}`;
+export const PO_PACKING_NOTE =
+  'Buy qty × units per pack = total units added to stock. Example: 12 packs × 5 = 60 units.';
+
+export const PO_PASTE_HINT = `${PO_LABELS.sku} · ${PO_LABELS.product} · ${PO_LABELS.packQty} · ${PO_LABELS.buyUom} · ${PO_LABELS.unitsPerPack} · ${PO_LABELS.unitCost}`;
 
 export const PO_RECEIVE_HINT =
-  'Select open lines, set Receiving now and prices, then Process Receipt. Stock added = Receiving now × Pcs in pack.';
+  'Select all (or choose lines), confirm Buy qty, then Process Receipt. Buy qty × Units per pack = Total units (e.g. 12 × 5 = 60).';
 
 export const PO_ENTRY_FLOW_STEPS = [
-  'Create PO — supplier, lines (qty / per pack / cost), discount / additional charges if needed, optional bill, then draft or Place Order.',
-  'Goods received — Select open rows, confirm Receiving now (Pcs in pack / Sell as / prices / expiry), then Process Receipt. Stock and product prices update.',
-  'Record payment — when money is paid; creates an expense and reduces remaining balance (partial OK).',
+  'Create PO — supplier, lines (buy qty / units per pack / cost), discount / additional charges if needed, optional bill, then draft or Place Order.',
+  'Goods received — Select all rows (or choose lines), confirm Buy qty received (and Units per pack / expiry if needed), then click Process Receipt. Stock increases by total units.',
+  'Record payment — when money has been paid; creates an expense and reduces remaining balance (partial OK).',
   'Return mistakes on this PO (unsold leftover only) via Return to supplier — Refund or Reduce payable.',
   'Expired / slow stock later — open the Supplier page → Return goods (no PO money change). Do not cancel after receive.',
 ] as const;

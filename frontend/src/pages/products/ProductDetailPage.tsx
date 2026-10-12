@@ -31,12 +31,15 @@ import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
 import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
 import { showApiError, showSuccess } from '@/utils/toast';
 import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
+import { SELL_MODE_OPTIONS } from '@/constants';
+import { useUomOptions } from '@/hooks/useUoms';
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const formatDate = useFormatDate();
   const { data: product, isLoading, isError } = useProduct(id ?? '');
+  const uomOptions = useUomOptions();
   const user = useAuthStore((s) => s.user);
   const deleteMutation = useDeleteProduct();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -79,15 +82,21 @@ export function ProductDetailPage() {
       href: product.supplierId ? `/suppliers/${product.supplierId}` : undefined,
     },
     { label: 'Added', value: formatDate(product.createdAt) },
-    { label: PRODUCT_FIELD_LABELS.buyUom, value: uomLabel(product.buyUom ?? product.uom ?? '') },
-    { label: PRODUCT_FIELD_LABELS.baseUom, value: uomLabel(product.uom ?? '') },
+    { label: 'Buy unit (UOM)', value: uomLabel(product.buyUom ?? product.uom ?? '', uomOptions) },
+    { label: 'Sell unit (UOM)', value: uomLabel(product.uom ?? '', uomOptions) },
     {
-      label: PRODUCT_FIELD_LABELS.unitsPerPack,
+      label: 'Conversion rate',
       value: formatConversion(
         product.buyUom ?? '',
         product.uom ?? '',
         product.unitsPerBuyUom ?? 1,
+        uomOptions,
       ) || '—',
+    },
+    {
+      label: PRODUCT_FIELD_LABELS.sellMode,
+      value:
+        SELL_MODE_OPTIONS.find((o) => o.value === product.sellMode)?.label ?? '—',
     },
     {
       label: 'Cost effective from',
@@ -242,7 +251,7 @@ export function ProductDetailPage() {
                 )}
               </Box>
               <Chip
-                label={`Stock: ${formatStockQty(product.stock, product.uom ?? '')}`}
+                label={`Stock: ${formatStockQty(product.stock, product.uom ?? '', uomOptions)}`}
                 color={stockStatus.color}
                 sx={{ fontWeight: 600 }}
               />
@@ -293,6 +302,7 @@ export function ProductDetailPage() {
               buyUom={product.buyUom ?? product.uom ?? ''}
               baseUom={product.uom ?? ''}
               factor={product.unitsPerBuyUom ?? 1}
+              uomOptions={uomOptions}
             />
             <Grid container spacing={0.5} sx={{ mt: 1 }}>
               {quickInfoItems.map((item) => (

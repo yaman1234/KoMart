@@ -5,6 +5,7 @@ import { cartLineKey } from '@/utils/cartLine';
 import { formatSellLineSubtitle } from '@/utils/uomDisplay';
 import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
+import { useUomOptions } from '@/hooks/useUoms';
 import type { ReceiptBranding, Transaction } from '@/types';
 
 export {
@@ -26,6 +27,7 @@ interface ReceiptViewProps {
 }
 
 export function ReceiptView({ transaction: txn, tenderedAmount, branding }: ReceiptViewProps) {
+  const uomOptions = useUomOptions();
   const cash = tenderedAmount;
   const cashChg = cash !== undefined ? cash - txn.total : undefined;
   const storeName = branding?.storeName || APP_NAME;
@@ -103,7 +105,7 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
               {item.name}
               {item.sellUom && (
                 <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.6rem' }}>
-                  {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '')}
+                  {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '', uomOptions)}
                 </Box>
               )}
             </Typography>
