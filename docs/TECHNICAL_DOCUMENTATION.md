@@ -1676,7 +1676,6 @@ Transactions are immutable once created. No `draft`/`void`/`refunded` status enu
 | **On-screen preview** | `ReceiptView` component (store branding from settings) |
 | **Print / Reprint**   | `ReceiptActions` → `printTransactionReceipt()`         |
 | **Download PDF**      | jsPDF 80mm thermal layout (`downloadReceiptPdf`)       |
-| **Download HTML**     | Standalone `.html` receipt (`downloadReceiptHtml`)     |
 
 
 **Print engine** (`frontend/src/utils/receiptPrint.ts`):
@@ -1686,7 +1685,7 @@ Transactions are immutable once created. No `draft`/`void`/`refunded` status enu
 3. Falls back to hidden **iframe** if pop-ups blocked
 4. Waits for document load + `requestAnimationFrame` before `print()`
 
-**UI locations:** Payment success modal (Print + PDF), Sale detail page (Reprint + PDF + HTML).
+**UI locations:** Payment success modal (Print + PDF), Sale detail page (Reprint + PDF).
 
 See [MIGRATION_PRINTING_FIX.md](./MIGRATION_PRINTING_FIX.md).
 

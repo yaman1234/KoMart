@@ -25,7 +25,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { CustomerPicker } from '@/components/pos/CustomerPicker';
 import { useCustomer } from '@/hooks/useCustomers';
 import { PAYMENT_METHODS } from '@/constants';
-import { formatCurrency, formatAmount } from '@/utils';
+import { formatCurrency, formatAmount, uomLabel } from '@/utils';
 import { getErrorMessage } from '@/services/apiClient';
 import type { PaymentMethod, Transaction } from '@/types';
 
@@ -55,6 +55,9 @@ interface DraftItem {
   quantity: number;
   price: number;
   discount: number;
+  sellUom?: string;
+  unitFactor?: number;
+  uom?: string;
 }
 
 function computeLineTotal(item: DraftItem) {
@@ -100,6 +103,9 @@ export function SaleEditDialog({
         quantity: i.quantity,
         price: i.price,
         discount: i.discount,
+        sellUom: i.sellUom,
+        unitFactor: i.unitFactor,
+        uom: i.uom,
       })),
     );
     setError('');
@@ -237,6 +243,7 @@ export function SaleEditDialog({
                   <TableRow>
                     <TableCell>Product</TableCell>
                     <TableCell align="right">Qty</TableCell>
+                    <TableCell align="center">UOM</TableCell>
                     <TableCell align="right">Unit Price</TableCell>
                     <TableCell align="right">Line Discount</TableCell>
                     <TableCell align="right">Amount</TableCell>
@@ -259,6 +266,11 @@ export function SaleEditDialog({
                           slotProps={{ htmlInput: { min: 0, style: { textAlign: 'right' } } }}
                           sx={{ width: 72 }}
                         />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">
+                          {uomLabel(item.sellUom || item.uom || '') || '—'}
+                        </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <TextField

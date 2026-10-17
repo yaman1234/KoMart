@@ -1,11 +1,13 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
+import { formatAmount, formatCurrency, formatDateTime, uomLabel } from '@/utils';
 import { cartLineKey } from '@/utils/cartLine';
-import { formatSellLineSubtitle } from '@/utils/uomDisplay';
+import { formatReceiptConversionSubtitle } from '@/utils/uomDisplay';
 import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
 import type { ReceiptBranding, Transaction } from '@/types';
+
+import { receiptCustomerLabel } from '@/utils/receiptPrint';
 
 export {
   buildReceiptHtml,
@@ -13,9 +15,9 @@ export {
   printReceipt,
   printTransactionReceipt,
   downloadReceiptPdf,
-  downloadReceiptHtml,
   escapeHtml,
   receiptBrandingFromSettings,
+  receiptCustomerLabel,
 } from '@/utils/receiptPrint';
 export type { PrintResult, PrintMethod } from '@/utils/receiptPrint';
 
@@ -68,7 +70,7 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
       <RRow label="Bill No" value={txn.transactionNumber} bold />
       <RRow
         label="Customer"
-        value={txn.customerName && txn.customerName !== 'Walk-In' ? txn.customerName : 'Walk-In Customer'}
+        value={receiptCustomerLabel(txn)}
       />
       <RRow label="Cashier" value={txn.createdBy} />
       <RDivider />
@@ -76,19 +78,19 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: '1fr 28px 80px 80px',
+          gridTemplateColumns: '1fr 28px 46px 65px 70px',
           gap: '1px 6px',
           alignItems: 'start',
         }}
       >
-        {(['Item', 'Qty', 'Rate', 'Amount'] as const).map((h, i) => (
+        {(['Item', 'Qty', 'UOM', 'Rate', 'Amount'] as const).map((h, i) => (
           <Typography
             key={h}
             sx={{
               fontWeight: 700,
               fontSize: '0.68rem',
               fontFamily: 'inherit',
-              textAlign: i === 0 ? 'left' : 'right',
+              textAlign: i === 0 ? 'left' : i === 2 ? 'center' : 'right',
               pb: 0.25,
               borderBottom: '1px solid #aaa',
             }}
@@ -97,27 +99,34 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
           </Typography>
         ))}
 
-        {txn.items.map((item) => (
-          <React.Fragment key={cartLineKey(item.productId, item.sellUom)}>
-            <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', wordBreak: 'break-word' }}>
-              {item.name}
-              {item.sellUom && (
-                <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.6rem' }}>
-                  {formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '')}
-                </Box>
-              )}
-            </Typography>
-            <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
-              {item.quantity}
-            </Typography>
-            <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
-              {formatAmount(item.price)}
-            </Typography>
-            <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
-              {formatAmount(item.price * item.quantity)}
-            </Typography>
-          </React.Fragment>
-        ))}
+        {txn.items.map((item) => {
+          const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+          const uom = uomLabel(item.sellUom || item.uom || '') || '—';
+          return (
+            <React.Fragment key={cartLineKey(item.productId, item.sellUom)}>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', wordBreak: 'break-word' }}>
+                {item.name}
+                {subtitle && (
+                  <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.6rem' }}>
+                    {subtitle}
+                  </Box>
+                )}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
+                {item.quantity}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'center' }}>
+                {uom}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
+                {formatAmount(item.price)}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
+                {formatAmount(item.price * item.quantity)}
+              </Typography>
+            </React.Fragment>
+          );
+        })}
       </Box>
 
       <RDivider />

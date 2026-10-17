@@ -3,6 +3,7 @@ import { UOM_OPTIONS } from '@/constants';
 import {
   formatConversion,
   formatSellLineSubtitle,
+  formatReceiptConversionSubtitle,
   formatStockQty,
 } from './uomDisplay';
 
@@ -33,5 +34,15 @@ describe('uomDisplay', () => {
 
   it('formatSellLineSubtitle for pack sell', () => {
     expect(formatSellLineSubtitle('pack', 12, 'pcs', UOM_OPTIONS)).toBe('Sell: Pack · 12 Pieces (pcs) each');
+  });
+
+  it('formatReceiptConversionSubtitle returns empty when no conversion', () => {
+    expect(formatReceiptConversionSubtitle('pcs', 1, 'pcs', UOM_OPTIONS)).toBe('');
+    expect(formatReceiptConversionSubtitle('pcs', 1, 'pcs')).toBe('');
+  });
+
+  it('formatReceiptConversionSubtitle shows conversion note when factor > 1', () => {
+    expect(formatReceiptConversionSubtitle('pack', 12, 'pcs', UOM_OPTIONS)).toBe('12 Pieces (pcs) each');
+    expect(formatReceiptConversionSubtitle('pack', 12, 'pcs')).toBe('12 Pieces (pcs) each');
   });
 });

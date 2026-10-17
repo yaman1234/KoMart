@@ -50,3 +50,20 @@ export function formatSellLineSubtitle(
   const baseLabel = uomLabel(base, uomOptions);
   return `Sell: ${sellLabel} · ${factor} ${baseLabel} each`;
 }
+
+export function formatReceiptConversionSubtitle(
+  sellUom: string | undefined,
+  unitFactor: number | undefined,
+  baseUom: string,
+  uomOptions?: ReadonlyArray<{ value: string; label: string }>,
+): string {
+  const base = resolveUomCode(baseUom);
+  const sell = resolveUomCode(sellUom) || base;
+  const factor = Math.max(1, unitFactor ?? 1);
+  if (!hasUomConversion(factor) || !base || sell.toLowerCase() === base.toLowerCase()) {
+    return '';
+  }
+  const baseLabel = uomLabel(base, uomOptions);
+  return `${factor} ${baseLabel} each`;
+}
+
