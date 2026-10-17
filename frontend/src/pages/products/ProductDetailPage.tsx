@@ -1,36 +1,83 @@
+import type { ReactNode } from 'react';
+import { useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
+  Chip,
+  CircularProgress,
+  Divider,
   Grid,
+  Link,
   Paper,
   Typography,
-  Chip,
-  Divider,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Alert,
-  Link,
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import ImageIcon from '@mui/icons-material/Image';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { useProduct, useDeleteProduct } from '@/hooks/useProducts';
-import { useAuthStore } from '@/store';
-import { PriceWithUom } from '@/components/products/PriceWithUom';
+import { ProductCommerceSummary } from '@/components/products/ProductCommerceSummary';
 import { UomConversionHint } from '@/components/uom/UomUi';
-import { isAdminOrManager, productStatusColor, productStatusLabel, uomLabel } from '@/utils';
+import { PO_LABELS, sellAsLabel } from '@/pages/purchase-orders/poTerminology';
+import { useAuthStore } from '@/store';
 import { useFormatDate } from '@/hooks/useFormatDate';
+import { useProduct, useDeleteProduct } from '@/hooks/useProducts';
+import {
+  isAdminOrManager,
+  productStatusColor,
+  productStatusLabel,
+  uomLabel,
+} from '@/utils';
 import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
-import { canSellAsPack, canSellAsPiece, packSellOption } from '@/utils/uomSell';
 import { showApiError, showSuccess } from '@/utils/toast';
-import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
+
+function displayValue(value: string | number | null | undefined): string {
+  if (value == null) return '—';
+  const text = String(value).trim();
+  return text || '—';
+}
+
+function DetailField({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <Grid size={{ xs: 12, sm: 6 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+        {label}
+      </Typography>
+      {children ?? (
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 600, color: value === '—' ? 'text.disabled' : 'text.primary' }}
+        >
+          {value}
+        </Typography>
+      )}
+    </Grid>
+  );
+}
+
+function LabeledBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Box>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  );
+}
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
@@ -40,6 +87,7 @@ export function ProductDetailPage() {
   const user = useAuthStore((s) => s.user);
   const deleteMutation = useDeleteProduct();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   const canSeeCostPrice = isAdminOrManager(user?.role);
   const canEdit = isAdminOrManager(user?.role);
@@ -56,39 +104,96 @@ export function ProductDetailPage() {
     return <Alert severity="error">Product not found.</Alert>;
   }
 
-  const stockStatus =
+  const validImages = (product.images ?? []).filter((url) => Boolean(url?.trim()));
+  const activeImage = validImages[selectedImageIndex] ?? validImages[0] ?? '';
+  const tags = product.tags ?? [];
+  const stockColor =
     product.stock === 0
-      ? { label: 'Out of Stock', color: 'error' as const }
+      ? 'error'
       : product.stock <= product.lowStockThreshold
-        ? { label: 'Low Stock', color: 'warning' as const }
-        : { label: 'In Stock', color: 'success' as const };
+        ? 'warning'
+        : 'success';
 
-  const showPackPrice = canSellAsPack(product);
-  const packOption = packSellOption(product);
-  const packPriceIsDerived = showPackPrice && (product.packSellingPrice ?? 0) <= 0;
-
-  const quickInfoItems = [
-    { label: 'SKU', value: product.sku },
-    { label: 'Barcode', value: product.barcode },
-    { label: 'Brand', value: product.brand },
-    { label: 'Category', value: product.category },
-    { label: 'Country', value: product.countryOfOrigin },
+  const details: {
+    label: string;
+    value?: string;
+    render?: () => ReactNode;
+  }[] = [
+    { label: PO_LABELS.sku, value: displayValue(product.sku) },
+    { label: 'Barcode', value: displayValue(product.barcode) },
+    { label: 'Brand', value: displayValue(product.brand) },
+    { label: 'Category', value: displayValue(product.category) },
+    { label: 'Country', value: displayValue(product.countryOfOrigin) },
     {
       label: 'Supplier',
-      value: product.supplierName ?? '—',
-      href: product.supplierId ? `/suppliers/${product.supplierId}` : undefined,
+      render: () =>
+        product.supplierId ? (
+          <Link
+            component={RouterLink}
+            to={`/suppliers/${product.supplierId}`}
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              color: 'primary.main',
+              textDecoration: 'none',
+              '&:hover': { textDecoration: 'underline' },
+            }}
+          >
+            {product.supplierName || '—'}
+          </Link>
+        ) : (
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              color: !product.supplierName ? 'text.disabled' : 'text.primary',
+            }}
+          >
+            {displayValue(product.supplierName)}
+          </Typography>
+        ),
+    },
+    {
+      label: PO_LABELS.buyUom,
+      value: displayValue(uomLabel(product.buyUom ?? product.uom ?? '')),
+    },
+    {
+      label: PO_LABELS.sellUnit,
+      value: displayValue(uomLabel(product.uom ?? '')),
+    },
+    {
+      label: PO_LABELS.sellAs,
+      value: displayValue(sellAsLabel(product.sellMode)),
+    },
+    {
+      label: PO_LABELS.pcsInPack,
+      value: displayValue(
+        formatConversion(
+          product.buyUom ?? '',
+          product.uom ?? '',
+          product.unitsPerBuyUom ?? 1,
+        ) || String(product.unitsPerBuyUom ?? 1),
+      ),
+    },
+    ...(canSeeCostPrice
+      ? [
+          {
+            label: 'Margin',
+            value:
+              product.sellingPrice > 0
+                ? `${(((product.sellingPrice - product.costPrice) / product.sellingPrice) * 100).toFixed(1)}%`
+                : '—',
+          },
+        ]
+      : []),
+    {
+      label: 'Low stock alert',
+      value:
+        product.lowStockThreshold != null
+          ? `${product.lowStockThreshold} ${uomLabel(product.uom ?? '')}`
+          : '—',
     },
     { label: 'Added', value: formatDate(product.createdAt) },
-    { label: PRODUCT_FIELD_LABELS.buyUom, value: uomLabel(product.buyUom ?? product.uom ?? '') },
-    { label: PRODUCT_FIELD_LABELS.baseUom, value: uomLabel(product.uom ?? '') },
-    {
-      label: PRODUCT_FIELD_LABELS.unitsPerPack,
-      value: formatConversion(
-        product.buyUom ?? '',
-        product.uom ?? '',
-        product.unitsPerBuyUom ?? 1,
-      ) || '—',
-    },
     {
       label: 'Cost effective from',
       value: product.costPriceEffectiveFrom ? formatDate(product.costPriceEffectiveFrom) : '—',
@@ -96,14 +201,6 @@ export function ProductDetailPage() {
     {
       label: 'Selling effective from',
       value: product.sellingPriceEffectiveFrom ? formatDate(product.sellingPriceEffectiveFrom) : '—',
-    },
-    {
-      label: 'Most Popular',
-      value: product.isPopular ? 'Yes' : 'No',
-    },
-    {
-      label: 'Trending',
-      value: product.isTrending ? 'Yes' : 'No',
     },
   ];
 
@@ -160,207 +257,303 @@ export function ProductDetailPage() {
         onCancel={() => setConfirmDelete(false)}
       />
 
-      {/* ── Hero: Image + Quick Info ── */}
-      <Paper sx={{ mb: 3, overflow: 'hidden' }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
-          {/* Product image */}
-          <Box
+      {/* ── Main Product Details Card (matches ProductQuickViewDialog structure) ── */}
+      <Paper sx={{ mb: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+        <Grid container>
+          {/* ── Left Column: Media, Title, Stock & Status ── */}
+          <Grid
+            size={{ xs: 12, md: 5 }}
             sx={{
-              width: { xs: '100%', md: 340 },
-              minHeight: { xs: 260, md: 340 },
-              flexShrink: 0,
-              position: 'relative',
               bgcolor: 'action.hover',
+              borderRight: { md: 1 },
+              borderColor: 'divider',
+              p: { xs: 2.5, sm: 3 },
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              flexDirection: 'column',
+              gap: 2.5,
             }}
           >
-            {product.images[0] ? (
-              <Box
-                component="img"
-                src={product.images[0]}
-                alt={product.name}
-                sx={{
-                  width: '100%',
-                  height: { xs: 260, md: 340 },
-                  objectFit: 'cover',
-                  display: 'block',
-                }}
-                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            ) : (
-              <Box sx={{ textAlign: 'center', color: 'text.disabled' }}>
-                <ImageIcon sx={{ fontSize: 64 }} />
-                <Typography variant="body2" sx={{ mt: 1 }}>No image</Typography>
-              </Box>
-            )}
-          </Box>
-
-          {/* Quick info panel */}
-          <Box sx={{ flex: 1, p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Price + status row */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
-              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                {canSellAsPiece(product) && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Price / pc
-                    </Typography>
-                    <PriceWithUom
-                      price={product.sellingPrice}
-                      uom={product.uom ?? ''}
-                      priceSx={{ fontSize: '1.75rem' }}
-                    />
-                  </Box>
-                )}
-                {showPackPrice && packOption && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Price / pack
-                    </Typography>
-                    <PriceWithUom
-                      price={packOption.price}
-                      uom={product.buyUom ?? ''}
-                      priceSx={{ fontSize: '1.75rem' }}
-                    />
-                    {packPriceIsDerived && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                        Derived from piece price until pack price is set in product edit.
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-                {!canSellAsPiece(product) && !showPackPrice && (
-                  <PriceWithUom
-                    price={product.sellingPrice}
-                    uom={product.uom ?? ''}
-                    priceSx={{ fontSize: '1.75rem' }}
-                  />
-                )}
-              </Box>
-              <Chip
-                label={`Stock: ${formatStockQty(product.stock, product.uom ?? '')}`}
-                color={stockStatus.color}
-                sx={{ fontWeight: 600 }}
-              />
-              <Chip label={stockStatus.label} color={stockStatus.color} variant="outlined" sx={{ fontWeight: 600 }} />
-              <Chip
-                label={productStatusLabel(product.status)}
-                color={productStatusColor(product.status)}
-                variant="outlined"
-                sx={{ fontWeight: 600 }}
-              />
+            {/* Main Image Container */}
+            <Box
+              sx={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                maxHeight: { xs: 300, sm: 380 },
+                borderRadius: 1.5,
+                overflow: 'hidden',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                p: 1.5,
+              }}
+            >
+              {activeImage ? (
+                <Box
+                  component="img"
+                  src={activeImage}
+                  alt={product.name}
+                  loading="lazy"
+                  decoding="async"
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                  onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'text.disabled',
+                    gap: 1,
+                    p: 2,
+                  }}
+                >
+                  <ImageIcon sx={{ fontSize: 72 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    No image
+                  </Typography>
+                </Box>
+              )}
             </Box>
 
-            {canSeeCostPrice && (
-              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Cost Price
-                  </Typography>
-                  <PriceWithUom
-                    price={product.costPrice}
-                    uom={product.uom ?? ''}
-                    priceSx={{ fontSize: '1rem', color: 'text.primary' }}
-                  />
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Margin
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: 'success.main' }}>
-                    {(((product.sellingPrice - product.costPrice) / product.sellingPrice) * 100).toFixed(1)}%
-                  </Typography>
-                </Box>
+            {/* Thumbnail selector when multiple images exist */}
+            {validImages.length > 1 && (
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {validImages.map((img, idx) => (
+                  <Box
+                    key={`${img}-${idx}`}
+                    component="button"
+                    type="button"
+                    onClick={() => setSelectedImageIndex(idx)}
+                    sx={{
+                      width: 52,
+                      height: 52,
+                      p: 0.5,
+                      borderRadius: 1,
+                      border: '2px solid',
+                      borderColor: idx === selectedImageIndex ? 'primary.main' : 'divider',
+                      bgcolor: 'background.paper',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      transition: 'border-color 0.2s',
+                      '&:hover': { borderColor: 'primary.light' },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={img}
+                      alt={`${product.name} ${idx + 1}`}
+                      sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                    />
+                  </Box>
+                ))}
               </Box>
             )}
 
-            {canEdit && (
-              <Button
-                variant="outlined"
-                onClick={() => navigate(`/inventory/${product.id}`)}
-                sx={{ alignSelf: 'flex-start' }}
+            {/* Product Identity & Stock */}
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="h5"
+                component="h2"
+                sx={{
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                  fontSize: { xs: '1.25rem', sm: '1.375rem' },
+                  mb: 1.5,
+                }}
               >
-                Manage in Inventory
-              </Button>
-            )}
+                {displayValue(product.name)}
+              </Typography>
+
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 0.75, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}
+              >
+                Available stock
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                <Chip
+                  label={formatStockQty(product.stock, product.uom ?? '')}
+                  color={stockColor}
+                  size="small"
+                  sx={{ fontWeight: 600 }}
+                />
+                <Chip
+                  label={productStatusLabel(product.status)}
+                  color={productStatusColor(product.status)}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontWeight: 600 }}
+                />
+                {product.discountPercent != null && product.discountPercent > 0 && (
+                  <Chip
+                    icon={<LocalOfferIcon sx={{ fontSize: '0.875rem !important' }} />}
+                    label={`${product.discountPercent}% off`}
+                    size="small"
+                    color="success"
+                    sx={{ fontWeight: 600 }}
+                  />
+                )}
+                {product.isPopular && (
+                  <Chip
+                    label="Popular"
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                )}
+                {product.isTrending && (
+                  <Chip
+                    label="Trending"
+                    size="small"
+                    color="secondary"
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                )}
+              </Box>
+            </Box>
 
             <Divider />
+
+            {/* Unit conversion hint & Inventory shortcut */}
             <UomConversionHint
               buyUom={product.buyUom ?? product.uom ?? ''}
               baseUom={product.uom ?? ''}
               factor={product.unitsPerBuyUom ?? 1}
             />
-            <Grid container spacing={0.5} sx={{ mt: 1 }}>
-              {quickInfoItems.map((item) => (
-                <Grid key={item.label} size={{ xs: 12, sm: 6 }}>
-                  <Box sx={{ display: 'flex', gap: 1, py: 0.75 }}>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ minWidth: 90, flexShrink: 0 }}
-                    >
-                      {item.label}
-                    </Typography>
-                    {item.href ? (
-                      <Link
-                        component={RouterLink}
-                        to={item.href}
-                        variant="body2"
-                        sx={{ fontWeight: 600 }}
-                      >
-                        {item.value}
-                      </Link>
-                    ) : (
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {item.value ?? '—'}
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
+
+            {canEdit && (
+              <Button
+                variant="outlined"
+                startIcon={<Inventory2OutlinedIcon />}
+                onClick={() => navigate(`/inventory/${product.id}`)}
+                fullWidth
+                sx={{ mt: 0.5 }}
+              >
+                Manage in Inventory
+              </Button>
+            )}
+          </Grid>
+
+          {/* ── Right Column: Pricing, Detailed Attributes & Info ── */}
+          <Grid size={{ xs: 12, md: 7 }} sx={{ p: { xs: 2.5, sm: 3 } }}>
+            {/* Commerce pricing summary (Buy & Sell panels) */}
+            <ProductCommerceSummary
+              product={product}
+              canSeeCostPrice={canSeeCostPrice}
+              priceSize="md"
+            />
+
+            <Divider sx={{ my: 2.5 }} />
+
+            {/* Details Section */}
+            <Typography
+              variant="overline"
+              sx={{
+                display: 'block',
+                fontWeight: 700,
+                letterSpacing: 0.6,
+                color: 'text.secondary',
+                mb: 1.5,
+              }}
+            >
+              Details
+            </Typography>
+            <Grid container spacing={1.5}>
+              {details.map((row) => (
+                <DetailField
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                >
+                  {row.render ? row.render() : undefined}
+                </DetailField>
               ))}
             </Grid>
-          </Box>
-        </Box>
-      </Paper>
 
-      {/* ── Description & Product Details ── */}
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Description & Details</Typography>
-        <Divider sx={{ mb: 2 }} />
+            <Divider sx={{ my: 2.5 }} />
 
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-          {product.description || 'No description provided.'}
-        </Typography>
-
-        {(product.nutritionInfo || product.allergenInfo) && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <List dense disablePadding>
-              {product.nutritionInfo && (
-                <ListItem disableGutters>
-                  <ListItemText
-                    primary="Nutrition Information"
-                    secondary={product.nutritionInfo}
-                    slotProps={{ primary: { style: { fontWeight: 600 } } }}
-                  />
-                </ListItem>
+            {/* Tags */}
+            <LabeledBlock label="Tags">
+              {tags.length > 0 ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {tags.map((tag) => (
+                    <Chip key={tag} label={tag} size="small" color="info" variant="outlined" />
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.disabled" sx={{ fontWeight: 600 }}>
+                  —
+                </Typography>
               )}
-              {product.allergenInfo && (
-                <ListItem disableGutters>
-                  <ListItemText
-                    primary="Allergen Information"
-                    secondary={product.allergenInfo}
-                    slotProps={{ primary: { style: { fontWeight: 600 } } }}
-                  />
-                </ListItem>
-              )}
-            </List>
-          </>
-        )}
+            </LabeledBlock>
+
+            <Divider sx={{ my: 2.5 }} />
+
+            {/* Description */}
+            <LabeledBlock label="Description">
+              <Typography
+                variant="body2"
+                color={product.description?.trim() ? 'text.secondary' : 'text.disabled'}
+                sx={{
+                  fontWeight: product.description?.trim() ? 400 : 600,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.6,
+                }}
+              >
+                {displayValue(product.description)}
+              </Typography>
+            </LabeledBlock>
+
+            <Divider sx={{ my: 2.5 }} />
+
+            {/* Nutrition */}
+            <LabeledBlock label="Nutrition">
+              <Typography
+                variant="body2"
+                color={product.nutritionInfo?.trim() ? 'text.secondary' : 'text.disabled'}
+                sx={{
+                  fontWeight: product.nutritionInfo?.trim() ? 400 : 600,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.6,
+                }}
+              >
+                {displayValue(product.nutritionInfo)}
+              </Typography>
+            </LabeledBlock>
+
+            <Divider sx={{ my: 2.5 }} />
+
+            {/* Allergens */}
+            <LabeledBlock label="Allergens">
+              <Typography
+                variant="body2"
+                color={product.allergenInfo?.trim() ? 'text.secondary' : 'text.disabled'}
+                sx={{
+                  fontWeight: product.allergenInfo?.trim() ? 400 : 600,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.6,
+                }}
+              >
+                {displayValue(product.allergenInfo)}
+              </Typography>
+            </LabeledBlock>
+          </Grid>
+        </Grid>
       </Paper>
     </Box>
   );

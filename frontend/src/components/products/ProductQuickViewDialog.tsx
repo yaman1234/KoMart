@@ -94,7 +94,7 @@ export function ProductQuickViewDialog({
       value: displayValue(uomLabel(product.buyUom ?? product.uom ?? '')),
     },
     {
-      label: 'Sell unit',
+      label: PO_LABELS.sellUnit,
       value: displayValue(uomLabel(product.uom ?? '')),
     },
     {
