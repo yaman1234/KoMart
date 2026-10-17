@@ -8,6 +8,7 @@ import {
   Divider,
   Grid,
   IconButton,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -23,7 +24,7 @@ import {
   productStatusOf,
   uomLabel,
 } from '@/utils';
-import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
+import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import type { Product } from '@/types';
 
 interface ProductQuickViewDialogProps {
@@ -81,6 +82,7 @@ export function ProductQuickViewDialog({
   const tags = product.tags ?? [];
   const stockColor =
     product.stock === 0 ? 'error' : product.stock <= product.lowStockThreshold ? 'warning' : 'success';
+  const approxPackStock = getProductApproxPackStock(product);
 
   const details: { label: string; value: string }[] = [
     { label: PO_LABELS.sku, value: displayValue(product.sku) },
@@ -94,7 +96,7 @@ export function ProductQuickViewDialog({
       value: displayValue(uomLabel(product.buyUom ?? product.uom ?? '')),
     },
     {
-      label: 'Sell unit',
+      label: PO_LABELS.sellUnit,
       value: displayValue(uomLabel(product.uom ?? '')),
     },
     {
@@ -220,6 +222,17 @@ export function ProductQuickViewDialog({
                   size="small"
                   sx={{ fontWeight: 600 }}
                 />
+                {approxPackStock && (
+                  <Tooltip title={approxPackStock.tooltip}>
+                    <Chip
+                      label={approxPackStock.label}
+                      color={stockColor}
+                      variant="outlined"
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Tooltip>
+                )}
                 {productStatusOf(product.status) !== 'active' && (
                   <Chip
                     label={productStatusLabel(product.status)}

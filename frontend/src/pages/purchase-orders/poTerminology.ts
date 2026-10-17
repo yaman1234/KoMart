@@ -3,6 +3,7 @@ export const PO_LABELS = {
   product: 'Product',
   qty: 'Qty',
   buyUom: 'Buy unit',
+  sellUnit: 'Sell unit',
   perPack: 'Per pack',
   pcsInPack: 'Pcs in pack',
   totalUnits: 'Total units',
