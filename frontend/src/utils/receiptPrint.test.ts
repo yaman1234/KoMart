@@ -42,10 +42,12 @@ describe('receiptPrint', () => {
     expect(html).toContain('Change');
   });
 
-  it('buildReceiptHtml includes UOM subtitle and Walk-In Customer', () => {
+  it('buildReceiptHtml includes UOM column, conversion subtitle, and Walk-In Customer', () => {
     const html = buildReceiptHtml(sampleTxn);
     expect(html).toContain('Walk-In Customer');
-    expect(html).toMatch(/Sell:.*[Pp]ack/);
+    expect(html).toContain('<th class="uom">UOM</th>');
+    expect(html).toContain('<td class="uom">Pack</td>');
+    expect(html).toContain('12 Pieces (pcs) each');
     expect(html).toContain('150.00');
     expect(html).toContain('300.00');
   });
@@ -99,9 +101,10 @@ describe('receiptPrint', () => {
     if (item?.kind === 'item') {
       expect(item.name).toBe('Kimchi <Special>');
       expect(item.qty).toBe('2');
+      expect(item.uom).toBe('Pack');
       expect(item.rate).toBe('150.00');
       expect(item.amt).toBe('300.00');
-      expect(item.subtitle).toMatch(/Sell:.*[Pp]ack/);
+      expect(item.subtitle).toBe('12 Pieces (pcs) each');
     }
 
     const customer = lines.find(

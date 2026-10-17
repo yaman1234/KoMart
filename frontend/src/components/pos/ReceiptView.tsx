@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
+import { formatAmount, formatCurrency, formatDateTime, uomLabel } from '@/utils';
 import { cartLineKey } from '@/utils/cartLine';
-import { formatSellLineSubtitle } from '@/utils/uomDisplay';
+import { formatReceiptConversionSubtitle } from '@/utils/uomDisplay';
 import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
 import type { ReceiptBranding, Transaction } from '@/types';
@@ -78,19 +78,19 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: '1fr 28px 80px 80px',
+          gridTemplateColumns: '1fr 28px 46px 65px 70px',
           gap: '1px 6px',
           alignItems: 'start',
         }}
       >
-        {(['Item', 'Qty', 'Rate', 'Amount'] as const).map((h, i) => (
+        {(['Item', 'Qty', 'UOM', 'Rate', 'Amount'] as const).map((h, i) => (
           <Typography
             key={h}
             sx={{
               fontWeight: 700,
               fontSize: '0.68rem',
               fontFamily: 'inherit',
-              textAlign: i === 0 ? 'left' : 'right',
+              textAlign: i === 0 ? 'left' : i === 2 ? 'center' : 'right',
               pb: 0.25,
               borderBottom: '1px solid #aaa',
             }}
@@ -100,7 +100,8 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
         ))}
 
         {txn.items.map((item) => {
-          const subtitle = formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+          const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+          const uom = uomLabel(item.sellUom || item.uom || '') || '—';
           return (
             <React.Fragment key={cartLineKey(item.productId, item.sellUom)}>
               <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', wordBreak: 'break-word' }}>
@@ -113,6 +114,9 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
               </Typography>
               <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
                 {item.quantity}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'center' }}>
+                {uom}
               </Typography>
               <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', textAlign: 'right' }}>
                 {formatAmount(item.price)}

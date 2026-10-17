@@ -3,8 +3,8 @@
  */
 
 import { jsPDF } from 'jspdf';
-import { formatAmount, formatCurrency, formatDateTime } from '@/utils';
-import { formatSellLineSubtitle } from '@/utils/uomDisplay';
+import { formatAmount, formatCurrency, formatDateTime, uomLabel } from '@/utils';
+import { formatReceiptConversionSubtitle } from '@/utils/uomDisplay';
 import { getTransactionDiscountBreakdown, getTransactionDiscountLines } from '@/utils/transactionDiscounts';
 import { APP_NAME } from '@/constants';
 import type { ReceiptBranding, StoreSettings, Transaction } from '@/types';
@@ -89,10 +89,11 @@ const RECEIPT_PRINT_STYLES = `
   table   { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
   th, td  { padding: 2px 1px; vertical-align: top; font-size: 11px; word-wrap: break-word; }
   th      { font-weight: bold; border-bottom: 1px solid #000; }
-  .name   { width: 42%; text-align: left; }
-  .qty    { width: 12%; text-align: center; }
-  .rate   { width: 22%; text-align: right; }
-  .amt    { width: 24%; text-align: right; }
+  .name   { width: 34%; text-align: left; }
+  .qty    { width: 10%; text-align: center; }
+  .uom    { width: 14%; text-align: center; }
+  .rate   { width: 20%; text-align: right; }
+  .amt    { width: 22%; text-align: right; }
   @media print {
     html, body { width: ${RECEIPT_WIDTH_MM}mm; margin: 0; padding: 2mm; }
     @page { size: ${RECEIPT_WIDTH_MM}mm auto; margin: 2mm; }
@@ -127,7 +128,8 @@ export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?:
     const price = Number(item.price) || 0;
     const qty = Number(item.quantity) || 0;
     const name = escapeHtml(item.name || 'Item');
-    const subtitle = formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+    const uom = escapeHtml(uomLabel(item.sellUom || item.uom || '') || '—');
+    const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
     const subtitleHtml = subtitle
       ? `<div style="font-size:10px;color:#555">${escapeHtml(subtitle)}</div>`
       : '';
@@ -135,12 +137,13 @@ export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?:
     <tr>
       <td class="name">${name}${subtitleHtml}</td>
       <td class="qty">${qty}</td>
+      <td class="uom">${uom}</td>
       <td class="rate">${price.toFixed(2)}</td>
       <td class="amt">${(price * qty).toFixed(2)}</td>
     </tr>`;
   }).join('');
 
-  const tableHead = `<th class="name">Item</th><th class="qty">Qty</th><th class="rate">Rate</th><th class="amt">Amount</th>`;
+  const tableHead = `<th class="name">Item</th><th class="qty">Qty</th><th class="uom">UOM</th><th class="rate">Rate</th><th class="amt">Amount</th>`;
 
   const customerLabel = escapeHtml(receiptCustomerLabel(txn));
 
@@ -285,6 +288,7 @@ type PdfLine =
       kind: 'item';
       name: string;
       qty: string;
+      uom: string;
       rate: string;
       amt: string;
       subtitle?: string;
@@ -319,11 +323,13 @@ export function buildPdfLines(txn: Transaction, tendered?: number, branding?: Re
   for (const item of txn.items ?? []) {
     const price = Number(item.price) || 0;
     const qty = Number(item.quantity) || 0;
-    const subtitle = formatSellLineSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
+    const uom = uomLabel(item.sellUom || item.uom || '') || '—';
+    const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
     lines.push({
       kind: 'item',
       name: item.name || 'Item',
       qty: String(qty),
+      uom,
       rate: price.toFixed(2),
       amt: (price * qty).toFixed(2),
       subtitle: subtitle || undefined,
@@ -383,7 +389,7 @@ function estimatePdfHeight(lines: PdfLine[], lineHeight: number, margin: number)
     if (line.kind === 'item') {
       rows += 1 + (line.subtitle ? 1 : 0);
       // name wrap allowance
-      rows += Math.max(0, Math.ceil(line.name.length / 22) - 1);
+      rows += Math.max(0, Math.ceil(line.name.length / 18) - 1);
     } else if (line.kind === 'block') {
       rows += 1 + Math.max(1, Math.ceil(line.body.length / 36));
     } else if (line.kind === 'center') {
@@ -402,11 +408,12 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
   const margin = 4;
   const heightMm = estimatePdfHeight(lines, lineHeight, margin);
 
-  // Column anchors for Item | Qty | Rate | Amt (mirrors print HTML proportions)
+  // Column anchors for Item | Qty | UOM | Rate | Amt (mirrors print HTML proportions)
   const nameX = margin;
-  const nameMaxW = 34;
-  const qtyX = margin + 38;
-  const rateX = RECEIPT_WIDTH_MM - margin - 17;
+  const nameMaxW = 26;
+  const qtyX = margin + 31;
+  const uomX = margin + 40;
+  const rateX = RECEIPT_WIDTH_MM - margin - 16;
   const amtX = RECEIPT_WIDTH_MM - margin;
 
   const doc = new jsPDF({
@@ -457,6 +464,7 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
       doc.setFont(THERMAL_FONT, 'bold');
       doc.text('Item', nameX, y);
       doc.text('Qty', qtyX, y, { align: 'right' });
+      doc.text('UOM', uomX, y, { align: 'center' });
       doc.text('Rate', rateX, y, { align: 'right' });
       doc.text('Amt', amtX, y, { align: 'right' });
       y += lineHeight;
@@ -470,6 +478,7 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
       const first = nameLines[0] ?? '';
       doc.text(first, nameX, y);
       doc.text(line.qty, qtyX, y, { align: 'right' });
+      doc.text(line.uom, uomX, y, { align: 'center' });
       doc.text(line.rate, rateX, y, { align: 'right' });
       doc.text(line.amt, amtX, y, { align: 'right' });
       y += lineHeight;
