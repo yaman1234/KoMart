@@ -85,8 +85,8 @@ function poItemToLine(item: PurchaseOrderItem, id: number, catalogProducts: Prod
     product,
     productNameFallback: product.name,
     quantityInput: String(item.quantity),
-    buyUom: item.orderUom ?? product.buyUom ?? product.uom ?? 'pcs',
-    unitsPerBuyUom: item.unitsPerBuyUom ?? product.unitsPerBuyUom ?? 1,
+    buyUom: item.orderUom ?? product.buy_uom ?? product.buyUom ?? product.uom ?? 'pcs',
+    unitsPerBuyUom: item.unitsPerBuyUom ?? product.units_per_buy_uom ?? product.unitsPerBuyUom ?? 1,
     unitCost: item.unitCost,
     receivedQuantity: item.receivedQuantity,
   };
