@@ -10,6 +10,7 @@ import {
   Grid,
   Link,
   Paper,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -33,7 +34,7 @@ import {
   productStatusLabel,
   uomLabel,
 } from '@/utils';
-import { formatConversion, formatStockQty } from '@/utils/uomDisplay';
+import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
 
 function displayValue(value: string | number | null | undefined): string {
@@ -113,6 +114,7 @@ export function ProductDetailPage() {
       : product.stock <= product.lowStockThreshold
         ? 'warning'
         : 'success';
+  const approxPackStock = getProductApproxPackStock(product);
 
   const details: {
     label: string;
@@ -390,6 +392,17 @@ export function ProductDetailPage() {
                   size="small"
                   sx={{ fontWeight: 600 }}
                 />
+                {approxPackStock && (
+                  <Tooltip title={approxPackStock.tooltip}>
+                    <Chip
+                      label={approxPackStock.label}
+                      color={stockColor}
+                      variant="outlined"
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Tooltip>
+                )}
                 <Chip
                   label={productStatusLabel(product.status)}
                   color={productStatusColor(product.status)}
