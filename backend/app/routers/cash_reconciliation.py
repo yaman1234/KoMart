@@ -57,7 +57,7 @@ async def get_one(date: str, _: User = Depends(require_manager_or_above)):
     _validate_date(date)
     doc = await get_cash_by_date(date)
     if not doc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cash reconciliation not found")
+        return None
     return _to_response(doc)
 
 

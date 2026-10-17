@@ -102,3 +102,8 @@ app.include_router(cash_reconciliation_router.router, prefix=API_PREFIX)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "komart-api"}
+
+
+@app.get("/debug/cors")
+async def debug_cors():
+    return {"cors_origins": settings.cors_origins_list}

@@ -189,12 +189,6 @@ async def upsert_cash_reconciliation(
         date=date,
         created_by=created_by,
         created_at=now,
-        notes=notes,
-        cash_count_mode=cash_count_mode,
-        denominations=[
-            CashDenomination(**d) if isinstance(d, dict) else d
-            for d in denominations
-        ] if denominations else None,
         **fields,
     )
     await doc.insert()
@@ -228,6 +222,6 @@ def _to_response(r: CashReconciliation) -> dict:
         ] if r.denominations else None,
         "created_by": r.created_by or "",
         "updated_by": r.updated_by or "",
-        "created_at": r.created_at.isoformat(),
-        "updated_at": r.updated_at.isoformat(),
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
     }
