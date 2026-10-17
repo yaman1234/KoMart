@@ -112,7 +112,7 @@ export function buildPrintDocument(bodyHtml: string): string {
 </html>`;
 }
 
-function receiptCustomerLabel(txn: Transaction): string {
+export function receiptCustomerLabel(txn: Transaction): string {
   return txn.customerName && txn.customerName !== 'Walk-In'
     ? txn.customerName
     : 'Walk-In Customer';
@@ -307,8 +307,12 @@ export function buildPdfLines(txn: Transaction, tendered?: number, branding?: Re
   lines.push({ kind: 'sep' });
   lines.push({ kind: 'row', left: 'Date', right: formatDateTime(txn.createdAt) });
   lines.push({ kind: 'row', left: 'Bill No', right: txn.transactionNumber, bold: true });
-  lines.push({ kind: 'row', left: 'Customer', right: receiptCustomerLabel(txn) });
-  lines.push({ kind: 'row', left: 'Cashier', right: txn.createdBy });
+  const rawCustomer = receiptCustomerLabel(txn);
+  const customerLabel = rawCustomer.length > 22 ? `${rawCustomer.slice(0, 21)}…` : rawCustomer;
+  const rawCashier = txn.createdBy || '';
+  const cashierLabel = rawCashier.length > 22 ? `${rawCashier.slice(0, 21)}…` : rawCashier;
+  lines.push({ kind: 'row', left: 'Customer', right: customerLabel });
+  lines.push({ kind: 'row', left: 'Cashier', right: cashierLabel });
   lines.push({ kind: 'sep' });
   lines.push({ kind: 'itemHeader' });
 

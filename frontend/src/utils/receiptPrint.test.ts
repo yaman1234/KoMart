@@ -115,4 +115,16 @@ describe('receiptPrint', () => {
     expect(lines.some((l) => l.kind === 'row' && l.left === 'Tendered')).toBe(true);
     expect(lines.some((l) => l.kind === 'row' && l.left === 'Change')).toBe(true);
   });
+
+  it('buildPdfLines truncates long customer and cashier names to prevent PDF overlap', () => {
+    const lines = buildPdfLines({
+      ...sampleTxn,
+      customerName: 'Himalayan Organic Farmhouse Cooperative Pvt. Ltd.',
+      createdBy: 'cashier.lead.supervisor.nightshift',
+    });
+    const customer = lines.find((l) => l.kind === 'row' && l.left === 'Customer');
+    const cashier = lines.find((l) => l.kind === 'row' && l.left === 'Cashier');
+    expect(customer).toMatchObject({ kind: 'row', right: 'Himalayan Organic Far…' });
+    expect(cashier).toMatchObject({ kind: 'row', right: 'cashier.lead.supervis…' });
+  });
 });
