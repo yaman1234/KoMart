@@ -37,6 +37,10 @@ export function PoProductAutocompleteCell({
               product: null,
               productNameFallback: '',
               skuInput: '',
+              unitCost: 0,
+              unitsPerBuyUom: 1,
+              buyUom: '',
+              lastPurchaseUnitCost: undefined,
               resolveError: undefined,
             });
             return;

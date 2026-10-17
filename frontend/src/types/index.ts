@@ -179,10 +179,13 @@ export interface Product {
   supplierName: string;
   description: string;
   buyUom?: string;
+  buy_uom?: string;
   uom: string;
   unitsPerBuyUom?: number;
+  units_per_buy_uom?: number;
   sellMode?: 'unit' | 'piece' | 'both';
   costPrice: number;
+  cost_price?: number;
   sellingPrice: number;
   packSellingPrice?: number;
   marginPercent?: number;

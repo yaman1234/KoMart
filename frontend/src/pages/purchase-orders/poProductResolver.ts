@@ -48,16 +48,23 @@ export function searchProducts(
 }
 
 export function applyProductToLine(line: PoLineItem, product: Product): PoLineItem {
+  const buyUom = product.buyUom || product.buy_uom || product.uom || '';
+  const unitsPerBuyUom =
+    Number(product.unitsPerBuyUom || product.units_per_buy_uom || 1) || 1;
+  const costPrice = Number(product.costPrice || product.cost_price || 0) || 0;
+  const unitCost =
+    line.product?.id === product.id && line.unitCost > 0
+      ? line.unitCost
+      : costPrice * unitsPerBuyUom;
+
   return {
     ...line,
     skuInput: product.sku || product.name,
     product,
     productNameFallback: product.name,
-    buyUom: line.buyUom || product.buyUom || product.uom || '',
-    unitsPerBuyUom: line.unitsPerBuyUom || product.unitsPerBuyUom || 1,
-    unitCost: line.unitCost > 0
-      ? line.unitCost
-      : product.costPrice * (product.unitsPerBuyUom ?? 1),
+    buyUom,
+    unitsPerBuyUom,
+    unitCost,
     resolveError: undefined,
   };
 }

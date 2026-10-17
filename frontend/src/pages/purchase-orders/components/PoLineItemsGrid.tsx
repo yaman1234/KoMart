@@ -59,10 +59,16 @@ function lineFromPaste(
   receivedQuantity = 0,
 ): PoLineItem {
   const product = resolveProductFromInput(row.sku, index);
+  const buyUom = row.buyUom || product?.buyUom || product?.buy_uom || product?.uom || '';
+  const unitsPerBuyUom =
+    row.unitsPerBuyUom ||
+    Number(product?.unitsPerBuyUom || product?.units_per_buy_uom || 1) ||
+    1;
+  const costPrice = Number(product?.costPrice || product?.cost_price || 0) || 0;
   const unitCost = row.unitCost > 0
     ? row.unitCost
     : product
-      ? product.costPrice * (product.unitsPerBuyUom ?? 1)
+      ? costPrice * unitsPerBuyUom
       : 0;
   return {
     id,
@@ -70,8 +76,8 @@ function lineFromPaste(
     product,
     productNameFallback: product?.name ?? '',
     quantityInput: String(row.quantity),
-    buyUom: row.buyUom || product?.buyUom || product?.uom || '',
-    unitsPerBuyUom: row.unitsPerBuyUom || product?.unitsPerBuyUom || 1,
+    buyUom,
+    unitsPerBuyUom,
     unitCost,
     receivedQuantity,
     resolveError: product ? undefined : 'SKU not found',
@@ -80,11 +86,29 @@ function lineFromPaste(
 
 function resolveLineSku(line: PoLineItem, index: ProductCatalogIndex): PoLineItem {
   if (!line.skuInput.trim()) {
-    return { ...line, product: null, productNameFallback: '', resolveError: undefined };
+    return {
+      ...line,
+      product: null,
+      productNameFallback: '',
+      unitCost: 0,
+      unitsPerBuyUom: 1,
+      buyUom: '',
+      lastPurchaseUnitCost: undefined,
+      resolveError: undefined,
+    };
   }
   const product = resolveProductFromInput(line.skuInput, index);
   if (!product) {
-    return { ...line, product: null, resolveError: 'SKU not found' };
+    return {
+      ...line,
+      product: null,
+      productNameFallback: '',
+      unitCost: 0,
+      unitsPerBuyUom: 1,
+      buyUom: '',
+      lastPurchaseUnitCost: undefined,
+      resolveError: 'SKU not found',
+    };
   }
   return applyProductToLine(line, product);
 }
@@ -432,8 +456,8 @@ export function PoLineItemsGrid({
               const locked = line.receivedQuantity > 0;
               const inactive = lineInactive(line);
               const totalUnits = qty * (line.unitsPerBuyUom || 1);
-              const amount = line.product || line.unitCost > 0 ? qty * line.unitCost : 0;
-              const beforeVat = vatBill
+              const amount = line.product && line.unitCost > 0 ? qty * line.unitCost : 0;
+              const beforeVat = vatBill && line.product
                 ? stripVatFromUnitCost(line.unitCost, taxRate)
                 : 0;
 
@@ -457,7 +481,23 @@ export function PoLineItemsGrid({
                       disabled={locked}
                       placeholder="SKU"
                       onFocus={() => setFocusedRow(index)}
-                      onChange={(e) => updateLine(index, { skuInput: e.target.value, resolveError: undefined })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val.trim()) {
+                          updateLine(index, {
+                            skuInput: val,
+                            product: null,
+                            productNameFallback: '',
+                            unitCost: 0,
+                            unitsPerBuyUom: 1,
+                            buyUom: '',
+                            lastPurchaseUnitCost: undefined,
+                            resolveError: undefined,
+                          });
+                        } else {
+                          updateLine(index, { skuInput: val, resolveError: undefined });
+                        }
+                      }}
                       onBlur={() => handleSkuBlur(index)}
                       onKeyDown={(e) => onCellKeyDown(e, index, 0)}
                       error={!!line.resolveError}
@@ -532,6 +572,9 @@ export function PoLineItemsGrid({
                         htmlInput: { 'data-po-row': index, 'data-po-col': 2 },
                       }}
                     >
+                      {line.buyUom && !uomOptions.some((o) => o.value === line.buyUom) && (
+                        <MenuItem key={line.buyUom} value={line.buyUom}>{line.buyUom}</MenuItem>
+                      )}
                       {uomOptions.map((o) => (
                         <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                       ))}
@@ -601,6 +644,7 @@ export function PoLineItemsGrid({
                       const prev = line.lastPurchaseUnitCost;
                       const curr = line.unitCost;
                       const showDelta =
+                        Boolean(line.product) &&
                         prev != null &&
                         prev > 0 &&
                         Number.isFinite(curr) &&
@@ -624,7 +668,7 @@ export function PoLineItemsGrid({
                             fullWidth
                             size="small"
                             type="number"
-                            value={line.unitCost}
+                            value={inactive ? '' : line.unitCost}
                             disabled={locked || inactive}
                             onFocus={() => setFocusedRow(index)}
                             onChange={(e) =>
