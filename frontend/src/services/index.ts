@@ -1211,9 +1211,9 @@ export const expenseService = {
     const { data } = await apiClient.get('/expenses', { params });
     return data;
   },
-  getStats: async (): Promise<ExpenseStats> => {
+  getStats: async (params?: ListQueryParams): Promise<ExpenseStats> => {
     if (useMock()) return mockApi.getExpenseStats();
-    const { data } = await apiClient.get('/expenses/summary');
+    const { data } = await apiClient.get('/expenses/summary', { params });
     return data as ExpenseStats;
   },
   getById: async (id: string): Promise<Expense> => {
@@ -1224,6 +1224,10 @@ export const expenseService = {
   create: async (payload: ExpenseWritePayload): Promise<Expense> => {
     if (useMock()) return mockApi.createExpense(payload);
     const { data } = await apiClient.post('/expenses', payload);
+    return data;
+  },
+  recordProductConsumption: async (payload: import('@/types').ProductConsumptionPayload): Promise<Expense> => {
+    const { data } = await apiClient.post('/expenses/product-consumption', payload);
     return data;
   },
   update: async (id: string, payload: Partial<ExpenseWritePayload>): Promise<Expense> => {

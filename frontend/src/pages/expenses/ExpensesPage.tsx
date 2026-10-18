@@ -19,6 +19,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
@@ -34,6 +35,7 @@ import { showApiError, showSuccess } from '@/utils/toast';
 import { useAuthStore } from '@/store';
 import type { Expense } from '@/types';
 import { ExpenseCategoryInfoIcon } from './expenseCategoryInfo';
+import { StaffProductExpenseDialog } from './StaffProductExpenseDialog';
 
 const CATEGORY_COLOR: Record<string, 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'> = {
   setup_investment: 'secondary',
@@ -74,8 +76,18 @@ export function ExpensesPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [staffExpenseOpen, setStaffExpenseOpen] = useState(false);
 
   const categoryLabel = (value: string) => categoryLabels.get(value) ?? value;
+
+  const isFiltered = Boolean(
+    search ||
+    category ||
+    setupFilter ||
+    paymentMethod ||
+    startDate !== monthStartIso() ||
+    endDate !== todayIso()
+  );
 
   const listParams = {
     search: search || undefined,
@@ -89,7 +101,7 @@ export function ExpensesPage() {
   };
 
   const { data, isLoading } = useExpenses(listParams);
-  const { data: stats, isLoading: statsLoading } = useExpenseStats();
+  const { data: stats, isLoading: statsLoading } = useExpenseStats(listParams);
   const deleteMutation = useDeleteExpense();
 
   const rows = data?.data ?? [];
@@ -131,6 +143,31 @@ export function ExpensesPage() {
                 sx={{ height: 18, fontSize: '0.6rem' }}
               />
             )}
+            {row.items && row.items.length > 0 && (
+              <Tooltip
+                title={
+                  <Box sx={{ p: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                      Consumed Products:
+                    </Typography>
+                    {row.items.map((it, idx) => (
+                      <Typography key={idx} variant="caption" sx={{ display: 'block' }}>
+                        • {it.productName} ({it.quantity} × {formatCurrency(it.unitCost)}) = {formatCurrency(it.totalCost)}
+                      </Typography>
+                    ))}
+                  </Box>
+                }
+              >
+                <Chip
+                  icon={<Inventory2OutlinedIcon sx={{ '&&': { fontSize: '0.75rem' } }} />}
+                  label={`${row.items.length} product${row.items.length === 1 ? '' : 's'}`}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: '0.6rem' }}
+                />
+              </Tooltip>
+            )}
           </Box>
         </Box>
       ),
@@ -160,7 +197,7 @@ export function ExpensesPage() {
     },
     {
       id: 'paidTo',
-      label: 'Paid To',
+      label: 'Staff / Paid To',
       minWidth: 160,
       render: (row) => (
         <Typography variant="body2" color="text.secondary">
@@ -171,15 +208,17 @@ export function ExpensesPage() {
     {
       id: 'paymentMethod',
       label: 'Payment Method',
-      minWidth: 130,
+      minWidth: 140,
       render: (row) => {
         if (!row.paymentMethod) return <Typography variant="body2" color="text.secondary">—</Typography>;
         const gradients: Record<string, { bg: string; color: string }> = {
-          cash:  { bg: 'linear-gradient(135deg, #d4edda 0%, #a8d5b5 100%)', color: '#1b5e20' },
-          bank:  { bg: 'linear-gradient(135deg, #cce5ff 0%, #90c4f9 100%)', color: '#0d47a1' },
-          esewa: { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffd97d 100%)', color: '#7c4a00' },
+          cash:      { bg: 'linear-gradient(135deg, #d4edda 0%, #a8d5b5 100%)', color: '#1b5e20' },
+          bank:      { bg: 'linear-gradient(135deg, #cce5ff 0%, #90c4f9 100%)', color: '#0d47a1' },
+          esewa:     { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffd97d 100%)', color: '#7c4a00' },
+          inventory: { bg: 'linear-gradient(135deg, #ede7f6 0%, #d1c4e9 100%)', color: '#4527a0' },
         };
         const c = gradients[row.paymentMethod] ?? { bg: 'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)', color: '#212121' };
+        const label = row.paymentMethod === 'inventory' ? 'STORE INVENTORY' : row.paymentMethod.toUpperCase();
         return (
           <Typography
             component="span"
@@ -196,7 +235,7 @@ export function ExpensesPage() {
               color: c.color,
             }}
           >
-            {row.paymentMethod.toUpperCase()}
+            {label}
           </Typography>
         );
       },
@@ -219,7 +258,7 @@ export function ExpensesPage() {
       minWidth: 80,
       render: (row: Expense) => (
         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-          {!row.purchaseOrderId && (
+          {!row.purchaseOrderId && row.paymentMethod !== 'inventory' && (
             <Tooltip title="Edit">
               <IconButton
                 size="small"
@@ -229,7 +268,15 @@ export function ExpensesPage() {
               </IconButton>
             </Tooltip>
           )}
-          <Tooltip title={row.purchaseOrderId ? 'Delete (reverses PO payment)' : 'Delete'}>
+          <Tooltip
+            title={
+              row.purchaseOrderId
+                ? 'Delete (reverses PO payment)'
+                : row.paymentMethod === 'inventory'
+                ? 'Delete (restores inventory stock)'
+                : 'Delete'
+            }
+          >
             <IconButton
               size="small"
               color="error"
@@ -250,20 +297,31 @@ export function ExpensesPage() {
         subtitle="Track operational costs, PO payments, and setup investments"
         action={
           canManage ? (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/expenses/new')}>
-              Add Expense
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<Inventory2OutlinedIcon />}
+                onClick={() => setStaffExpenseOpen(true)}
+              >
+                Record Product Usage
+              </Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/expenses/new')}>
+                Add Expense
+              </Button>
+            </Box>
           ) : undefined
         }
       />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
         <StatCard
-          title="Total Expenses"
+          title={isFiltered ? 'Filtered Total' : 'Total Expenses'}
           value={statsLoading ? '—' : formatCurrency(stats?.totalExpenses ?? 0)}
           icon={<TrendingUpIcon />}
           gradient={['#fff1f2', '#fecdd3']}
           color="#be123c"
+          subtitle={isFiltered ? 'Matches active filter selection' : undefined}
         />
         <StatCard
           title="Operating Expenses"
@@ -274,11 +332,18 @@ export function ExpensesPage() {
           subtitle="Excludes setup / investment"
         />
         <StatCard
-          title="This Month"
-          value={statsLoading ? '—' : formatCurrency(stats?.thisMonth ?? 0)}
+          title={isFiltered ? 'Filtered Records' : 'This Month'}
+          value={
+            statsLoading
+              ? '—'
+              : isFiltered
+              ? `${stats?.expenseCount ?? 0} expense${stats?.expenseCount === 1 ? '' : 's'}`
+              : formatCurrency(stats?.thisMonth ?? 0)
+          }
           icon={<CalendarTodayIcon />}
           gradient={['#e0f2fe', '#7dd3fc']}
           color="#0369a1"
+          subtitle={isFiltered ? 'In selected period' : 'Current calendar month'}
         />
         <StatCard
           title="Setup / Investment"
@@ -286,7 +351,7 @@ export function ExpensesPage() {
           icon={<BusinessCenterIcon />}
           gradient={['#f5f3ff', '#ddd6fe']}
           color="#5b21b6"
-          subtitle="Setup flag or Setup / Investment category"
+          subtitle="Setup flag or category"
         />
       </Box>
 
@@ -326,6 +391,7 @@ export function ExpensesPage() {
               <MenuItem value="cash">Cash</MenuItem>
               <MenuItem value="bank">Bank</MenuItem>
               <MenuItem value="esewa">eSewa</MenuItem>
+              <MenuItem value="inventory">Store Inventory</MenuItem>
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 160 }}>
@@ -370,6 +436,8 @@ export function ExpensesPage() {
         message={
           deleteTarget?.purchaseOrderId
             ? 'This expense was created from a purchase order payment. Deleting it will reverse that payment on the PO.'
+            : deleteTarget?.paymentMethod === 'inventory'
+            ? 'This expense was created from store product usage. Deleting it will restore the consumed stock back to inventory.'
             : 'This will permanently delete the expense record. This action cannot be undone.'
         }
         confirmLabel="Delete"
@@ -379,7 +447,13 @@ export function ExpensesPage() {
           if (deleteId) {
             deleteMutation.mutate(deleteId, {
               onSuccess: () => {
-                showSuccess(deleteTarget?.purchaseOrderId ? 'Expense deleted and PO payment reversed.' : 'Expense deleted.');
+                showSuccess(
+                  deleteTarget?.purchaseOrderId
+                    ? 'Expense deleted and PO payment reversed.'
+                    : deleteTarget?.paymentMethod === 'inventory'
+                    ? 'Expense deleted and inventory stock restored.'
+                    : 'Expense deleted.'
+                );
                 setDeleteId(null);
               },
               onError: (err) => showApiError(err, 'Expense could not be deleted.'),
@@ -387,6 +461,12 @@ export function ExpensesPage() {
           }
         }}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <StaffProductExpenseDialog
+        open={staffExpenseOpen}
+        onClose={() => setStaffExpenseOpen(false)}
+        defaultStaffName={user?.name ?? ''}
       />
     </Box>
   );

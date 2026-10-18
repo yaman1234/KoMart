@@ -292,7 +292,7 @@ export interface InventoryStats {
   inventoryValue: number;
 }
 
-export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive' | 'void';
+export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive' | 'void' | 'purchase_return' | 'internal_use';
 
 export interface StockAdjustment {
   id: string;
@@ -1105,6 +1105,15 @@ export interface ListQueryParams {
 
 export type ExpenseCategory = string;
 
+export interface ConsumedProductItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+}
+
 export interface Expense {
   id: string;
   title: string;
@@ -1117,8 +1126,18 @@ export interface Expense {
   paymentMethod?: string;
   isSetupCost: boolean;
   purchaseOrderId?: string;
+  items?: ConsumedProductItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProductConsumptionPayload {
+  items: { product_id: string; quantity: number }[];
+  staff_name: string;
+  category?: string;
+  date: string;
+  remarks?: string;
+  bill_no?: string;
 }
 
 export type ExpenseWritePayload = Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>;
@@ -1147,6 +1166,7 @@ export interface ExpenseStats {
   thisMonth: number;
   setupInvestment: number;
   operatingExpenses?: number;
+  expenseCount?: number;
 }
 
 export interface DailySalesBlock {

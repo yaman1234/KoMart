@@ -23,6 +23,9 @@ MOVEMENT_LABELS: dict[str, str] = {
     "adjustment": "Adjustment",
     "damaged": "Damaged / Expired",
     "correction": "Correction",
+    "internal_use": "Store Use / Staff Consumption",
+    "expense": "Store Use / Expense",
+    "expense_reversal": "Staff Expense Reversal",
 }
 
 
