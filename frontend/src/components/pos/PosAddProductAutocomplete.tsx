@@ -85,7 +85,7 @@ export function PosAddProductAutocomplete({
     try {
       const product = await resolvePosProductByScan(code, options);
       if (!product) {
-        showWarning(`No product for barcode “${code}”.`);
+        showWarning(`No product found for “${code}”.`);
         return;
       }
       addWithGuards(product);

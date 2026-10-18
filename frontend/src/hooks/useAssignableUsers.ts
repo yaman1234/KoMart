@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { usersService } from '@/services';
 
-export function useAssignableUsers() {
+export function useAssignableUsers(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: [...QUERY_KEYS.users, 'assignable'],
     queryFn: () => usersService.getAssignable(),
     staleTime: STALE_TIME.static,
+    enabled: options?.enabled,
   });
 }

@@ -3,12 +3,22 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   IconButton,
   InputLabel,
   MenuItem,
   Paper,
   Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -77,6 +87,7 @@ export function ExpensesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [staffExpenseOpen, setStaffExpenseOpen] = useState(false);
+  const [viewingItemsExpense, setViewingItemsExpense] = useState<Expense | null>(null);
 
   const categoryLabel = (value: string) => categoryLabels.get(value) ?? value;
 
@@ -148,13 +159,18 @@ export function ExpensesPage() {
                 title={
                   <Box sx={{ p: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
-                      Consumed Products:
+                      Click to view full breakdown:
                     </Typography>
-                    {row.items.map((it, idx) => (
+                    {row.items.slice(0, 5).map((it, idx) => (
                       <Typography key={idx} variant="caption" sx={{ display: 'block' }}>
                         • {it.productName} ({it.quantity} × {formatCurrency(it.unitCost)}) = {formatCurrency(it.totalCost)}
                       </Typography>
                     ))}
+                    {row.items.length > 5 && (
+                      <Typography variant="caption" sx={{ fontStyle: 'italic', display: 'block', mt: 0.5 }}>
+                        +{row.items.length - 5} more items (click to view all)
+                      </Typography>
+                    )}
                   </Box>
                 }
               >
@@ -164,7 +180,12 @@ export function ExpensesPage() {
                   size="small"
                   color="primary"
                   variant="outlined"
-                  sx={{ height: 18, fontSize: '0.6rem' }}
+                  clickable
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewingItemsExpense(row);
+                  }}
+                  sx={{ height: 18, fontSize: '0.6rem', cursor: 'pointer' }}
                 />
               </Tooltip>
             )}
@@ -321,7 +342,15 @@ export function ExpensesPage() {
           icon={<TrendingUpIcon />}
           gradient={['#fff1f2', '#fecdd3']}
           color="#be123c"
-          subtitle={isFiltered ? 'Matches active filter selection' : undefined}
+          subtitle={
+            statsLoading
+              ? undefined
+              : stats?.inventoryConsumption
+              ? `Cash: ${formatCurrency(stats.cashOutflow ?? 0)} • Store: ${formatCurrency(stats.inventoryConsumption)}`
+              : isFiltered
+              ? 'Matches active filter selection'
+              : undefined
+          }
         />
         <StatCard
           title="Operating Expenses"
@@ -463,11 +492,91 @@ export function ExpensesPage() {
         onCancel={() => setDeleteId(null)}
       />
 
-      <StaffProductExpenseDialog
-        open={staffExpenseOpen}
-        onClose={() => setStaffExpenseOpen(false)}
-        defaultStaffName={user?.name ?? ''}
-      />
+      <Dialog
+        open={!!viewingItemsExpense}
+        onClose={() => setViewingItemsExpense(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Inventory2OutlinedIcon color="primary" />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
+              Consumed Store Products
+            </Typography>
+          </Box>
+          {viewingItemsExpense && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Voucher: <strong>{viewingItemsExpense.billNo || '—'}</strong> · Staff: <strong>{viewingItemsExpense.paidTo || '—'}</strong> · Date: <strong>{viewingItemsExpense.date}</strong>
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {viewingItemsExpense?.items && (
+            <TableContainer sx={{ maxHeight: 360 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>SKU</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>Quantity</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>Batch Unit Cost</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>Total Cost</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {viewingItemsExpense.items.map((it, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell sx={{ fontWeight: 600 }}>{it.productName}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>{it.sku || '—'}</TableCell>
+                      <TableCell align="center">{it.quantity}</TableCell>
+                      <TableCell align="right">{formatCurrency(it.unitCost)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                        {formatCurrency(it.totalCost)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+          {viewingItemsExpense && (
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'action.hover' }}>
+              <Typography variant="body2" color="text.secondary">
+                Total Line Items: {viewingItemsExpense.items?.length ?? 0}
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                Total Cost: {formatCurrency(viewingItemsExpense.amount)}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, py: 1.5, justifyContent: 'space-between' }}>
+          {viewingItemsExpense?.billNo ? (
+            <Button
+              size="small"
+              onClick={() => {
+                const voucher = viewingItemsExpense.billNo || '';
+                setViewingItemsExpense(null);
+                window.open(`/inventory?tab=movements&search=${encodeURIComponent(voucher)}`, '_blank');
+              }}
+            >
+              View in Inventory Movements
+            </Button>
+          ) : <Box />}
+          <Button onClick={() => setViewingItemsExpense(null)} color="inherit">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {staffExpenseOpen && (
+        <StaffProductExpenseDialog
+          open={staffExpenseOpen}
+          onClose={() => setStaffExpenseOpen(false)}
+          defaultStaffName={user?.name ?? ''}
+        />
+      )}
     </Box>
   );
 }

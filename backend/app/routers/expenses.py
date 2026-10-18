@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from math import ceil
 from datetime import datetime, timezone, date
 import calendar
+import re
 from bson import ObjectId as BsonObjectId
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
@@ -68,7 +69,16 @@ def _build_expense_filter(
 ) -> dict:
     match: dict = {}
     if search:
-        match["title"] = {"$regex": search, "$options": "i"}
+        escaped = re.escape(search.strip())
+        match["$or"] = [
+            {"title": {"$regex": escaped, "$options": "i"}},
+            {"bill_no": {"$regex": escaped, "$options": "i"}},
+            {"paid_to": {"$regex": escaped, "$options": "i"}},
+            {"description": {"$regex": escaped, "$options": "i"}},
+            {"items.productName": {"$regex": escaped, "$options": "i"}},
+            {"items.product_name": {"$regex": escaped, "$options": "i"}},
+            {"items.sku": {"$regex": escaped, "$options": "i"}},
+        ]
     if category:
         match["category"] = category
     if is_setup_cost in ("true", "false"):
@@ -159,6 +169,12 @@ async def expense_stats(
             "setup_investment": {
                 "$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]},
             },
+            "inventory_consumption": {
+                "$sum": {"$cond": [{"$eq": ["$payment_method", "inventory"]}, "$amount", 0]},
+            },
+            "cash_outflow": {
+                "$sum": {"$cond": [{"$ne": ["$payment_method", "inventory"]}, "$amount", 0]},
+            },
             "expense_count": {"$sum": 1},
         },
     })
@@ -193,6 +209,8 @@ async def expense_stats(
     month = month_rows[0] if month_rows else {}
     total_expenses = round(float(totals.get("total_expenses", 0) or 0), 2)
     setup_investment = round(float(totals.get("setup_investment", 0) or 0), 2)
+    inventory_consumption = round(float(totals.get("inventory_consumption", 0) or 0), 2)
+    cash_outflow = round(float(totals.get("cash_outflow", 0) or 0), 2)
     this_month = round(float(month.get("this_month", 0) or 0), 2)
     expense_count = int(totals.get("expense_count", 0) or 0)
 
@@ -201,6 +219,8 @@ async def expense_stats(
         this_month=this_month,
         setup_investment=setup_investment,
         operating_expenses=round(total_expenses - setup_investment, 2),
+        cash_outflow=cash_outflow,
+        inventory_consumption=inventory_consumption,
         expense_count=expense_count,
     )
 

@@ -195,6 +195,25 @@ async def test_product_consumption_workflow(client: AsyncClient, manager_headers
         assert mov_items[0]["reference_label"] == exp_data["bill_no"]
         assert mov_items[0]["movement_label"] == "Store Use / Expense"
 
+        # Validate multi-field search (by bill_no) and stats breakdown (Cash Outflow vs Inventory Consumption)
+        search_res = await client.get(
+            f"/api/v1/expenses?search={exp_data['bill_no']}",
+            headers=manager_headers,
+        )
+        assert search_res.status_code == 200
+        assert search_res.json()["total"] == 1
+        assert search_res.json()["data"][0]["id"] == created_expense_id
+
+        stats_res = await client.get(
+            f"/api/v1/expenses/summary?search={exp_data['bill_no']}",
+            headers=manager_headers,
+        )
+        assert stats_res.status_code == 200
+        stats_json = stats_res.json()
+        assert stats_json["total_expenses"] == 240.0
+        assert stats_json["inventory_consumption"] == 240.0
+        assert stats_json["cash_outflow"] == 0.0
+
         # 3. Test patch protection (cannot change amount or payment method)
         patch_res = await client.patch(
             f"/api/v1/expenses/{created_expense_id}",

@@ -45,7 +45,7 @@ async def list_assignable_users(_: User = Depends(require_manager_or_above)):
     users = await User.find(User.is_active == True).to_list()  # noqa: E712
     allowed = {UserRole.admin, UserRole.manager, UserRole.cashier}
     return [
-        AssignableUserItem(id=str(u.id), name=u.name)
+        AssignableUserItem(id=str(u.id), name=u.name, role=u.role)
         for u in users
         if u.role in allowed
     ]

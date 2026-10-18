@@ -43,6 +43,7 @@ export interface UserListItem {
 export interface AssignableUserItem {
   id: string;
   name: string;
+  role?: UserRole;
 }
 
 export interface User {
@@ -1168,6 +1169,8 @@ export interface ExpenseStats {
   thisMonth: number;
   setupInvestment: number;
   operatingExpenses?: number;
+  cashOutflow?: number;
+  inventoryConsumption?: number;
   expenseCount?: number;
 }
 

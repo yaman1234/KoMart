@@ -33,8 +33,9 @@ import { useProducts } from '@/hooks/useProducts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useExpenseCategoryOptions } from '@/hooks/useExpenseCategories';
 import { useRecordProductConsumption } from '@/hooks/useExpenses';
-import { useUsers } from '@/hooks/useUsers';
+import { useAssignableUsers } from '@/hooks/useAssignableUsers';
 import { useAuthStore } from '@/store';
+import { productService } from '@/services';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { formatCurrency } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
@@ -65,15 +66,13 @@ export function StaffProductExpenseDialog({
   const [items, setItems] = useState<ConsumedItemRow[]>([]);
   const [searchInput, setSearchInput] = useState('');
 
-  const { data: users = [], isLoading: usersLoading } = useUsers();
+  const { data: users = [], isLoading: usersLoading } = useAssignableUsers({ enabled: open });
   const staffOptions = useMemo(() => {
-    return users
-      .filter((u) => u.isActive !== false)
-      .map((u) => ({
-        id: u.id,
-        name: u.name,
-        role: u.role,
-      }));
+    return users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      role: u.role,
+    }));
   }, [users]);
 
   const categoryOptions = useExpenseCategoryOptions();
@@ -86,7 +85,7 @@ export function StaffProductExpenseDialog({
       pageSize: 30,
       includeImages: false,
     },
-    { enabled: open && debouncedSearch.trim().length > 0 },
+    { enabled: open },
   );
 
   const productOptions = useMemo(() => {
@@ -114,6 +113,62 @@ export function StaffProductExpenseDialog({
       return [...prev, { product, quantity: 1 }];
     });
     setSearchInput('');
+  };
+
+  const handleBarcodeOrEnter = async (rawCode: string) => {
+    const code = rawCode.trim();
+    if (!code) return;
+    const key = code.toLowerCase();
+
+    // 1. Check in-memory options: exact barcode, SKU, exact name, or partial name
+    const exactMatch =
+      productOptions.find((p) => p.barcode && p.barcode.toLowerCase() === key) ||
+      productOptions.find((p) => p.sku && p.sku.toLowerCase() === key) ||
+      productOptions.find((p) => p.name.toLowerCase() === key) ||
+      productOptions.find((p) => p.name.toLowerCase().startsWith(key)) ||
+      productOptions.find((p) => p.name.toLowerCase().includes(key));
+
+    if (exactMatch) {
+      handleAddProduct(exactMatch);
+      setSearchInput('');
+      return;
+    }
+
+    // 2. Direct lookup via productService: exactCode first, then search
+    try {
+      const exactRes = await productService.getAll({ exactCode: code, pageSize: 5 });
+      const exactFound = exactRes.data.find(
+        (p) =>
+          (p.barcode && p.barcode.toLowerCase() === key) ||
+          (p.sku && p.sku.toLowerCase() === key),
+      );
+      if (exactFound) {
+        handleAddProduct(exactFound);
+        setSearchInput('');
+        return;
+      }
+
+      const res = await productService.getAll({ search: code, pageSize: 5 });
+      const found =
+        res.data.find(
+          (p: Product) =>
+            (p.barcode && p.barcode.toLowerCase() === key) ||
+            (p.sku && p.sku.toLowerCase() === key) ||
+            p.name.toLowerCase() === key,
+        ) ||
+        res.data.find((p: Product) => p.name.toLowerCase().startsWith(key)) ||
+        res.data.find((p: Product) => p.name.toLowerCase().includes(key)) ||
+        res.data[0];
+
+      if (found) {
+        handleAddProduct(found);
+        setSearchInput('');
+      } else {
+        showWarning(`No product found for "${code}".`);
+      }
+    } catch {
+      showWarning(`Failed to lookup product "${code}".`);
+    }
   };
 
   const handleUpdateQuantity = (productId: string, qty: number) => {
@@ -279,13 +334,25 @@ export function StaffProductExpenseDialog({
             Search & Add Products
           </Typography>
           <Autocomplete
+            value={null}
             options={productOptions}
             loading={searchLoading}
             inputValue={searchInput}
-            onInputChange={(_e, val) => setSearchInput(val)}
+            filterOptions={(x) => x}
+            onInputChange={(_e, val, reason) => {
+              if (reason === 'reset') return;
+              setSearchInput(val);
+            }}
             onChange={(_e, val) => handleAddProduct(val)}
             getOptionLabel={(option) => `${option.name} (${option.sku})`}
             isOptionEqualToValue={(option, val) => option.id === val.id}
+            noOptionsText={
+              searchLoading
+                ? 'Searching products…'
+                : debouncedSearch.trim()
+                ? `No products matching "${debouncedSearch.trim()}"`
+                : 'No products available'
+            }
             renderOption={(props, option) => {
               const { key, ...rest } = props;
               return (
@@ -306,7 +373,7 @@ export function StaffProductExpenseDialog({
                       {option.name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      SKU: {option.sku} {option.category ? `• ${option.category}` : ''}
+                      SKU: {option.sku} {option.barcode ? `• Barcode: ${option.barcode}` : ''} {option.category ? `• ${option.category}` : ''}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
@@ -330,7 +397,17 @@ export function StaffProductExpenseDialog({
               <TextField
                 {...params}
                 size="small"
-                placeholder="Type product name, SKU, or barcode to add…"
+                placeholder="Scan barcode or type product name / SKU to add…"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // If an autocomplete option is focused in the popup list, allow Autocomplete to select it
+                    if (document.querySelector('.MuiAutocomplete-option[data-focus="true"]')) {
+                      return;
+                    }
+                    e.preventDefault();
+                    void handleBarcodeOrEnter(searchInput);
+                  }
+                }}
               />
             )}
           />

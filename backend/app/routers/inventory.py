@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from math import ceil
+import re
 
 from app.auth.dependencies import get_current_user, require_admin_only, require_manager_or_above
 from app.models.user import User
@@ -165,9 +166,10 @@ async def list_inventory(
     if category:
         match["category"] = category
     if search:
+        escaped = re.escape(search.strip())
         match["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"sku": {"$regex": search, "$options": "i"}},
+            {"name": {"$regex": escaped, "$options": "i"}},
+            {"sku": {"$regex": escaped, "$options": "i"}},
         ]
 
     if stock_filter == "expiring":

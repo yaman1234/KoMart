@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from math import ceil
+import re
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
@@ -32,7 +33,8 @@ async def list_suppliers(
 ):
     query = Supplier.find()
     if search:
-        query = query.find({"name": {"$regex": search, "$options": "i"}})
+        escaped = re.escape(search.strip())
+        query = query.find({"name": {"$regex": escaped, "$options": "i"}})
 
     total = await query.count()
     suppliers = await query.skip((page - 1) * page_size).limit(page_size).to_list()

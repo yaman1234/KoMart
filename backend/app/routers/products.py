@@ -249,10 +249,11 @@ async def list_products(
             {"barcode": {"$regex": f"^{escaped}$", "$options": "i"}},
         ]})
     elif search:
+        escaped_search = re.escape(search.strip())
         query = query.find({"$or": [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"sku": {"$regex": search, "$options": "i"}},
-            {"barcode": {"$regex": search, "$options": "i"}},
+            {"name": {"$regex": escaped_search, "$options": "i"}},
+            {"sku": {"$regex": escaped_search, "$options": "i"}},
+            {"barcode": {"$regex": escaped_search, "$options": "i"}},
         ]})
     if category:
         query = query.find(Product.category == category)
