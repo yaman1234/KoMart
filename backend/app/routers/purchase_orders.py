@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from math import ceil
 from datetime import datetime, timezone
 import logging
+import re
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
@@ -334,10 +335,11 @@ async def list_purchase_orders(
             and_clauses.append({"payment_status": pay_status.value})
 
     if search:
+        escaped_search = re.escape(search.strip())
         and_clauses.append({
             "$or": [
-                {"order_number": {"$regex": search, "$options": "i"}},
-                {"supplier_name": {"$regex": search, "$options": "i"}},
+                {"order_number": {"$regex": escaped_search, "$options": "i"}},
+                {"supplier_name": {"$regex": escaped_search, "$options": "i"}},
             ]
         })
 
@@ -359,10 +361,11 @@ async def list_purchase_orders(
         if supplier_id:
             kpi_clauses.append({"supplier_id": supplier_id})
         if search:
+            escaped_search = re.escape(search.strip())
             kpi_clauses.append({
                 "$or": [
-                    {"order_number": {"$regex": search, "$options": "i"}},
-                    {"supplier_name": {"$regex": search, "$options": "i"}},
+                    {"order_number": {"$regex": escaped_search, "$options": "i"}},
+                    {"supplier_name": {"$regex": escaped_search, "$options": "i"}},
                 ]
             })
         if not kpi_clauses:

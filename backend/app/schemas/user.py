@@ -35,3 +35,4 @@ class UserListItem(BaseModel):
 class AssignableUserItem(BaseModel):
     id: str
     name: str
+    role: Optional[UserRole] = None

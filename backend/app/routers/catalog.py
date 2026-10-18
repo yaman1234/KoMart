@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Response, status, Query
 from math import ceil
+import re
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -188,11 +189,12 @@ async def list_catalog(
     )
 
     if search:
+        escaped = re.escape(search.strip())
         query = query.find({"$or": [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"sku": {"$regex": search, "$options": "i"}},
-            {"barcode": {"$regex": search, "$options": "i"}},
-            {"brand": {"$regex": search, "$options": "i"}},
+            {"name": {"$regex": escaped, "$options": "i"}},
+            {"sku": {"$regex": escaped, "$options": "i"}},
+            {"barcode": {"$regex": escaped, "$options": "i"}},
+            {"brand": {"$regex": escaped, "$options": "i"}},
         ]})
     if category:
         query = query.find(Product.category == category)

@@ -12,6 +12,11 @@ import {
   MenuItem,
   Paper,
   Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
@@ -178,6 +183,99 @@ export function ExpenseFormPage() {
           >
             Open purchase order
           </Button>
+        </Paper>
+      </Box>
+    );
+  }
+
+  if (isEdit && existing?.paymentMethod === 'inventory') {
+    return (
+      <Box>
+        <PageHeader
+          title="Store Inventory Usage Expense"
+          breadcrumbs={[
+            { label: 'Expenses', path: '/expenses' },
+            { label: 'View Store Usage' },
+          ]}
+          action={
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/expenses')}>
+              Back
+            </Button>
+          }
+        />
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This expense was created from internal staff / store product usage. Stock was automatically deducted from inventory batches at cost price (COGS). It cannot be edited directly. To reverse the deduction, delete this expense from the list to return items to inventory.
+        </Alert>
+        <Paper sx={{ p: 3, maxWidth: 900 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{existing.title}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Voucher: <strong>{existing.billNo || '—'}</strong> · Date: <strong>{existing.date}</strong>
+                {existing.paidTo ? ` · Used by / Staff: ${existing.paidTo}` : ''}
+              </Typography>
+              {existing.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                  Remarks: {existing.description}
+                </Typography>
+              )}
+            </Box>
+            <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Total Non-Cash COGS
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                {formatCurrency(existing.amount)}
+              </Typography>
+            </Box>
+          </Box>
+
+          {existing.items && existing.items.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                Consumed Products Breakdown
+              </Typography>
+              <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>SKU</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600 }}>Quantity</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Batch Unit Cost</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Total Cost</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {existing.items.map((it: any, idx: number) => (
+                      <TableRow key={idx}>
+                        <TableCell sx={{ fontWeight: 600 }}>{it.productName}</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>{it.sku || '—'}</TableCell>
+                        <TableCell align="center">{it.quantity}</TableCell>
+                        <TableCell align="right">{formatCurrency(it.unitCost)}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(it.totalCost)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Paper>
+            </Box>
+          )}
+
+          <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={() => navigate(`/inventory?tab=movements&search=${encodeURIComponent(existing.billNo || '')}`)}
+            >
+              View in Inventory Movement Ledger
+            </Button>
+            <Button
+              variant="text"
+              onClick={() => navigate('/expenses')}
+            >
+              Back to Expenses
+            </Button>
+          </Box>
         </Paper>
       </Box>
     );

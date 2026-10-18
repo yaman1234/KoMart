@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from math import ceil
+import re
 from typing import Optional
 
 from app.auth.dependencies import get_current_user, require_manager_or_above, require_admin_only
@@ -89,9 +90,10 @@ async def list_transactions(
     query = Transaction.find(filters) if filters else Transaction.find()
 
     if search:
+        escaped = re.escape(search.strip())
         query = query.find({"$or": [
-            {"transaction_number": {"$regex": search, "$options": "i"}},
-            {"customer_name": {"$regex": search, "$options": "i"}},
+            {"transaction_number": {"$regex": escaped, "$options": "i"}},
+            {"customer_name": {"$regex": escaped, "$options": "i"}},
         ]})
 
     total = await query.count()

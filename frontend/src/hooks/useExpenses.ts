@@ -10,10 +10,10 @@ export function useExpenses(params?: ListQueryParams) {
   });
 }
 
-export function useExpenseStats() {
+export function useExpenseStats(params?: ListQueryParams) {
   return useQuery({
-    queryKey: QUERY_KEYS.expenseStats,
-    queryFn: () => expenseService.getStats(),
+    queryKey: [...QUERY_KEYS.expenseStats, params],
+    queryFn: () => expenseService.getStats(params),
     staleTime: STALE_TIME.standard,
   });
 }
@@ -34,6 +34,21 @@ export function useCreateExpense() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
+    },
+  });
+}
+
+export function useRecordProductConsumption() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: import('@/types').ProductConsumptionPayload) =>
+      expenseService.recordProductConsumption(data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     },
   });
@@ -62,6 +77,8 @@ export function useDeleteExpense() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenseStats });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.purchaseOrders });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.products });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventory });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.wallets });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
     },
