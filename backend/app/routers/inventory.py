@@ -49,6 +49,7 @@ from app.services.inventory_movements import (
     count_out_of_sync_skus,
     list_integrity_rows,
     load_batch_lookups,
+    load_expense_numbers,
     load_purchase_order_numbers,
     load_purchase_return_numbers,
     load_sku_cache,
@@ -365,6 +366,11 @@ def _build_movement_filters(
             filters["type"] = AdjustmentType.sale
         elif movement_type == "void":
             filters["type"] = AdjustmentType.void
+        elif movement_type in ("internal_use", "expense"):
+            filters["$or"] = [
+                {"type": AdjustmentType.internal_use},
+                {"reference_type": "expense"},
+            ]
         else:
             try:
                 filters["type"] = AdjustmentType(movement_type)
@@ -402,8 +408,8 @@ async def _query_movements(
     )
 
     batch_ids = {r.batch_id for r in rows if r.batch_id}
-    # Do not treat document refs (sale / PO / purchase return) as batch ids.
-    doc_ref_types = {"sale", "purchase_order", "purchase_return"}
+    # Do not treat document refs (sale / PO / purchase return / expense) as batch ids.
+    doc_ref_types = {"sale", "purchase_order", "purchase_return", "expense"}
     batch_ids.update(
         r.reference_id
         for r in rows
@@ -415,12 +421,16 @@ async def _query_movements(
     return_ids = {
         r.reference_id for r in rows if r.reference_type == "purchase_return" and r.reference_id
     }
+    expense_ids = {
+        r.reference_id for r in rows if r.reference_type == "expense" and r.reference_id
+    }
     product_ids_set = {r.product_id for r in rows if not r.product_sku}
 
     batch_po_map, batch_numbers = await load_batch_lookups(batch_ids)
     txn_numbers = await load_txn_numbers(txn_ids)
     po_numbers = await load_purchase_order_numbers(po_ids)
     return_numbers = await load_purchase_return_numbers(return_ids)
+    expense_numbers = await load_expense_numbers(expense_ids)
     sku_cache = await load_sku_cache(product_ids_set)
 
     data = [
@@ -431,6 +441,7 @@ async def _query_movements(
             batch_numbers=batch_numbers,
             po_numbers=po_numbers,
             return_numbers=return_numbers,
+            expense_numbers=expense_numbers,
             sku_cache=sku_cache,
         ))
         for row in rows
@@ -445,7 +456,7 @@ async def list_movements(
     product_id: str = Query(""),
     search: str = Query(""),
     direction: str = Query("", pattern="^(|in|out)$"),
-    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|purchase_return|adjustment|damaged|correction)$"),
+    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|purchase_return|adjustment|damaged|correction|internal_use|expense)$"),
     start_date: str = Query(""),
     end_date: str = Query(""),
     _: User = Depends(require_manager_or_above),
@@ -474,7 +485,7 @@ async def movement_summary(
     product_id: str = Query(""),
     search: str = Query(""),
     direction: str = Query("", pattern="^(|in|out)$"),
-    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|purchase_return|adjustment|damaged|correction)$"),
+    movement_type: str = Query("", pattern="^(|sale|void|receive|purchase_order|purchase_return|adjustment|damaged|correction|internal_use|expense)$"),
     start_date: str = Query(""),
     end_date: str = Query(""),
     _: User = Depends(require_manager_or_above),

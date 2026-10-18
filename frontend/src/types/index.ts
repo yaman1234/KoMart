@@ -320,7 +320,9 @@ export type MovementReferenceType =
   | 'purchase_return'
   | 'adjustment'
   | 'damaged'
-  | 'correction';
+  | 'correction'
+  | 'internal_use'
+  | 'expense';
 
 export interface InventoryMovement {
   id: string;

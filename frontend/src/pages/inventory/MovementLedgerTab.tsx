@@ -35,6 +35,7 @@ const MOVEMENT_TYPES: { value: InventoryMovementQueryParams['movementType']; lab
   { value: 'adjustment', label: 'Adjustment' },
   { value: 'damaged', label: 'Damaged / Expired' },
   { value: 'correction', label: 'Correction' },
+  { value: 'internal_use', label: 'Store Use / Expense' },
 ];
 
 interface MovementLedgerTabProps {
@@ -198,6 +199,24 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
               size="small"
               variant="text"
               sx={{ textTransform: 'none', p: 0, minWidth: 0, cursor: 'pointer' }}
+            >
+              {label}
+            </Button>
+          );
+        }
+        if (row.referenceType === 'expense' && row.referenceId) {
+          const label = row.referenceLabel || 'Expense';
+          return (
+            <Button
+              onClick={() =>
+                window.open(
+                  `/expenses?search=${encodeURIComponent(label)}`,
+                  '_blank',
+                )
+              }
+              size="small"
+              variant="text"
+              sx={{ textTransform: 'none', p: 0, minWidth: 0, cursor: 'pointer', fontWeight: 600 }}
             >
               {label}
             </Button>

@@ -67,6 +67,7 @@ def _reference_label(
     batch_number: str,
     po_numbers: dict[str, str] | None = None,
     return_numbers: dict[str, str] | None = None,
+    expense_numbers: dict[str, str] | None = None,
 ) -> str:
     if ref_type == "sale":
         return txn_number
@@ -74,6 +75,8 @@ def _reference_label(
         return (po_numbers or {}).get(ref_id, "") or batch_number
     if ref_type == "purchase_return":
         return (return_numbers or {}).get(ref_id, "") or batch_number
+    if ref_type == "expense":
+        return (expense_numbers or {}).get(ref_id, "") or ref_id
     return batch_number
 
 
@@ -85,6 +88,7 @@ async def build_movement_row(
     batch_numbers: dict[str, str] | None = None,
     po_numbers: dict[str, str] | None = None,
     return_numbers: dict[str, str] | None = None,
+    expense_numbers: dict[str, str] | None = None,
     sku_cache: dict[str, str] | None = None,
 ) -> dict:
     ref_type, ref_id = await resolve_reference(adj, batch_po_map)
@@ -93,7 +97,7 @@ async def build_movement_row(
     if ref_type == "sale" and ref_id and txn_numbers:
         txn_number = txn_numbers.get(ref_id, "")
     batch_key = adj.batch_id or ""
-    if not batch_key and ref_type not in ("sale", "purchase_order", "purchase_return"):
+    if not batch_key and ref_type not in ("sale", "purchase_order", "purchase_return", "expense"):
         batch_key = ref_id
     batch_number = (batch_numbers or {}).get(batch_key, "") if batch_key else ""
 
@@ -113,6 +117,7 @@ async def build_movement_row(
             batch_number=batch_number,
             po_numbers=po_numbers,
             return_numbers=return_numbers,
+            expense_numbers=expense_numbers,
         ),
         "transaction_number": txn_number,
         "type": adj.type.value,
@@ -205,6 +210,22 @@ async def load_purchase_return_numbers(return_ids: set[str]) -> dict[str, str]:
         return {}
     returns = await PurchaseReturn.find({"_id": {"$in": oids}}).to_list()
     return {str(r.id): r.return_number for r in returns if r.return_number}
+
+
+async def load_expense_numbers(expense_ids: set[str]) -> dict[str, str]:
+    if not expense_ids:
+        return {}
+    oids = []
+    for eid in expense_ids:
+        try:
+            oids.append(PydanticObjectId(eid))
+        except Exception:
+            continue
+    if not oids:
+        return {}
+    from app.models.expense import Expense
+    expenses = await Expense.find({"_id": {"$in": oids}}).to_list()
+    return {str(e.id): (e.bill_no or str(e.id)) for e in expenses}
 
 
 async def load_sku_cache(product_ids: set[str]) -> dict[str, str]:

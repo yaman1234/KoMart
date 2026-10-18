@@ -33,6 +33,8 @@ import { useProducts } from '@/hooks/useProducts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useExpenseCategoryOptions } from '@/hooks/useExpenseCategories';
 import { useRecordProductConsumption } from '@/hooks/useExpenses';
+import { useUsers } from '@/hooks/useUsers';
+import { useAuthStore } from '@/store';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { formatCurrency } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
@@ -55,13 +57,24 @@ export function StaffProductExpenseDialog({
   onClose,
   defaultStaffName = '',
 }: StaffProductExpenseDialogProps) {
-  const [staffName, setStaffName] = useState(defaultStaffName);
+  const currentUser = useAuthStore((s) => s.user);
+  const [staffName, setStaffName] = useState(() => defaultStaffName || currentUser?.name || '');
   const [category, setCategory] = useState('supplies');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
-  const [billNo, setBillNo] = useState('');
   const [items, setItems] = useState<ConsumedItemRow[]>([]);
   const [searchInput, setSearchInput] = useState('');
+
+  const { data: users = [], isLoading: usersLoading } = useUsers();
+  const staffOptions = useMemo(() => {
+    return users
+      .filter((u) => u.isActive !== false)
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role,
+      }));
+  }, [users]);
 
   const categoryOptions = useExpenseCategoryOptions();
   const debouncedSearch = useDebouncedValue(searchInput, 250);
@@ -122,11 +135,10 @@ export function StaffProductExpenseDialog({
   }, [items]);
 
   const handleResetAndClose = () => {
-    setStaffName(defaultStaffName);
+    setStaffName(defaultStaffName || currentUser?.name || '');
     setCategory('supplies');
     setDate(new Date().toISOString().slice(0, 10));
     setRemarks('');
-    setBillNo('');
     setItems([]);
     setSearchInput('');
     onClose();
@@ -158,7 +170,6 @@ export function StaffProductExpenseDialog({
         category,
         date,
         remarks: remarks.trim() || undefined,
-        bill_no: billNo.trim() || undefined,
       },
       {
         onSuccess: (res) => {
@@ -188,15 +199,47 @@ export function StaffProductExpenseDialog({
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, py: 2.5 }}>
         {/* Basic metadata */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-          <TextField
-            label="Staff / Manager Name"
-            placeholder="e.g. Ramesh Thapa (Staff Lounge)"
+          <Autocomplete
+            freeSolo
+            options={staffOptions.map((s) => s.name)}
             value={staffName}
-            onChange={(e) => setStaffName(e.target.value)}
-            required
-            fullWidth
-            size="small"
-            autoFocus
+            loading={usersLoading}
+            onChange={(_e, val) => setStaffName(val || '')}
+            onInputChange={(_e, val) => setStaffName(val)}
+            renderOption={(props, option) => {
+              const { key, ...rest } = props;
+              const staff = staffOptions.find((s) => s.name === option);
+              return (
+                <Box
+                  component="li"
+                  key={key}
+                  {...rest}
+                  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.75 }}
+                >
+                  <Typography variant="body2">{option}</Typography>
+                  {staff?.role && (
+                    <Chip
+                      label={staff.role}
+                      size="small"
+                      variant="outlined"
+                      color={staff.role === 'admin' ? 'error' : staff.role === 'manager' ? 'primary' : 'default'}
+                      sx={{ height: 20, fontSize: '0.7rem', textTransform: 'capitalize' }}
+                    />
+                  )}
+                </Box>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Staff / Manager Name"
+                placeholder="Select staff or type custom name"
+                required
+                fullWidth
+                size="small"
+                autoFocus
+              />
+            )}
           />
           <FormControl fullWidth size="small">
             <InputLabel>Expense Category</InputLabel>
@@ -221,10 +264,10 @@ export function StaffProductExpenseDialog({
             onChange={(val) => setDate(val)}
           />
           <TextField
-            label="Reference / Voucher No. (Optional)"
-            placeholder="Auto-generated if blank"
-            value={billNo}
-            onChange={(e) => setBillNo(e.target.value)}
+            label="Purpose / Remarks (Optional)"
+            placeholder="e.g. Refreshments for staff meeting, pantry cleaning"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
             fullWidth
             size="small"
           />
@@ -415,17 +458,6 @@ export function StaffProductExpenseDialog({
             </Box>
           )}
         </Paper>
-
-        <TextField
-          label="Purpose / Remarks (Optional)"
-          placeholder="e.g. Refreshments for staff meeting, dish soap for pantry"
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-          multiline
-          rows={2}
-          fullWidth
-          size="small"
-        />
 
         <Alert severity="info" sx={{ fontSize: '0.825rem' }}>
           <strong>Non-cash inventory deduction:</strong> This action permanently deducts stock from inventory batches using FEFO costing. It generates an expense tagged as <em>Store Inventory</em> and does <strong>not</strong> deduct cash from the register.

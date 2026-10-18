@@ -183,6 +183,18 @@ async def test_product_consumption_workflow(client: AsyncClient, manager_headers
         )
         assert wallet_entry is None
 
+        # Validate inventory movement endpoint displays the movement and links expense bill_no
+        mov_res = await client.get(
+            f"/api/v1/inventory/movements?movement_type=internal_use&product_id={prod.id}",
+            headers=manager_headers,
+        )
+        assert mov_res.status_code == 200
+        mov_items = mov_res.json()["data"]
+        assert len(mov_items) == 1
+        assert mov_items[0]["reference_type"] == "expense"
+        assert mov_items[0]["reference_label"] == exp_data["bill_no"]
+        assert mov_items[0]["movement_label"] == "Store Use / Expense"
+
         # 3. Test patch protection (cannot change amount or payment method)
         patch_res = await client.patch(
             f"/api/v1/expenses/{created_expense_id}",
