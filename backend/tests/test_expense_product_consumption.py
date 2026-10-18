@@ -72,22 +72,33 @@ async def test_expense_stats_dynamic_filtering(client: AsyncClient, manager_head
         payment_method="bank",
         is_setup_cost=True,
     )
+    e4 = Expense(
+        title="TEST_EXP_FILTER_4_PO",
+        amount=750.0,
+        category="purchase_order",
+        date="2026-05-20",
+        payment_method="bank",
+        is_setup_cost=False,
+        purchase_order_id="po_filter_test_1",
+    )
     await e1.insert()
     await e2.insert()
     await e3.insert()
+    await e4.insert()
 
     try:
         # 1. Filter by date range May 2026
         res = await client.get(
-            "/api/v1/expenses/summary?start_date=2026-05-01&end_date=2026-05-31",
+            "/api/v1/expenses/summary?start_date=2026-05-01&end_date=2026-05-31&search=TEST_EXP_FILTER",
             headers=manager_headers,
         )
         assert res.status_code == 200
         data = res.json()
-        assert data["total_expenses"] == 350.0
-        assert data["operating_expenses"] == 350.0
+        assert data["total_expenses"] == 1100.0
+        assert data["operating_expenses"] == 1100.0
         assert data["setup_investment"] == 0.0
-        assert data["expense_count"] == 2
+        assert data["total_po_paid"] == 750.0
+        assert data["expense_count"] == 3
 
         # 2. Filter by category and search
         res2 = await client.get(
@@ -97,6 +108,7 @@ async def test_expense_stats_dynamic_filtering(client: AsyncClient, manager_head
         assert res2.status_code == 200
         data2 = res2.json()
         assert data2["total_expenses"] == 100.0
+        assert data2["total_po_paid"] == 0.0
         assert data2["expense_count"] == 1
 
         # 3. Filter by setup costs and search
@@ -107,11 +119,13 @@ async def test_expense_stats_dynamic_filtering(client: AsyncClient, manager_head
         assert res3.status_code == 200
         data3 = res3.json()
         assert data3["setup_investment"] == 500.0
+        assert data3["total_po_paid"] == 0.0
         assert data3["expense_count"] == 1
     finally:
         await e1.delete()
         await e2.delete()
         await e3.delete()
+        await e4.delete()
 
 
 @pytest.mark.asyncio

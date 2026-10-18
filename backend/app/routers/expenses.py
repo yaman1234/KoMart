@@ -175,6 +175,25 @@ async def expense_stats(
             "cash_outflow": {
                 "$sum": {"$cond": [{"$ne": ["$payment_method", "inventory"]}, "$amount", 0]},
             },
+            "total_po_paid": {
+                "$sum": {
+                    "$cond": [
+                        {
+                            "$or": [
+                                {"$eq": ["$category", "purchase_order"]},
+                                {
+                                    "$and": [
+                                        {"$ne": ["$purchase_order_id", None]},
+                                        {"$ne": ["$purchase_order_id", ""]},
+                                    ]
+                                },
+                            ]
+                        },
+                        "$amount",
+                        0,
+                    ]
+                },
+            },
             "expense_count": {"$sum": 1},
         },
     })
@@ -211,6 +230,7 @@ async def expense_stats(
     setup_investment = round(float(totals.get("setup_investment", 0) or 0), 2)
     inventory_consumption = round(float(totals.get("inventory_consumption", 0) or 0), 2)
     cash_outflow = round(float(totals.get("cash_outflow", 0) or 0), 2)
+    total_po_paid = round(float(totals.get("total_po_paid", 0) or 0), 2)
     this_month = round(float(month.get("this_month", 0) or 0), 2)
     expense_count = int(totals.get("expense_count", 0) or 0)
 
@@ -221,6 +241,7 @@ async def expense_stats(
         operating_expenses=round(total_expenses - setup_investment, 2),
         cash_outflow=cash_outflow,
         inventory_consumption=inventory_consumption,
+        total_po_paid=total_po_paid,
         expense_count=expense_count,
     )
 

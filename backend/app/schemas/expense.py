@@ -51,6 +51,7 @@ class ExpenseStatsResponse(BaseModel):
     operating_expenses: float = 0.0
     cash_outflow: float = 0.0
     inventory_consumption: float = 0.0
+    total_po_paid: float = 0.0
     expense_count: int = 0
 
 

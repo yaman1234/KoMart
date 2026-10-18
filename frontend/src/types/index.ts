@@ -1171,6 +1171,7 @@ export interface ExpenseStats {
   operatingExpenses?: number;
   cashOutflow?: number;
   inventoryConsumption?: number;
+  totalPoPaid?: number;
   expenseCount?: number;
 }
 

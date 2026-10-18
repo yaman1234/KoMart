@@ -30,6 +30,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
@@ -361,6 +362,22 @@ export function ExpensesPage() {
           subtitle="Excludes setup / investment"
         />
         <StatCard
+          title="Total PO Paid"
+          value={statsLoading ? '—' : formatCurrency(stats?.totalPoPaid ?? 0)}
+          icon={<ReceiptIcon />}
+          gradient={['#ecfdf5', '#a7f3d0']}
+          color="#047857"
+          subtitle={isFiltered ? 'In current filter' : 'Purchase order payments'}
+        />
+        <StatCard
+          title="Setup / Investment"
+          value={statsLoading ? '—' : formatCurrency(stats?.setupInvestment ?? 0)}
+          icon={<BusinessCenterIcon />}
+          gradient={['#f5f3ff', '#ddd6fe']}
+          color="#5b21b6"
+          subtitle="Setup flag or category"
+        />
+        <StatCard
           title={isFiltered ? 'Filtered Records' : 'This Month'}
           value={
             statsLoading
@@ -373,14 +390,6 @@ export function ExpensesPage() {
           gradient={['#e0f2fe', '#7dd3fc']}
           color="#0369a1"
           subtitle={isFiltered ? 'In selected period' : 'Current calendar month'}
-        />
-        <StatCard
-          title="Setup / Investment"
-          value={statsLoading ? '—' : formatCurrency(stats?.setupInvestment ?? 0)}
-          icon={<BusinessCenterIcon />}
-          gradient={['#f5f3ff', '#ddd6fe']}
-          color="#5b21b6"
-          subtitle="Setup flag or category"
         />
       </Box>
 
