@@ -14,6 +14,7 @@ class AdjustmentType(str, Enum):
     receive = "receive"
     void = "void"
     purchase_return = "purchase_return"
+    internal_use = "internal_use"
 
 
 class InventoryBatch(Document):

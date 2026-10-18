@@ -36,6 +36,7 @@ class Expense(Document):
     payment_method: Optional[str] = None
     is_setup_cost: bool = False
     purchase_order_id: Optional[str] = None
+    items: Optional[list[dict]] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

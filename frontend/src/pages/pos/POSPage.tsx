@@ -780,7 +780,7 @@ export function POSPage() {
       const product = await resolvePosProductByScan(code, products);
 
       if (!product) {
-        showWarning(`No product for barcode “${code}”.`);
+        showWarning(`No product found for “${code}”.`);
         return;
       }
 

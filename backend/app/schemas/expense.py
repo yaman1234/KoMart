@@ -39,6 +39,7 @@ class ExpenseResponse(BaseModel):
     payment_method: Optional[str]
     is_setup_cost: bool
     purchase_order_id: Optional[str] = None
+    items: Optional[list[dict]] = None
     created_at: str
     updated_at: str
 
@@ -48,3 +49,21 @@ class ExpenseStatsResponse(BaseModel):
     this_month: float
     setup_investment: float
     operating_expenses: float = 0.0
+    cash_outflow: float = 0.0
+    inventory_consumption: float = 0.0
+    total_po_paid: float = 0.0
+    expense_count: int = 0
+
+
+class ProductConsumptionItemRequest(BaseModel):
+    product_id: str
+    quantity: int = Field(gt=0, description="Quantity of product consumed")
+
+
+class ProductConsumptionCreate(BaseModel):
+    items: list[ProductConsumptionItemRequest] = Field(min_length=1)
+    staff_name: str = Field(min_length=1, description="Staff or manager who consumed or authorized items")
+    category: str = "supplies"
+    date: str
+    remarks: Optional[str] = None
+    bill_no: Optional[str] = None

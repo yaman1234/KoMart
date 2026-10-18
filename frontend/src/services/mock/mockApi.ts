@@ -1288,11 +1288,15 @@ export const mockApi = {
     const setupInvestment = expenses
       .filter(isSetupInvestmentExpense)
       .reduce((sum, e) => sum + e.amount, 0);
+    const totalPoPaid = expenses
+      .filter((e) => e.category === 'purchase_order' || !!e.purchaseOrderId)
+      .reduce((sum, e) => sum + e.amount, 0);
     return {
       totalExpenses: Math.round(totalExpenses * 100) / 100,
       thisMonth: Math.round(thisMonthTotal * 100) / 100,
       setupInvestment: Math.round(setupInvestment * 100) / 100,
       operatingExpenses: Math.round((totalExpenses - setupInvestment) * 100) / 100,
+      totalPoPaid: Math.round(totalPoPaid * 100) / 100,
     };
   },
 

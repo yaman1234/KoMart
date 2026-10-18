@@ -2,11 +2,21 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query, Request
 from math import ceil
 from datetime import datetime, timezone, date
 import calendar
+import re
+from bson import ObjectId as BsonObjectId
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.expense import Expense, ExpenseCategory
-from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseStatsResponse
+from app.models.product import Product
+from app.models.inventory import AdjustmentType, InventoryBatch, StockAdjustment
+from app.schemas.expense import (
+    ExpenseCreate,
+    ExpenseUpdate,
+    ExpenseResponse,
+    ExpenseStatsResponse,
+    ProductConsumptionCreate,
+)
 from app.schemas.common import PaginatedResponse
 from app.services.expense_helpers import (
     SETUP_INVESTMENT_MATCH,
@@ -16,6 +26,16 @@ from app.services.expense_helpers import (
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, expense_snapshot
 from app.services.po_payment import reverse_payment_for_expense
+from app.services.stock import (
+    BatchDeduction,
+    SignedBatchMove,
+    check_stock_available,
+    deduct_stock_fefo,
+    get_current_stock,
+    log_signed_batch_moves,
+    record_inventory_change,
+    restock_from_deductions,
+)
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -33,9 +53,51 @@ def _to_response(e: Expense) -> ExpenseResponse:
         payment_method=e.payment_method,
         is_setup_cost=e.is_setup_cost,
         purchase_order_id=getattr(e, "purchase_order_id", None),
+        items=getattr(e, "items", None),
         created_at=e.created_at.isoformat(),
         updated_at=e.updated_at.isoformat(),
     )
+
+
+def _build_expense_filter(
+    search: str = "",
+    category: str = "",
+    is_setup_cost: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    payment_method: str = "",
+) -> dict:
+    match: dict = {}
+    if search:
+        escaped = re.escape(search.strip())
+        match["$or"] = [
+            {"title": {"$regex": escaped, "$options": "i"}},
+            {"bill_no": {"$regex": escaped, "$options": "i"}},
+            {"paid_to": {"$regex": escaped, "$options": "i"}},
+            {"description": {"$regex": escaped, "$options": "i"}},
+            {"items.productName": {"$regex": escaped, "$options": "i"}},
+            {"items.product_name": {"$regex": escaped, "$options": "i"}},
+            {"items.sku": {"$regex": escaped, "$options": "i"}},
+        ]
+    if category:
+        match["category"] = category
+    if is_setup_cost in ("true", "false"):
+        match["is_setup_cost"] = is_setup_cost == "true"
+    if start_date or end_date:
+        date_cond: dict = {}
+        if start_date:
+            date_cond["$gte"] = start_date
+        if end_date:
+            date_cond["$lte"] = end_date
+        match["date"] = date_cond
+    if payment_method:
+        aliases = [payment_method]
+        if payment_method == "bank":
+            aliases.append("card")
+        if payment_method == "esewa":
+            aliases.append("khalti")
+        match["payment_method"] = {"$in": aliases}
+    return match
 
 
 @router.get("", response_model=PaginatedResponse[ExpenseResponse])
@@ -50,28 +112,15 @@ async def list_expenses(
     payment_method: str = Query(""),
     _: User = Depends(get_current_user),
 ):
-    query = Expense.find()
-
-    if search:
-        query = query.find({"title": {"$regex": search, "$options": "i"}})
-
-    if category:
-        query = query.find({"category": category})
-
-    if is_setup_cost in ("true", "false"):
-        query = query.find({"is_setup_cost": is_setup_cost == "true"})
-
-    if start_date:
-        query = query.find({"date": {"$gte": start_date}})
-    if end_date:
-        query = query.find({"date": {"$lte": end_date}})
-    if payment_method:
-        aliases = [payment_method]
-        if payment_method == "bank":
-            aliases.append("card")
-        if payment_method == "esewa":
-            aliases.append("khalti")
-        query = query.find({"payment_method": {"$in": aliases}})
+    match_filter = _build_expense_filter(
+        search=search,
+        category=category,
+        is_setup_cost=is_setup_cost,
+        start_date=start_date,
+        end_date=end_date,
+        payment_method=payment_method,
+    )
+    query = Expense.find(match_filter) if match_filter else Expense.find()
 
     # Sort newest-date first
     query = query.sort([("date", -1), ("created_at", -1)])
@@ -89,52 +138,223 @@ async def list_expenses(
 
 
 @router.get("/summary", response_model=ExpenseStatsResponse)
-async def expense_stats(_: User = Depends(get_current_user)):
-    """Aggregate totals for the expenses page stat cards."""
+async def expense_stats(
+    search: str = Query(""),
+    category: str = Query(""),
+    is_setup_cost: str = Query(""),
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    payment_method: str = Query(""),
+    _: User = Depends(get_current_user),
+):
+    """Aggregate totals for the expenses page stat cards based on active filters."""
+    col = Expense.get_motor_collection()
+
+    match_filter = _build_expense_filter(
+        search=search,
+        category=category,
+        is_setup_cost=is_setup_cost,
+        start_date=start_date,
+        end_date=end_date,
+        payment_method=payment_method,
+    )
+
+    pipeline: list[dict] = []
+    if match_filter:
+        pipeline.append({"$match": match_filter})
+    pipeline.append({
+        "$group": {
+            "_id": None,
+            "total_expenses": {"$sum": "$amount"},
+            "setup_investment": {
+                "$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]},
+            },
+            "inventory_consumption": {
+                "$sum": {"$cond": [{"$eq": ["$payment_method", "inventory"]}, "$amount", 0]},
+            },
+            "cash_outflow": {
+                "$sum": {"$cond": [{"$ne": ["$payment_method", "inventory"]}, "$amount", 0]},
+            },
+            "total_po_paid": {
+                "$sum": {
+                    "$cond": [
+                        {
+                            "$or": [
+                                {"$eq": ["$category", "purchase_order"]},
+                                {
+                                    "$and": [
+                                        {"$ne": ["$purchase_order_id", None]},
+                                        {"$ne": ["$purchase_order_id", ""]},
+                                    ]
+                                },
+                            ]
+                        },
+                        "$amount",
+                        0,
+                    ]
+                },
+            },
+            "expense_count": {"$sum": 1},
+        },
+    })
+
+    totals_rows = await col.aggregate(pipeline).to_list(1)
+
     today = date.today()
     month_start = today.replace(day=1).isoformat()
     _, last_day = calendar.monthrange(today.year, today.month)
     month_end = date(today.year, today.month, last_day).isoformat()
 
-    col = Expense.get_motor_collection()
-
-    totals_rows = await col.aggregate([
-        {
-            "$group": {
-                "_id": None,
-                "total_expenses": {"$sum": "$amount"},
-                "setup_investment": {
-                    "$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]},
-                },
-            },
+    month_filter = _build_expense_filter(
+        search=search,
+        category=category,
+        is_setup_cost=is_setup_cost,
+        start_date=month_start,
+        end_date=month_end,
+        payment_method=payment_method,
+    )
+    month_pipeline: list[dict] = []
+    if month_filter:
+        month_pipeline.append({"$match": month_filter})
+    month_pipeline.append({
+        "$group": {
+            "_id": None,
+            "this_month": {"$sum": "$amount"},
         },
-    ]).to_list(1)
-
-    month_rows = await col.aggregate([
-        {"$match": {"date": {"$gte": month_start, "$lte": month_end}}},
-        {
-            "$group": {
-                "_id": None,
-                "this_month": {"$sum": "$amount"},
-                "this_month_setup": {
-                    "$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]},
-                },
-            },
-        },
-    ]).to_list(1)
+    })
+    month_rows = await col.aggregate(month_pipeline).to_list(1)
 
     totals = totals_rows[0] if totals_rows else {}
     month = month_rows[0] if month_rows else {}
     total_expenses = round(float(totals.get("total_expenses", 0) or 0), 2)
     setup_investment = round(float(totals.get("setup_investment", 0) or 0), 2)
+    inventory_consumption = round(float(totals.get("inventory_consumption", 0) or 0), 2)
+    cash_outflow = round(float(totals.get("cash_outflow", 0) or 0), 2)
+    total_po_paid = round(float(totals.get("total_po_paid", 0) or 0), 2)
     this_month = round(float(month.get("this_month", 0) or 0), 2)
+    expense_count = int(totals.get("expense_count", 0) or 0)
 
     return ExpenseStatsResponse(
         total_expenses=total_expenses,
         this_month=this_month,
         setup_investment=setup_investment,
         operating_expenses=round(total_expenses - setup_investment, 2),
+        cash_outflow=cash_outflow,
+        inventory_consumption=inventory_consumption,
+        total_po_paid=total_po_paid,
+        expense_count=expense_count,
     )
+
+
+@router.post("/product-consumption", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
+async def create_product_consumption(
+    body: ProductConsumptionCreate,
+    request: Request,
+    current_user: User = Depends(require_manager_or_above),
+):
+    """Record internal staff/store consumption of products as non-cash inventory expenses."""
+    await assert_valid_expense_category(str(body.category or ""))
+
+    # 1. Load and pre-validate all products and requested quantities
+    product_map: dict[str, Product] = {}
+    for item in body.items:
+        p = await Product.get(item.product_id)
+        if not p:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=f"Product not found: {item.product_id}",
+            )
+        product_map[item.product_id] = p
+        await check_stock_available(item.product_id, item.quantity)
+
+    # 2. Perform FEFO stock deduction and calculate actual batch unit cost
+    all_deductions_per_item: list[tuple[ProductConsumptionItemRequest, list[BatchDeduction]]] = []
+    stock_before_map: dict[str, int] = {}
+    item_summaries: list[dict] = []
+    total_expense_amount = 0.0
+
+    try:
+        for item in body.items:
+            product = product_map[item.product_id]
+            stock_before = await get_current_stock(item.product_id)
+            stock_before_map[item.product_id] = stock_before
+
+            deductions = await deduct_stock_fefo(item.product_id, item.quantity)
+            all_deductions_per_item.append((item, deductions))
+
+            line_cost = sum(d.quantity * d.unit_cost for d in deductions)
+            total_expense_amount += line_cost
+            item_summaries.append({
+                "productId": str(product.id),
+                "productName": product.name,
+                "sku": product.sku,
+                "quantity": item.quantity,
+                "unitCost": round(line_cost / item.quantity, 2) if item.quantity else product.cost_price,
+                "totalCost": round(line_cost, 2),
+            })
+    except Exception:
+        # Roll back any batch allocations if an error occurs
+        for _, deductions in all_deductions_per_item:
+            await restock_from_deductions(deductions)
+        raise
+
+    # 3. Create the non-cash Expense document
+    names_str = ", ".join(s["productName"] for s in item_summaries[:2])
+    if len(item_summaries) > 2:
+        names_str += f" +{len(item_summaries) - 2} more"
+    title = f"Staff Consumption: {names_str}"
+
+    expense = Expense(
+        title=title,
+        description=body.remarks or f"Internal consumption by {body.staff_name}",
+        amount=round(total_expense_amount, 2),
+        category=body.category,
+        date=body.date,
+        paid_to=body.staff_name,
+        bill_no=body.bill_no or f"USE-{datetime.now(timezone.utc).strftime('%y%m%d%H%M')}",
+        payment_method="inventory",
+        is_setup_cost=False,
+        items=item_summaries,
+    )
+    await expense.insert()
+
+    # 4. Log the inventory ledger adjustments linked to this expense
+    for item, deductions in all_deductions_per_item:
+        product = product_map[item.product_id]
+        stock_before = stock_before_map[item.product_id]
+        moves = [
+            SignedBatchMove(
+                batch_id=d.batch_id,
+                quantity=-d.quantity,
+                unit_cost=d.unit_cost,
+            )
+            for d in deductions
+        ]
+        await log_signed_batch_moves(
+            product=product,
+            moves=moves,
+            stock_before=stock_before,
+            adjustment_type=AdjustmentType.internal_use,
+            reason=f"Staff consumption: {body.remarks or 'Store use'} (Staff: {body.staff_name})",
+            created_by=current_user.name,
+            reference_type="expense",
+            reference_id=str(expense.id),
+            category=body.category,
+        )
+
+    from app.services.response_cache import bump_commerce_caches
+    await bump_commerce_caches()
+
+    await log_audit(
+        module=AuditModule.expenses,
+        action="create",
+        user=current_user,
+        request=request,
+        entity_type="expense",
+        entity_id=str(expense.id),
+        new=expense_snapshot(expense),
+    )
+    return _to_response(expense)
 
 
 @router.post("", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
@@ -189,6 +409,19 @@ async def update_expense(
             detail="PO-linked expenses cannot be edited here. Delete to reverse the payment, or record a new payment on the purchase order.",
         )
 
+    if getattr(expense, "payment_method", None) == "inventory":
+        dumped = body.model_dump(exclude_unset=True)
+        if "amount" in dumped and dumped["amount"] != expense.amount:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Store consumption expense amounts cannot be manually edited because they are tied to inventory batch costs. Delete to reverse stock, or record a new entry.",
+            )
+        if "payment_method" in dumped and dumped["payment_method"] != "inventory":
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Store consumption payment method cannot be changed from inventory.",
+            )
+
     before = expense_snapshot(expense)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if "category" in update_data:
@@ -241,6 +474,41 @@ async def delete_expense(
 
     before = expense_snapshot(expense)
     await reverse_payment_for_expense(expense, current_user=current_user, request=request)
+
+    # If this was an inventory/store consumption expense, restore deducted stock back to batches
+    if getattr(expense, "payment_method", None) == "inventory":
+        adjustments = await StockAdjustment.find(
+            StockAdjustment.reference_type == "expense",
+            StockAdjustment.reference_id == expense_id,
+        ).to_list()
+        for adj in adjustments:
+            if adj.batch_id and adj.quantity < 0:
+                restore_qty = abs(adj.quantity)
+                col = InventoryBatch.get_motor_collection()
+                await col.update_one(
+                    {"_id": BsonObjectId(adj.batch_id)},
+                    {"$inc": {"quantity": restore_qty}},
+                )
+                product = await Product.get(adj.product_id)
+                if product:
+                    stock_before = await get_current_stock(adj.product_id) - restore_qty
+                    stock_after = await get_current_stock(adj.product_id)
+                    await record_inventory_change(
+                        product=product,
+                        quantity=restore_qty,
+                        adjustment_type=AdjustmentType.adjustment,
+                        reason=f"Restock from deleted staff consumption expense #{expense_id}",
+                        created_by=current_user.name,
+                        stock_before=stock_before,
+                        stock_after=stock_after,
+                        batch_id=adj.batch_id,
+                        reference_type="expense_reversal",
+                        reference_id=expense_id,
+                        unit_cost=adj.unit_cost,
+                    )
+        from app.services.response_cache import bump_commerce_caches
+        await bump_commerce_caches()
+
     from app.services.wallet_ledger import reverse_reference
     await reverse_reference(
         reference_type="expense",
