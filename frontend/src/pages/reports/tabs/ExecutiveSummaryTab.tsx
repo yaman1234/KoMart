@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -8,6 +10,7 @@ import {
   Skeleton,
   Stack,
   Tooltip,
+  Button,
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -15,10 +18,12 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { formatCurrency } from '@/utils';
-import { useExecutiveSummary } from '@/hooks/useReports';
+import { useExecutiveSummary, useExpenseSummary } from '@/hooks/useReports';
 
 export function ExecutiveSummaryTab() {
+  const navigate = useNavigate();
   const { data, isLoading } = useExecutiveSummary();
+  const { data: expenseSummary } = useExpenseSummary();
 
   if (isLoading || !data) {
     return (
@@ -70,6 +75,13 @@ export function ExecutiveSummaryTab() {
   const inventoryValue = wc.inventoryValue ?? wc.inventory_value ?? 0;
   const accountsPayable = wc.accountsPayable ?? wc.accounts_payable ?? 0;
   const accountsReceivable = wc.accountsReceivable ?? wc.accounts_receivable ?? 0;
+
+  const expenseCategories = useMemo(() => {
+    const list = expenseSummary?.byCategory || (expenseSummary as any)?.by_category || [];
+    return list.filter(
+      (c: any) => c.category !== 'purchase_order' && c.category !== 'setup_investment'
+    );
+  }, [expenseSummary]);
 
   const taxableSales = tax.taxableSales ?? tax.taxable_sales ?? 0;
   const exemptSales = tax.exemptSales ?? tax.exempt_sales ?? 0;
@@ -522,6 +534,63 @@ export function ExecutiveSummaryTab() {
                 </Paper>
               </Grid>
             </Grid>
+
+            {/* Operating Overheads Breakdown Card */}
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                mt: 2,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AccountBalanceWalletIcon sx={{ color: '#EA580C', fontSize: 20 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Operating Overheads Breakdown (OpEx)
+                  </Typography>
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => navigate('/expenses')}
+                  sx={{ textTransform: 'none', fontSize: 12, fontWeight: 600 }}
+                >
+                  View Expenses Ledger →
+                </Button>
+              </Box>
+
+              {expenseCategories.length === 0 ? (
+                <Typography variant="caption" color="text.secondary">
+                  No operating overheads recorded for this selected period.
+                </Typography>
+              ) : (
+                <Stack spacing={1}>
+                  {expenseCategories.map((c: any) => (
+                    <Box key={c.category} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" sx={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                          {String(c.category || '').replace(/_/g, ' ')}
+                        </Typography>
+                        <Chip label={`${c.count ?? 1} txn`} size="small" sx={{ height: 18, fontSize: 10 }} />
+                      </Box>
+                      <Typography variant="caption" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#EA580C' }}>
+                        {formatCurrency(c.amount ?? 0)}
+                      </Typography>
+                    </Box>
+                  ))}
+                  <Divider sx={{ my: 0.5 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700 }}>Total Period Operating Expenses:</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#EA580C', fontVariantNumeric: 'tabular-nums' }}>
+                      {formatCurrency(operatingExpenses)}
+                    </Typography>
+                  </Box>
+                </Stack>
+              )}
+            </Paper>
           </Box>
         </Grid>
       </Grid>
