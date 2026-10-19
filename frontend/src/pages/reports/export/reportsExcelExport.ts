@@ -19,6 +19,20 @@ interface ExportReportsData {
   cashFlow?: CashFlowStatement | null;
 }
 
+function autoFitColumns(data: any[][]): { wch: number }[] {
+  const colWidths: number[] = [];
+  for (const row of data) {
+    if (!row || !Array.isArray(row)) continue;
+    row.forEach((val, colIdx) => {
+      const len = val !== null && val !== undefined ? String(val).length : 0;
+      // Cap banner/title row contribution if row length is small (e.g. title banners or section headers)
+      const effectiveLen = row.length <= 3 ? Math.min(len, 25) : len;
+      colWidths[colIdx] = Math.max(colWidths[colIdx] || 10, effectiveLen + 2);
+    });
+  }
+  return colWidths.map((w) => ({ wch: Math.min(Math.max(w, 12), 45) }));
+}
+
 export function exportReportsWorkbook({
   startDate,
   endDate,
@@ -115,6 +129,7 @@ export function exportReportsWorkbook({
     ];
 
     const ws1 = XLSX.utils.aoa_to_sheet(s1Data);
+    ws1['!cols'] = autoFitColumns(s1Data);
     XLSX.utils.book_append_sheet(wb, ws1, 'Executive P&L');
   }
 
@@ -223,6 +238,7 @@ export function exportReportsWorkbook({
     }
 
     const ws2 = XLSX.utils.aoa_to_sheet(s2Data);
+    ws2['!cols'] = autoFitColumns(s2Data);
     XLSX.utils.book_append_sheet(wb, ws2, 'Sales & Margins');
   }
 
@@ -325,6 +341,7 @@ export function exportReportsWorkbook({
     }
 
     const ws3 = XLSX.utils.aoa_to_sheet(s3Data);
+    ws3['!cols'] = autoFitColumns(s3Data);
     XLSX.utils.book_append_sheet(wb, ws3, 'Purchasing & Payables');
   }
 
@@ -474,6 +491,7 @@ export function exportReportsWorkbook({
     }
 
     const ws4 = XLSX.utils.aoa_to_sheet(s4Data);
+    ws4['!cols'] = autoFitColumns(s4Data);
     XLSX.utils.book_append_sheet(wb, ws4, 'Inventory & Reorders');
   }
 
@@ -547,6 +565,7 @@ export function exportReportsWorkbook({
     }
 
     const ws5 = XLSX.utils.aoa_to_sheet(s5Data);
+    ws5['!cols'] = autoFitColumns(s5Data);
     XLSX.utils.book_append_sheet(wb, ws5, 'Cash Flow & Wallets');
   }
 

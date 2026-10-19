@@ -34,6 +34,12 @@ export function CustomersLoyaltyTab() {
     );
   }
 
+  const ls = (loyaltySummary || {}) as any;
+  const totalMembers = ls.totalMembers ?? ls.total_members;
+  const activeMembers = ls.activeMembers ?? ls.active_members;
+  const newCustomers = ls.newCustomers ?? ls.new_customers;
+  const pointsRedeemed = ls.pointsRedeemed ?? ls.points_redeemed;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Loyalty KPI Cards */}
@@ -42,7 +48,7 @@ export function CustomersLoyaltyTab() {
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(99, 102, 241, 0.08)' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Total Members</Typography>
             <Typography variant="h6" sx={{ fontWeight: 700, color: '#4338CA', mt: 0.5 }}>
-              {loyaltySummary?.totalMembers?.toLocaleString() ?? '—'}
+              {totalMembers !== undefined ? Number(totalMembers).toLocaleString() : '—'}
             </Typography>
           </Paper>
         </Grid>
@@ -50,7 +56,7 @@ export function CustomersLoyaltyTab() {
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(16, 185, 129, 0.08)' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Active Members</Typography>
             <Typography variant="h6" sx={{ fontWeight: 700, color: '#047857', mt: 0.5 }}>
-              {loyaltySummary?.activeMembers?.toLocaleString() ?? '—'}
+              {activeMembers !== undefined ? Number(activeMembers).toLocaleString() : '—'}
             </Typography>
           </Paper>
         </Grid>
@@ -58,7 +64,7 @@ export function CustomersLoyaltyTab() {
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(2, 132, 199, 0.08)' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>New Customers</Typography>
             <Typography variant="h6" sx={{ fontWeight: 700, color: '#0284C7', mt: 0.5 }}>
-              {loyaltySummary?.newCustomers?.toLocaleString() ?? '—'}
+              {newCustomers !== undefined ? Number(newCustomers).toLocaleString() : '—'}
             </Typography>
           </Paper>
         </Grid>
@@ -66,7 +72,7 @@ export function CustomersLoyaltyTab() {
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(245, 158, 11, 0.08)' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Points Redeemed</Typography>
             <Typography variant="h6" sx={{ fontWeight: 700, color: '#B45309', mt: 0.5 }}>
-              {loyaltySummary?.pointsRedeemed?.toLocaleString() ?? '—'}
+              {pointsRedeemed !== undefined ? Number(pointsRedeemed).toLocaleString() : '—'}
             </Typography>
           </Paper>
         </Grid>
@@ -98,18 +104,25 @@ export function CustomersLoyaltyTab() {
                   </TableCell>
                 </TableRow>
               ) : (
-                topCustomers.map((c, i) => (
-                  <TableRow key={c.customerId} hover>
-                    <TableCell>{i + 1}</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>{c.customerName}</TableCell>
-                    <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {c.transactionCount}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: '#047857' }}>
-                      {formatCurrency(c.totalSpent)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                topCustomers.map((c: any, i) => {
+                  const cId = c.customerId || c.customer_id || `cust-${i}`;
+                  const cName = c.customerName || c.customer_name || 'Walk-In Customer';
+                  const txCount = c.transactionCount ?? c.transaction_count ?? 0;
+                  const totalSpent = c.totalSpent ?? c.total_spent ?? 0;
+
+                  return (
+                    <TableRow key={cId} hover>
+                      <TableCell>{i + 1}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{cName}</TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {txCount.toLocaleString()}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: '#047857' }}>
+                        {formatCurrency(totalSpent)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -118,3 +131,4 @@ export function CustomersLoyaltyTab() {
     </Box>
   );
 }
+
