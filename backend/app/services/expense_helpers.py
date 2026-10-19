@@ -2,6 +2,7 @@ from app.models.expense import Expense
 from app.models.expense_category import ExpenseCategoryDoc
 
 _SETUP_CATEGORY = "setup_investment"
+_PO_CATEGORY = "purchase_order"
 
 # MongoDB aggregation condition: expense counts as setup/investment.
 SETUP_INVESTMENT_MATCH = {
@@ -11,9 +12,29 @@ SETUP_INVESTMENT_MATCH = {
     ],
 }
 
+# MongoDB aggregation condition: expense is a PO supplier payment (inventory acquisition).
+PO_PAYMENT_MATCH = {
+    "$or": [
+        {"$eq": ["$category", _PO_CATEGORY]},
+        {
+            "$and": [
+                {"$ne": ["$purchase_order_id", None]},
+                {"$ne": ["$purchase_order_id", ""]},
+            ]
+        },
+    ],
+}
+
 
 def is_setup_investment(expense: Expense) -> bool:
     return bool(expense.is_setup_cost) or str(expense.category) == _SETUP_CATEGORY
+
+
+def is_purchase_order_payment(expense: Expense) -> bool:
+    """Identify if an expense is a supplier payment for purchase orders."""
+    cat = str(getattr(expense.category, "value", expense.category) or "").strip()
+    po_id = getattr(expense, "purchase_order_id", None)
+    return cat == _PO_CATEGORY or bool(po_id and str(po_id).strip())
 
 
 def normalize_setup_fields(data: dict) -> dict:
