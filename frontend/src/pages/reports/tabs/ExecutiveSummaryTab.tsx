@@ -25,6 +25,13 @@ export function ExecutiveSummaryTab() {
   const { data, isLoading } = useExecutiveSummary();
   const { data: expenseSummary } = useExpenseSummary();
 
+  const expenseCategories = useMemo(() => {
+    const list = expenseSummary?.byCategory || (expenseSummary as any)?.by_category || [];
+    return list.filter(
+      (c: any) => c.category !== 'purchase_order' && c.category !== 'setup_investment'
+    );
+  }, [expenseSummary]);
+
   if (isLoading || !data) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -75,13 +82,6 @@ export function ExecutiveSummaryTab() {
   const inventoryValue = wc.inventoryValue ?? wc.inventory_value ?? 0;
   const accountsPayable = wc.accountsPayable ?? wc.accounts_payable ?? 0;
   const accountsReceivable = wc.accountsReceivable ?? wc.accounts_receivable ?? 0;
-
-  const expenseCategories = useMemo(() => {
-    const list = expenseSummary?.byCategory || (expenseSummary as any)?.by_category || [];
-    return list.filter(
-      (c: any) => c.category !== 'purchase_order' && c.category !== 'setup_investment'
-    );
-  }, [expenseSummary]);
 
   const taxableSales = tax.taxableSales ?? tax.taxable_sales ?? 0;
   const exemptSales = tax.exemptSales ?? tax.exempt_sales ?? 0;
