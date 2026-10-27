@@ -44,11 +44,21 @@ export function LossAuditTab() {
   const [expPage, setExpPage] = useState(0);
   const [expRowsPerPage, setExpRowsPerPage] = useState(10);
 
-  const voidList = useMemo(() => data?.voided_transactions || [], [data]);
-  const discList = useMemo(() => data?.large_discount_transactions || [], [data]);
-  const negMarginList = useMemo(() => data?.negative_margin_products || [], [data]);
-  const expList = useMemo(() => data?.expired_stock_items || [], [data]);
-  const missingCloses = useMemo(() => data?.missing_day_closes || [], [data]);
+  const voidList = useMemo(() => data?.voidedTransactions || data?.voided_transactions || [], [data]);
+  const discList = useMemo(() => data?.largeDiscountTransactions || data?.large_discount_transactions || [], [data]);
+  const negMarginList = useMemo(() => data?.negativeMarginProducts || data?.negative_margin_products || [], [data]);
+  const expList = useMemo(() => data?.expiredStockItems || data?.expired_stock_items || [], [data]);
+  const missingCloses = useMemo(() => data?.missingDayCloses || data?.missing_day_closes || [], [data]);
+
+  const totalVoidCount = data?.totalVoidCount ?? data?.total_void_count ?? 0;
+  const totalVoidAmount = data?.totalVoidAmount ?? data?.total_void_amount ?? 0;
+  const largeDiscountCount = data?.largeDiscountCount ?? data?.large_discount_count ?? 0;
+  const totalLargeDiscountAmount = data?.totalLargeDiscountAmount ?? data?.total_large_discount_amount ?? 0;
+  const negativeMarginProductCount = data?.negativeMarginProductCount ?? data?.negative_margin_product_count ?? 0;
+  const totalLossOnNegMargin = data?.totalLossOnNegMargin ?? data?.total_loss_on_neg_margin ?? 0;
+  const expiredStockCount = data?.expiredStockCount ?? data?.expired_stock_count ?? 0;
+  const expiredStockWriteOffValue = data?.expiredStockWriteOffValue ?? data?.expired_stock_write_off_value ?? 0;
+  const missingDayCloseCount = data?.missingDayCloseCount ?? data?.missing_day_close_count ?? 0;
 
   if (isLoading || !data) {
     return (
@@ -108,8 +118,8 @@ export function LossAuditTab() {
               borderRadius: 3,
               cursor: 'pointer',
               border: '2px solid',
-              borderColor: activeCategory === 'voids' ? '#EF4444' : data.total_void_count > 0 ? 'rgba(239, 68, 68, 0.3)' : 'divider',
-              bgcolor: activeCategory === 'voids' ? 'rgba(239, 68, 68, 0.1)' : data.total_void_count > 0 ? 'rgba(239, 68, 68, 0.04)' : 'background.paper',
+              borderColor: activeCategory === 'voids' ? '#EF4444' : totalVoidCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'divider',
+              bgcolor: activeCategory === 'voids' ? 'rgba(239, 68, 68, 0.1)' : totalVoidCount > 0 ? 'rgba(239, 68, 68, 0.04)' : 'background.paper',
               transition: 'all 0.15s ease',
               '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' },
             }}
@@ -121,10 +131,10 @@ export function LossAuditTab() {
               </Typography>
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#EF4444' }}>
-              {data.total_void_count}
+              {totalVoidCount}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
-              Lost Value: {formatCurrency(data.total_void_amount)}
+              Lost Value: {formatCurrency(totalVoidAmount)}
             </Typography>
           </Paper>
         </Grid>
@@ -139,8 +149,8 @@ export function LossAuditTab() {
               borderRadius: 3,
               cursor: 'pointer',
               border: '2px solid',
-              borderColor: activeCategory === 'discounts' ? '#F59E0B' : data.large_discount_count > 0 ? 'rgba(245, 158, 11, 0.3)' : 'divider',
-              bgcolor: activeCategory === 'discounts' ? 'rgba(245, 158, 11, 0.1)' : data.large_discount_count > 0 ? 'rgba(245, 158, 11, 0.04)' : 'background.paper',
+              borderColor: activeCategory === 'discounts' ? '#F59E0B' : largeDiscountCount > 0 ? 'rgba(245, 158, 11, 0.3)' : 'divider',
+              bgcolor: activeCategory === 'discounts' ? 'rgba(245, 158, 11, 0.1)' : largeDiscountCount > 0 ? 'rgba(245, 158, 11, 0.04)' : 'background.paper',
               transition: 'all 0.15s ease',
               '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' },
             }}
@@ -152,10 +162,10 @@ export function LossAuditTab() {
               </Typography>
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#F59E0B' }}>
-              {data.large_discount_count}
+              {largeDiscountCount}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
-              Discount Given: {formatCurrency(data.total_large_discount_amount)}
+              Discount Given: {formatCurrency(totalLargeDiscountAmount)}
             </Typography>
           </Paper>
         </Grid>
@@ -170,8 +180,8 @@ export function LossAuditTab() {
               borderRadius: 3,
               cursor: 'pointer',
               border: '2px solid',
-              borderColor: activeCategory === 'margins' ? '#DC2626' : data.negative_margin_product_count > 0 ? 'rgba(220, 38, 38, 0.3)' : 'divider',
-              bgcolor: activeCategory === 'margins' ? 'rgba(220, 38, 38, 0.1)' : data.negative_margin_product_count > 0 ? 'rgba(220, 38, 38, 0.04)' : 'background.paper',
+              borderColor: activeCategory === 'margins' ? '#DC2626' : negativeMarginProductCount > 0 ? 'rgba(220, 38, 38, 0.3)' : 'divider',
+              bgcolor: activeCategory === 'margins' ? 'rgba(220, 38, 38, 0.1)' : negativeMarginProductCount > 0 ? 'rgba(220, 38, 38, 0.04)' : 'background.paper',
               transition: 'all 0.15s ease',
               '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' },
             }}
@@ -183,10 +193,10 @@ export function LossAuditTab() {
               </Typography>
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#DC2626' }}>
-              {data.negative_margin_product_count}
+              {negativeMarginProductCount}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
-              Gross Loss: {formatCurrency(data.total_loss_on_neg_margin)}
+              Gross Loss: {formatCurrency(totalLossOnNegMargin)}
             </Typography>
           </Paper>
         </Grid>
@@ -201,8 +211,8 @@ export function LossAuditTab() {
               borderRadius: 3,
               cursor: 'pointer',
               border: '2px solid',
-              borderColor: activeCategory === 'expired' ? '#EA580C' : data.expired_stock_count > 0 ? 'rgba(234, 88, 12, 0.3)' : 'divider',
-              bgcolor: activeCategory === 'expired' ? 'rgba(234, 88, 12, 0.1)' : data.expired_stock_count > 0 ? 'rgba(234, 88, 12, 0.04)' : 'background.paper',
+              borderColor: activeCategory === 'expired' ? '#EA580C' : expiredStockCount > 0 ? 'rgba(234, 88, 12, 0.3)' : 'divider',
+              bgcolor: activeCategory === 'expired' ? 'rgba(234, 88, 12, 0.1)' : expiredStockCount > 0 ? 'rgba(234, 88, 12, 0.04)' : 'background.paper',
               transition: 'all 0.15s ease',
               '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' },
             }}
@@ -214,10 +224,10 @@ export function LossAuditTab() {
               </Typography>
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#EA580C' }}>
-              {data.expired_stock_count}
+              {expiredStockCount}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
-              Write-Off: {formatCurrency(data.expired_stock_write_off_value)}
+              Write-Off: {formatCurrency(expiredStockWriteOffValue)}
             </Typography>
           </Paper>
         </Grid>
@@ -230,8 +240,8 @@ export function LossAuditTab() {
               p: 2.5,
               borderRadius: 3,
               border: '1px solid',
-              borderColor: data.missing_day_close_count > 0 ? 'rgba(124, 58, 237, 0.3)' : 'divider',
-              bgcolor: data.missing_day_close_count > 0 ? 'rgba(124, 58, 237, 0.04)' : 'background.paper',
+              borderColor: missingDayCloseCount > 0 ? 'rgba(124, 58, 237, 0.3)' : 'divider',
+              bgcolor: missingDayCloseCount > 0 ? 'rgba(124, 58, 237, 0.04)' : 'background.paper',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -241,7 +251,7 @@ export function LossAuditTab() {
               </Typography>
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#7C3AED' }}>
-              {data.missing_day_close_count}
+              {missingDayCloseCount}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
               Missing day cash closes
@@ -258,7 +268,7 @@ export function LossAuditTab() {
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
             {missingCloses.map((m) => (
-              <Chip key={m.date} label={`${m.day_label} (${m.date})`} size="small" color="warning" variant="outlined" />
+              <Chip key={m.date} label={`${m.dayLabel || m.day_label || ''} (${m.date})`} size="small" color="warning" variant="outlined" />
             ))}
           </Box>
         </Alert>
@@ -274,34 +284,35 @@ export function LossAuditTab() {
           sx={{ fontWeight: 700 }}
         />
         <Chip
-          label={`Cancelled Bills (${data.total_void_count})`}
+          label={`Cancelled Bills (${totalVoidCount})`}
           color={activeCategory === 'voids' ? 'error' : 'default'}
           variant={activeCategory === 'voids' ? 'filled' : 'outlined'}
           onClick={() => setActiveCategory('voids')}
           sx={{ fontWeight: 600 }}
         />
         <Chip
-          label={`High Discounts (${data.large_discount_count})`}
+          label={`High Discounts (${largeDiscountCount})`}
           color={activeCategory === 'discounts' ? 'warning' : 'default'}
           variant={activeCategory === 'discounts' ? 'filled' : 'outlined'}
           onClick={() => setActiveCategory('discounts')}
           sx={{ fontWeight: 600 }}
         />
         <Chip
-          label={`Sold Below Cost (${data.negative_margin_product_count})`}
+          label={`Sold Below Cost (${negativeMarginProductCount})`}
           color={activeCategory === 'margins' ? 'error' : 'default'}
           variant={activeCategory === 'margins' ? 'filled' : 'outlined'}
           onClick={() => setActiveCategory('margins')}
           sx={{ fontWeight: 600 }}
         />
         <Chip
-          label={`Expired on Shelf (${data.expired_stock_count})`}
+          label={`Expired on Shelf (${expiredStockCount})`}
           color={activeCategory === 'expired' ? 'warning' : 'default'}
           variant={activeCategory === 'expired' ? 'filled' : 'outlined'}
           onClick={() => setActiveCategory('expired')}
           sx={{ fontWeight: 600 }}
         />
       </Box>
+
 
       {/* TABLE 1: CANCELLED / VOIDED BILLS */}
       {(activeCategory === 'all' || activeCategory === 'voids') && (
@@ -335,22 +346,26 @@ export function LossAuditTab() {
                 ) : (
                   voidList
                     .slice(voidPage * voidRowsPerPage, voidPage * voidRowsPerPage + voidRowsPerPage)
-                    .map((row, idx) => (
-                      <TableRow key={row.transaction_number} hover>
-                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                          {voidPage * voidRowsPerPage + idx + 1}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{row.transaction_number}</TableCell>
-                        <TableCell>{row.date}</TableCell>
-                        <TableCell>
-                          <Chip label={row.cashier} size="small" variant="outlined" />
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: '#EF4444' }}>
-                          {formatCurrency(row.amount)}
-                        </TableCell>
-                        <TableCell>{row.void_reason || 'No reason specified'}</TableCell>
-                      </TableRow>
-                    ))
+                    .map((row, idx) => {
+                      const txnNum = row.transactionNumber || row.transaction_number;
+                      const voidReason = row.voidReason || row.void_reason || 'No reason specified';
+                      return (
+                        <TableRow key={txnNum || idx} hover>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                            {voidPage * voidRowsPerPage + idx + 1}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{txnNum}</TableCell>
+                          <TableCell>{row.date}</TableCell>
+                          <TableCell>
+                            <Chip label={row.cashier} size="small" variant="outlined" />
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700, color: '#EF4444' }}>
+                            {formatCurrency(row.amount)}
+                          </TableCell>
+                          <TableCell>{voidReason}</TableCell>
+                        </TableRow>
+                      );
+                    })
                 )}
               </TableBody>
             </Table>
@@ -405,33 +420,40 @@ export function LossAuditTab() {
                 ) : (
                   discList
                     .slice(discPage * discRowsPerPage, discPage * discRowsPerPage + discRowsPerPage)
-                    .map((row, idx) => (
-                      <TableRow key={row.transaction_number} hover>
-                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                          {discPage * discRowsPerPage + idx + 1}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{row.transaction_number}</TableCell>
-                        <TableCell>{row.date}</TableCell>
-                        <TableCell>
-                          <Chip label={row.cashier} size="small" variant="outlined" />
-                        </TableCell>
-                        <TableCell align="right">{formatCurrency(row.gross_sales)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: '#F59E0B' }}>
-                          {formatCurrency(row.total_discount)}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${row.discount_pct}%`}
-                            size="small"
-                            color={row.discount_pct >= 30 ? 'error' : 'warning'}
-                            sx={{ fontWeight: 700 }}
-                          />
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>
-                          {formatCurrency(row.net_total)}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    .map((row, idx) => {
+                      const txnNum = row.transactionNumber || row.transaction_number;
+                      const grossSales = row.grossSales ?? row.gross_sales ?? 0;
+                      const totalDiscount = row.totalDiscount ?? row.total_discount ?? 0;
+                      const discountPct = row.discountPct ?? row.discount_pct ?? 0;
+                      const netTotal = row.netTotal ?? row.net_total ?? 0;
+                      return (
+                        <TableRow key={txnNum || idx} hover>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                            {discPage * discRowsPerPage + idx + 1}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{txnNum}</TableCell>
+                          <TableCell>{row.date}</TableCell>
+                          <TableCell>
+                            <Chip label={row.cashier} size="small" variant="outlined" />
+                          </TableCell>
+                          <TableCell align="right">{formatCurrency(grossSales)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700, color: '#F59E0B' }}>
+                            {formatCurrency(totalDiscount)}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={`${discountPct}%`}
+                              size="small"
+                              color={discountPct >= 30 ? 'error' : 'warning'}
+                              sx={{ fontWeight: 700 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>
+                            {formatCurrency(netTotal)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                 )}
               </TableBody>
             </Table>
@@ -486,29 +508,37 @@ export function LossAuditTab() {
                 ) : (
                   negMarginList
                     .slice(marginPage * marginRowsPerPage, marginPage * marginRowsPerPage + marginRowsPerPage)
-                    .map((row, idx) => (
-                      <TableRow key={row.product_id} hover>
-                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                          {marginPage * marginRowsPerPage + idx + 1}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
-                        <TableCell>{row.category}</TableCell>
-                        <TableCell align="right">{row.units_sold}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.net_revenue)}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.total_cogs)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: '#DC2626' }}>
-                          {formatCurrency(Math.abs(row.gross_profit))}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${row.gross_margin_pct}%`}
-                            size="small"
-                            color="error"
-                            sx={{ fontWeight: 700 }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    .map((row, idx) => {
+                      const pId = row.productId || row.product_id;
+                      const unitsSold = row.unitsSold ?? row.units_sold ?? 0;
+                      const netRevenue = row.netRevenue ?? row.net_revenue ?? 0;
+                      const totalCogs = row.totalCogs ?? row.total_cogs ?? 0;
+                      const grossProfit = row.grossProfit ?? row.gross_profit ?? 0;
+                      const grossMarginPct = row.grossMarginPct ?? row.gross_margin_pct ?? 0;
+                      return (
+                        <TableRow key={pId || idx} hover>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                            {marginPage * marginRowsPerPage + idx + 1}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
+                          <TableCell>{row.category}</TableCell>
+                          <TableCell align="right">{unitsSold}</TableCell>
+                          <TableCell align="right">{formatCurrency(netRevenue)}</TableCell>
+                          <TableCell align="right">{formatCurrency(totalCogs)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700, color: '#DC2626' }}>
+                            {formatCurrency(Math.abs(grossProfit))}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={`${grossMarginPct}%`}
+                              size="small"
+                              color="error"
+                              sx={{ fontWeight: 700 }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                 )}
               </TableBody>
             </Table>
@@ -562,21 +592,29 @@ export function LossAuditTab() {
                 ) : (
                   expList
                     .slice(expPage * expRowsPerPage, expPage * expRowsPerPage + expRowsPerPage)
-                    .map((row, idx) => (
-                      <TableRow key={`${row.product_id}-${row.batch_number}-${idx}`} hover>
-                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                          {expPage * expRowsPerPage + idx + 1}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{row.product_name}</TableCell>
-                        <TableCell>{row.batch_number || 'Default'}</TableCell>
-                        <TableCell sx={{ color: '#EA580C', fontWeight: 600 }}>{row.expiry_date}</TableCell>
-                        <TableCell align="right">{row.quantity}</TableCell>
-                        <TableCell align="right">{formatCurrency(row.unit_cost)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: '#EA580C' }}>
-                          {formatCurrency(row.write_off_value)}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    .map((row, idx) => {
+                      const pId = row.productId || row.product_id;
+                      const pName = row.productName || row.product_name;
+                      const batchNum = row.batchNumber || row.batch_number;
+                      const expiryDate = row.expiryDate || row.expiry_date;
+                      const unitCost = row.unitCost ?? row.unit_cost ?? 0;
+                      const writeOffValue = row.writeOffValue ?? row.write_off_value ?? 0;
+                      return (
+                        <TableRow key={`${pId}-${batchNum}-${idx}`} hover>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                            {expPage * expRowsPerPage + idx + 1}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{pName}</TableCell>
+                          <TableCell>{batchNum || 'Default'}</TableCell>
+                          <TableCell sx={{ color: '#EA580C', fontWeight: 600 }}>{expiryDate}</TableCell>
+                          <TableCell align="right">{row.quantity}</TableCell>
+                          <TableCell align="right">{formatCurrency(unitCost)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700, color: '#EA580C' }}>
+                            {formatCurrency(writeOffValue)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                 )}
               </TableBody>
             </Table>
@@ -601,3 +639,4 @@ export function LossAuditTab() {
 }
 
 export default LossAuditTab;
+

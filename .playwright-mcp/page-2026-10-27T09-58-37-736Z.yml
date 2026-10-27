@@ -1,0 +1,232 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e6]:
+      - img "KoMart logo" [ref=f2e10]
+      - separator [ref=f2e11]
+      - list [ref=f2e12]:
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f2e19]:
+          - link "POS" [ref=f2e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f2e25]:
+          - link "Sales" [ref=f2e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f2e32]:
+          - link "Products" [ref=f2e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f2e38]:
+          - link "Inventory" [ref=f2e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f2e44]:
+          - link "Stock Count" [ref=f2e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f2e50]:
+          - link "Suppliers" [ref=f2e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f2e56]:
+          - link "Purchase Orders" [ref=f2e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f2e62]:
+          - link "Purchase Returns" [ref=f2e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f2e68]:
+          - link "Expenses" [ref=f2e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f2e74]:
+          - link "Accounts" [ref=f2e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f2e80]:
+          - link "Reconciliation" [ref=f2e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f2e86]:
+          - link "Customers" [ref=f2e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f2e92]:
+          - link "Reports" [ref=f2e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f2e98]:
+          - link "Notifications" [ref=f2e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f2e104]:
+          - link "Settings" [ref=f2e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f2e110]:
+      - generic [ref=f2e112]:
+        - button "Go to Home" [ref=f2e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f2e117] [cursor=pointer]
+        - button "Notifications" [ref=f2e120] [cursor=pointer]
+        - button "Y" [ref=f2e124] [cursor=pointer]
+      - generic [ref=f2e127]:
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f2e130]
+            - paragraph [ref=f2e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f2e132]:
+            - button [ref=f2e133] [cursor=pointer]
+            - button [ref=f2e137] [cursor=pointer]
+        - generic [ref=f2e141]:
+          - generic [ref=f2e142]:
+            - generic [ref=f2e143]:
+              - group [ref=f2e144]:
+                - button "Today" [ref=f2e145] [cursor=pointer]
+                - button "Yesterday" [ref=f2e146] [cursor=pointer]
+                - button "7D" [ref=f2e147] [cursor=pointer]
+                - button "30D" [ref=f2e148] [cursor=pointer]
+                - button "Month" [ref=f2e149] [cursor=pointer]
+              - generic [ref=f2e227]:
+                - generic [ref=f2e228]: Start Date
+                - group "Start Date" [ref=f2e229]:
+                  - generic [ref=f2e230]:
+                    - generic [ref=f2e231]:
+                      - spinbutton "Month" [ref=f2e232]: "09"
+                      - text: /
+                    - generic [ref=f2e233]:
+                      - spinbutton "Day" [ref=f2e234]: "28"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e236]: "2026"
+                  - button "Choose date, selected date is Sep 28, 2026" [ref=f2e410] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f2e241]: 09/28/2026
+              - generic [ref=f2e242]:
+                - generic [ref=f2e243]: End Date
+                - group "End Date" [ref=f2e244]:
+                  - generic [ref=f2e245]:
+                    - generic [ref=f2e246]:
+                      - spinbutton "Month" [ref=f2e247]: "10"
+                      - text: /
+                    - generic [ref=f2e248]:
+                      - spinbutton "Day" [ref=f2e249]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e251]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f2e253] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f2e256]: 10/27/2026
+            - generic [ref=f2e168]:
+              - button "Today" [ref=f2e169] [cursor=pointer]
+              - button "Yesterday" [ref=f2e171] [cursor=pointer]
+              - button "This Week" [ref=f2e173] [cursor=pointer]
+              - button "This Month" [ref=f2e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f2e177] [cursor=pointer]
+          - generic [ref=f2e179]: "Nepal BS: Ashwin 12 – Kartik 10, 2083 BS"
+        - generic [ref=f2e184]:
+          - generic [ref=f2e3469] [cursor=pointer]
+          - tablist [ref=f2e186]:
+            - tab "Executive Financials" [ref=f2e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [ref=f2e190] [cursor=pointer]
+            - tab "Purchases & Payables" [ref=f2e193] [cursor=pointer]
+            - tab "Inventory & Health" [ref=f2e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [ref=f2e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [ref=f2e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [active] [selected] [ref=f2e205] [cursor=pointer]
+        - generic [ref=f2e3599]:
+          - generic [ref=f2e3600]:
+            - generic [ref=f2e3602]:
+              - text: Total Members
+              - heading "66" [level=6] [ref=f2e3603]
+            - generic [ref=f2e3605]:
+              - text: Active Members
+              - heading "35" [level=6] [ref=f2e3606]
+            - generic [ref=f2e3608]:
+              - text: New Customers
+              - heading "38" [level=6] [ref=f2e3609]
+            - generic [ref=f2e3611]:
+              - text: Points Redeemed
+              - heading "0" [level=6] [ref=f2e3612]
+          - generic [ref=f2e3613]:
+            - generic [ref=f2e3614]:
+              - generic [ref=f2e3620]:
+                - heading "Top Customers by Lifetime Spend" [level=6] [ref=f2e3621]
+                - generic [ref=f2e3622]: "10 loyalty members · Total spend: Rs. 47,675.00"
+              - generic [ref=f2e3624]:
+                - textbox "Search by customer name..." [ref=f2e3628]
+                - group [aria-hidden]
+            - table [ref=f2e3630]:
+              - rowgroup [ref=f2e3631]:
+                - row [ref=f2e3632]:
+                  - columnheader "#" [ref=f2e3633]
+                  - columnheader "Customer Name" [ref=f2e3634]
+                  - columnheader "Transactions" [ref=f2e3635]
+                  - columnheader "Avg Basket Spend" [ref=f2e3636]
+                  - columnheader "Total Spent" [ref=f2e3637]
+              - rowgroup [ref=f2e3638]:
+                - row [ref=f2e3639]:
+                  - cell "1" [ref=f2e3640]
+                  - cell "saccha karki" [ref=f2e3641]
+                  - cell "1" [ref=f2e3642]
+                  - cell "Rs. 7,500.00" [ref=f2e3643]
+                  - cell "Rs. 7,500.00" [ref=f2e3644]
+                - row [ref=f2e3645]:
+                  - cell "2" [ref=f2e3646]
+                  - cell "Bhuwan Bhattarai" [ref=f2e3647]
+                  - cell "1" [ref=f2e3648]
+                  - cell "Rs. 7,270.00" [ref=f2e3649]
+                  - cell "Rs. 7,270.00" [ref=f2e3650]
+                - row [ref=f2e3651]:
+                  - cell "3" [ref=f2e3652]
+                  - cell "priyanka shrestha" [ref=f2e3653]
+                  - cell "2" [ref=f2e3654]
+                  - cell "Rs. 3,487.50" [ref=f2e3655]
+                  - cell "Rs. 6,975.00" [ref=f2e3656]
+                - row [ref=f2e3657]:
+                  - cell "4" [ref=f2e3658]
+                  - cell "simroon gurung" [ref=f2e3659]
+                  - cell "1" [ref=f2e3660]
+                  - cell "Rs. 4,400.00" [ref=f2e3661]
+                  - cell "Rs. 4,400.00" [ref=f2e3662]
+                - row [ref=f2e3663]:
+                  - cell "5" [ref=f2e3664]
+                  - cell "rewati bakhati thapa" [ref=f2e3665]
+                  - cell "1" [ref=f2e3666]
+                  - cell "Rs. 4,300.00" [ref=f2e3667]
+                  - cell "Rs. 4,300.00" [ref=f2e3668]
+                - row [ref=f2e3669]:
+                  - cell "6" [ref=f2e3670]
+                  - cell "biman" [ref=f2e3671]
+                  - cell "1" [ref=f2e3672]
+                  - cell "Rs. 4,300.00" [ref=f2e3673]
+                  - cell "Rs. 4,300.00" [ref=f2e3674]
+                - row [ref=f2e3675]:
+                  - cell "7" [ref=f2e3676]
+                  - cell "siru" [ref=f2e3677]
+                  - cell "1" [ref=f2e3678]
+                  - cell "Rs. 3,930.00" [ref=f2e3679]
+                  - cell "Rs. 3,930.00" [ref=f2e3680]
+                - row [ref=f2e3681]:
+                  - cell "8" [ref=f2e3682]
+                  - cell "Elina limbu" [ref=f2e3683]
+                  - cell "1" [ref=f2e3684]
+                  - cell "Rs. 3,120.00" [ref=f2e3685]
+                  - cell "Rs. 3,120.00" [ref=f2e3686]
+                - row [ref=f2e3687]:
+                  - cell "9" [ref=f2e3688]
+                  - cell "govinda" [ref=f2e3689]
+                  - cell "1" [ref=f2e3690]
+                  - cell "Rs. 3,080.00" [ref=f2e3691]
+                  - cell "Rs. 3,080.00" [ref=f2e3692]
+                - row [ref=f2e3693]:
+                  - cell "10" [ref=f2e3694]
+                  - cell "bipashak" [ref=f2e3695]
+                  - cell "1" [ref=f2e3696]
+                  - cell "Rs. 2,800.00" [ref=f2e3697]
+                  - cell "Rs. 2,800.00" [ref=f2e3698]
+              - rowgroup [ref=f2e3699]:
+                - row [ref=f2e3700]:
+                  - cell [ref=f2e3701]
+                  - cell "Total (10 Customers)" [ref=f2e3702]
+                  - cell "11" [ref=f2e3703]
+                  - cell "Rs. 4,334.09" [ref=f2e3704]
+                  - cell "Rs. 47,675.00" [ref=f2e3705]
+            - generic [ref=f2e3707]:
+              - paragraph [ref=f2e3708]: "Rows per page:"
+              - generic [ref=f2e3709]:
+                - combobox "Rows per page:" [ref=f2e3710] [cursor=pointer]: "10"
+                - textbox [aria-hidden]: "10"
+              - paragraph [ref=f2e3711]: 1–10 of 10
+              - generic [ref=f2e3712]:
+                - button "Go to previous page" [disabled]
+                - button "Go to next page" [disabled]
+  - generic [aria-hidden] [ref=f2e1569]: Rs. 0

@@ -20,7 +20,6 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import SecurityIcon from '@mui/icons-material/Security';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import dayjs from 'dayjs';
 
 import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { useDashboardStore } from '@/store';
@@ -75,34 +74,6 @@ export function ReportsPage() {
       next.set('tab', newValue);
       return next;
     }, { replace: true });
-  };
-
-  const applyPreset = (preset: 'today' | 'yesterday' | 'week' | 'month' | 'last30') => {
-    const today = dayjs();
-    let start = today;
-    let end = today;
-
-    if (preset === 'today') {
-      start = today;
-      end = today;
-    } else if (preset === 'yesterday') {
-      start = today.subtract(1, 'day');
-      end = today.subtract(1, 'day');
-    } else if (preset === 'week') {
-      start = today.startOf('week');
-      end = today;
-    } else if (preset === 'month') {
-      start = today.startOf('month');
-      end = today;
-    } else if (preset === 'last30') {
-      start = today.subtract(29, 'days');
-      end = today;
-    }
-
-    setDateRange({
-      startDate: start.format('YYYY-MM-DD'),
-      endDate: end.format('YYYY-MM-DD'),
-    });
   };
 
   const bsDateString = formatBsRange(dateRange.startDate, dateRange.endDate);
@@ -196,13 +167,6 @@ export function ReportsPage() {
             endDate={dateRange.endDate}
             onChange={setDateRange}
           />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-            <Chip label="Today" size="small" onClick={() => applyPreset('today')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
-            <Chip label="Yesterday" size="small" onClick={() => applyPreset('yesterday')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
-            <Chip label="This Week" size="small" onClick={() => applyPreset('week')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
-            <Chip label="This Month" size="small" onClick={() => applyPreset('month')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
-            <Chip label="Last 30 Days" size="small" onClick={() => applyPreset('last30')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
-          </Box>
         </Box>
 
         {/* Bikram Sambat (BS) Dual Calendar Pill */}

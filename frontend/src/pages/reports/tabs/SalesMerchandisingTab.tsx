@@ -272,8 +272,8 @@ export function SalesMerchandisingTab() {
               Realized sales and gross margin per business day across selected date range
             </Typography>
           </Box>
-          <Box sx={{ width: '100%', height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <Box sx={{ width: '100%', minWidth: 0, height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
               <AreaChart data={dailyTrendList} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">

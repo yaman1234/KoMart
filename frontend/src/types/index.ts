@@ -2096,68 +2096,108 @@ export interface CashFlowStatement {
 
 
 export interface VoidedTransactionRow {
-  transaction_number: string;
+  transactionNumber: string;
   date: string;
   cashier: string;
   amount: number;
-  void_reason: string;
+  voidReason: string;
+  transaction_number?: string;
+  void_reason?: string;
 }
 
 export interface LargeDiscountRow {
-  transaction_number: string;
+  transactionNumber: string;
   date: string;
   cashier: string;
-  gross_sales: number;
-  total_discount: number;
-  discount_pct: number;
-  net_total: number;
+  grossSales: number;
+  totalDiscount: number;
+  discountPct: number;
+  netTotal: number;
+  transaction_number?: string;
+  gross_sales?: number;
+  total_discount?: number;
+  discount_pct?: number;
+  net_total?: number;
 }
 
 export interface NegativeMarginProduct {
-  product_id: string;
+  productId: string;
   name: string;
   sku: string;
   category: string;
-  units_sold: number;
-  net_revenue: number;
-  total_cogs: number;
-  gross_profit: number;
-  gross_margin_pct: number;
+  unitsSold: number;
+  netRevenue: number;
+  totalCogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  product_id?: string;
+  units_sold?: number;
+  net_revenue?: number;
+  total_cogs?: number;
+  gross_profit?: number;
+  gross_margin_pct?: number;
 }
 
 export interface ExpiredStockRow {
-  product_id: string;
-  product_name: string;
+  productId: string;
+  productName: string;
   sku: string;
   category: string;
-  batch_number: string;
+  batchNumber: string;
   quantity: number;
-  unit_cost: number;
-  write_off_value: number;
-  expiry_date: string;
+  unitCost: number;
+  writeOffValue: number;
+  expiryDate: string;
+  product_id?: string;
+  product_name?: string;
+  batch_number?: string;
+  unit_cost?: number;
+  write_off_value?: number;
+  expiry_date?: string;
 }
 
 export interface MissingDayCloseRow {
   date: string;
-  day_label: string;
+  dayLabel: string;
+  day_label?: string;
 }
 
 export interface LossAuditReport {
-  period_start: string;
-  period_end: string;
-  total_void_count: number;
-  total_void_amount: number;
-  voided_transactions: VoidedTransactionRow[];
-  large_discount_threshold_pct: number;
-  large_discount_count: number;
-  total_large_discount_amount: number;
-  large_discount_transactions: LargeDiscountRow[];
-  negative_margin_product_count: number;
-  total_loss_on_neg_margin: number;
-  negative_margin_products: NegativeMarginProduct[];
-  expired_stock_count: number;
-  expired_stock_write_off_value: number;
-  expired_stock_items: ExpiredStockRow[];
-  missing_day_close_count: number;
-  missing_day_closes: MissingDayCloseRow[];
+  periodStart: string;
+  periodEnd: string;
+  totalVoidCount: number;
+  totalVoidAmount: number;
+  voidedTransactions: VoidedTransactionRow[];
+  largeDiscountThresholdPct: number;
+  largeDiscountCount: number;
+  totalLargeDiscountAmount: number;
+  largeDiscountTransactions: LargeDiscountRow[];
+  negativeMarginProductCount: number;
+  totalLossOnNegMargin: number;
+  negativeMarginProducts: NegativeMarginProduct[];
+  expiredStockCount: number;
+  expiredStockWriteOffValue: number;
+  expiredStockItems: ExpiredStockRow[];
+  missingDayCloseCount: number;
+  missingDayCloses: MissingDayCloseRow[];
+
+  // Optional backwards compatibility
+  period_start?: string;
+  period_end?: string;
+  total_void_count?: number;
+  total_void_amount?: number;
+  voided_transactions?: VoidedTransactionRow[];
+  large_discount_threshold_pct?: number;
+  large_discount_count?: number;
+  total_large_discount_amount?: number;
+  large_discount_transactions?: LargeDiscountRow[];
+  negative_margin_product_count?: number;
+  total_loss_on_neg_margin?: number;
+  negative_margin_products?: NegativeMarginProduct[];
+  expired_stock_count?: number;
+  expired_stock_write_off_value?: number;
+  expired_stock_items?: ExpiredStockRow[];
+  missing_day_close_count?: number;
+  missing_day_closes?: MissingDayCloseRow[];
 }
+
