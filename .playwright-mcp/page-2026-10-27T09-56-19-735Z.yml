@@ -1,0 +1,230 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e6]:
+      - img "KoMart logo" [ref=f2e10]
+      - separator [ref=f2e11]
+      - list [ref=f2e12]:
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f2e19]:
+          - link "POS" [ref=f2e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f2e25]:
+          - link "Sales" [ref=f2e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f2e32]:
+          - link "Products" [ref=f2e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f2e38]:
+          - link "Inventory" [ref=f2e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f2e44]:
+          - link "Stock Count" [ref=f2e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f2e50]:
+          - link "Suppliers" [ref=f2e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f2e56]:
+          - link "Purchase Orders" [ref=f2e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f2e62]:
+          - link "Purchase Returns" [ref=f2e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f2e68]:
+          - link "Expenses" [ref=f2e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f2e74]:
+          - link "Accounts" [ref=f2e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f2e80]:
+          - link "Reconciliation" [ref=f2e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f2e86]:
+          - link "Customers" [ref=f2e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f2e92]:
+          - link "Reports" [ref=f2e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f2e98]:
+          - link "Notifications" [ref=f2e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f2e104]:
+          - link "Settings" [ref=f2e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f2e110]:
+      - generic [ref=f2e112]:
+        - button "Go to Home" [ref=f2e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f2e117] [cursor=pointer]
+        - button "Notifications" [ref=f2e120] [cursor=pointer]
+        - button "Y" [ref=f2e124] [cursor=pointer]
+      - generic [ref=f2e127]:
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f2e130]
+            - paragraph [ref=f2e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f2e132]:
+            - button [ref=f2e133] [cursor=pointer]
+            - button [ref=f2e137] [cursor=pointer]
+        - generic [ref=f2e141]:
+          - generic [ref=f2e142]:
+            - generic [ref=f2e143]:
+              - group [ref=f2e144]:
+                - button "Today" [ref=f2e145] [cursor=pointer]
+                - button "Yesterday" [ref=f2e146] [cursor=pointer]
+                - button "7D" [ref=f2e147] [cursor=pointer]
+                - button "30D" [ref=f2e148] [cursor=pointer]
+                - button "Month" [ref=f2e149] [cursor=pointer]
+              - generic [ref=f2e227]:
+                - generic [ref=f2e228]: Start Date
+                - group "Start Date" [ref=f2e229]:
+                  - generic [ref=f2e230]:
+                    - generic [ref=f2e231]:
+                      - spinbutton "Month" [ref=f2e232]: "09"
+                      - text: /
+                    - generic [ref=f2e233]:
+                      - spinbutton "Day" [ref=f2e234]: "28"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e236]: "2026"
+                  - button "Choose date, selected date is Sep 28, 2026" [ref=f2e410] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f2e241]: 09/28/2026
+              - generic [ref=f2e242]:
+                - generic [ref=f2e243]: End Date
+                - group "End Date" [ref=f2e244]:
+                  - generic [ref=f2e245]:
+                    - generic [ref=f2e246]:
+                      - spinbutton "Month" [ref=f2e247]: "10"
+                      - text: /
+                    - generic [ref=f2e248]:
+                      - spinbutton "Day" [ref=f2e249]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e251]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f2e253] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f2e256]: 10/27/2026
+            - generic [ref=f2e168]:
+              - button "Today" [ref=f2e169] [cursor=pointer]
+              - button "Yesterday" [ref=f2e171] [cursor=pointer]
+              - button "This Week" [ref=f2e173] [cursor=pointer]
+              - button "This Month" [ref=f2e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f2e177] [cursor=pointer]
+          - generic [ref=f2e179]: "Nepal BS: Ashwin 12 – Kartik 10, 2083 BS"
+        - generic [ref=f2e184]:
+          - generic [ref=f2e3469] [cursor=pointer]
+          - tablist [ref=f2e186]:
+            - tab "Executive Financials" [ref=f2e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [ref=f2e190] [cursor=pointer]
+            - tab "Purchases & Payables" [ref=f2e193] [cursor=pointer]
+            - tab "Inventory & Health" [ref=f2e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [ref=f2e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [active] [selected] [ref=f2e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [ref=f2e205] [cursor=pointer]
+          - generic [ref=f2e257] [cursor=pointer]
+        - generic [ref=f2e3472]:
+          - generic [ref=f2e3473]:
+            - generic [ref=f2e3474]:
+              - heading "Loss Prevention & Operational Audit" [level=6] [ref=f2e3475]
+              - paragraph [ref=f2e3476]: Identify leakage, cash voids, abnormal discounts, loss-making items, expired stock, and unreconciled cash days
+            - generic [ref=f2e3477]:
+              - generic [ref=f2e3478]: Discount Alert Threshold
+              - generic [ref=f2e3479]:
+                - combobox "Discount Alert Threshold" [ref=f2e3480] [cursor=pointer]: Above 20% Discount (Default)
+                - textbox [aria-hidden]: "20"
+                - group [aria-hidden]:
+                  - generic: Discount Alert Threshold
+          - generic [ref=f2e3481]:
+            - generic [ref=f2e3483] [cursor=pointer]:
+              - generic [ref=f2e3484]: Cancelled Bills
+              - heading [level=5]
+              - generic [ref=f2e3488]: "Lost Value: —"
+            - generic [ref=f2e3490] [cursor=pointer]:
+              - generic [ref=f2e3491]: High Discounts (>20%)
+              - heading [level=5]
+              - generic [ref=f2e3496]: "Discount Given: —"
+            - generic [ref=f2e3498] [cursor=pointer]:
+              - generic [ref=f2e3499]: Sold Below Cost
+              - heading [level=5]
+              - generic [ref=f2e3503]: "Gross Loss: —"
+            - generic [ref=f2e3505] [cursor=pointer]:
+              - generic [ref=f2e3506]: Expired On Shelf
+              - heading [level=5]
+              - generic [ref=f2e3510]: "Write-Off: —"
+            - generic [ref=f2e3512]:
+              - generic [ref=f2e3513]: Unreconciled Days
+              - heading [level=5]
+              - generic [ref=f2e3518]: Missing day cash closes
+          - generic [ref=f2e3519]:
+            - button "All Audit Issues" [ref=f2e3520] [cursor=pointer]
+            - button "Cancelled Bills (undefined)" [ref=f2e3522] [cursor=pointer]
+            - button "High Discounts (undefined)" [ref=f2e3524] [cursor=pointer]
+            - button "Sold Below Cost (undefined)" [ref=f2e3526] [cursor=pointer]
+            - button "Expired on Shelf (undefined)" [ref=f2e3528] [cursor=pointer]
+          - generic [ref=f2e3530]:
+            - heading "1. Cancelled & Voided Bills" [level=6] [ref=f2e3531]
+            - paragraph [ref=f2e3532]: Transactions voided after ringing up items. Frequent voids by a cashier can indicate training issues or leakage.
+            - table [ref=f2e3534]:
+              - rowgroup [ref=f2e3535]:
+                - row [ref=f2e3536]:
+                  - columnheader "#" [ref=f2e3537]
+                  - 'columnheader "Bill #" [ref=f2e3538]'
+                  - columnheader "Date" [ref=f2e3539]
+                  - columnheader "Cashier" [ref=f2e3540]
+                  - columnheader "Amount" [ref=f2e3541]
+                  - columnheader "Reason Given" [ref=f2e3542]
+              - rowgroup [ref=f2e3543]:
+                - row [ref=f2e3544]:
+                  - cell "No voided transactions in this date range. Great job!" [ref=f2e3545]
+          - generic [ref=f2e3546]:
+            - heading "2. Bills with High Discounts (>20%)" [level=6] [ref=f2e3547]
+            - paragraph [ref=f2e3548]: Bills where discounts exceeded 20% of the gross total. Useful for auditing cashier-level discretionary discounting.
+            - table [ref=f2e3550]:
+              - rowgroup [ref=f2e3551]:
+                - row [ref=f2e3552]:
+                  - columnheader "#" [ref=f2e3553]
+                  - 'columnheader "Bill #" [ref=f2e3554]'
+                  - columnheader "Date" [ref=f2e3555]
+                  - columnheader "Cashier" [ref=f2e3556]
+                  - columnheader "Original Price" [ref=f2e3557]
+                  - columnheader "Discount Amount" [ref=f2e3558]
+                  - columnheader "Discount %" [ref=f2e3559]
+                  - columnheader "Final Paid" [ref=f2e3560]
+              - rowgroup [ref=f2e3561]:
+                - row [ref=f2e3562]:
+                  - cell "No bills exceeded the 20% discount threshold in this period." [ref=f2e3563]
+          - generic [ref=f2e3564]:
+            - heading "3. Products Sold Below Purchase Cost" [level=6] [ref=f2e3565]
+            - paragraph [ref=f2e3566]: Items where the selling price was lower than the product's purchase cost (Cost of Goods Sold).
+            - table [ref=f2e3568]:
+              - rowgroup [ref=f2e3569]:
+                - row [ref=f2e3570]:
+                  - columnheader "#" [ref=f2e3571]
+                  - columnheader "Product Name" [ref=f2e3572]
+                  - columnheader "Category" [ref=f2e3573]
+                  - columnheader "Units Sold" [ref=f2e3574]
+                  - columnheader "Revenue" [ref=f2e3575]
+                  - columnheader "Cost (COGS)" [ref=f2e3576]
+                  - columnheader "Loss Incurred" [ref=f2e3577]
+                  - columnheader "Margin %" [ref=f2e3578]
+              - rowgroup [ref=f2e3579]:
+                - row [ref=f2e3580]:
+                  - cell "Zero items were sold below purchase cost. All sales had positive gross margin!" [ref=f2e3581]
+          - generic [ref=f2e3582]:
+            - heading "4. Expired Stock Still in Inventory" [level=6] [ref=f2e3583]
+            - paragraph [ref=f2e3584]: Stock batches that have passed their expiration date but are still physically showing in stock with quantity > 0.
+            - table [ref=f2e3586]:
+              - rowgroup [ref=f2e3587]:
+                - row [ref=f2e3588]:
+                  - columnheader "#" [ref=f2e3589]
+                  - columnheader "Product Name" [ref=f2e3590]
+                  - 'columnheader "Batch #" [ref=f2e3591]'
+                  - columnheader "Expiry Date" [ref=f2e3592]
+                  - columnheader "Quantity" [ref=f2e3593]
+                  - columnheader "Unit Cost" [ref=f2e3594]
+                  - columnheader "Write-Off Value" [ref=f2e3595]
+              - rowgroup [ref=f2e3596]:
+                - row [ref=f2e3597]:
+                  - cell "No expired stock detected in active inventory." [ref=f2e3598]
+  - generic [aria-hidden] [ref=f2e1569]: Rs. 0

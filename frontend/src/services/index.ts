@@ -56,6 +56,12 @@ import type {
   LowStockProductRow,
   ProfitSummary,
   MarginByCategory,
+  ExecutiveFinancialSummary,
+  SalesPerformanceReport,
+  SoldProductWithMargin,
+  PurchasingPayablesReport,
+  InventoryHealthReport,
+  CashFlowStatement,
   PurchasingBySupplier,
   PurchaseOrdersSummary,
   TopCustomer,
@@ -798,6 +804,49 @@ export const reportsService = {
   getDailySummary: async (date: string): Promise<import('@/types').DailySummary> => {
     if (useMock()) return mockApi.getDailySummary(date);
     const { data } = await apiClient.get('/reports/daily-summary', { params: { date } });
+    return data;
+  },
+  getExecutiveSummary: async (range?: DateRange): Promise<ExecutiveFinancialSummary> => {
+    const { data } = await apiClient.get('/reports/executive-summary', { params: withRange(range) });
+    return data;
+  },
+  getSalesPerformance: async (range?: DateRange): Promise<SalesPerformanceReport> => {
+    const { data } = await apiClient.get('/reports/sales-performance', { params: withRange(range) });
+    return data;
+  },
+  getItemsSold: async (range?: DateRange): Promise<SoldProductWithMargin[]> => {
+    const { data } = await apiClient.get('/reports/items-sold', {
+      params: { ...withRange(range), page_size: 1000 },
+    });
+    const items = Array.isArray(data)
+      ? data
+      : data && Array.isArray((data as any).data)
+        ? (data as any).data
+        : ensureArray(data);
+    return items as SoldProductWithMargin[];
+  },
+  getPurchasingPayables: async (range?: DateRange): Promise<PurchasingPayablesReport> => {
+    const { data } = await apiClient.get('/reports/purchasing-payables', { params: withRange(range) });
+    return data;
+  },
+  getInventoryHealth: async (
+    stockFilter: 'both' | 'low' | 'out' = 'both',
+    expiryDays = 30,
+    deadDays = 30,
+  ): Promise<InventoryHealthReport> => {
+    const { data } = await apiClient.get('/reports/inventory-health', {
+      params: { stock_filter: stockFilter, expiry_days: expiryDays, dead_days: deadDays },
+    });
+    return data;
+  },
+  getCashFlow: async (range?: DateRange): Promise<CashFlowStatement> => {
+    const { data } = await apiClient.get('/reports/cash-flow', { params: withRange(range) });
+    return data;
+  },
+  getLossAudit: async (range?: DateRange, discountThreshold = 20): Promise<import('@/types').LossAuditReport> => {
+    const { data } = await apiClient.get('/reports/loss-audit', {
+      params: { ...withRange(range), discount_threshold: discountThreshold },
+    });
     return data;
   },
 };

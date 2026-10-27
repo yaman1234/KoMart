@@ -308,3 +308,84 @@ export function usePostDayCloseVariance() {
     },
   });
 }
+
+export function useExecutiveSummary(enabled = true) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('executiveSummary'), dateRange],
+      () => reportsService.getExecutiveSummary(dateRange),
+      enabled,
+    ),
+  );
+}
+
+export function useSalesPerformance(enabled = true) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('salesPerformance'), dateRange],
+      () => reportsService.getSalesPerformance(dateRange),
+      enabled,
+    ),
+  );
+}
+
+export function useItemsSold(enabled = true) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('itemsSold'), dateRange],
+      () => reportsService.getItemsSold(dateRange),
+      enabled,
+    ),
+  );
+}
+
+export function usePurchasingPayables(enabled = true) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('purchasingPayables'), dateRange],
+      () => reportsService.getPurchasingPayables(dateRange),
+      enabled,
+    ),
+  );
+}
+
+export function useInventoryHealth(
+  enabled = true,
+  stockFilter: 'both' | 'low' | 'out' = 'both',
+  expiryDays = 30,
+  deadDays = 30,
+) {
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('inventoryHealth'), stockFilter, expiryDays, deadDays],
+      () => reportsService.getInventoryHealth(stockFilter, expiryDays, deadDays),
+      enabled,
+    ),
+  );
+}
+
+export function useCashFlowStatement(enabled = true) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('cashFlowStatement'), dateRange],
+      () => reportsService.getCashFlow(dateRange),
+      enabled,
+    ),
+  );
+}
+
+export function useLossAudit(enabled = true, discountThreshold = 20) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('lossAudit'), dateRange, discountThreshold],
+      () => reportsService.getLossAudit(dateRange, discountThreshold),
+      enabled,
+    ),
+  );
+}

@@ -11,18 +11,50 @@ from app.models.expense import Expense
 from app.models.inventory import InventoryBatch
 from app.models.product import Product
 from app.models.transaction import Transaction, TransactionItem, TransactionStatus
+from app.schemas.reports import SoldProductWithMargin
 from app.services.stock import classify_on_hand_stock, get_current_stock_batch
+from app.services.time_nepal import NPT, ensure_utc, npt_day_end_utc, npt_day_start_utc, to_npt
 
 
 def parse_date_range(start_date: str, end_date: str) -> tuple[datetime, datetime]:
-    now = datetime.now(timezone.utc)
-    start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=30)
-    if start.tzinfo is None:
-        start = start.replace(tzinfo=timezone.utc)
-    end = datetime.fromisoformat(end_date) if end_date else now
-    if end.tzinfo is None:
-        end = end.replace(tzinfo=timezone.utc)
-    end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
+    """
+    Parse start_date and end_date into UTC datetimes corresponding to Nepal (Asia/Kathmandu) day boundaries.
+
+    If date-only (YYYY-MM-DD):
+      start -> 00:00:00 NPT in UTC
+      end   -> 23:59:59.999999 NPT in UTC
+    If empty:
+      start -> 30 days ago in NPT (00:00:00 NPT in UTC)
+      end   -> today in NPT (23:59:59.999999 NPT in UTC)
+    """
+    now_npt = datetime.now(NPT).date()
+
+    if start_date and str(start_date).strip():
+        s = str(start_date).strip()
+        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+            start = npt_day_start_utc(s[:10])
+        else:
+            try:
+                dt = datetime.fromisoformat(s)
+                start = ensure_utc(dt) if dt.tzinfo else dt.replace(tzinfo=NPT).astimezone(timezone.utc)
+            except Exception:
+                start = npt_day_start_utc(now_npt - timedelta(days=30))
+    else:
+        start = npt_day_start_utc(now_npt - timedelta(days=30))
+
+    if end_date and str(end_date).strip():
+        e = str(end_date).strip()
+        if len(e) >= 10 and e[4] == "-" and e[7] == "-":
+            end = npt_day_end_utc(e[:10])
+        else:
+            try:
+                dt = datetime.fromisoformat(e)
+                end = ensure_utc(dt) if dt.tzinfo else dt.replace(tzinfo=NPT).astimezone(timezone.utc)
+            except Exception:
+                end = npt_day_end_utc(now_npt)
+    else:
+        end = npt_day_end_utc(now_npt)
+
     return start, end
 
 
@@ -85,11 +117,19 @@ def allocate_txn_to_lines(txn: Transaction) -> list[dict[str, Any]]:
 
 
 def line_cogs(item: TransactionItem, product: Product | None) -> float:
-    unit_cost = getattr(item, "unit_cost", 0.0) or 0.0
+    """
+    Cost of goods sold for a sale line item.
+    unit_cost and product.cost_price are per base inventory unit.
+    When a pack or carton is sold (unit_factor > 1), quantity is multiplied by unit_factor.
+    """
+    factor = max(1, int(getattr(item, "unit_factor", 1) or 1))
+    base_qty = float(item.quantity) * factor
+    unit_cost = float(getattr(item, "unit_cost", 0.0) or 0.0)
     if unit_cost > 0:
-        return unit_cost * item.quantity
+        return round(unit_cost * base_qty, 2)
     if product:
-        return product.cost_price * item.quantity
+        cost = float(getattr(product, "cost_price", 0.0) or 0.0)
+        return round(cost * base_qty, 2)
     return 0.0
 
 
@@ -142,7 +182,13 @@ async def aggregate_sales_by_day(start: datetime, end: datetime) -> dict[str, fl
         },
         {
             "$group": {
-                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+                "_id": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%d",
+                        "date": "$created_at",
+                        "timezone": "Asia/Kathmandu",
+                    }
+                },
                 "revenue": {"$sum": "$total"},
             },
         },
@@ -205,8 +251,8 @@ async def aggregate_expense_total_since(date_gte: str) -> float:
 
 
 async def aggregate_operating_expense_total_since(date_gte: str) -> float:
-    """Sum expenses since date, excluding setup / investment costs."""
-    from app.services.expense_helpers import SETUP_INVESTMENT_MATCH
+    """Sum expenses since date, excluding setup / investment costs and PO supplier payments."""
+    from app.services.expense_helpers import SETUP_INVESTMENT_MATCH, PO_PAYMENT_MATCH
 
     pipeline = [
         {"$match": {"date": {"$gte": date_gte}}},
@@ -215,13 +261,17 @@ async def aggregate_operating_expense_total_since(date_gte: str) -> float:
                 "_id": None,
                 "total": {"$sum": "$amount"},
                 "setup": {"$sum": {"$cond": [SETUP_INVESTMENT_MATCH, "$amount", 0]}},
+                "po_paid": {"$sum": {"$cond": [PO_PAYMENT_MATCH, "$amount", 0]}},
             },
         },
     ]
     rows = await Expense.aggregate(pipeline).to_list()
     if not rows:
         return 0.0
-    return float(rows[0]["total"] or 0) - float(rows[0]["setup"] or 0)
+    tot = float(rows[0]["total"] or 0)
+    setup = float(rows[0]["setup"] or 0)
+    po = float(rows[0]["po_paid"] or 0)
+    return max(0.0, tot - setup - po)
 
 
 async def aggregate_sold_product_ids(since: datetime) -> set[str]:
@@ -264,9 +314,22 @@ def days_until(expiry: str) -> int:
 
 
 async def aggregate_inventory_by_category() -> list[dict[str, Any]]:
+    """Category inventory valuation reconciled with FEFO batch acquisition cost."""
     products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
     product_ids = [str(p.id) for p in products]
     stock_map = await get_current_stock_batch(product_ids)
+
+    batch_pipeline = [
+        {"$match": {"quantity": {"$gt": 0}}},
+        {
+            "$group": {
+                "_id": "$product_id",
+                "batch_value": {"$sum": {"$multiply": ["$quantity", "$unit_cost"]}},
+            },
+        },
+    ]
+    batch_rows = await InventoryBatch.aggregate(batch_pipeline).to_list()
+    batch_val_map = {row["_id"]: float(row["batch_value"]) for row in batch_rows}
 
     by_category: dict[str, dict[str, Any]] = {}
     for product in products:
@@ -281,9 +344,21 @@ async def aggregate_inventory_by_category() -> list[dict[str, Any]]:
         })
         entry["sku_count"] += 1
         entry["total_stock"] += stock
-        entry["stock_value"] += stock * product.cost_price
 
-    result = list(by_category.values())
+        val = batch_val_map.get(pid, 0.0)
+        if val <= 0 and stock > 0:
+            val = stock * product.cost_price
+        entry["stock_value"] += val
+
+    result = [
+        {
+            "category": v["category"],
+            "sku_count": v["sku_count"],
+            "total_stock": v["total_stock"],
+            "stock_value": round(v["stock_value"], 2),
+        }
+        for v in by_category.values()
+    ]
     result.sort(key=lambda x: x["stock_value"], reverse=True)
     return result
 
@@ -294,10 +369,99 @@ def fill_daily_revenue(
     daily_totals: dict[str, float],
 ) -> list[tuple[str, float]]:
     daily: dict[str, float] = {}
-    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_day = end.replace(hour=0, minute=0, second=0, microsecond=0)
+    current = to_npt(start).date()
+    end_day = to_npt(end).date()
     while current <= end_day:
         key = current.strftime("%Y-%m-%d")
         daily[key] = daily_totals.get(key, 0.0)
         current += timedelta(days=1)
     return sorted(daily.items())
+
+
+def aggregate_items_sold_with_margin(
+    txns: list[Transaction],
+    product_cache: dict[str, Product],
+) -> list[SoldProductWithMargin]:
+    """
+    Aggregate sold items across transactions with proportional bill discount allocation
+    and accurate FEFO batch COGS.
+    """
+    stats: dict[str, dict[str, Any]] = {}
+
+    for txn in txns:
+        allocated_lines = allocate_txn_to_lines(txn)
+        for alloc in allocated_lines:
+            item: TransactionItem = alloc["item"]
+            pid = item.product_id
+            product = product_cache.get(pid)
+            cat = product.category if product else (item.category or "Other")
+            uom = item.sell_uom or getattr(product, "sell_uom", "pcs") or "pcs"
+
+            if pid not in stats:
+                stats[pid] = {
+                    "product_id": pid,
+                    "name": item.name or (product.name if product else "Unknown"),
+                    "sku": item.sku or (product.sku if product else ""),
+                    "category": cat or "Other",
+                    "sell_uom": uom,
+                    "quantity_sold": 0,
+                    "gross_sales": 0.0,
+                    "line_discount": 0.0,
+                    "bill_discount": 0.0,
+                    "total_discount": 0.0,
+                    "net_revenue": 0.0,
+                    "total_cogs": 0.0,
+                    "unit_cost_sum": 0.0,
+                }
+
+            qty = int(item.quantity)
+            line_c = line_cogs(item, product)
+
+            s = stats[pid]
+            s["quantity_sold"] += qty
+            s["gross_sales"] += float(alloc["gross"])
+            s["line_discount"] += float(alloc["line_discount"])
+            s["bill_discount"] += float(alloc["bill_discount"])
+            s["total_discount"] += float(alloc["discount_given"])
+            s["net_revenue"] += float(alloc["revenue"])
+            s["total_cogs"] += line_c
+            s["unit_cost_sum"] += (float(getattr(item, "unit_cost", 0) or 0) * qty)
+
+    rows: list[SoldProductWithMargin] = []
+    for pid, s in stats.items():
+        qty = s["quantity_sold"]
+        gross = s["gross_sales"]
+        net_rev = s["net_revenue"]
+        cogs = s["total_cogs"]
+        profit = net_rev - cogs
+        margin = (profit / net_rev * 100) if net_rev else 0.0
+        avg_price = (gross / qty) if qty else 0.0
+        avg_unit_cost = (
+            (s["unit_cost_sum"] / qty)
+            if qty and s["unit_cost_sum"] > 0
+            else (cogs / qty if qty else 0.0)
+        )
+
+        rows.append(
+            SoldProductWithMargin(
+                product_id=pid,
+                name=s["name"],
+                sku=s["sku"],
+                category=s["category"],
+                sell_uom=s["sell_uom"],
+                quantity_sold=qty,
+                avg_selling_price=round(avg_price, 2),
+                gross_sales=round(gross, 2),
+                line_discount=round(s["line_discount"], 2),
+                bill_discount=round(s["bill_discount"], 2),
+                total_discount=round(s["total_discount"], 2),
+                net_revenue=round(net_rev, 2),
+                unit_cost=round(avg_unit_cost, 2),
+                total_cogs=round(cogs, 2),
+                gross_profit=round(profit, 2),
+                gross_margin_pct=round(margin, 1),
+            )
+        )
+
+    rows.sort(key=lambda x: x.net_revenue, reverse=True)
+    return rows

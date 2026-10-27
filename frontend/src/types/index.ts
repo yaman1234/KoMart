@@ -1622,3 +1622,582 @@ export interface CashReconciliationDayData {
   todayCustodyOut: number;
   previousRecord: CashReconciliation | null;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 & 3: Institutional-Grade Retail Accounting Report Types
+// ---------------------------------------------------------------------------
+
+export interface TradingPnLWaterfall {
+  grossSales: number;
+  itemMarkdowns: number;
+  billDiscounts: number;
+  totalDiscounts: number;
+  netSales: number;
+  totalCogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  operatingExpenses: number;
+  operatingProfit: number; // EBIT
+  operatingMarginPct: number;
+  setupInvestment: number;
+  netProfit: number;
+  // Fallbacks
+  gross_sales?: number;
+  item_markdowns?: number;
+  bill_discounts?: number;
+  total_discounts?: number;
+  net_sales?: number;
+  total_cogs?: number;
+  gross_profit?: number;
+  gross_margin_pct?: number;
+  operating_expenses?: number;
+  operating_profit?: number;
+  operating_margin_pct?: number;
+  setup_investment?: number;
+  net_profit?: number;
+}
+
+export interface CashToProfitBridge {
+  accrualOperatingProfit: number;
+  nonCashConsumption: number;
+  cogsInventoryReduction: number;
+  supplierPoPayments: number;
+  supplierRefundsCollected: number;
+  timingFloatDifference: number;
+  netCashFlow: number;
+  // Fallbacks
+  accrual_operating_profit?: number;
+  non_cash_consumption?: number;
+  cogs_inventory_reduction?: number;
+  supplier_po_payments?: number;
+  supplier_refunds_collected?: number;
+  timing_float_difference?: number;
+  net_cash_flow?: number;
+}
+
+export interface WorkingCapitalSummary {
+  inventoryValue: number;
+  accountsPayable: number;
+  accountsReceivable: number;
+  // Fallbacks
+  inventory_value?: number;
+  accounts_payable?: number;
+  accounts_receivable?: number;
+}
+
+export interface TaxVatSummary {
+  taxableSales: number;
+  exemptSales: number;
+  outputVat13: number;
+  roundOff: number;
+  // Fallbacks
+  taxable_sales?: number;
+  exempt_sales?: number;
+  output_vat_13?: number;
+  round_off?: number;
+}
+
+export interface ExecutiveFinancialSummary {
+  periodStart: string;
+  periodEnd: string;
+  pnl: TradingPnLWaterfall;
+  cashFlowSummary: Record<string, number>;
+  cashBridge: CashToProfitBridge;
+  workingCapital: WorkingCapitalSummary;
+  taxVat: TaxVatSummary;
+  // Fallbacks
+  period_start?: string;
+  period_end?: string;
+  cash_flow_summary?: Record<string, number>;
+  cash_bridge?: CashToProfitBridge;
+  working_capital?: WorkingCapitalSummary;
+  tax_vat?: TaxVatSummary;
+}
+
+export interface CategoryContribution {
+  category: string;
+  unitsSold: number;
+  grossSales: number;
+  discounts: number;
+  netRevenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  revenueSharePct: number;
+  profitSharePct: number;
+  // Fallbacks
+  units_sold?: number;
+  gross_sales?: number;
+  net_revenue?: number;
+  gross_profit?: number;
+  gross_margin_pct?: number;
+  revenue_share_pct?: number;
+  profit_share_pct?: number;
+}
+
+export interface TenderMixItem {
+  method: string;
+  amount: number;
+  transactionCount: number;
+  sharePct: number;
+  // Fallbacks
+  transaction_count?: number;
+  share_pct?: number;
+}
+
+export interface DailySalesPerformance {
+  date: string;
+  grossSales: number;
+  discounts: number;
+  netRevenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  transactionCount: number;
+  // Fallbacks
+  gross_sales?: number;
+  net_revenue?: number;
+  gross_profit?: number;
+  gross_margin_pct?: number;
+  transaction_count?: number;
+}
+
+export interface SalesPerformanceReport {
+  periodStart: string;
+  periodEnd: string;
+  totalGrossSales: number;
+  totalDiscounts: number;
+  totalNetRevenue: number;
+  totalCogs: number;
+  totalGrossProfit: number;
+  grossMarginPct: number;
+  transactionCount: number;
+  totalUnitsSold: number;
+  avgBasket: number;
+  categories: CategoryContribution[];
+  tenderMix: TenderMixItem[];
+  dailyTrend: DailySalesPerformance[];
+  // Fallbacks
+  period_start?: string;
+  period_end?: string;
+  total_gross_sales?: number;
+  total_discounts?: number;
+  total_net_revenue?: number;
+  total_cogs?: number;
+  total_gross_profit?: number;
+  gross_margin_pct?: number;
+  transaction_count?: number;
+  total_units_sold?: number;
+  avg_basket?: number;
+  tender_mix?: TenderMixItem[];
+  daily_trend?: DailySalesPerformance[];
+}
+
+export interface SoldProductWithMargin {
+  productId: string;
+  name: string;
+  sku: string;
+  category: string;
+  sellUom: string;
+  quantitySold: number;
+  avgSellingPrice: number;
+  grossSales: number;
+  lineDiscount: number;
+  billDiscount: number;
+  totalDiscount: number;
+  netRevenue: number;
+  unitCost: number;
+  totalCogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  // Fallbacks
+  product_id?: string;
+  sell_uom?: string;
+  quantity_sold?: number;
+  avg_selling_price?: number;
+  gross_sales?: number;
+  line_discount?: number;
+  bill_discount?: number;
+  total_discount?: number;
+  net_revenue?: number;
+  unit_cost?: number;
+  total_cogs?: number;
+  gross_profit?: number;
+  gross_margin_pct?: number;
+}
+
+export interface APAgingBuckets {
+  current_0_30: number;
+  aging_31_60: number;
+  aging_61_90: number;
+  over_90: number;
+  totalAp: number;
+  total_ap?: number;
+  current0To30?: number;
+  aging31To60?: number;
+  aging61To90?: number;
+  over90?: number;
+}
+
+export interface SupplierLedgerRow {
+  supplierId: string;
+  supplierName: string;
+  panNumber: string;
+  phone: string;
+  orderCount: number;
+  grossPurchases: number;
+  discounts: number;
+  additionalCharges: number;
+  netPurchases: number;
+  amountPaid: number;
+  outstandingBalance: number;
+  aging: APAgingBuckets;
+  // Fallbacks
+  supplier_id?: string;
+  supplier_name?: string;
+  pan_number?: string;
+  order_count?: number;
+  gross_purchases?: number;
+  additional_charges?: number;
+  net_purchases?: number;
+  amount_paid?: number;
+  outstanding_balance?: number;
+}
+
+export interface PurchaseReturnRow {
+  returnId: string;
+  returnNumber: string;
+  orderNumber: string;
+  supplierId: string;
+  supplierName: string;
+  returnDate: string;
+  itemsCount: number;
+  totalAmount: number;
+  amountReceived: number;
+  writeOffAmount: number;
+  pendingReceivable: number;
+  status: string;
+  settlementType: string;
+  // Fallbacks
+  return_id?: string;
+  return_number?: string;
+  order_number?: string;
+  supplier_id?: string;
+  supplier_name?: string;
+  return_date?: string;
+  items_count?: number;
+  total_amount?: number;
+  amount_received?: number;
+  write_off_amount?: number;
+  pending_receivable?: number;
+  settlement_type?: string;
+}
+
+export interface PurchasingPayablesReport {
+  periodStart: string;
+  periodEnd: string;
+  grossPurchases: number;
+  purchaseDiscounts: number;
+  additionalCharges: number;
+  netPurchases: number;
+  totalAmountPaid: number;
+  totalOutstandingAp: number;
+  apAging: APAgingBuckets;
+  supplierLedger: SupplierLedgerRow[];
+  totalPurchaseReturnsValue: number;
+  totalReturnRefundsReceived: number;
+  totalSupplierReceivables: number;
+  returnsLedger: PurchaseReturnRow[];
+  // Fallbacks
+  period_start?: string;
+  period_end?: string;
+  gross_purchases?: number;
+  purchase_discounts?: number;
+  additional_charges?: number;
+  net_purchases?: number;
+  total_amount_paid?: number;
+  total_outstanding_ap?: number;
+  ap_aging?: APAgingBuckets;
+  supplier_ledger?: SupplierLedgerRow[];
+  total_purchase_returns_value?: number;
+  total_return_refunds_received?: number;
+  total_supplier_receivables?: number;
+  returns_ledger?: PurchaseReturnRow[];
+}
+
+export interface CategoryValuationRow {
+  category: string;
+  skuCount: number;
+  totalUnits: number;
+  batchValuation: number;
+  valuationSharePct: number;
+  // Fallbacks
+  sku_count?: number;
+  total_units?: number;
+  batch_valuation?: number;
+  valuation_share_pct?: number;
+}
+
+export interface ReorderCandidateRow {
+  productId: string;
+  name: string;
+  sku: string;
+  category: string;
+  stock: number;
+  lowStockThreshold: number;
+  status: string;
+  costPrice: number;
+  sellingPrice: number;
+  unitsNeeded: number;
+  estimatedReorderCost: number;
+  // Fallbacks
+  product_id?: string;
+  low_stock_threshold?: number;
+  cost_price?: number;
+  selling_price?: number;
+  units_needed?: number;
+  estimated_reorder_cost?: number;
+}
+
+export interface ExpiryBatchRow {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  batchNumber: string;
+  quantity: number;
+  unitCost: number;
+  stockValueAtRisk: number;
+  expiryDate: string;
+  daysUntilExpiry: number;
+  // Fallbacks
+  product_id?: string;
+  product_name?: string;
+  batch_number?: string;
+  unit_cost?: number;
+  stock_value_at_risk?: number;
+  expiry_date?: string;
+  days_until_expiry?: number;
+}
+
+export interface DeadStockRow {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  stock: number;
+  costPrice: number;
+  stockValue: number;
+  daysWithoutSale: number;
+  productStatus: string;
+  // Fallbacks
+  product_id?: string;
+  product_name?: string;
+  cost_price?: number;
+  stock_value?: number;
+  days_without_sale?: number;
+  product_status?: string;
+}
+
+export interface InventoryHealthReport {
+  totalSkus: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  expiringCount: number;
+  deadStockCount: number;
+  totalInventoryValue: number;
+  valuationByCategory: CategoryValuationRow[];
+  reorderCandidates: ReorderCandidateRow[];
+  nearExpiryBatches: ExpiryBatchRow[];
+  deadStockItems: DeadStockRow[];
+  untrackedExpiryCount?: number;
+  // Fallbacks
+  total_skus?: number;
+  low_stock_count?: number;
+  out_of_stock_count?: number;
+  expiring_count?: number;
+  dead_stock_count?: number;
+  total_inventory_value?: number;
+  valuation_by_category?: CategoryValuationRow[];
+  reorder_candidates?: ReorderCandidateRow[];
+  near_expiry_batches?: ExpiryBatchRow[];
+  dead_stock_items?: DeadStockRow[];
+}
+
+export interface CashFlowInflows {
+  salesCash: number;
+  salesBank: number;
+  salesEsewa: number;
+  totalSalesCollections: number;
+  supplierRefunds: number;
+  transfersIn: number;
+  adjustmentsIn: number;
+  otherInflows: number;
+  totalInflows: number;
+  // Fallbacks
+  sales_cash?: number;
+  sales_bank?: number;
+  sales_esewa?: number;
+  total_sales_collections?: number;
+  supplier_refunds?: number;
+  transfers_in?: number;
+  adjustments_in?: number;
+  other_inflows?: number;
+  total_inflows?: number;
+}
+
+export interface CashFlowOutflows {
+  operatingExpenses: number;
+  supplierPoPayments: number;
+  setupInvestment: number;
+  transfersOut: number;
+  adjustmentsOut: number;
+  otherOutflows: number;
+  totalOutflows: number;
+  // Fallbacks
+  operating_expenses?: number;
+  supplier_po_payments?: number;
+  setup_investment?: number;
+  transfers_out?: number;
+  adjustments_out?: number;
+  other_outflows?: number;
+  total_outflows?: number;
+}
+
+export interface WalletMovementSummary {
+  wallet: string;
+  openingBalance: number;
+  totalInflows: number;
+  totalOutflows: number;
+  netMovement: number;
+  closingBalance: number;
+  // Fallbacks
+  opening_balance?: number;
+  total_inflows?: number;
+  total_outflows?: number;
+  net_movement?: number;
+  closing_balance?: number;
+}
+
+export interface CashFlowStatement {
+  periodStart: string;
+  periodEnd: string;
+  inflows: CashFlowInflows;
+  outflows: CashFlowOutflows;
+  netCashFlow: number;
+  wallets: WalletMovementSummary[];
+  cashToProfitBridge: CashToProfitBridge;
+  // Fallbacks
+  period_start?: string;
+  period_end?: string;
+  net_cash_flow?: number;
+  cash_to_profit_bridge?: CashToProfitBridge;
+}
+
+
+export interface VoidedTransactionRow {
+  transactionNumber: string;
+  date: string;
+  cashier: string;
+  amount: number;
+  voidReason: string;
+  transaction_number?: string;
+  void_reason?: string;
+}
+
+export interface LargeDiscountRow {
+  transactionNumber: string;
+  date: string;
+  cashier: string;
+  grossSales: number;
+  totalDiscount: number;
+  discountPct: number;
+  netTotal: number;
+  transaction_number?: string;
+  gross_sales?: number;
+  total_discount?: number;
+  discount_pct?: number;
+  net_total?: number;
+}
+
+export interface NegativeMarginProduct {
+  productId: string;
+  name: string;
+  sku: string;
+  category: string;
+  unitsSold: number;
+  netRevenue: number;
+  totalCogs: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  product_id?: string;
+  units_sold?: number;
+  net_revenue?: number;
+  total_cogs?: number;
+  gross_profit?: number;
+  gross_margin_pct?: number;
+}
+
+export interface ExpiredStockRow {
+  productId: string;
+  productName: string;
+  sku: string;
+  category: string;
+  batchNumber: string;
+  quantity: number;
+  unitCost: number;
+  writeOffValue: number;
+  expiryDate: string;
+  product_id?: string;
+  product_name?: string;
+  batch_number?: string;
+  unit_cost?: number;
+  write_off_value?: number;
+  expiry_date?: string;
+}
+
+export interface MissingDayCloseRow {
+  date: string;
+  dayLabel: string;
+  day_label?: string;
+}
+
+export interface LossAuditReport {
+  periodStart: string;
+  periodEnd: string;
+  totalVoidCount: number;
+  totalVoidAmount: number;
+  voidedTransactions: VoidedTransactionRow[];
+  largeDiscountThresholdPct: number;
+  largeDiscountCount: number;
+  totalLargeDiscountAmount: number;
+  largeDiscountTransactions: LargeDiscountRow[];
+  negativeMarginProductCount: number;
+  totalLossOnNegMargin: number;
+  negativeMarginProducts: NegativeMarginProduct[];
+  expiredStockCount: number;
+  expiredStockWriteOffValue: number;
+  expiredStockItems: ExpiredStockRow[];
+  missingDayCloseCount: number;
+  missingDayCloses: MissingDayCloseRow[];
+
+  // Optional backwards compatibility
+  period_start?: string;
+  period_end?: string;
+  total_void_count?: number;
+  total_void_amount?: number;
+  voided_transactions?: VoidedTransactionRow[];
+  large_discount_threshold_pct?: number;
+  large_discount_count?: number;
+  total_large_discount_amount?: number;
+  large_discount_transactions?: LargeDiscountRow[];
+  negative_margin_product_count?: number;
+  total_loss_on_neg_margin?: number;
+  negative_margin_products?: NegativeMarginProduct[];
+  expired_stock_count?: number;
+  expired_stock_write_off_value?: number;
+  expired_stock_items?: ExpiredStockRow[];
+  missing_day_close_count?: number;
+  missing_day_closes?: MissingDayCloseRow[];
+}
+

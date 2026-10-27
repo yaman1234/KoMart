@@ -1,0 +1,1301 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e6]:
+      - img "KoMart logo" [ref=f2e10]
+      - separator [ref=f2e11]
+      - list [ref=f2e12]:
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f2e19]:
+          - link "POS" [ref=f2e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f2e25]:
+          - link "Sales" [ref=f2e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f2e32]:
+          - link "Products" [ref=f2e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f2e38]:
+          - link "Inventory" [ref=f2e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f2e44]:
+          - link "Stock Count" [ref=f2e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f2e50]:
+          - link "Suppliers" [ref=f2e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f2e56]:
+          - link "Purchase Orders" [ref=f2e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f2e62]:
+          - link "Purchase Returns" [ref=f2e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f2e68]:
+          - link "Expenses" [ref=f2e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f2e74]:
+          - link "Accounts" [ref=f2e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f2e80]:
+          - link "Reconciliation" [ref=f2e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f2e86]:
+          - link "Customers" [ref=f2e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f2e92]:
+          - link "Reports" [ref=f2e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f2e98]:
+          - link "Notifications" [ref=f2e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f2e104]:
+          - link "Settings" [ref=f2e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f2e110]:
+      - generic [ref=f2e112]:
+        - button "Go to Home" [ref=f2e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f2e117] [cursor=pointer]
+        - button "Notifications" [ref=f2e120] [cursor=pointer]
+        - button "Y" [ref=f2e124] [cursor=pointer]
+      - generic [ref=f2e127]:
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f2e130]
+            - paragraph [ref=f2e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f2e132]:
+            - button [ref=f2e133] [cursor=pointer]
+            - button [ref=f2e137] [cursor=pointer]
+        - generic [ref=f2e141]:
+          - generic [ref=f2e142]:
+            - generic [ref=f2e143]:
+              - group [ref=f2e144]:
+                - button "Today" [ref=f2e145] [cursor=pointer]
+                - button "Yesterday" [ref=f2e146] [cursor=pointer]
+                - button "7D" [ref=f2e147] [cursor=pointer]
+                - button "30D" [ref=f2e148] [cursor=pointer]
+                - button "Month" [ref=f2e149] [cursor=pointer]
+              - generic [ref=f2e227]:
+                - generic [ref=f2e228]: Start Date
+                - group "Start Date" [ref=f2e229]:
+                  - generic [ref=f2e230]:
+                    - generic [ref=f2e231]:
+                      - spinbutton "Month" [ref=f2e232]: "09"
+                      - text: /
+                    - generic [ref=f2e233]:
+                      - spinbutton "Day" [ref=f2e234]: "28"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e236]: "2026"
+                  - button "Choose date, selected date is Sep 28, 2026" [ref=f2e410] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f2e241]: 09/28/2026
+              - generic [ref=f2e242]:
+                - generic [ref=f2e243]: End Date
+                - group "End Date" [ref=f2e244]:
+                  - generic [ref=f2e245]:
+                    - generic [ref=f2e246]:
+                      - spinbutton "Month" [ref=f2e247]: "10"
+                      - text: /
+                    - generic [ref=f2e248]:
+                      - spinbutton "Day" [ref=f2e249]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e251]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f2e253] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f2e256]: 10/27/2026
+            - generic [ref=f2e168]:
+              - button "Today" [ref=f2e169] [cursor=pointer]
+              - button "Yesterday" [ref=f2e171] [cursor=pointer]
+              - button "This Week" [ref=f2e173] [cursor=pointer]
+              - button "This Month" [ref=f2e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f2e177] [cursor=pointer]
+          - generic [ref=f2e179]: "Nepal BS: Ashwin 12 – Kartik 10, 2083 BS"
+        - generic [ref=f2e184]:
+          - tablist [ref=f2e186]:
+            - tab "Executive Financials" [ref=f2e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [ref=f2e190] [cursor=pointer]
+            - tab "Purchases & Payables" [ref=f2e193] [cursor=pointer]
+            - tab "Inventory & Health" [active] [selected] [ref=f2e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [ref=f2e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [ref=f2e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [ref=f2e205] [cursor=pointer]
+          - generic [ref=f2e257] [cursor=pointer]
+        - generic [ref=f2e1959]:
+          - generic [ref=f2e1960]:
+            - generic [ref=f2e1962]:
+              - generic [ref=f2e1963]: Total Stock Valuation
+              - heading "Rs. 848,354.45" [level=6] [ref=f2e1967]
+              - generic [ref=f2e1968]: 408 Active Catalog SKUs
+            - generic [ref=f2e1970]:
+              - generic [ref=f2e1971]: Stockout & Low Alerts
+              - heading "276 SKUs" [level=6] [ref=f2e1975]
+              - generic [ref=f2e1976]: "88 Out · 188 Low · Replenish: Rs. 1,230,312.67"
+            - generic [ref=f2e1978]:
+              - generic [ref=f2e1979]: Near-Expiry Risk (<30d)
+              - heading "0 Batches" [level=6] [ref=f2e1983]
+              - generic [ref=f2e1984]: "At-Risk Value: Rs. 0.00"
+            - generic [ref=f2e1986]:
+              - generic [ref=f2e1987]: Dead Capital (>30d)
+              - heading "93 SKUs" [level=6] [ref=f2e1991]
+              - generic [ref=f2e1992]: "Capital Tied Up: Rs. 188,868.18"
+          - generic [ref=f2e1993]:
+            - generic [ref=f2e1994]:
+              - generic [ref=f2e1998]:
+                - heading "Actionable Reorder Center" [level=6] [ref=f2e1999]
+                - generic [ref=f2e2000]: "88 Out of stock · 188 Low stock · Total Replenishment Est: Rs. 1,230,312.67"
+              - generic [ref=f2e2003]:
+                - combobox [ref=f2e2004] [cursor=pointer]: Both Low & Out of Stock
+                - textbox [aria-hidden]: both
+                - group [aria-hidden]
+            - table [ref=f2e2006]:
+              - rowgroup [ref=f2e2007]:
+                - row [ref=f2e2008]:
+                  - columnheader "#" [ref=f2e2009]
+                  - columnheader "Product & SKU" [ref=f2e2010]
+                  - columnheader "Category" [ref=f2e2011]
+                  - columnheader "Current Stock" [ref=f2e2012]
+                  - columnheader "Threshold" [ref=f2e2013]
+                  - columnheader "Status" [ref=f2e2014]
+                  - columnheader "Cost Price" [ref=f2e2015]
+                  - columnheader "Units Needed" [ref=f2e2016]
+                  - columnheader "Est. Reorder Cost" [ref=f2e2017]
+                  - columnheader "Quick Action" [ref=f2e2018]
+              - rowgroup [ref=f2e2019]:
+                - row [ref=f2e2020]:
+                  - cell "1" [ref=f2e2021]
+                  - cell [ref=f2e2022]:
+                    - paragraph [ref=f2e2023]: Sushi Noori 230gram
+                    - text: "150017"
+                  - cell "General" [ref=f2e2024]
+                  - cell "6" [ref=f2e2027]
+                  - cell "10" [ref=f2e2028]
+                  - cell "Low Stock" [ref=f2e2029]
+                  - cell "Rs. 2,380.00" [ref=f2e2032]
+                  - cell "+14" [ref=f2e2033]
+                  - cell "Rs. 33,320.00" [ref=f2e2034]
+                  - cell [ref=f2e2035]:
+                    - button [ref=f2e2036] [cursor=pointer]
+                - row [ref=f2e2040]:
+                  - cell "2" [ref=f2e2041]
+                  - cell [ref=f2e2042]:
+                    - paragraph [ref=f2e2043]: Laverland Hot and Spicy Jaws 13.5g (3 pc packet)
+                    - text: "140023"
+                  - cell "Healthy Snacks" [ref=f2e2044]
+                  - cell "7" [ref=f2e2047]
+                  - cell "18" [ref=f2e2048]
+                  - cell "Low Stock" [ref=f2e2049]
+                  - cell "Rs. 939.00" [ref=f2e2052]
+                  - cell "+29" [ref=f2e2053]
+                  - cell "Rs. 27,231.00" [ref=f2e2054]
+                  - cell [ref=f2e2055]:
+                    - button [ref=f2e2056] [cursor=pointer]
+                - row [ref=f2e2060]:
+                  - cell "3" [ref=f2e2061]
+                  - cell [ref=f2e2062]:
+                    - paragraph [ref=f2e2063]: Ediya Jeju Matcha Latte
+                    - text: "040028"
+                  - cell "Beverages" [ref=f2e2064]
+                  - cell "0" [ref=f2e2067]
+                  - cell "10" [ref=f2e2068]
+                  - cell "Out of Stock" [ref=f2e2069]
+                  - cell "Rs. 1,200.00" [ref=f2e2072]
+                  - cell "+20" [ref=f2e2073]
+                  - cell "Rs. 24,000.00" [ref=f2e2074]
+                  - cell [ref=f2e2075]:
+                    - button [ref=f2e2076] [cursor=pointer]
+                - row [ref=f2e2080]:
+                  - cell "4" [ref=f2e2081]
+                  - cell [ref=f2e2082]:
+                    - paragraph [ref=f2e2083]: Ediya Vanilla Latte
+                    - text: "040027"
+                  - cell "Beverages" [ref=f2e2084]
+                  - cell "0" [ref=f2e2087]
+                  - cell "10" [ref=f2e2088]
+                  - cell "Out of Stock" [ref=f2e2089]
+                  - cell "Rs. 1,200.00" [ref=f2e2092]
+                  - cell "+20" [ref=f2e2093]
+                  - cell "Rs. 24,000.00" [ref=f2e2094]
+                  - cell [ref=f2e2095]:
+                    - button [ref=f2e2096] [cursor=pointer]
+                - row [ref=f2e2100]:
+                  - cell "5" [ref=f2e2101]
+                  - cell [ref=f2e2102]:
+                    - paragraph [ref=f2e2103]: Honey Lemon Tea
+                    - text: "040026"
+                  - cell "Beverages" [ref=f2e2104]
+                  - cell "0" [ref=f2e2107]
+                  - cell "10" [ref=f2e2108]
+                  - cell "Out of Stock" [ref=f2e2109]
+                  - cell "Rs. 1,200.00" [ref=f2e2112]
+                  - cell "+20" [ref=f2e2113]
+                  - cell "Rs. 24,000.00" [ref=f2e2114]
+                  - cell [ref=f2e2115]:
+                    - button [ref=f2e2116] [cursor=pointer]
+                - row [ref=f2e2120]:
+                  - cell "6" [ref=f2e2121]
+                  - cell [ref=f2e2122]:
+                    - paragraph [ref=f2e2123]: Honey Redgrapefruit
+                    - text: "040025"
+                  - cell "Beverages" [ref=f2e2124]
+                  - cell "2" [ref=f2e2127]
+                  - cell "10" [ref=f2e2128]
+                  - cell "Low Stock" [ref=f2e2129]
+                  - cell "Rs. 1,200.00" [ref=f2e2132]
+                  - cell "+18" [ref=f2e2133]
+                  - cell "Rs. 21,600.00" [ref=f2e2134]
+                  - cell [ref=f2e2135]:
+                    - button [ref=f2e2136] [cursor=pointer]
+                - row [ref=f2e2140]:
+                  - cell "7" [ref=f2e2141]
+                  - cell [ref=f2e2142]:
+                    - paragraph [ref=f2e2143]: Seaweed Garnish Mini
+                    - text: "130007"
+                  - cell "Seasoning" [ref=f2e2144]
+                  - cell "2" [ref=f2e2147]
+                  - cell "10" [ref=f2e2148]
+                  - cell "Low Stock" [ref=f2e2149]
+                  - cell "Rs. 1,200.00" [ref=f2e2152]
+                  - cell "+18" [ref=f2e2153]
+                  - cell "Rs. 21,600.00" [ref=f2e2154]
+                  - cell [ref=f2e2155]:
+                    - button [ref=f2e2156] [cursor=pointer]
+                - row [ref=f2e2160]:
+                  - cell "8" [ref=f2e2161]
+                  - cell [ref=f2e2162]:
+                    - paragraph [ref=f2e2163]: Sesame Oil Can
+                    - text: "160003"
+                  - cell "Oil" [ref=f2e2164]
+                  - cell "3" [ref=f2e2167]
+                  - cell "10" [ref=f2e2168]
+                  - cell "Low Stock" [ref=f2e2169]
+                  - cell "Rs. 1,270.00" [ref=f2e2172]
+                  - cell "+17" [ref=f2e2173]
+                  - cell "Rs. 21,590.00" [ref=f2e2174]
+                  - cell [ref=f2e2175]:
+                    - button [ref=f2e2176] [cursor=pointer]
+                - row [ref=f2e2180]:
+                  - cell "9" [ref=f2e2181]
+                  - cell [ref=f2e2182]:
+                    - paragraph [ref=f2e2183]: Laverland Cheese crunch seaweed
+                    - text: "060009"
+                  - cell "Seaweed" [ref=f2e2184]
+                  - cell "1" [ref=f2e2187]
+                  - cell "10" [ref=f2e2188]
+                  - cell "Low Stock" [ref=f2e2189]
+                  - cell "Rs. 939.00" [ref=f2e2192]
+                  - cell "+19" [ref=f2e2193]
+                  - cell "Rs. 17,841.00" [ref=f2e2194]
+                  - cell [ref=f2e2195]:
+                    - button [ref=f2e2196] [cursor=pointer]
+                - row [ref=f2e2200]:
+                  - cell "10" [ref=f2e2201]
+                  - cell [ref=f2e2202]:
+                    - paragraph [ref=f2e2203]: Seaweed flake Stick 70
+                    - text: "130008"
+                  - cell "Seasoning" [ref=f2e2204]
+                  - cell "2" [ref=f2e2207]
+                  - cell "10" [ref=f2e2208]
+                  - cell "Low Stock" [ref=f2e2209]
+                  - cell "Rs. 942.42" [ref=f2e2212]
+                  - cell "+18" [ref=f2e2213]
+                  - cell "Rs. 16,963.56" [ref=f2e2214]
+                  - cell [ref=f2e2215]:
+                    - button [ref=f2e2216] [cursor=pointer]
+            - generic [ref=f2e2221]:
+              - paragraph [ref=f2e2222]: "Rows per page:"
+              - generic [ref=f2e2223]:
+                - combobox "Rows per page:" [ref=f2e2224] [cursor=pointer]: "10"
+                - textbox [aria-hidden]: "10"
+              - paragraph [ref=f2e2225]: 1–10 of 276
+              - generic [ref=f2e2226]:
+                - button "Go to previous page" [disabled]
+                - button "Go to next page" [ref=f2e2227] [cursor=pointer]
+          - generic [ref=f2e2230]:
+            - heading "Category Asset Valuation (FEFO Reconciled)" [level=6] [ref=f2e2231]
+            - table [ref=f2e2233]:
+              - rowgroup [ref=f2e2234]:
+                - row [ref=f2e2235]:
+                  - columnheader "#" [ref=f2e2236]
+                  - columnheader "Category" [ref=f2e2237]
+                  - columnheader "Catalog SKUs" [ref=f2e2238]
+                  - columnheader "Total Units" [ref=f2e2239]
+                  - columnheader "Batch Valuation" [ref=f2e2240]
+                  - columnheader "Valuation Share" [ref=f2e2241]
+              - rowgroup [ref=f2e2242]:
+                - row [ref=f2e2243]:
+                  - cell "1" [ref=f2e2244]
+                  - cell "Beverages" [ref=f2e2245]
+                  - cell "39" [ref=f2e2246]
+                  - cell "1,307" [ref=f2e2247]
+                  - cell "Rs. 127,950.84" [ref=f2e2248]
+                  - cell "15.1 15.1%" [ref=f2e2249]:
+                    - generic [ref=f2e2250]:
+                      - progressbar [ref=f2e2251]
+                      - generic [ref=f2e2253]: 15.1%
+                - row [ref=f2e2254]:
+                  - cell "2" [ref=f2e2255]
+                  - cell "Noodles" [ref=f2e2256]
+                  - cell "38" [ref=f2e2257]
+                  - cell "606" [ref=f2e2258]
+                  - cell "Rs. 124,752.64" [ref=f2e2259]
+                  - cell "14.7 14.7%" [ref=f2e2260]:
+                    - generic [ref=f2e2261]:
+                      - progressbar [ref=f2e2262]
+                      - generic [ref=f2e2264]: 14.7%
+                - row [ref=f2e2265]:
+                  - cell "3" [ref=f2e2266]
+                  - cell "Sauces" [ref=f2e2267]
+                  - cell "21" [ref=f2e2268]
+                  - cell "196" [ref=f2e2269]
+                  - cell "Rs. 93,502.96" [ref=f2e2270]
+                  - cell "11 11.0%" [ref=f2e2271]:
+                    - generic [ref=f2e2272]:
+                      - progressbar [ref=f2e2273]
+                      - generic [ref=f2e2275]: 11.0%
+                - row [ref=f2e2276]:
+                  - cell "4" [ref=f2e2277]
+                  - cell "Chocolate & Candy" [ref=f2e2278]
+                  - cell "40" [ref=f2e2279]
+                  - cell "361" [ref=f2e2280]
+                  - cell "Rs. 50,814.69" [ref=f2e2281]
+                  - cell "6 6.0%" [ref=f2e2282]:
+                    - generic [ref=f2e2283]:
+                      - progressbar [ref=f2e2284]
+                      - generic [ref=f2e2286]: 6.0%
+                - row [ref=f2e2287]:
+                  - cell "5" [ref=f2e2288]
+                  - cell "Biscuits" [ref=f2e2289]
+                  - cell "20" [ref=f2e2290]
+                  - cell "285" [ref=f2e2291]
+                  - cell "Rs. 50,344.48" [ref=f2e2292]
+                  - cell "5.9 5.9%" [ref=f2e2293]:
+                    - generic [ref=f2e2294]:
+                      - progressbar [ref=f2e2295]
+                      - generic [ref=f2e2297]: 5.9%
+                - row [ref=f2e2298]:
+                  - cell "6" [ref=f2e2299]
+                  - cell "Healthy Snacks" [ref=f2e2300]
+                  - cell "35" [ref=f2e2301]
+                  - cell "253" [ref=f2e2302]
+                  - cell "Rs. 50,135.98" [ref=f2e2303]
+                  - cell "5.9 5.9%" [ref=f2e2304]:
+                    - generic [ref=f2e2305]:
+                      - progressbar [ref=f2e2306]
+                      - generic [ref=f2e2308]: 5.9%
+                - row [ref=f2e2309]:
+                  - cell "7" [ref=f2e2310]
+                  - cell "General" [ref=f2e2311]
+                  - cell "18" [ref=f2e2312]
+                  - cell "202" [ref=f2e2313]
+                  - cell "Rs. 45,825.85" [ref=f2e2314]
+                  - cell "5.4 5.4%" [ref=f2e2315]:
+                    - generic [ref=f2e2316]:
+                      - progressbar [ref=f2e2317]
+                      - generic [ref=f2e2319]: 5.4%
+                - row [ref=f2e2320]:
+                  - cell "8" [ref=f2e2321]
+                  - cell "Snacks" [ref=f2e2322]
+                  - cell "36" [ref=f2e2323]
+                  - cell "568" [ref=f2e2324]
+                  - cell "Rs. 44,257.98" [ref=f2e2325]
+                  - cell "5.2 5.2%" [ref=f2e2326]:
+                    - generic [ref=f2e2327]:
+                      - progressbar [ref=f2e2328]
+                      - generic [ref=f2e2330]: 5.2%
+                - row [ref=f2e2331]:
+                  - cell "9" [ref=f2e2332]
+                  - cell "Canned Food" [ref=f2e2333]
+                  - cell "21" [ref=f2e2334]
+                  - cell "196" [ref=f2e2335]
+                  - cell "Rs. 41,215.29" [ref=f2e2336]
+                  - cell "4.9 4.9%" [ref=f2e2337]:
+                    - generic [ref=f2e2338]:
+                      - progressbar [ref=f2e2339]
+                      - generic [ref=f2e2341]: 4.9%
+                - row [ref=f2e2342]:
+                  - cell "10" [ref=f2e2343]
+                  - cell "Kitchen" [ref=f2e2344]
+                  - cell "11" [ref=f2e2345]
+                  - cell "319" [ref=f2e2346]
+                  - cell "Rs. 36,829.22" [ref=f2e2347]
+                  - cell "4.3 4.3%" [ref=f2e2348]:
+                    - generic [ref=f2e2349]:
+                      - progressbar [ref=f2e2350]
+                      - generic [ref=f2e2352]: 4.3%
+                - row [ref=f2e2353]:
+                  - cell "11" [ref=f2e2354]
+                  - cell "Pickle" [ref=f2e2355]
+                  - cell "20" [ref=f2e2356]
+                  - cell "120" [ref=f2e2357]
+                  - cell "Rs. 36,686.30" [ref=f2e2358]
+                  - cell "4.3 4.3%" [ref=f2e2359]:
+                    - generic [ref=f2e2360]:
+                      - progressbar [ref=f2e2361]
+                      - generic [ref=f2e2363]: 4.3%
+                - row [ref=f2e2364]:
+                  - cell "12" [ref=f2e2365]
+                  - cell "Sea Food" [ref=f2e2366]
+                  - cell "17" [ref=f2e2367]
+                  - cell "48" [ref=f2e2368]
+                  - cell "Rs. 27,780.00" [ref=f2e2369]
+                  - cell "3.3 3.3%" [ref=f2e2370]:
+                    - generic [ref=f2e2371]:
+                      - progressbar [ref=f2e2372]
+                      - generic [ref=f2e2374]: 3.3%
+                - row [ref=f2e2375]:
+                  - cell "13" [ref=f2e2376]
+                  - cell "Ice Cream" [ref=f2e2377]
+                  - cell "48" [ref=f2e2378]
+                  - cell "215" [ref=f2e2379]
+                  - cell "Rs. 26,731.39" [ref=f2e2380]
+                  - cell "3.2 3.2%" [ref=f2e2381]:
+                    - generic [ref=f2e2382]:
+                      - progressbar [ref=f2e2383]
+                      - generic [ref=f2e2385]: 3.2%
+                - row [ref=f2e2386]:
+                  - cell "14" [ref=f2e2387]
+                  - cell "Seasoning" [ref=f2e2388]
+                  - cell "8" [ref=f2e2389]
+                  - cell "170" [ref=f2e2390]
+                  - cell "Rs. 25,626.84" [ref=f2e2391]
+                  - cell "3 3.0%" [ref=f2e2392]:
+                    - generic [ref=f2e2393]:
+                      - progressbar [ref=f2e2394]
+                      - generic [ref=f2e2396]: 3.0%
+                - row [ref=f2e2397]:
+                  - cell "15" [ref=f2e2398]
+                  - cell "Seaweed" [ref=f2e2399]
+                  - cell "18" [ref=f2e2400]
+                  - cell "68" [ref=f2e2401]
+                  - cell "Rs. 24,795.00" [ref=f2e2402]
+                  - cell "2.9 2.9%" [ref=f2e2403]:
+                    - generic [ref=f2e2404]:
+                      - progressbar [ref=f2e2405]
+                      - generic [ref=f2e2407]: 2.9%
+                - row [ref=f2e2408]:
+                  - cell "16" [ref=f2e2409]
+                  - cell "Household" [ref=f2e2410]
+                  - cell "7" [ref=f2e2411]
+                  - cell "80" [ref=f2e2412]
+                  - cell "Rs. 12,545.00" [ref=f2e2413]
+                  - cell "1.5 1.5%" [ref=f2e2414]:
+                    - generic [ref=f2e2415]:
+                      - progressbar [ref=f2e2416]
+                      - generic [ref=f2e2418]: 1.5%
+                - row [ref=f2e2419]:
+                  - cell "17" [ref=f2e2420]
+                  - cell "Oil" [ref=f2e2421]
+                  - cell "3" [ref=f2e2422]
+                  - cell "29" [ref=f2e2423]
+                  - cell "Rs. 11,710.00" [ref=f2e2424]
+                  - cell "1.4 1.4%" [ref=f2e2425]:
+                    - generic [ref=f2e2426]:
+                      - progressbar [ref=f2e2427]
+                      - generic [ref=f2e2429]: 1.4%
+                - row [ref=f2e2430]:
+                  - cell "18" [ref=f2e2431]
+                  - cell "Health" [ref=f2e2432]
+                  - cell "2" [ref=f2e2433]
+                  - cell "110" [ref=f2e2434]
+                  - cell "Rs. 11,600.00" [ref=f2e2435]
+                  - cell "1.4 1.4%" [ref=f2e2436]:
+                    - generic [ref=f2e2437]:
+                      - progressbar [ref=f2e2438]
+                      - generic [ref=f2e2440]: 1.4%
+                - row [ref=f2e2441]:
+                  - cell "19" [ref=f2e2442]
+                  - cell "Frozen Food" [ref=f2e2443]
+                  - cell "6" [ref=f2e2444]
+                  - cell "32" [ref=f2e2445]
+                  - cell "Rs. 5,250.00" [ref=f2e2446]
+                  - cell "0.6 0.6%" [ref=f2e2447]:
+                    - generic [ref=f2e2448]:
+                      - progressbar [ref=f2e2449]
+                      - generic [ref=f2e2451]: 0.6%
+          - generic [ref=f2e2452]:
+            - generic [ref=f2e2454]:
+              - generic [ref=f2e2455]:
+                - generic [ref=f2e2459]:
+                  - heading "Near-Expiry Radar" [level=6] [ref=f2e2460]
+                  - generic [ref=f2e2461]: "0 batches expiring · Risk: Rs. 0.00"
+                  - generic "In-stock products currently without any batch expiry date recorded. Configure expiry dates during receiving/batch setup to ensure accurate FEFO tracking." [ref=f2e2462]: 320 in-stock SKUs missing expiry date
+                - generic [ref=f2e2467]:
+                  - combobox [ref=f2e2468] [cursor=pointer]: < 30 Days
+                  - textbox [aria-hidden]: "30"
+                  - group [aria-hidden]
+              - table [ref=f2e2470]:
+                - rowgroup [ref=f2e2471]:
+                  - row [ref=f2e2472]:
+                    - columnheader "#" [ref=f2e2473]
+                    - columnheader "Product & Batch" [ref=f2e2474]
+                    - columnheader "Units" [ref=f2e2475]
+                    - columnheader "Value at Risk" [ref=f2e2476]
+                    - columnheader "Expires In" [ref=f2e2477]
+                - rowgroup [ref=f2e2478]:
+                  - row [ref=f2e2479]:
+                    - cell "No batches expiring within 30 days." [ref=f2e2480]
+            - generic [ref=f2e2482]:
+              - generic [ref=f2e2483]:
+                - generic [ref=f2e2487]:
+                  - heading "Dead Stock & Capital Lockup" [level=6] [ref=f2e2488]
+                  - generic [ref=f2e2489]: "93 items without sales · Tied: Rs. 188,868.18"
+                - generic [ref=f2e2491]:
+                  - combobox [ref=f2e2492] [cursor=pointer]: "> 30 Days"
+                  - textbox [aria-hidden]: "30"
+                  - group [aria-hidden]
+              - table [ref=f2e2494]:
+                - rowgroup [ref=f2e2495]:
+                  - row [ref=f2e2496]:
+                    - columnheader "#" [ref=f2e2497]
+                    - columnheader "Product" [ref=f2e2498]
+                    - columnheader "On-Hand" [ref=f2e2499]
+                    - columnheader "Capital Tied Up" [ref=f2e2500]
+                    - columnheader "No Sale Days" [ref=f2e2501]
+                - rowgroup [ref=f2e2502]:
+                  - row [ref=f2e2503]:
+                    - cell "1" [ref=f2e2504]
+                    - cell [ref=f2e2505]:
+                      - paragraph [ref=f2e2506]: Sempio Gochujang 1kg
+                      - text: Sauces
+                    - cell "12" [ref=f2e2507]
+                    - cell "Rs. 16,260.00" [ref=f2e2508]
+                    - cell "36d" [ref=f2e2509]
+                  - row [ref=f2e2512]:
+                    - cell "2" [ref=f2e2513]
+                    - cell [ref=f2e2514]:
+                      - paragraph [ref=f2e2515]: Korean pan
+                      - text: Kitchen
+                    - cell "3" [ref=f2e2516]
+                    - cell "Rs. 11,655.00" [ref=f2e2517]
+                    - cell "30d" [ref=f2e2518]
+                  - row [ref=f2e2521]:
+                    - cell "3" [ref=f2e2522]
+                    - cell [ref=f2e2523]:
+                      - paragraph [ref=f2e2524]: Korean stove
+                      - text: Kitchen
+                    - cell "3" [ref=f2e2525]
+                    - cell "Rs. 11,655.00" [ref=f2e2526]
+                    - cell "30d" [ref=f2e2527]
+                  - row [ref=f2e2530]:
+                    - cell "4" [ref=f2e2531]
+                    - cell [ref=f2e2532]:
+                      - paragraph [ref=f2e2533]: Shilajit
+                      - text: Health
+                    - cell "10" [ref=f2e2534]
+                    - cell "Rs. 8,200.00" [ref=f2e2535]
+                    - cell "30d" [ref=f2e2536]
+                  - row [ref=f2e2539]:
+                    - cell "5" [ref=f2e2540]
+                    - cell [ref=f2e2541]:
+                      - paragraph [ref=f2e2542]: Soba Noodles
+                      - text: Noodles
+                    - cell "15" [ref=f2e2543]
+                    - cell "Rs. 7,725.00" [ref=f2e2544]
+                    - cell "30d" [ref=f2e2545]
+                  - row [ref=f2e2548]:
+                    - cell "6" [ref=f2e2549]
+                    - cell [ref=f2e2550]:
+                      - paragraph [ref=f2e2551]: Honey Greentangerinae Tea
+                      - text: Beverages
+                    - cell "6" [ref=f2e2552]
+                    - cell "Rs. 7,200.00" [ref=f2e2553]
+                    - cell "30d" [ref=f2e2554]
+                  - row [ref=f2e2557]:
+                    - cell "7" [ref=f2e2558]
+                    - cell [ref=f2e2559]:
+                      - paragraph [ref=f2e2560]: G4 Garlic Timmur Chhop
+                      - text: Pickle
+                    - cell "25" [ref=f2e2561]
+                    - cell "Rs. 5,500.00" [ref=f2e2562]
+                    - cell "31d" [ref=f2e2563]
+                  - row [ref=f2e2566]:
+                    - cell "8" [ref=f2e2567]
+                    - cell [ref=f2e2568]:
+                      - paragraph [ref=f2e2569]: Ediya vanilla latte 10stick
+                      - text: Beverages
+                    - cell "60" [ref=f2e2570]
+                    - cell "Rs. 4,080.00" [ref=f2e2571]
+                    - cell "30d" [ref=f2e2572]
+                  - row [ref=f2e2575]:
+                    - cell "9" [ref=f2e2576]
+                    - cell [ref=f2e2577]:
+                      - paragraph [ref=f2e2578]: G.V Vietnam Basa fillet 1 kg
+                      - text: Sea Food
+                    - cell "9" [ref=f2e2579]
+                    - cell "Rs. 4,050.00" [ref=f2e2580]
+                    - cell "79d" [ref=f2e2581]
+                  - row [ref=f2e2584]:
+                    - cell "10" [ref=f2e2585]
+                    - cell [ref=f2e2586]:
+                      - paragraph [ref=f2e2587]: soy sauce - Chinese 1.9 Liter
+                      - text: Sauces
+                    - cell "6" [ref=f2e2588]
+                    - cell "Rs. 3,999.96" [ref=f2e2589]
+                    - cell "30d" [ref=f2e2590]
+                  - row [ref=f2e2593]:
+                    - cell "11" [ref=f2e2594]
+                    - cell [ref=f2e2595]:
+                      - paragraph [ref=f2e2596]: Tub Keshar Pista ( Zero Sugar)
+                      - text: Ice Cream
+                    - cell "5" [ref=f2e2597]
+                    - cell "Rs. 3,400.00" [ref=f2e2598]
+                    - cell "30d" [ref=f2e2599]
+                  - row [ref=f2e2602]:
+                    - cell "12" [ref=f2e2603]
+                    - cell [ref=f2e2604]:
+                      - paragraph [ref=f2e2605]: Kunafa chocolate No sugar with dried apple
+                      - text: Chocolate & Candy
+                    - cell "6" [ref=f2e2606]
+                    - cell "Rs. 2,700.00" [ref=f2e2607]
+                    - cell "30d" [ref=f2e2608]
+                  - row [ref=f2e2611]:
+                    - cell "13" [ref=f2e2612]
+                    - cell [ref=f2e2613]:
+                      - paragraph [ref=f2e2614]: Steel vada jali
+                      - text: Kitchen
+                    - cell "28" [ref=f2e2615]
+                    - cell "Rs. 2,576.00" [ref=f2e2616]
+                    - cell "30d" [ref=f2e2617]
+                  - row [ref=f2e2620]:
+                    - cell "14" [ref=f2e2621]
+                    - cell [ref=f2e2622]:
+                      - paragraph [ref=f2e2623]: Chia Seeds - 500 gm
+                      - text: Healthy Snacks
+                    - cell "4" [ref=f2e2624]
+                    - cell "Rs. 2,520.00" [ref=f2e2625]
+                    - cell "34d" [ref=f2e2626]
+                  - row [ref=f2e2629]:
+                    - cell "15" [ref=f2e2630]
+                    - cell [ref=f2e2631]:
+                      - paragraph [ref=f2e2632]: Nepali Oil - 500 ml
+                      - text: Oil
+                    - cell "16" [ref=f2e2633]
+                    - cell "Rs. 2,400.00" [ref=f2e2634]
+                    - cell "57d" [ref=f2e2635]
+                  - row [ref=f2e2638]:
+                    - cell "16" [ref=f2e2639]
+                    - cell [ref=f2e2640]:
+                      - paragraph [ref=f2e2641]: Seaweed Garnish Mini
+                      - text: Seasoning
+                    - cell "2" [ref=f2e2642]
+                    - cell "Rs. 2,400.00" [ref=f2e2643]
+                    - cell "30d" [ref=f2e2644]
+                  - row [ref=f2e2647]:
+                    - cell "17" [ref=f2e2648]
+                    - cell [ref=f2e2649]:
+                      - paragraph [ref=f2e2650]: Mushroom Black - 200gm
+                      - text: Healthy Snacks
+                    - cell "5" [ref=f2e2651]
+                    - cell "Rs. 2,300.00" [ref=f2e2652]
+                    - cell "30d" [ref=f2e2653]
+                  - row [ref=f2e2656]:
+                    - cell "18" [ref=f2e2657]
+                    - cell [ref=f2e2658]:
+                      - paragraph [ref=f2e2659]: Runiu Milk candy
+                      - text: Chocolate & Candy
+                    - cell "5" [ref=f2e2660]
+                    - cell "Rs. 2,250.00" [ref=f2e2661]
+                    - cell "48d" [ref=f2e2662]
+                  - row [ref=f2e2665]:
+                    - cell "19" [ref=f2e2666]
+                    - cell [ref=f2e2667]:
+                      - paragraph [ref=f2e2668]: Shachima egg
+                      - text: Snacks
+                    - cell "6" [ref=f2e2669]
+                    - cell "Rs. 2,250.00" [ref=f2e2670]
+                    - cell "30d" [ref=f2e2671]
+                  - row [ref=f2e2674]:
+                    - cell "20" [ref=f2e2675]
+                    - cell [ref=f2e2676]:
+                      - paragraph [ref=f2e2677]: Shikhar Honey Natural nepali 1kg
+                      - text: General
+                    - cell "3" [ref=f2e2678]
+                    - cell "Rs. 2,250.00" [ref=f2e2679]
+                    - cell "30d" [ref=f2e2680]
+                  - row [ref=f2e2683]:
+                    - cell "21" [ref=f2e2684]
+                    - cell [ref=f2e2685]:
+                      - paragraph [ref=f2e2686]: Surimi Crab ball 500 gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e2687]
+                    - cell "Rs. 2,200.00" [ref=f2e2688]
+                    - cell "30d" [ref=f2e2689]
+                  - row [ref=f2e2692]:
+                    - cell "22" [ref=f2e2693]
+                    - cell [ref=f2e2694]:
+                      - paragraph [ref=f2e2695]: Surimi Lobster Ball 500 gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e2696]
+                    - cell "Rs. 2,200.00" [ref=f2e2697]
+                    - cell "30d" [ref=f2e2698]
+                  - row [ref=f2e2701]:
+                    - cell "23" [ref=f2e2702]
+                    - cell [ref=f2e2703]:
+                      - paragraph [ref=f2e2704]: Surimi Lobster Tail 500gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e2705]
+                    - cell "Rs. 2,200.00" [ref=f2e2706]
+                    - cell "30d" [ref=f2e2707]
+                  - row [ref=f2e2710]:
+                    - cell "24" [ref=f2e2711]
+                    - cell [ref=f2e2712]:
+                      - paragraph [ref=f2e2713]: Surimi Prawn Ball 500gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e2714]
+                    - cell "Rs. 2,200.00" [ref=f2e2715]
+                    - cell "30d" [ref=f2e2716]
+                  - row [ref=f2e2719]:
+                    - cell "25" [ref=f2e2720]
+                    - cell [ref=f2e2721]:
+                      - paragraph [ref=f2e2722]: yo japchae sweet cup 38g
+                      - text: Noodles
+                    - cell "6" [ref=f2e2723]
+                    - cell "Rs. 2,082.00" [ref=f2e2724]
+                    - cell "30d" [ref=f2e2725]
+                  - row [ref=f2e2728]:
+                    - cell "26" [ref=f2e2729]
+                    - cell [ref=f2e2730]:
+                      - paragraph [ref=f2e2731]: Organic Coconut Oil 500ml
+                      - text: General
+                    - cell "2" [ref=f2e2732]
+                    - cell "Rs. 2,000.00" [ref=f2e2733]
+                    - cell "30d" [ref=f2e2734]
+                  - row [ref=f2e2737]:
+                    - cell "27" [ref=f2e2738]
+                    - cell [ref=f2e2739]:
+                      - paragraph [ref=f2e2740]: Sachima Sesame flavor
+                      - text: Snacks
+                    - cell "5" [ref=f2e2741]
+                    - cell "Rs. 2,000.00" [ref=f2e2742]
+                    - cell "30d" [ref=f2e2743]
+                  - row [ref=f2e2746]:
+                    - cell "28" [ref=f2e2747]
+                    - cell [ref=f2e2748]:
+                      - paragraph [ref=f2e2749]: Body gloves
+                      - text: Household
+                    - cell "7" [ref=f2e2750]
+                    - cell "Rs. 1,960.00" [ref=f2e2751]
+                    - cell "30d" [ref=f2e2752]
+                  - row [ref=f2e2755]:
+                    - cell "29" [ref=f2e2756]
+                    - cell [ref=f2e2757]:
+                      - paragraph [ref=f2e2758]: Zubi small rolli
+                      - text: Chocolate & Candy
+                    - cell "29" [ref=f2e2759]
+                    - cell "Rs. 1,885.00" [ref=f2e2760]
+                    - cell "40d" [ref=f2e2761]
+                  - row [ref=f2e2764]:
+                    - cell "30" [ref=f2e2765]
+                    - cell [ref=f2e2766]:
+                      - paragraph [ref=f2e2767]: Seaweed flake Stick 70
+                      - text: Seasoning
+                    - cell "2" [ref=f2e2768]
+                    - cell "Rs. 1,884.84" [ref=f2e2769]
+                    - cell "30d" [ref=f2e2770]
+                  - row [ref=f2e2773]:
+                    - cell "31" [ref=f2e2774]
+                    - cell [ref=f2e2775]:
+                      - paragraph [ref=f2e2776]: Laverland Teriyaki crunch seaweed 40.5g
+                      - text: Seaweed
+                    - cell "2" [ref=f2e2777]
+                    - cell "Rs. 1,878.28" [ref=f2e2778]
+                    - cell "30d" [ref=f2e2779]
+                  - row [ref=f2e2782]:
+                    - cell "32" [ref=f2e2783]
+                    - cell [ref=f2e2784]:
+                      - paragraph [ref=f2e2785]: Laverland Wasabi crunch
+                      - text: Seaweed
+                    - cell "2" [ref=f2e2786]
+                    - cell "Rs. 1,878.00" [ref=f2e2787]
+                    - cell "30d" [ref=f2e2788]
+                  - row [ref=f2e2791]:
+                    - cell "33" [ref=f2e2792]
+                    - cell [ref=f2e2793]:
+                      - paragraph [ref=f2e2794]: Honey Natural 500gm
+                      - text: General
+                    - cell "5" [ref=f2e2795]
+                    - cell "Rs. 1,875.00" [ref=f2e2796]
+                    - cell "30d" [ref=f2e2797]
+                  - row [ref=f2e2800]:
+                    - cell "34" [ref=f2e2801]
+                    - cell [ref=f2e2802]:
+                      - paragraph [ref=f2e2803]: Frozen squid tray pack 500 gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e2804]
+                    - cell "Rs. 1,870.00" [ref=f2e2805]
+                    - cell "30d" [ref=f2e2806]
+                  - row [ref=f2e2809]:
+                    - cell "35" [ref=f2e2810]
+                    - cell [ref=f2e2811]:
+                      - paragraph [ref=f2e2812]: Classic Milk Bar
+                      - text: Ice Cream
+                    - cell "11" [ref=f2e2813]
+                    - cell "Rs. 1,760.00" [ref=f2e2814]
+                    - cell "34d" [ref=f2e2815]
+                  - row [ref=f2e2818]:
+                    - cell "36" [ref=f2e2819]
+                    - cell [ref=f2e2820]:
+                      - paragraph [ref=f2e2821]: Frozen octopus tray pack 500gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e2822]
+                    - cell "Rs. 1,750.00" [ref=f2e2823]
+                    - cell "36d" [ref=f2e2824]
+                  - row [ref=f2e2827]:
+                    - cell "37" [ref=f2e2828]
+                    - cell [ref=f2e2829]:
+                      - paragraph [ref=f2e2830]: Gojiberry - the lycium chinese of zhongning
+                      - text: Healthy Snacks
+                    - cell "5" [ref=f2e2831]
+                    - cell "Rs. 1,750.00" [ref=f2e2832]
+                    - cell "39d" [ref=f2e2833]
+                  - row [ref=f2e2836]:
+                    - cell "38" [ref=f2e2837]
+                    - cell [ref=f2e2838]:
+                      - paragraph [ref=f2e2839]: OKF cafe cappuccino
+                      - text: Canned Food
+                    - cell "10" [ref=f2e2840]
+                    - cell "Rs. 1,740.00" [ref=f2e2841]
+                    - cell "30d" [ref=f2e2842]
+                  - row [ref=f2e2845]:
+                    - cell "39" [ref=f2e2846]
+                    - cell [ref=f2e2847]:
+                      - paragraph [ref=f2e2848]: OKF cafe latte
+                      - text: Canned Food
+                    - cell "10" [ref=f2e2849]
+                    - cell "Rs. 1,740.00" [ref=f2e2850]
+                    - cell "30d" [ref=f2e2851]
+                  - row [ref=f2e2854]:
+                    - cell "40" [ref=f2e2855]
+                    - cell [ref=f2e2856]:
+                      - paragraph [ref=f2e2857]: Kracks Hot and spicy 110gm
+                      - text: General
+                    - cell "6" [ref=f2e2858]
+                    - cell "Rs. 1,721.70" [ref=f2e2859]
+                    - cell "30d" [ref=f2e2860]
+                  - row [ref=f2e2863]:
+                    - cell "41" [ref=f2e2864]
+                    - cell [ref=f2e2865]:
+                      - paragraph [ref=f2e2866]: Kracks Original 110gm
+                      - text: General
+                    - cell "6" [ref=f2e2867]
+                    - cell "Rs. 1,721.70" [ref=f2e2868]
+                    - cell "30d" [ref=f2e2869]
+                  - row [ref=f2e2872]:
+                    - cell "42" [ref=f2e2873]
+                    - cell [ref=f2e2874]:
+                      - paragraph [ref=f2e2875]: Smoothie purple 500ml
+                      - text: Canned Food
+                    - cell "6" [ref=f2e2876]
+                    - cell "Rs. 1,564.80" [ref=f2e2877]
+                    - cell "30d" [ref=f2e2878]
+                  - row [ref=f2e2881]:
+                    - cell "43" [ref=f2e2882]
+                    - cell [ref=f2e2883]:
+                      - paragraph [ref=f2e2884]: Yopokki curry cup Rapokki
+                      - text: Noodles
+                    - cell "3" [ref=f2e2885]
+                    - cell "Rs. 1,562.64" [ref=f2e2886]
+                    - cell "32d" [ref=f2e2887]
+                  - row [ref=f2e2890]:
+                    - cell "44" [ref=f2e2891]
+                    - cell [ref=f2e2892]:
+                      - paragraph [ref=f2e2893]: Plastic vada jali
+                      - text: Kitchen
+                    - cell "9" [ref=f2e2894]
+                    - cell "Rs. 1,485.00" [ref=f2e2895]
+                    - cell "47d" [ref=f2e2896]
+                  - row [ref=f2e2899]:
+                    - cell "45" [ref=f2e2900]
+                    - cell [ref=f2e2901]:
+                      - paragraph [ref=f2e2902]: mixed sweet potato
+                      - text: Snacks
+                    - cell "4" [ref=f2e2903]
+                    - cell "Rs. 1,478.00" [ref=f2e2904]
+                    - cell "30d" [ref=f2e2905]
+                  - row [ref=f2e2908]:
+                    - cell "46" [ref=f2e2909]
+                    - cell [ref=f2e2910]:
+                      - paragraph [ref=f2e2911]: kwachi green sunflower 300gm
+                      - text: Healthy Snacks
+                    - cell "5" [ref=f2e2912]
+                    - cell "Rs. 1,450.00" [ref=f2e2913]
+                    - cell "30d" [ref=f2e2914]
+                  - row [ref=f2e2917]:
+                    - cell "47" [ref=f2e2918]
+                    - cell [ref=f2e2919]:
+                      - paragraph [ref=f2e2920]: kwachi red sunflower 300gm
+                      - text: Healthy Snacks
+                    - cell "5" [ref=f2e2921]
+                    - cell "Rs. 1,450.00" [ref=f2e2922]
+                    - cell "30d" [ref=f2e2923]
+                  - row [ref=f2e2926]:
+                    - cell "48" [ref=f2e2927]
+                    - cell [ref=f2e2928]:
+                      - paragraph [ref=f2e2929]: Dates Tubuji 428g
+                      - text: Healthy Snacks
+                    - cell "4" [ref=f2e2930]
+                    - cell "Rs. 1,400.00" [ref=f2e2931]
+                    - cell "39d" [ref=f2e2932]
+                  - row [ref=f2e2935]:
+                    - cell "49" [ref=f2e2936]
+                    - cell [ref=f2e2937]:
+                      - paragraph [ref=f2e2938]: High Protein Oats
+                      - text: Healthy Snacks
+                    - cell "4" [ref=f2e2939]
+                    - cell "Rs. 1,360.00" [ref=f2e2940]
+                    - cell "69d" [ref=f2e2941]
+                  - row [ref=f2e2944]:
+                    - cell "50" [ref=f2e2945]
+                    - cell [ref=f2e2946]:
+                      - paragraph [ref=f2e2947]: Seaweed Flake stick 40g
+                      - text: General
+                    - cell "3" [ref=f2e2948]
+                    - cell "Rs. 1,356.45" [ref=f2e2949]
+                    - cell "30d" [ref=f2e2950]
+                  - row [ref=f2e2953]:
+                    - cell "51" [ref=f2e2954]
+                    - cell [ref=f2e2955]:
+                      - paragraph [ref=f2e2956]: spicy buldak seaweed flake
+                      - text: Seaweed
+                    - cell "3" [ref=f2e2957]
+                    - cell "Rs. 1,356.00" [ref=f2e2958]
+                    - cell "30d" [ref=f2e2959]
+                  - row [ref=f2e2962]:
+                    - cell "52" [ref=f2e2963]
+                    - cell [ref=f2e2964]:
+                      - paragraph [ref=f2e2965]: Kunafa Chocolate Dates (150 gm)
+                      - text: Chocolate & Candy
+                    - cell "3" [ref=f2e2966]
+                    - cell "Rs. 1,350.00" [ref=f2e2967]
+                    - cell "47d" [ref=f2e2968]
+                  - row [ref=f2e2971]:
+                    - cell "53" [ref=f2e2972]
+                    - cell [ref=f2e2973]:
+                      - paragraph [ref=f2e2974]: kinima 500gm
+                      - text: Healthy Snacks
+                    - cell "3" [ref=f2e2975]
+                    - cell "Rs. 1,200.00" [ref=f2e2976]
+                    - cell "30d" [ref=f2e2977]
+                  - row [ref=f2e2980]:
+                    - cell "54" [ref=f2e2981]
+                    - cell [ref=f2e2982]:
+                      - paragraph [ref=f2e2983]: Butter coconut biscuit
+                      - text: Biscuits
+                    - cell "5" [ref=f2e2984]
+                    - cell "Rs. 1,170.00" [ref=f2e2985]
+                    - cell "33d" [ref=f2e2986]
+                  - row [ref=f2e2989]:
+                    - cell "55" [ref=f2e2990]
+                    - cell [ref=f2e2991]:
+                      - paragraph [ref=f2e2992]: Lapsi amilo pickle
+                      - text: Pickle
+                    - cell "4" [ref=f2e2993]
+                    - cell "Rs. 1,168.00" [ref=f2e2994]
+                    - cell "30d" [ref=f2e2995]
+                  - row [ref=f2e2998]:
+                    - cell "56" [ref=f2e2999]
+                    - cell [ref=f2e3000]:
+                      - paragraph [ref=f2e3001]: Dalle paste
+                      - text: Pickle
+                    - cell "3" [ref=f2e3002]
+                    - cell "Rs. 1,125.00" [ref=f2e3003]
+                    - cell "30d" [ref=f2e3004]
+                  - row [ref=f2e3007]:
+                    - cell "57" [ref=f2e3008]
+                    - cell [ref=f2e3009]:
+                      - paragraph [ref=f2e3010]: Pintola Peanut Butter
+                      - text: Healthy Snacks
+                    - cell "3" [ref=f2e3011]
+                    - cell "Rs. 1,110.00" [ref=f2e3012]
+                    - cell "35d" [ref=f2e3013]
+                  - row [ref=f2e3016]:
+                    - cell "58" [ref=f2e3017]
+                    - cell [ref=f2e3018]:
+                      - paragraph [ref=f2e3019]: Kunafa chocolates with Coffee fillings
+                      - text: Chocolate & Candy
+                    - cell "3" [ref=f2e3020]
+                    - cell "Rs. 1,080.00" [ref=f2e3021]
+                    - cell "56d" [ref=f2e3022]
+                  - row [ref=f2e3025]:
+                    - cell "59" [ref=f2e3026]
+                    - cell [ref=f2e3027]:
+                      - paragraph [ref=f2e3028]: Surimi Fish Ball 500 gm
+                      - text: Sea Food
+                    - cell "1" [ref=f2e3029]
+                    - cell "Rs. 1,075.00" [ref=f2e3030]
+                    - cell "30d" [ref=f2e3031]
+                  - row [ref=f2e3034]:
+                    - cell "60" [ref=f2e3035]
+                    - cell [ref=f2e3036]:
+                      - paragraph [ref=f2e3037]: Basa Fish big pack
+                      - text: Sea Food
+                    - cell "1" [ref=f2e3038]
+                    - cell "Rs. 1,000.00" [ref=f2e3039]
+                    - cell "30d" [ref=f2e3040]
+                  - row [ref=f2e3043]:
+                    - cell "61" [ref=f2e3044]
+                    - cell [ref=f2e3045]:
+                      - paragraph [ref=f2e3046]: Dalle and garlic paste pickle
+                      - text: Pickle
+                    - cell "3" [ref=f2e3047]
+                    - cell "Rs. 999.00" [ref=f2e3048]
+                    - cell "30d" [ref=f2e3049]
+                  - row [ref=f2e3052]:
+                    - cell "62" [ref=f2e3053]
+                    - cell [ref=f2e3054]:
+                      - paragraph [ref=f2e3055]: Premium Tissue Box
+                      - text: Household
+                    - cell "8" [ref=f2e3056]
+                    - cell "Rs. 960.00" [ref=f2e3057]
+                    - cell "67d" [ref=f2e3058]
+                  - row [ref=f2e3061]:
+                    - cell "63" [ref=f2e3062]
+                    - cell [ref=f2e3063]:
+                      - paragraph [ref=f2e3064]: Yoga Bar Protein minis 140g
+                      - text: Healthy Snacks
+                    - cell "4" [ref=f2e3065]
+                    - cell "Rs. 952.00" [ref=f2e3066]
+                    - cell "70d" [ref=f2e3067]
+                  - row [ref=f2e3070]:
+                    - cell "64" [ref=f2e3071]
+                    - cell [ref=f2e3072]:
+                      - paragraph [ref=f2e3073]: Tub American Nuts
+                      - text: Ice Cream
+                    - cell "2" [ref=f2e3074]
+                    - cell "Rs. 880.00" [ref=f2e3075]
+                    - cell "31d" [ref=f2e3076]
+                  - row [ref=f2e3079]:
+                    - cell "65" [ref=f2e3080]
+                    - cell [ref=f2e3081]:
+                      - paragraph [ref=f2e3082]: Danish Biscuit
+                      - text: Chocolate & Candy
+                    - cell "2" [ref=f2e3083]
+                    - cell "Rs. 780.00" [ref=f2e3084]
+                    - cell "61d" [ref=f2e3085]
+                  - row [ref=f2e3088]:
+                    - cell "66" [ref=f2e3089]
+                    - cell [ref=f2e3090]:
+                      - paragraph [ref=f2e3091]: Didian Be fresh milk biscuit
+                      - text: Biscuits
+                    - cell "2" [ref=f2e3092]
+                    - cell "Rs. 780.00" [ref=f2e3093]
+                    - cell "79d" [ref=f2e3094]
+                  - row [ref=f2e3097]:
+                    - cell "67" [ref=f2e3098]
+                    - cell [ref=f2e3099]:
+                      - paragraph [ref=f2e3100]: Momo
+                      - text: Frozen Food
+                    - cell "12" [ref=f2e3101]
+                    - cell "Rs. 780.00" [ref=f2e3102]
+                    - cell "72d" [ref=f2e3103]
+                  - row [ref=f2e3106]:
+                    - cell "68" [ref=f2e3107]
+                    - cell [ref=f2e3108]:
+                      - paragraph [ref=f2e3109]: Mix achar
+                      - text: Pickle
+                    - cell "3" [ref=f2e3110]
+                    - cell "Rs. 750.00" [ref=f2e3111]
+                    - cell "30d" [ref=f2e3112]
+                  - row [ref=f2e3115]:
+                    - cell "69" [ref=f2e3116]
+                    - cell [ref=f2e3117]:
+                      - paragraph [ref=f2e3118]: Surimi Kamanboka 165 gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e3119]
+                    - cell "Rs. 750.00" [ref=f2e3120]
+                    - cell "30d" [ref=f2e3121]
+                  - row [ref=f2e3124]:
+                    - cell "70" [ref=f2e3125]
+                    - cell [ref=f2e3126]:
+                      - paragraph [ref=f2e3127]: Cup Keshar Pista
+                      - text: Ice Cream
+                    - cell "5" [ref=f2e3128]
+                    - cell "Rs. 700.00" [ref=f2e3129]
+                    - cell "34d" [ref=f2e3130]
+                  - row [ref=f2e3133]:
+                    - cell "71" [ref=f2e3134]
+                    - cell [ref=f2e3135]:
+                      - paragraph [ref=f2e3136]: Surimi Naruto 125 gm
+                      - text: Sea Food
+                    - cell "2" [ref=f2e3137]
+                    - cell "Rs. 700.00" [ref=f2e3138]
+                    - cell "31d" [ref=f2e3139]
+                  - row [ref=f2e3142]:
+                    - cell "72" [ref=f2e3143]
+                    - cell [ref=f2e3144]:
+                      - paragraph [ref=f2e3145]: Millet museli 450g
+                      - text: Healthy Snacks
+                    - cell "2" [ref=f2e3146]
+                    - cell "Rs. 680.00" [ref=f2e3147]
+                    - cell "43d" [ref=f2e3148]
+                  - row [ref=f2e3151]:
+                    - cell "73" [ref=f2e3152]
+                    - cell [ref=f2e3153]:
+                      - paragraph [ref=f2e3154]: Laverland Teriyaki minion 13.5g (3 pc packet)
+                      - text: Seaweed
+                    - cell "2" [ref=f2e3155]
+                    - cell "Rs. 678.00" [ref=f2e3156]
+                    - cell "30d" [ref=f2e3157]
+                  - row [ref=f2e3160]:
+                    - cell "74" [ref=f2e3161]
+                    - cell [ref=f2e3162]:
+                      - paragraph [ref=f2e3163]: Gud Bites 500 gm
+                      - text: Snacks
+                    - cell "3" [ref=f2e3164]
+                    - cell "Rs. 675.00" [ref=f2e3165]
+                    - cell "30d" [ref=f2e3166]
+                  - row [ref=f2e3169]:
+                    - cell "75" [ref=f2e3170]
+                    - cell [ref=f2e3171]:
+                      - paragraph [ref=f2e3172]: IQF Prawn 26/30 500 gm
+                      - text: Sea Food
+                    - cell "1" [ref=f2e3173]
+                    - cell "Rs. 675.00" [ref=f2e3174]
+                    - cell "31d" [ref=f2e3175]
+                  - row [ref=f2e3178]:
+                    - cell "76" [ref=f2e3179]
+                    - cell [ref=f2e3180]:
+                      - paragraph [ref=f2e3181]: Surimi snow crab leg 250gm
+                      - text: Sea Food
+                    - cell "1" [ref=f2e3182]
+                    - cell "Rs. 650.00" [ref=f2e3183]
+                    - cell "38d" [ref=f2e3184]
+                  - row [ref=f2e3187]:
+                    - cell "77" [ref=f2e3188]
+                    - cell [ref=f2e3189]:
+                      - paragraph [ref=f2e3190]: Thin cracker
+                      - text: Biscuits
+                    - cell "2" [ref=f2e3191]
+                    - cell "Rs. 640.00" [ref=f2e3192]
+                    - cell "57d" [ref=f2e3193]
+                  - row [ref=f2e3196]:
+                    - cell "78" [ref=f2e3197]
+                    - cell [ref=f2e3198]:
+                      - paragraph [ref=f2e3199]: Cone Chic Chocolate
+                      - text: Ice Cream
+                    - cell "6" [ref=f2e3200]
+                    - cell "Rs. 624.00" [ref=f2e3201]
+                    - cell "37d" [ref=f2e3202]
+                  - row [ref=f2e3205]:
+                    - cell "79" [ref=f2e3206]
+                    - cell [ref=f2e3207]:
+                      - paragraph [ref=f2e3208]: Kohkae Party Mix 160g
+                      - text: Healthy Snacks
+                    - cell "2" [ref=f2e3209]
+                    - cell "Rs. 608.66" [ref=f2e3210]
+                    - cell "60d" [ref=f2e3211]
+                  - row [ref=f2e3214]:
+                    - cell "80" [ref=f2e3215]
+                    - cell [ref=f2e3216]:
+                      - paragraph [ref=f2e3217]: yimeida Apple Imli (Hawthrone Slice)
+                      - text: Chocolate & Candy
+                    - cell "3" [ref=f2e3218]
+                    - cell "Rs. 600.00" [ref=f2e3219]
+                    - cell "30d" [ref=f2e3220]
+                  - row [ref=f2e3223]:
+                    - cell "81" [ref=f2e3224]
+                    - cell [ref=f2e3225]:
+                      - paragraph [ref=f2e3226]: koseli chicken achar
+                      - text: Pickle
+                    - cell "1" [ref=f2e3227]
+                    - cell "Rs. 550.00" [ref=f2e3228]
+                    - cell "30d" [ref=f2e3229]
+                  - row [ref=f2e3232]:
+                    - cell "82" [ref=f2e3233]
+                    - cell [ref=f2e3234]:
+                      - paragraph [ref=f2e3235]: Seaweed flake Stick with pollack rose 40g
+                      - text: Healthy Snacks
+                    - cell "1" [ref=f2e3236]
+                    - cell "Rs. 452.15" [ref=f2e3237]
+                    - cell "31d" [ref=f2e3238]
+                  - row [ref=f2e3241]:
+                    - cell "83" [ref=f2e3242]
+                    - cell [ref=f2e3243]:
+                      - paragraph [ref=f2e3244]: Nasa - Dry meat small
+                      - text: Snacks
+                    - cell "5" [ref=f2e3245]
+                    - cell "Rs. 450.00" [ref=f2e3246]
+                    - cell "30d" [ref=f2e3247]
+                  - row [ref=f2e3250]:
+                    - cell "84" [ref=f2e3251]
+                    - cell [ref=f2e3252]:
+                      - paragraph [ref=f2e3253]: Organic Coconut Oil 180ml
+                      - text: General
+                    - cell "1" [ref=f2e3254]
+                    - cell "Rs. 400.00" [ref=f2e3255]
+                    - cell "30d" [ref=f2e3256]
+                  - row [ref=f2e3259]:
+                    - cell "85" [ref=f2e3260]
+                    - cell [ref=f2e3261]:
+                      - paragraph [ref=f2e3262]: Didian Pineappple crisp biscuits
+                      - text: Biscuits
+                    - cell "1" [ref=f2e3263]
+                    - cell "Rs. 390.00" [ref=f2e3264]
+                    - cell "47d" [ref=f2e3265]
+                  - row [ref=f2e3268]:
+                    - cell "86" [ref=f2e3269]
+                    - cell [ref=f2e3270]:
+                      - paragraph [ref=f2e3271]: Tub Vanilla Ice Cream
+                      - text: Ice Cream
+                    - cell "2" [ref=f2e3272]
+                    - cell "Rs. 384.00" [ref=f2e3273]
+                    - cell "58d" [ref=f2e3274]
+                  - row [ref=f2e3277]:
+                    - cell "87" [ref=f2e3278]
+                    - cell [ref=f2e3279]:
+                      - paragraph [ref=f2e3280]: Tub Butterscotch / Chocolate
+                      - text: Ice Cream
+                    - cell "1" [ref=f2e3281]
+                    - cell "Rs. 272.00" [ref=f2e3282]
+                    - cell "31d" [ref=f2e3283]
+                  - row [ref=f2e3286]:
+                    - cell "88" [ref=f2e3287]
+                    - cell [ref=f2e3288]:
+                      - paragraph [ref=f2e3289]: Dairy milk Bubbly
+                      - text: Chocolate & Candy
+                    - cell "1" [ref=f2e3290]
+                    - cell "Rs. 200.00" [ref=f2e3291]
+                    - cell "40d" [ref=f2e3292]
+                  - row [ref=f2e3295]:
+                    - cell "89" [ref=f2e3296]
+                    - cell [ref=f2e3297]:
+                      - paragraph [ref=f2e3298]: Party Cup and straw
+                      - text: Household
+                    - cell "4" [ref=f2e3299]
+                    - cell "Rs. 160.00" [ref=f2e3300]
+                    - cell "39d" [ref=f2e3301]
+                  - row [ref=f2e3304]:
+                    - cell "90" [ref=f2e3305]
+                    - cell [ref=f2e3306]:
+                      - paragraph [ref=f2e3307]: Nasa - Fish mix snack pickle
+                      - text: Snacks
+                    - cell "2" [ref=f2e3308]
+                    - cell "Rs. 120.00" [ref=f2e3309]
+                    - cell "48d" [ref=f2e3310]
+                  - row [ref=f2e3313]:
+                    - cell "91" [ref=f2e3314]
+                    - cell [ref=f2e3315]:
+                      - paragraph [ref=f2e3316]: Nasa - Namcha piece
+                      - text: Snacks
+                    - cell "1" [ref=f2e3317]
+                    - cell "Rs. 90.00" [ref=f2e3318]
+                    - cell "30d" [ref=f2e3319]
+                  - row [ref=f2e3322]:
+                    - cell "92" [ref=f2e3323]
+                    - cell [ref=f2e3324]:
+                      - paragraph [ref=f2e3325]: Lanzhen Bamboo chopstick
+                      - text: Kitchen
+                    - cell "7" [ref=f2e3326]
+                    - cell "Rs. 70.00" [ref=f2e3327]
+                    - cell "73d" [ref=f2e3328]
+                  - row [ref=f2e3331]:
+                    - cell "93" [ref=f2e3332]
+                    - cell [ref=f2e3333]:
+                      - paragraph [ref=f2e3334]: CF Product
+                      - text: Snacks
+                    - cell "6" [ref=f2e3335]
+                    - cell "Rs. 60.00" [ref=f2e3336]
+                    - cell "30d" [ref=f2e3337]
+  - generic [aria-hidden] [ref=f2e1569]: Rs. 0
