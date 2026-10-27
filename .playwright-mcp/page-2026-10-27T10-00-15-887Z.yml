@@ -1,0 +1,255 @@
+- generic [ref=f4e2]:
+  - alert [ref=f4e227]:
+    - generic [ref=f4e231]: Full executive workbook exported successfully!
+    - button "Close" [ref=f4e233] [cursor=pointer]
+  - generic [ref=f4e3]:
+    - generic [ref=f4e6]:
+      - img "KoMart logo" [ref=f4e10]
+      - separator [ref=f4e11]
+      - list [ref=f4e12]:
+        - listitem [ref=f4e13]:
+          - link "Dashboard" [ref=f4e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f4e19]:
+          - link "POS" [ref=f4e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f4e25]:
+          - link "Sales" [ref=f4e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f4e32]:
+          - link "Products" [ref=f4e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f4e38]:
+          - link "Inventory" [ref=f4e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f4e44]:
+          - link "Stock Count" [ref=f4e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f4e50]:
+          - link "Suppliers" [ref=f4e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f4e56]:
+          - link "Purchase Orders" [ref=f4e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f4e62]:
+          - link "Purchase Returns" [ref=f4e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f4e68]:
+          - link "Expenses" [ref=f4e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f4e74]:
+          - link "Accounts" [ref=f4e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f4e80]:
+          - link "Reconciliation" [ref=f4e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f4e86]:
+          - link "Customers" [ref=f4e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f4e92]:
+          - link "Reports" [ref=f4e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f4e98]:
+          - link "Notifications" [ref=f4e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f4e104]:
+          - link "Settings" [ref=f4e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f4e110]:
+      - generic [ref=f4e112]:
+        - button "Go to Home" [ref=f4e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f4e117] [cursor=pointer]
+        - button "Notifications" [ref=f4e120] [cursor=pointer]
+        - button "Y" [ref=f4e124] [cursor=pointer]
+      - generic [ref=f4e127]:
+        - generic [ref=f4e128]:
+          - generic [ref=f4e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f4e130]
+            - paragraph [ref=f4e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f4e132]:
+            - button [ref=f4e133] [cursor=pointer]
+            - button [ref=f4e137] [cursor=pointer]
+        - generic [ref=f4e141]:
+          - generic [ref=f4e142]:
+            - generic [ref=f4e143]:
+              - group [ref=f4e144]:
+                - button "Today" [ref=f4e145] [cursor=pointer]
+                - button "Yesterday" [ref=f4e146] [cursor=pointer]
+                - button "7D" [ref=f4e147] [cursor=pointer]
+                - button "30D" [ref=f4e148] [cursor=pointer]
+                - button "Month" [ref=f4e149] [cursor=pointer]
+              - generic [ref=f4e238]:
+                - generic [ref=f4e239]: Start Date
+                - group "Start Date" [ref=f4e240]:
+                  - generic [ref=f4e241]:
+                    - generic [ref=f4e242]:
+                      - spinbutton "Month" [ref=f4e243]: "10"
+                      - text: /
+                    - generic [ref=f4e244]:
+                      - spinbutton "Day" [ref=f4e245]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f4e247]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f4e249] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f4e252]: 10/27/2026
+              - generic [ref=f4e253]:
+                - generic [ref=f4e254]: End Date
+                - group "End Date" [ref=f4e255]:
+                  - generic [ref=f4e256]:
+                    - generic [ref=f4e257]:
+                      - spinbutton "Month" [ref=f4e258]: "10"
+                      - text: /
+                    - generic [ref=f4e259]:
+                      - spinbutton "Day" [ref=f4e260]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f4e262]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f4e264] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f4e267]: 10/27/2026
+            - generic [ref=f4e168]:
+              - button "Today" [ref=f4e169] [cursor=pointer]
+              - button "Yesterday" [ref=f4e171] [cursor=pointer]
+              - button "This Week" [ref=f4e173] [cursor=pointer]
+              - button "This Month" [ref=f4e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f4e177] [cursor=pointer]
+          - generic [ref=f4e179]: "Nepal BS: Kartik 10 – 10, 2083 BS"
+        - generic [ref=f4e184]:
+          - tablist [ref=f4e186]:
+            - tab "Executive Financials" [selected] [ref=f4e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [ref=f4e190] [cursor=pointer]
+            - tab "Purchases & Payables" [ref=f4e193] [cursor=pointer]
+            - tab "Inventory & Health" [ref=f4e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [ref=f4e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [ref=f4e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [ref=f4e205] [cursor=pointer]
+          - generic [ref=f4e268] [cursor=pointer]
+        - generic [ref=f4e212]:
+          - generic [ref=f4e213]:
+            - generic [ref=f4e271]:
+              - generic [ref=f4e272]:
+                - generic [ref=f4e273]: Net Sales Revenue
+                - img [aria-hidden] [ref=f4e274] [cursor=pointer]
+              - heading "Rs. 0.00" [level=6] [ref=f4e276]
+              - generic [ref=f4e277]: 0.0% discount rate · Gross Rs. 0.00
+            - generic [ref=f4e278]:
+              - generic [ref=f4e279]:
+                - generic [ref=f4e280]: Gross Profit
+                - img [aria-hidden] [ref=f4e281] [cursor=pointer]
+              - heading "Rs. 0.00" [level=6] [ref=f4e283]
+              - generic [ref=f4e284]: "Trading Margin: 0.0% · COGS: Rs. 0.00"
+            - generic [ref=f4e285]:
+              - generic [ref=f4e286]:
+                - generic [ref=f4e287]: Operating Profit (EBIT)
+                - img [aria-hidden] [ref=f4e288] [cursor=pointer]
+              - heading "Rs. 0.00" [level=6] [ref=f4e290]
+              - generic [ref=f4e291]: "Operating Margin: 0.0% · Overhead: Rs. 0.00"
+            - generic [ref=f4e292]:
+              - generic [ref=f4e293]:
+                - generic [ref=f4e294]: Net Cash Flow
+                - img [aria-hidden] [ref=f4e295] [cursor=pointer]
+              - heading "Rs. 0.00" [level=6] [ref=f4e297]
+              - generic [ref=f4e298]: Net Cash Surplus
+          - generic [ref=f4e222]:
+            - generic [ref=f4e299]:
+              - generic [ref=f4e300]:
+                - heading "Trading Profit & Loss Statement (P&L)" [level=6] [ref=f4e304]
+                - generic [ref=f4e305]: Accrual Accounting
+              - paragraph [ref=f4e307]: Audited multi-step income statement showing value flow from shelf scans to true retail operating earnings.
+              - generic [ref=f4e308]:
+                - generic [ref=f4e309]:
+                  - paragraph [ref=f4e310]: Gross Sales (Shelf Price)
+                  - paragraph [ref=f4e311]: Rs. 0.00
+                - generic [ref=f4e312]:
+                  - generic [ref=f4e313]: (-) Item Discounts
+                  - generic [ref=f4e314]: (Rs. 0.00)
+                - generic [ref=f4e315]:
+                  - generic [ref=f4e316]: (-) Bill & Loyalty Discounts
+                  - generic [ref=f4e317]: (Rs. 0.00)
+                - separator [ref=f4e318]
+                - generic [ref=f4e319]:
+                  - paragraph [ref=f4e320]: Net Sales Revenue
+                  - paragraph [ref=f4e321]: Rs. 0.00
+                - generic [ref=f4e322]:
+                  - generic [ref=f4e323]: (-) Cost of Goods Sold (Product Cost)
+                  - generic [ref=f4e324]: (Rs. 0.00)
+                - separator [ref=f4e325]
+                - generic [ref=f4e326]:
+                  - generic [ref=f4e327]:
+                    - paragraph [ref=f4e328]: Gross Profit
+                    - generic [ref=f4e329]: "Gross Margin: 0.0%"
+                  - heading "Rs. 0.00" [level=6] [ref=f4e330]
+                - generic [ref=f4e331]:
+                  - generic [ref=f4e332]: (-) Operating Expenses (Staff, Rent, Utilities)
+                  - generic [ref=f4e333]: (Rs. 0.00)
+                - separator [ref=f4e334]
+                - generic [ref=f4e335]:
+                  - generic [ref=f4e336]:
+                    - generic [ref=f4e337]:
+                      - heading "Operating Profit (EBIT)" [level=6] [ref=f4e338]
+                      - img [aria-hidden] [ref=f4e339] [cursor=pointer]
+                    - generic [ref=f4e341]: "Operating Margin: 0.0% · Excludes capital investments & PO bills"
+                  - heading "Rs. 0.00" [level=6] [ref=f4e342]
+            - generic [ref=f4e343]:
+              - generic [ref=f4e344]:
+                - heading "Cash-to-Profit Reconciliation Bridge" [level=6] [ref=f4e349]
+                - paragraph [ref=f4e352]: Reconciles accounting profit with physical cash and digital bank balance movements over the selected period.
+                - generic [ref=f4e353]:
+                  - generic [ref=f4e354]:
+                    - paragraph [ref=f4e355]: Operating Profit (P&L)
+                    - paragraph [ref=f4e356]: Rs. 0.00
+                  - generic [ref=f4e357]:
+                    - generic [ref=f4e358]: (+) Store Internal Use (Non-Cash Expense)
+                    - generic [ref=f4e359]: +Rs. 0.00
+                  - generic [ref=f4e360]:
+                    - generic [ref=f4e361]: (+) Product Cost Depleted (Non-Cash Stock)
+                    - generic [ref=f4e362]: +Rs. 0.00
+                  - generic [ref=f4e363]:
+                    - generic [ref=f4e364]: (-) Supplier Bill Payments (Cash Paid Out)
+                    - generic [ref=f4e365]: (Rs. 0.00)
+                  - generic [ref=f4e366]:
+                    - generic [ref=f4e367]: (+) Supplier Return Refunds (Cash Collected)
+                    - generic [ref=f4e368]: +Rs. 0.00
+                  - generic [ref=f4e369]:
+                    - generic [ref=f4e370]: (±) Non-Operating Cash & Float Movements
+                    - generic [ref=f4e371]: +Rs. 0.00
+                  - separator [ref=f4e372]
+                  - generic [ref=f4e373]:
+                    - generic [ref=f4e374]:
+                      - heading "Net Cash Movement (Till & Bank)" [level=6] [ref=f4e375]
+                      - text: Exact net change in till and digital bank balances
+                    - heading "+Rs. 0.00" [level=6] [ref=f4e376]
+              - generic [ref=f4e377]:
+                - generic [ref=f4e379]:
+                  - heading "Working Capital" [level=6] [ref=f4e383]
+                  - generic [ref=f4e384]:
+                    - generic [ref=f4e385]:
+                      - generic [ref=f4e386]: "Inventory Valuation:"
+                      - generic [ref=f4e387]: Rs. 1,458,738.57
+                    - generic [ref=f4e388]:
+                      - generic [ref=f4e389]: "Unpaid Supplier Bills (AP):"
+                      - generic [ref=f4e390]: Rs. 1,263,617.21
+                    - generic [ref=f4e391]:
+                      - generic [ref=f4e392]: "Supplier Refunds Pending:"
+                      - generic [ref=f4e393]: Rs. 0.00
+                - generic [ref=f4e395]:
+                  - heading "IRD VAT & Round-Off" [level=6] [ref=f4e400]
+                  - generic [ref=f4e401]:
+                    - generic [ref=f4e402]:
+                      - generic [ref=f4e403]: "Taxable Sales:"
+                      - generic [ref=f4e404]: Rs. 0.00
+                    - generic [ref=f4e405]:
+                      - generic [ref=f4e406]: "Tax-Exempt Sales (Basic Foods):"
+                      - generic [ref=f4e407]: Rs. 0.00
+                    - generic [ref=f4e408]:
+                      - generic [ref=f4e409]: "13% Output VAT:"
+                      - generic [ref=f4e410]: Rs. 0.00
+                    - generic [ref=f4e411]:
+                      - generic [ref=f4e412]: "Cash Currency Round-Off:"
+                      - generic [ref=f4e413]: +Rs. 0.00
+              - generic [ref=f4e414]:
+                - generic [ref=f4e415]:
+                  - heading "Operating Expenses Breakdown" [level=6] [ref=f4e419]
+                  - button "View Expenses Ledger →" [ref=f4e420] [cursor=pointer]
+                - text: No operating expenses recorded for this selected period.

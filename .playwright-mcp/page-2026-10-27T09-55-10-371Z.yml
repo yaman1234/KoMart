@@ -1,0 +1,1034 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e6]:
+      - img "KoMart logo" [ref=f2e10]
+      - separator [ref=f2e11]
+      - list [ref=f2e12]:
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f2e19]:
+          - link "POS" [ref=f2e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f2e25]:
+          - link "Sales" [ref=f2e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f2e32]:
+          - link "Products" [ref=f2e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f2e38]:
+          - link "Inventory" [ref=f2e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f2e44]:
+          - link "Stock Count" [ref=f2e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f2e50]:
+          - link "Suppliers" [ref=f2e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f2e56]:
+          - link "Purchase Orders" [ref=f2e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f2e62]:
+          - link "Purchase Returns" [ref=f2e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f2e68]:
+          - link "Expenses" [ref=f2e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f2e74]:
+          - link "Accounts" [ref=f2e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f2e80]:
+          - link "Reconciliation" [ref=f2e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f2e86]:
+          - link "Customers" [ref=f2e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f2e92]:
+          - link "Reports" [ref=f2e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f2e98]:
+          - link "Notifications" [ref=f2e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f2e104]:
+          - link "Settings" [ref=f2e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f2e110]:
+      - generic [ref=f2e112]:
+        - button "Go to Home" [ref=f2e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f2e117] [cursor=pointer]
+        - button "Notifications" [ref=f2e120] [cursor=pointer]
+        - button "Y" [ref=f2e124] [cursor=pointer]
+      - generic [ref=f2e127]:
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f2e130]
+            - paragraph [ref=f2e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f2e132]:
+            - button [ref=f2e133] [cursor=pointer]
+            - button [ref=f2e137] [cursor=pointer]
+        - generic [ref=f2e141]:
+          - generic [ref=f2e142]:
+            - generic [ref=f2e143]:
+              - group [ref=f2e144]:
+                - button "Today" [ref=f2e145] [cursor=pointer]
+                - button "Yesterday" [ref=f2e146] [cursor=pointer]
+                - button "7D" [ref=f2e147] [cursor=pointer]
+                - button "30D" [ref=f2e148] [cursor=pointer]
+                - button "Month" [ref=f2e149] [cursor=pointer]
+              - generic [ref=f2e227]:
+                - generic [ref=f2e228]: Start Date
+                - group "Start Date" [ref=f2e229]:
+                  - generic [ref=f2e230]:
+                    - generic [ref=f2e231]:
+                      - spinbutton "Month" [ref=f2e232]: "09"
+                      - text: /
+                    - generic [ref=f2e233]:
+                      - spinbutton "Day" [ref=f2e234]: "28"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e236]: "2026"
+                  - button "Choose date, selected date is Sep 28, 2026" [ref=f2e410] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f2e241]: 09/28/2026
+              - generic [ref=f2e242]:
+                - generic [ref=f2e243]: End Date
+                - group "End Date" [ref=f2e244]:
+                  - generic [ref=f2e245]:
+                    - generic [ref=f2e246]:
+                      - spinbutton "Month" [ref=f2e247]: "10"
+                      - text: /
+                    - generic [ref=f2e248]:
+                      - spinbutton "Day" [ref=f2e249]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e251]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f2e253] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f2e256]: 10/27/2026
+            - generic [ref=f2e168]:
+              - button "Today" [ref=f2e169] [cursor=pointer]
+              - button "Yesterday" [ref=f2e171] [cursor=pointer]
+              - button "This Week" [ref=f2e173] [cursor=pointer]
+              - button "This Month" [ref=f2e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f2e177] [cursor=pointer]
+          - generic [ref=f2e179]: "Nepal BS: Ashwin 12 – Kartik 10, 2083 BS"
+        - generic [ref=f2e184]:
+          - tablist [ref=f2e186]:
+            - tab "Executive Financials" [ref=f2e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [active] [selected] [ref=f2e190] [cursor=pointer]
+            - tab "Purchases & Payables" [ref=f2e193] [cursor=pointer]
+            - tab "Inventory & Health" [ref=f2e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [ref=f2e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [ref=f2e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [ref=f2e205] [cursor=pointer]
+          - generic [ref=f2e257] [cursor=pointer]
+        - generic [ref=f2e465]:
+          - generic [ref=f2e466]:
+            - generic [ref=f2e467]:
+              - heading "Daily Revenue & Gross Profit Velocity" [level=6] [ref=f2e471]
+              - generic [ref=f2e472]: Realized sales and gross margin per business day across selected date range
+            - generic [ref=f2e475]:
+              - list [ref=f2e477]:
+                - listitem [ref=f2e478]:
+                  - img "Gross Profit legend icon" [ref=f2e479]
+                  - text: Gross Profit
+                - listitem [ref=f2e481]:
+                  - img "Net Revenue legend icon" [ref=f2e482]
+                  - text: Net Revenue
+              - application [ref=f2e484]:
+                - generic [ref=f2e502]:
+                  - generic [ref=f2e503]:
+                    - generic [ref=f2e504]: 2026-09-29
+                    - generic [ref=f2e506]: 2026-10-01
+                    - generic [ref=f2e508]: 2026-10-03
+                    - generic [ref=f2e510]: 2026-10-05
+                    - generic [ref=f2e512]: 2026-10-07
+                    - generic [ref=f2e514]: 2026-10-09
+                    - generic [ref=f2e516]: 2026-10-11
+                    - generic [ref=f2e518]: 2026-10-13
+                    - generic [ref=f2e520]: 2026-10-15
+                    - generic [ref=f2e522]: 2026-10-17
+                    - generic [ref=f2e524]: 2026-10-19
+                    - generic [ref=f2e526]: 2026-10-21
+                    - generic [ref=f2e528]: 2026-10-23
+                    - generic [ref=f2e530]: 2026-10-25
+                    - generic [ref=f2e532]: 2026-10-27
+                  - generic [ref=f2e534]:
+                    - generic [ref=f2e535]: Rs. 0
+                    - generic [ref=f2e537]: Rs. 10k
+                    - generic [ref=f2e539]: Rs. 20k
+                    - generic [ref=f2e541]: Rs. 30k
+                    - generic [ref=f2e543]: Rs. 40k
+          - generic [ref=f2e545]:
+            - generic [ref=f2e546]:
+              - heading "Department & Category Contribution Matrix" [level=6] [ref=f2e552]
+              - generic [ref=f2e553]: Revenue Share vs. True Gross Profit Generation
+            - table [ref=f2e555]:
+              - rowgroup [ref=f2e556]:
+                - row [ref=f2e557]:
+                  - columnheader "#" [ref=f2e558]
+                  - columnheader "Category Name" [ref=f2e559]
+                  - columnheader "Units Sold" [ref=f2e560]
+                  - columnheader "Gross Sales" [ref=f2e561]
+                  - columnheader "Discounts" [ref=f2e562]
+                  - columnheader "Net Revenue" [ref=f2e563]
+                  - columnheader "COGS" [ref=f2e564]
+                  - columnheader "Gross Profit" [ref=f2e565]
+                  - columnheader "Margin %" [ref=f2e566]
+                  - columnheader "Revenue Share" [ref=f2e567]
+                  - columnheader "Profit Share" [ref=f2e568]
+              - rowgroup [ref=f2e569]:
+                - row [ref=f2e570]:
+                  - cell "1" [ref=f2e571]
+                  - cell "Beverages" [ref=f2e572]
+                  - cell "748" [ref=f2e573]
+                  - cell "Rs. 102,206.00" [ref=f2e574]
+                  - cell "—" [ref=f2e575]
+                  - cell "Rs. 100,313.21" [ref=f2e576]
+                  - cell "Rs. 81,150.80" [ref=f2e577]
+                  - cell "Rs. 19,162.41" [ref=f2e578]
+                  - cell "19.1%" [ref=f2e579]
+                  - cell "20.1 20.1%" [ref=f2e580]:
+                    - generic [ref=f2e581]:
+                      - progressbar [ref=f2e582]
+                      - generic [ref=f2e584]: 20.1%
+                  - cell "21.5 21.5%" [ref=f2e585]:
+                    - generic [ref=f2e586]:
+                      - progressbar [ref=f2e587]
+                      - generic [ref=f2e589]: 21.5%
+                - row [ref=f2e590]:
+                  - cell "2" [ref=f2e591]
+                  - cell "Noodles" [ref=f2e592]
+                  - cell "475" [ref=f2e593]
+                  - cell "Rs. 108,905.00" [ref=f2e594]
+                  - cell "-Rs. 10,790.00" [ref=f2e595]
+                  - cell "Rs. 96,603.78" [ref=f2e596]
+                  - cell "Rs. 89,952.88" [ref=f2e597]
+                  - cell "Rs. 6,650.90" [ref=f2e598]
+                  - cell "6.9%" [ref=f2e599]
+                  - cell "19.3 19.3%" [ref=f2e600]:
+                    - generic [ref=f2e601]:
+                      - progressbar [ref=f2e602]
+                      - generic [ref=f2e604]: 19.3%
+                  - cell "7.5 7.5%" [ref=f2e605]:
+                    - generic [ref=f2e606]:
+                      - progressbar [ref=f2e607]
+                      - generic [ref=f2e609]: 7.5%
+                - row [ref=f2e610]:
+                  - cell "3" [ref=f2e611]
+                  - cell "Sauces" [ref=f2e612]
+                  - cell "141" [ref=f2e613]
+                  - cell "Rs. 91,314.00" [ref=f2e614]
+                  - cell "-Rs. 18,000.00" [ref=f2e615]
+                  - cell "Rs. 72,332.47" [ref=f2e616]
+                  - cell "Rs. 55,852.50" [ref=f2e617]
+                  - cell "Rs. 16,479.97" [ref=f2e618]
+                  - cell "22.8%" [ref=f2e619]
+                  - cell "14.5 14.5%" [ref=f2e620]:
+                    - generic [ref=f2e621]:
+                      - progressbar [ref=f2e622]
+                      - generic [ref=f2e624]: 14.5%
+                  - cell "18.5 18.5%" [ref=f2e625]:
+                    - generic [ref=f2e626]:
+                      - progressbar [ref=f2e627]
+                      - generic [ref=f2e629]: 18.5%
+                - row [ref=f2e630]:
+                  - cell "4" [ref=f2e631]
+                  - cell "Pickle" [ref=f2e632]
+                  - cell "82" [ref=f2e633]
+                  - cell "Rs. 28,800.00" [ref=f2e634]
+                  - cell "—" [ref=f2e635]
+                  - cell "Rs. 28,565.50" [ref=f2e636]
+                  - cell "Rs. 23,709.66" [ref=f2e637]
+                  - cell "Rs. 4,855.84" [ref=f2e638]
+                  - cell "17.0%" [ref=f2e639]
+                  - cell "5.7 5.7%" [ref=f2e640]:
+                    - generic [ref=f2e641]:
+                      - progressbar [ref=f2e642]
+                      - generic [ref=f2e644]: 5.7%
+                  - cell "5.4 5.4%" [ref=f2e645]:
+                    - generic [ref=f2e646]:
+                      - progressbar [ref=f2e647]
+                      - generic [ref=f2e649]: 5.4%
+                - row [ref=f2e650]:
+                  - cell "5" [ref=f2e651]
+                  - cell "Snacks" [ref=f2e652]
+                  - cell "392" [ref=f2e653]
+                  - cell "Rs. 28,505.00" [ref=f2e654]
+                  - cell "—" [ref=f2e655]
+                  - cell "Rs. 28,016.99" [ref=f2e656]
+                  - cell "Rs. 19,806.94" [ref=f2e657]
+                  - cell "Rs. 8,210.05" [ref=f2e658]
+                  - cell "29.3%" [ref=f2e659]
+                  - cell "5.6 5.6%" [ref=f2e660]:
+                    - generic [ref=f2e661]:
+                      - progressbar [ref=f2e662]
+                      - generic [ref=f2e664]: 5.6%
+                  - cell "9.2 9.2%" [ref=f2e665]:
+                    - generic [ref=f2e666]:
+                      - progressbar [ref=f2e667]
+                      - generic [ref=f2e669]: 9.2%
+                - row [ref=f2e670]:
+                  - cell "6" [ref=f2e671]
+                  - cell "Seaweed" [ref=f2e672]
+                  - cell "56" [ref=f2e673]
+                  - cell "Rs. 25,860.00" [ref=f2e674]
+                  - cell "—" [ref=f2e675]
+                  - cell "Rs. 25,540.33" [ref=f2e676]
+                  - cell "Rs. 20,283.65" [ref=f2e677]
+                  - cell "Rs. 5,256.68" [ref=f2e678]
+                  - cell "20.6%" [ref=f2e679]
+                  - cell "5.1 5.1%" [ref=f2e680]:
+                    - generic [ref=f2e681]:
+                      - progressbar [ref=f2e682]
+                      - generic [ref=f2e684]: 5.1%
+                  - cell "5.9 5.9%" [ref=f2e685]:
+                    - generic [ref=f2e686]:
+                      - progressbar [ref=f2e687]
+                      - generic [ref=f2e689]: 5.9%
+                - row [ref=f2e690]:
+                  - cell "7" [ref=f2e691]
+                  - cell "General" [ref=f2e692]
+                  - cell "204" [ref=f2e693]
+                  - cell "Rs. 25,140.00" [ref=f2e694]
+                  - cell "—" [ref=f2e695]
+                  - cell "Rs. 24,885.20" [ref=f2e696]
+                  - cell "Rs. 19,309.65" [ref=f2e697]
+                  - cell "Rs. 5,575.55" [ref=f2e698]
+                  - cell "22.4%" [ref=f2e699]
+                  - cell "5 5.0%" [ref=f2e700]:
+                    - generic [ref=f2e701]:
+                      - progressbar [ref=f2e702]
+                      - generic [ref=f2e704]: 5.0%
+                  - cell "6.3 6.3%" [ref=f2e705]:
+                    - generic [ref=f2e706]:
+                      - progressbar [ref=f2e707]
+                      - generic [ref=f2e709]: 6.3%
+                - row [ref=f2e710]:
+                  - cell "8" [ref=f2e711]
+                  - cell "Chocolate & Candy" [ref=f2e712]
+                  - cell "90" [ref=f2e713]
+                  - cell "Rs. 23,799.00" [ref=f2e714]
+                  - cell "—" [ref=f2e715]
+                  - cell "Rs. 23,656.14" [ref=f2e716]
+                  - cell "Rs. 18,794.63" [ref=f2e717]
+                  - cell "Rs. 4,861.51" [ref=f2e718]
+                  - cell "20.6%" [ref=f2e719]
+                  - cell "4.7 4.7%" [ref=f2e720]:
+                    - generic [ref=f2e721]:
+                      - progressbar [ref=f2e722]
+                      - generic [ref=f2e724]: 4.7%
+                  - cell "5.5 5.5%" [ref=f2e725]:
+                    - generic [ref=f2e726]:
+                      - progressbar [ref=f2e727]
+                      - generic [ref=f2e729]: 5.5%
+                - row [ref=f2e730]:
+                  - cell "9" [ref=f2e731]
+                  - cell "Biscuits" [ref=f2e732]
+                  - cell "179" [ref=f2e733]
+                  - cell "Rs. 23,635.00" [ref=f2e734]
+                  - cell "—" [ref=f2e735]
+                  - cell "Rs. 23,211.97" [ref=f2e736]
+                  - cell "Rs. 18,776.33" [ref=f2e737]
+                  - cell "Rs. 4,435.64" [ref=f2e738]
+                  - cell "19.1%" [ref=f2e739]
+                  - cell "4.6 4.6%" [ref=f2e740]:
+                    - generic [ref=f2e741]:
+                      - progressbar [ref=f2e742]
+                      - generic [ref=f2e744]: 4.6%
+                  - cell "5 5.0%" [ref=f2e745]:
+                    - generic [ref=f2e746]:
+                      - progressbar [ref=f2e747]
+                      - generic [ref=f2e749]: 5.0%
+                - row [ref=f2e750]:
+                  - cell "10" [ref=f2e751]
+                  - cell "Health" [ref=f2e752]
+                  - cell "4" [ref=f2e753]
+                  - cell "Rs. 17,200.00" [ref=f2e754]
+                  - cell "—" [ref=f2e755]
+                  - cell "Rs. 17,078.00" [ref=f2e756]
+                  - cell "Rs. 13,600.00" [ref=f2e757]
+                  - cell "Rs. 3,478.00" [ref=f2e758]
+                  - cell "20.4%" [ref=f2e759]
+                  - cell "3.4 3.4%" [ref=f2e760]:
+                    - generic [ref=f2e761]:
+                      - progressbar [ref=f2e762]
+                      - generic [ref=f2e764]: 3.4%
+                  - cell "3.9 3.9%" [ref=f2e765]:
+                    - generic [ref=f2e766]:
+                      - progressbar [ref=f2e767]
+                      - generic [ref=f2e769]: 3.9%
+                - row [ref=f2e770]:
+                  - cell "11" [ref=f2e771]
+                  - cell "Canned Food" [ref=f2e772]
+                  - cell "59" [ref=f2e773]
+                  - cell "Rs. 14,040.00" [ref=f2e774]
+                  - cell "—" [ref=f2e775]
+                  - cell "Rs. 13,794.49" [ref=f2e776]
+                  - cell "Rs. 12,028.26" [ref=f2e777]
+                  - cell "Rs. 1,766.23" [ref=f2e778]
+                  - cell "12.8%" [ref=f2e779]
+                  - cell "2.8 2.8%" [ref=f2e780]:
+                    - generic [ref=f2e781]:
+                      - progressbar [ref=f2e782]
+                      - generic [ref=f2e784]: 2.8%
+                  - cell "2 2.0%" [ref=f2e785]:
+                    - generic [ref=f2e786]:
+                      - progressbar [ref=f2e787]
+                      - generic [ref=f2e789]: 2.0%
+                - row [ref=f2e790]:
+                  - cell "12" [ref=f2e791]
+                  - cell "Healthy Snacks" [ref=f2e792]
+                  - cell "72" [ref=f2e793]
+                  - cell "Rs. 13,320.00" [ref=f2e794]
+                  - cell "—" [ref=f2e795]
+                  - cell "Rs. 13,227.66" [ref=f2e796]
+                  - cell "Rs. 10,537.30" [ref=f2e797]
+                  - cell "Rs. 2,690.36" [ref=f2e798]
+                  - cell "20.3%" [ref=f2e799]
+                  - cell "2.6 2.6%" [ref=f2e800]:
+                    - generic [ref=f2e801]:
+                      - progressbar [ref=f2e802]
+                      - generic [ref=f2e804]: 2.6%
+                  - cell "3 3.0%" [ref=f2e805]:
+                    - generic [ref=f2e806]:
+                      - progressbar [ref=f2e807]
+                      - generic [ref=f2e809]: 3.0%
+                - row [ref=f2e810]:
+                  - cell "13" [ref=f2e811]
+                  - cell "Ice Cream" [ref=f2e812]
+                  - cell "107" [ref=f2e813]
+                  - cell "Rs. 13,090.00" [ref=f2e814]
+                  - cell "—" [ref=f2e815]
+                  - cell "Rs. 12,988.95" [ref=f2e816]
+                  - cell "Rs. 10,020.18" [ref=f2e817]
+                  - cell "Rs. 2,968.77" [ref=f2e818]
+                  - cell "22.9%" [ref=f2e819]
+                  - cell "2.6 2.6%" [ref=f2e820]:
+                    - generic [ref=f2e821]:
+                      - progressbar [ref=f2e822]
+                      - generic [ref=f2e824]: 2.6%
+                  - cell "3.3 3.3%" [ref=f2e825]:
+                    - generic [ref=f2e826]:
+                      - progressbar [ref=f2e827]
+                      - generic [ref=f2e829]: 3.3%
+                - row [ref=f2e830]:
+                  - cell "14" [ref=f2e831]
+                  - cell "Kitchen" [ref=f2e832]
+                  - cell "30" [ref=f2e833]
+                  - cell "Rs. 6,315.00" [ref=f2e834]
+                  - cell "—" [ref=f2e835]
+                  - cell "Rs. 6,248.19" [ref=f2e836]
+                  - cell "Rs. 4,922.00" [ref=f2e837]
+                  - cell "Rs. 1,326.19" [ref=f2e838]
+                  - cell "21.2%" [ref=f2e839]
+                  - cell "1.2 1.2%" [ref=f2e840]:
+                    - generic [ref=f2e841]:
+                      - progressbar [ref=f2e842]
+                      - generic [ref=f2e844]: 1.2%
+                  - cell "1.5 1.5%" [ref=f2e845]:
+                    - generic [ref=f2e846]:
+                      - progressbar [ref=f2e847]
+                      - generic [ref=f2e849]: 1.5%
+                - row [ref=f2e850]:
+                  - cell "15" [ref=f2e851]
+                  - cell "Sea Food" [ref=f2e852]
+                  - cell "9" [ref=f2e853]
+                  - cell "Rs. 3,960.00" [ref=f2e854]
+                  - cell "—" [ref=f2e855]
+                  - cell "Rs. 3,790.73" [ref=f2e856]
+                  - cell "Rs. 2,955.00" [ref=f2e857]
+                  - cell "Rs. 835.73" [ref=f2e858]
+                  - cell "22.0%" [ref=f2e859]
+                  - cell "0.8 0.8%" [ref=f2e860]:
+                    - generic [ref=f2e861]:
+                      - progressbar [ref=f2e862]
+                      - generic [ref=f2e864]: 0.8%
+                  - cell "0.9 0.9%" [ref=f2e865]:
+                    - generic [ref=f2e866]:
+                      - progressbar [ref=f2e867]
+                      - generic [ref=f2e869]: 0.9%
+                - row [ref=f2e870]:
+                  - cell "16" [ref=f2e871]
+                  - cell "Oil" [ref=f2e872]
+                  - cell "3" [ref=f2e873]
+                  - cell "Rs. 3,665.00" [ref=f2e874]
+                  - cell "—" [ref=f2e875]
+                  - cell "Rs. 3,665.00" [ref=f2e876]
+                  - cell "Rs. 3,065.00" [ref=f2e877]
+                  - cell "Rs. 600.00" [ref=f2e878]
+                  - cell "16.4%" [ref=f2e879]
+                  - cell "0.7 0.7%" [ref=f2e880]:
+                    - generic [ref=f2e881]:
+                      - progressbar [ref=f2e882]
+                      - generic [ref=f2e884]: 0.7%
+                  - cell "0.7 0.7%" [ref=f2e885]:
+                    - generic [ref=f2e886]:
+                      - progressbar [ref=f2e887]
+                      - generic [ref=f2e889]: 0.7%
+                - row [ref=f2e890]:
+                  - cell "17" [ref=f2e891]
+                  - cell "Seasoning" [ref=f2e892]
+                  - cell "17" [ref=f2e893]
+                  - cell "Rs. 3,690.00" [ref=f2e894]
+                  - cell "—" [ref=f2e895]
+                  - cell "Rs. 3,645.12" [ref=f2e896]
+                  - cell "Rs. 2,857.00" [ref=f2e897]
+                  - cell "Rs. 788.12" [ref=f2e898]
+                  - cell "21.6%" [ref=f2e899]
+                  - cell "0.7 0.7%" [ref=f2e900]:
+                    - generic [ref=f2e901]:
+                      - progressbar [ref=f2e902]
+                      - generic [ref=f2e904]: 0.7%
+                  - cell "0.9 0.9%" [ref=f2e905]:
+                    - generic [ref=f2e906]:
+                      - progressbar [ref=f2e907]
+                      - generic [ref=f2e909]: 0.9%
+                - row [ref=f2e910]:
+                  - cell "18" [ref=f2e911]
+                  - cell "Frozen Food" [ref=f2e912]
+                  - cell "9" [ref=f2e913]
+                  - cell "Rs. 3,020.00" [ref=f2e914]
+                  - cell "—" [ref=f2e915]
+                  - cell "Rs. 1,261.00" [ref=f2e916]
+                  - cell "Rs. 2,090.00" [ref=f2e917]
+                  - cell "−Rs. 829.00" [ref=f2e918]
+                  - cell "-65.7%" [ref=f2e919]
+                  - cell "0.3 0.3%" [ref=f2e920]:
+                    - generic [ref=f2e921]:
+                      - progressbar [ref=f2e922]
+                      - generic [ref=f2e924]: 0.3%
+                  - cell "0 -0.9%" [ref=f2e925]:
+                    - generic [ref=f2e926]:
+                      - progressbar [ref=f2e927]
+                      - generic [ref=f2e929]: "-0.9%"
+                - row [ref=f2e930]:
+                  - cell "19" [ref=f2e931]
+                  - cell "Household" [ref=f2e932]
+                  - cell "8" [ref=f2e933]
+                  - cell "Rs. 1,190.00" [ref=f2e934]
+                  - cell "—" [ref=f2e935]
+                  - cell "Rs. 1,050.26" [ref=f2e936]
+                  - cell "Rs. 985.00" [ref=f2e937]
+                  - cell "Rs. 65.26" [ref=f2e938]
+                  - cell "6.2%" [ref=f2e939]
+                  - cell "0.2 0.2%" [ref=f2e940]:
+                    - generic [ref=f2e941]:
+                      - progressbar [ref=f2e942]
+                      - generic [ref=f2e944]: 0.2%
+                  - cell "0.1 0.1%" [ref=f2e945]:
+                    - generic [ref=f2e946]:
+                      - progressbar [ref=f2e947]
+                      - generic [ref=f2e949]: 0.1%
+              - rowgroup [ref=f2e950]:
+                - row [ref=f2e951]:
+                  - cell "—" [ref=f2e952]
+                  - cell "Total (19 Categories)" [ref=f2e953]
+                  - cell "2,685" [ref=f2e954]
+                  - cell "Rs. 537,654.00" [ref=f2e955]
+                  - cell "-Rs. 28,790.00" [ref=f2e956]
+                  - cell "Rs. 499,874.99" [ref=f2e957]
+                  - cell "Rs. 410,696.78" [ref=f2e958]
+                  - cell "Rs. 89,178.21" [ref=f2e959]
+                  - cell "17.8%" [ref=f2e960]
+                  - cell "100.0%" [ref=f2e961]
+                  - cell "100.0%" [ref=f2e962]
+          - generic [ref=f2e963]:
+            - generic [ref=f2e964]:
+              - generic [ref=f2e968]:
+                - heading "Product Profitability Matrix (Items Sold)" [level=6] [ref=f2e969]
+                - generic [ref=f2e970]: Exact FEFO batch acquisition costs & proportional bill discount allocation (257 SKUs)
+              - generic [ref=f2e971]:
+                - generic [ref=f2e973]:
+                  - textbox "Search product or SKU..." [ref=f2e977]
+                  - group [aria-hidden]
+                - generic [ref=f2e979]:
+                  - combobox [ref=f2e980] [cursor=pointer]: All Categories
+                  - textbox [aria-hidden]: ALL
+                  - group [aria-hidden]
+                - generic [ref=f2e982]:
+                  - combobox [ref=f2e983] [cursor=pointer]: All Margins
+                  - textbox [aria-hidden]: ALL
+                  - group [aria-hidden]
+            - table [ref=f2e985]:
+              - rowgroup [ref=f2e986]:
+                - row [ref=f2e987]:
+                  - columnheader "#" [ref=f2e988]
+                  - columnheader [ref=f2e989]:
+                    - button "Product Name & SKU" [ref=f2e990] [cursor=pointer]
+                  - columnheader "Category" [ref=f2e993]
+                  - columnheader [ref=f2e994]:
+                    - button "Sold Qty" [ref=f2e995] [cursor=pointer]
+                  - columnheader [ref=f2e998]:
+                    - button "Avg Price" [ref=f2e999] [cursor=pointer]
+                  - columnheader [ref=f2e1002]:
+                    - button "Unit Cost" [ref=f2e1003] [cursor=pointer]
+                  - columnheader [ref=f2e1006]:
+                    - button "Gross Sales" [ref=f2e1007] [cursor=pointer]
+                  - columnheader [ref=f2e1010]:
+                    - button "Discounts" [ref=f2e1011] [cursor=pointer]
+                  - columnheader [ref=f2e1014]:
+                    - button "Net Revenue" [ref=f2e1015] [cursor=pointer]
+                  - columnheader [ref=f2e1018]:
+                    - button "COGS" [ref=f2e1019] [cursor=pointer]
+                  - columnheader [ref=f2e1022]:
+                    - button "Gross Profit" [ref=f2e1023] [cursor=pointer]
+                  - columnheader [ref=f2e1026]:
+                    - button "Margin %" [ref=f2e1027] [cursor=pointer]
+              - rowgroup [ref=f2e1030]:
+                - row [ref=f2e1031]:
+                  - cell "1" [ref=f2e1032]
+                  - cell [ref=f2e1033]:
+                    - paragraph [ref=f2e1034]: Buldak sauce (Buy 1 get 1 free)
+                    - text: "050005"
+                  - cell "Sauces" [ref=f2e1035]
+                  - cell [ref=f2e1038]:
+                    - button "41 pcs" [ref=f2e1039] [cursor=pointer]
+                  - cell "Rs. 1,000.00" [ref=f2e1040]
+                  - cell "Rs. 400.00" [ref=f2e1041]
+                  - cell "Rs. 41,000.00" [ref=f2e1042]
+                  - cell "-Rs. 18,009.12" [ref=f2e1043]
+                  - cell "Rs. 22,989.42" [ref=f2e1044]
+                  - cell "Rs. 16,400.00" [ref=f2e1045]
+                  - cell "Rs. 6,589.42" [ref=f2e1046]
+                  - cell "28.7%" [ref=f2e1047]
+                - row [ref=f2e1050]:
+                  - cell "2" [ref=f2e1051]
+                  - cell [ref=f2e1052]:
+                    - paragraph [ref=f2e1053]: Maxim coffee per piece
+                    - text: "040010"
+                  - cell "Beverages" [ref=f2e1054]
+                  - cell [ref=f2e1057]:
+                    - button "439 pcs" [ref=f2e1058] [cursor=pointer]
+                  - cell "Rs. 45.00" [ref=f2e1059]
+                  - cell "Rs. 32.00" [ref=f2e1060]
+                  - cell "Rs. 19,755.00" [ref=f2e1061]
+                  - cell "-Rs. 718.01" [ref=f2e1062]
+                  - cell "Rs. 19,037.30" [ref=f2e1063]
+                  - cell "Rs. 14,048.00" [ref=f2e1064]
+                  - cell "Rs. 4,989.30" [ref=f2e1065]
+                  - cell "26.2%" [ref=f2e1066]
+                - row [ref=f2e1069]:
+                  - cell "3" [ref=f2e1070]
+                  - cell [ref=f2e1071]:
+                    - paragraph [ref=f2e1072]: Maxim Coffee 100pcs
+                    - text: "110012"
+                  - cell "Health" [ref=f2e1073]
+                  - cell [ref=f2e1076]:
+                    - button "4 box" [ref=f2e1077] [cursor=pointer]
+                  - cell "Rs. 4,300.00" [ref=f2e1078]
+                  - cell "Rs. 34.00" [ref=f2e1079]
+                  - cell "Rs. 17,200.00" [ref=f2e1080]
+                  - cell "-Rs. 122.00" [ref=f2e1081]
+                  - cell "Rs. 17,078.00" [ref=f2e1082]
+                  - cell "Rs. 13,600.00" [ref=f2e1083]
+                  - cell "Rs. 3,478.00" [ref=f2e1084]
+                  - cell "20.4%" [ref=f2e1085]
+                - row [ref=f2e1088]:
+                  - cell "4" [ref=f2e1089]
+                  - cell [ref=f2e1090]:
+                    - paragraph [ref=f2e1091]: Buldak Hot Chicken Noodles
+                    - text: "010010"
+                  - cell "Noodles" [ref=f2e1092]
+                  - cell [ref=f2e1095]:
+                    - button "59 pcs" [ref=f2e1096] [cursor=pointer]
+                  - cell "Rs. 250.00" [ref=f2e1097]
+                  - cell "Rs. 206.86" [ref=f2e1098]
+                  - cell "Rs. 14,750.00" [ref=f2e1099]
+                  - cell "-Rs. 989.53" [ref=f2e1100]
+                  - cell "Rs. 13,760.04" [ref=f2e1101]
+                  - cell "Rs. 12,205.00" [ref=f2e1102]
+                  - cell "Rs. 1,555.04" [ref=f2e1103]
+                  - cell "11.3%" [ref=f2e1104]
+                - row [ref=f2e1107]:
+                  - cell "5" [ref=f2e1108]
+                  - cell [ref=f2e1109]:
+                    - paragraph [ref=f2e1110]: Sushi Noori 230gram
+                    - text: "150017"
+                  - cell "General" [ref=f2e1111]
+                  - cell [ref=f2e1114]:
+                    - button "4 pcs" [ref=f2e1115] [cursor=pointer]
+                  - cell "Rs. 3,000.00" [ref=f2e1116]
+                  - cell "Rs. 2,380.00" [ref=f2e1117]
+                  - cell "Rs. 12,000.00" [ref=f2e1118]
+                  - cell "—" [ref=f2e1119]
+                  - cell "Rs. 12,000.00" [ref=f2e1120]
+                  - cell "Rs. 9,520.00" [ref=f2e1121]
+                  - cell "Rs. 2,480.00" [ref=f2e1122]
+                  - cell "20.7%" [ref=f2e1123]
+                - row [ref=f2e1126]:
+                  - cell "6" [ref=f2e1127]
+                  - cell [ref=f2e1128]:
+                    - paragraph [ref=f2e1129]: Maxim coffee small box
+                    - text: "040019"
+                  - cell "Beverages" [ref=f2e1130]
+                  - cell [ref=f2e1133]:
+                    - button "14 box" [ref=f2e1134] [cursor=pointer]
+                  - cell "Rs. 850.00" [ref=f2e1135]
+                  - cell "Rs. 750.00" [ref=f2e1136]
+                  - cell "Rs. 11,900.00" [ref=f2e1137]
+                  - cell "-Rs. 93.12" [ref=f2e1138]
+                  - cell "Rs. 11,808.14" [ref=f2e1139]
+                  - cell "Rs. 10,500.00" [ref=f2e1140]
+                  - cell "Rs. 1,308.14" [ref=f2e1141]
+                  - cell "11.1%" [ref=f2e1142]
+                - row [ref=f2e1145]:
+                  - cell "7" [ref=f2e1146]
+                  - cell [ref=f2e1147]:
+                    - paragraph [ref=f2e1148]: laoganma Chilli sauce with chicken 280g
+                    - text: "050008"
+                  - cell "Sauces" [ref=f2e1149]
+                  - cell [ref=f2e1152]:
+                    - button "23 pcs" [ref=f2e1153] [cursor=pointer]
+                  - cell "Rs. 450.00" [ref=f2e1154]
+                  - cell "Rs. 366.78" [ref=f2e1155]
+                  - cell "Rs. 10,350.00" [ref=f2e1156]
+                  - cell "-Rs. 25.77" [ref=f2e1157]
+                  - cell "Rs. 10,324.77" [ref=f2e1158]
+                  - cell "Rs. 8,436.00" [ref=f2e1159]
+                  - cell "Rs. 1,888.77" [ref=f2e1160]
+                  - cell "18.3%" [ref=f2e1161]
+                - row [ref=f2e1164]:
+                  - cell "8" [ref=f2e1165]
+                  - cell [ref=f2e1166]:
+                    - paragraph [ref=f2e1167]: Buldak Carbonara Noodles
+                    - text: "010008"
+                  - cell "Noodles" [ref=f2e1168]
+                  - cell [ref=f2e1171]:
+                    - button "41 pcs" [ref=f2e1172] [cursor=pointer]
+                  - cell "Rs. 250.00" [ref=f2e1173]
+                  - cell "Rs. 212.80" [ref=f2e1174]
+                  - cell "Rs. 10,250.00" [ref=f2e1175]
+                  - cell "-Rs. 674.09" [ref=f2e1176]
+                  - cell "Rs. 9,577.08" [ref=f2e1177]
+                  - cell "Rs. 8,725.00" [ref=f2e1178]
+                  - cell "Rs. 852.08" [ref=f2e1179]
+                  - cell "8.9%" [ref=f2e1180]
+                - row [ref=f2e1183]:
+                  - cell "9" [ref=f2e1184]
+                  - cell [ref=f2e1185]:
+                    - paragraph [ref=f2e1186]: Shin Ramyun Noodles 120gm
+                    - text: "010022"
+                  - cell "Noodles" [ref=f2e1187]
+                  - cell [ref=f2e1190]:
+                    - button "49 pcs" [ref=f2e1191] [cursor=pointer]
+                  - cell "Rs. 190.00" [ref=f2e1192]
+                  - cell "Rs. 165.00" [ref=f2e1193]
+                  - cell "Rs. 9,310.00" [ref=f2e1194]
+                  - cell "-Rs. 73.01" [ref=f2e1195]
+                  - cell "Rs. 9,236.25" [ref=f2e1196]
+                  - cell "Rs. 8,085.00" [ref=f2e1197]
+                  - cell "Rs. 1,151.25" [ref=f2e1198]
+                  - cell "12.5%" [ref=f2e1199]
+                - row [ref=f2e1202]:
+                  - cell "10" [ref=f2e1203]
+                  - cell [ref=f2e1204]:
+                    - paragraph [ref=f2e1205]: Honey Lemon Tea
+                    - text: "040026"
+                  - cell "Beverages" [ref=f2e1206]
+                  - cell [ref=f2e1209]:
+                    - button "6 pcs" [ref=f2e1210] [cursor=pointer]
+                  - cell "Rs. 1,500.00" [ref=f2e1211]
+                  - cell "Rs. 1,200.00" [ref=f2e1212]
+                  - cell "Rs. 9,000.00" [ref=f2e1213]
+                  - cell "-Rs. 42.56" [ref=f2e1214]
+                  - cell "Rs. 8,957.25" [ref=f2e1215]
+                  - cell "Rs. 7,200.00" [ref=f2e1216]
+                  - cell "Rs. 1,757.25" [ref=f2e1217]
+                  - cell "19.6%" [ref=f2e1218]
+                - row [ref=f2e1221]:
+                  - cell "11" [ref=f2e1222]
+                  - cell [ref=f2e1223]:
+                    - paragraph [ref=f2e1224]: Wassabi Powder
+                    - text: "170019"
+                  - cell "Pickle" [ref=f2e1225]
+                  - cell [ref=f2e1228]:
+                    - button "10 pcs" [ref=f2e1229] [cursor=pointer]
+                  - cell "Rs. 850.00" [ref=f2e1230]
+                  - cell "Rs. 697.00" [ref=f2e1231]
+                  - cell "Rs. 8,500.00" [ref=f2e1232]
+                  - cell "-Rs. 172.97" [ref=f2e1233]
+                  - cell "Rs. 8,327.03" [ref=f2e1234]
+                  - cell "Rs. 6,970.00" [ref=f2e1235]
+                  - cell "Rs. 1,357.03" [ref=f2e1236]
+                  - cell "16.3%" [ref=f2e1237]
+                - row [ref=f2e1240]:
+                  - cell "12" [ref=f2e1241]
+                  - cell [ref=f2e1242]:
+                    - paragraph [ref=f2e1243]: Sempio soy sauce 500ml
+                    - text: "050013"
+                  - cell "Sauces" [ref=f2e1244]
+                  - cell [ref=f2e1247]:
+                    - button "15 pcs" [ref=f2e1248] [cursor=pointer]
+                  - cell "Rs. 580.00" [ref=f2e1249]
+                  - cell "Rs. 477.00" [ref=f2e1250]
+                  - cell "Rs. 8,700.00" [ref=f2e1251]
+                  - cell "-Rs. 591.57" [ref=f2e1252]
+                  - cell "Rs. 8,108.43" [ref=f2e1253]
+                  - cell "Rs. 7,155.00" [ref=f2e1254]
+                  - cell "Rs. 953.43" [ref=f2e1255]
+                  - cell "11.8%" [ref=f2e1256]
+                - row [ref=f2e1259]:
+                  - cell "13" [ref=f2e1260]
+                  - cell [ref=f2e1261]:
+                    - paragraph [ref=f2e1262]: 500gm Kimchi - Uri
+                    - text: "170014"
+                  - cell "Pickle" [ref=f2e1263]
+                  - cell [ref=f2e1266]:
+                    - button "14 pcs" [ref=f2e1267] [cursor=pointer]
+                  - cell "Rs. 550.00" [ref=f2e1268]
+                  - cell "Rs. 460.00" [ref=f2e1269]
+                  - cell "Rs. 7,700.00" [ref=f2e1270]
+                  - cell "-Rs. 13.41" [ref=f2e1271]
+                  - cell "Rs. 7,686.22" [ref=f2e1272]
+                  - cell "Rs. 6,440.00" [ref=f2e1273]
+                  - cell "Rs. 1,246.22" [ref=f2e1274]
+                  - cell "16.2%" [ref=f2e1275]
+                - row [ref=f2e1278]:
+                  - cell "14" [ref=f2e1279]
+                  - cell [ref=f2e1280]:
+                    - paragraph [ref=f2e1281]: Seaweed 100pcs
+                    - text: "060003"
+                  - cell "Seaweed" [ref=f2e1282]
+                  - cell [ref=f2e1285]:
+                    - button "2 pcs" [ref=f2e1286] [cursor=pointer]
+                  - cell "Rs. 3,750.00" [ref=f2e1287]
+                  - cell "Rs. 3,000.00" [ref=f2e1288]
+                  - cell "Rs. 7,500.00" [ref=f2e1289]
+                  - cell "-Rs. 152.88" [ref=f2e1290]
+                  - cell "Rs. 7,347.12" [ref=f2e1291]
+                  - cell "Rs. 6,000.00" [ref=f2e1292]
+                  - cell "Rs. 1,347.12" [ref=f2e1293]
+                  - cell "18.3%" [ref=f2e1294]
+                - row [ref=f2e1297]:
+                  - cell "15" [ref=f2e1298]
+                  - cell [ref=f2e1299]:
+                    - paragraph [ref=f2e1300]: Sushi nori 20sheets
+                    - text: "150018"
+                  - cell "General" [ref=f2e1301]
+                  - cell [ref=f2e1304]:
+                    - button "8 pcs" [ref=f2e1305] [cursor=pointer]
+                  - cell "Rs. 837.50" [ref=f2e1306]
+                  - cell "Rs. 635.00" [ref=f2e1307]
+                  - cell "Rs. 6,700.00" [ref=f2e1308]
+                  - cell "-Rs. 40.48" [ref=f2e1309]
+                  - cell "Rs. 6,659.52" [ref=f2e1310]
+                  - cell "Rs. 5,080.00" [ref=f2e1311]
+                  - cell "Rs. 1,579.52" [ref=f2e1312]
+                  - cell "23.7%" [ref=f2e1313]
+                - row [ref=f2e1316]:
+                  - cell "16" [ref=f2e1317]
+                  - cell [ref=f2e1318]:
+                    - paragraph [ref=f2e1319]: Tofu small packet 38g
+                    - text: "020029"
+                  - cell "Snacks" [ref=f2e1320]
+                  - cell [ref=f2e1323]:
+                    - button "131 pcs" [ref=f2e1324] [cursor=pointer]
+                  - cell "Rs. 50.00" [ref=f2e1325]
+                  - cell "Rs. 35.00" [ref=f2e1326]
+                  - cell "Rs. 6,550.00" [ref=f2e1327]
+                  - cell "-Rs. 106.04" [ref=f2e1328]
+                  - cell "Rs. 6,444.49" [ref=f2e1329]
+                  - cell "Rs. 4,585.00" [ref=f2e1330]
+                  - cell "Rs. 1,859.49" [ref=f2e1331]
+                  - cell "28.9%" [ref=f2e1332]
+                - row [ref=f2e1335]:
+                  - cell "17" [ref=f2e1336]
+                  - cell [ref=f2e1337]:
+                    - paragraph [ref=f2e1338]: Sausage 1 Pc
+                    - text: "020033"
+                  - cell "Snacks" [ref=f2e1339]
+                  - cell [ref=f2e1342]:
+                    - button "64 pcs" [ref=f2e1343] [cursor=pointer]
+                  - cell "Rs. 100.00" [ref=f2e1344]
+                  - cell "Rs. 52.00" [ref=f2e1345]
+                  - cell "Rs. 6,400.00" [ref=f2e1346]
+                  - cell "-Rs. 116.59" [ref=f2e1347]
+                  - cell "Rs. 6,282.47" [ref=f2e1348]
+                  - cell "Rs. 3,328.00" [ref=f2e1349]
+                  - cell "Rs. 2,954.47" [ref=f2e1350]
+                  - cell "47.0%" [ref=f2e1351]
+                - row [ref=f2e1354]:
+                  - cell "18" [ref=f2e1355]
+                  - cell [ref=f2e1356]:
+                    - paragraph [ref=f2e1357]: Soy Sauce - Chinese 800ml
+                    - text: "050015"
+                  - cell "Sauces" [ref=f2e1358]
+                  - cell [ref=f2e1361]:
+                    - button "17 pcs" [ref=f2e1362] [cursor=pointer]
+                  - cell "Rs. 380.00" [ref=f2e1363]
+                  - cell "Rs. 267.00" [ref=f2e1364]
+                  - cell "Rs. 6,460.00" [ref=f2e1365]
+                  - cell "-Rs. 194.97" [ref=f2e1366]
+                  - cell "Rs. 6,264.52" [ref=f2e1367]
+                  - cell "Rs. 4,539.00" [ref=f2e1368]
+                  - cell "Rs. 1,725.52" [ref=f2e1369]
+                  - cell "27.5%" [ref=f2e1370]
+                - row [ref=f2e1373]:
+                  - cell "19" [ref=f2e1374]
+                  - cell [ref=f2e1375]:
+                    - paragraph [ref=f2e1376]: Bibigo Tteokbokki
+                    - text: "010036"
+                  - cell "Noodles" [ref=f2e1377]
+                  - cell [ref=f2e1380]:
+                    - button "14 pcs" [ref=f2e1381] [cursor=pointer]
+                  - cell "Rs. 437.00" [ref=f2e1382]
+                  - cell "Rs. 364.00" [ref=f2e1383]
+                  - cell "Rs. 6,118.00" [ref=f2e1384]
+                  - cell "-Rs. 66.75" [ref=f2e1385]
+                  - cell "Rs. 6,043.69" [ref=f2e1386]
+                  - cell "Rs. 5,096.00" [ref=f2e1387]
+                  - cell "Rs. 947.69" [ref=f2e1388]
+                  - cell "15.7%" [ref=f2e1389]
+                - row [ref=f2e1392]:
+                  - cell "20" [ref=f2e1393]
+                  - cell [ref=f2e1394]:
+                    - paragraph [ref=f2e1395]: Rice paper mix (Square or Circular shaped)
+                    - text: "060002"
+                  - cell "Seaweed" [ref=f2e1396]
+                  - cell [ref=f2e1399]:
+                    - button "10 pcs" [ref=f2e1400] [cursor=pointer]
+                  - cell "Rs. 600.00" [ref=f2e1401]
+                  - cell "Rs. 520.00" [ref=f2e1402]
+                  - cell "Rs. 6,000.00" [ref=f2e1403]
+                  - cell "—" [ref=f2e1404]
+                  - cell "Rs. 6,000.00" [ref=f2e1405]
+                  - cell "Rs. 5,200.00" [ref=f2e1406]
+                  - cell "Rs. 800.00" [ref=f2e1407]
+                  - cell "13.3%" [ref=f2e1408]
+                - row [ref=f2e1411]:
+                  - cell "21" [ref=f2e1412]
+                  - cell [ref=f2e1413]:
+                    - paragraph [ref=f2e1414]: Ediya Americano 20sticks
+                    - text: "040034"
+                  - cell "Beverages" [ref=f2e1415]
+                  - cell [ref=f2e1418]:
+                    - button "10 pcs" [ref=f2e1419] [cursor=pointer]
+                  - cell "Rs. 600.00" [ref=f2e1420]
+                  - cell "Rs. 480.00" [ref=f2e1421]
+                  - cell "Rs. 6,000.00" [ref=f2e1422]
+                  - cell "-Rs. 30.01" [ref=f2e1423]
+                  - cell "Rs. 5,970.15" [ref=f2e1424]
+                  - cell "Rs. 4,800.00" [ref=f2e1425]
+                  - cell "Rs. 1,170.15" [ref=f2e1426]
+                  - cell "19.6%" [ref=f2e1427]
+                - row [ref=f2e1430]:
+                  - cell "22" [ref=f2e1431]
+                  - cell [ref=f2e1432]:
+                    - paragraph [ref=f2e1433]: Vegan pickle spicy
+                    - text: "080001"
+                  - cell "Pickle" [ref=f2e1434]
+                  - cell [ref=f2e1437]:
+                    - button "39 pcs" [ref=f2e1438] [cursor=pointer]
+                  - cell "Rs. 150.00" [ref=f2e1439]
+                  - cell "Rs. 120.00" [ref=f2e1440]
+                  - cell "Rs. 5,850.00" [ref=f2e1441]
+                  - cell "-Rs. 13.10" [ref=f2e1442]
+                  - cell "Rs. 5,836.90" [ref=f2e1443]
+                  - cell "Rs. 4,680.00" [ref=f2e1444]
+                  - cell "Rs. 1,156.90" [ref=f2e1445]
+                  - cell "19.8%" [ref=f2e1446]
+                - row [ref=f2e1449]:
+                  - cell "23" [ref=f2e1450]
+                  - cell [ref=f2e1451]:
+                    - paragraph [ref=f2e1452]: Buldak Rose Noodles
+                    - text: "010012"
+                  - cell "Noodles" [ref=f2e1453]
+                  - cell [ref=f2e1456]:
+                    - button "24 pcs" [ref=f2e1457] [cursor=pointer]
+                  - cell "Rs. 250.00" [ref=f2e1458]
+                  - cell "Rs. 200.00" [ref=f2e1459]
+                  - cell "Rs. 6,000.00" [ref=f2e1460]
+                  - cell "-Rs. 489.62" [ref=f2e1461]
+                  - cell "Rs. 5,510.20" [ref=f2e1462]
+                  - cell "Rs. 4,800.00" [ref=f2e1463]
+                  - cell "Rs. 710.20" [ref=f2e1464]
+                  - cell "12.9%" [ref=f2e1465]
+                - row [ref=f2e1468]:
+                  - cell "24" [ref=f2e1469]
+                  - cell [ref=f2e1470]:
+                    - paragraph [ref=f2e1471]: Sempio Gochujang 250g
+                    - text: "050012"
+                  - cell "Sauces" [ref=f2e1472]
+                  - cell [ref=f2e1475]:
+                    - button "10 pcs" [ref=f2e1476] [cursor=pointer]
+                  - cell "Rs. 540.00" [ref=f2e1477]
+                  - cell "Rs. 450.00" [ref=f2e1478]
+                  - cell "Rs. 5,400.00" [ref=f2e1479]
+                  - cell "-Rs. 22.93" [ref=f2e1480]
+                  - cell "Rs. 5,377.07" [ref=f2e1481]
+                  - cell "Rs. 4,500.00" [ref=f2e1482]
+                  - cell "Rs. 877.07" [ref=f2e1483]
+                  - cell "16.3%" [ref=f2e1484]
+                - row [ref=f2e1487]:
+                  - cell "25" [ref=f2e1488]
+                  - cell [ref=f2e1489]:
+                    - paragraph [ref=f2e1490]: Aila Soju 360ml
+                    - text: "040013"
+                  - cell "Beverages" [ref=f2e1491]
+                  - cell [ref=f2e1494]:
+                    - button "6 pcs" [ref=f2e1495] [cursor=pointer]
+                  - cell "Rs. 850.00" [ref=f2e1496]
+                  - cell "Rs. 780.00" [ref=f2e1497]
+                  - cell "Rs. 5,100.00" [ref=f2e1498]
+                  - cell "-Rs. 120.58" [ref=f2e1499]
+                  - cell "Rs. 4,979.31" [ref=f2e1500]
+                  - cell "Rs. 4,680.00" [ref=f2e1501]
+                  - cell "Rs. 299.31" [ref=f2e1502]
+                  - cell "6.0%" [ref=f2e1503]
+              - rowgroup [ref=f2e1506]:
+                - row [ref=f2e1507]:
+                  - cell "—" [ref=f2e1508]
+                  - cell "Total (257 Products)" [ref=f2e1509]
+                  - cell "—" [ref=f2e1510]
+                  - cell "2,685" [ref=f2e1511]
+                  - cell "—" [ref=f2e1512]
+                  - cell "—" [ref=f2e1513]
+                  - cell "Rs. 537,654.00" [ref=f2e1514]
+                  - cell "-Rs. 37,779.00" [ref=f2e1515]
+                  - cell "Rs. 499,914.00" [ref=f2e1516]
+                  - cell "Rs. 410,696.78" [ref=f2e1517]
+                  - cell "Rs. 89,217.22" [ref=f2e1518]
+                  - cell "17.8%" [ref=f2e1519]
+            - generic [ref=f2e1523]:
+              - paragraph [ref=f2e1524]: "Rows per page:"
+              - generic [ref=f2e1525]:
+                - combobox "Rows per page:" [ref=f2e1526] [cursor=pointer]: "25"
+                - textbox [aria-hidden]: "25"
+              - paragraph [ref=f2e1527]: 1–25 of 257
+              - generic [ref=f2e1528]:
+                - button "Go to previous page" [disabled]
+                - button "Go to next page" [ref=f2e1529] [cursor=pointer]
+          - generic [ref=f2e1532]:
+            - generic [ref=f2e1533]:
+              - heading "Payment Method (Tender) Distribution" [level=6] [ref=f2e1538]
+              - generic [ref=f2e1539]: Cash, digital wallets (Fonepay/eSewa), and bank card settlement mix
+            - table [ref=f2e1541]:
+              - rowgroup [ref=f2e1542]:
+                - row [ref=f2e1543]:
+                  - columnheader "#" [ref=f2e1544]
+                  - columnheader "Payment Method" [ref=f2e1545]
+                  - columnheader "Transactions" [ref=f2e1546]
+                  - columnheader "Total Collected" [ref=f2e1547]
+                  - columnheader "Share %" [ref=f2e1548]
+              - rowgroup [ref=f2e1549]:
+                - row [ref=f2e1550]:
+                  - cell "1" [ref=f2e1551]
+                  - cell "bank" [ref=f2e1552]
+                  - cell "271" [ref=f2e1553]
+                  - cell "Rs. 335,115.00" [ref=f2e1554]
+                  - cell "67.0%" [ref=f2e1555]
+                - row [ref=f2e1556]:
+                  - cell "2" [ref=f2e1557]
+                  - cell "cash" [ref=f2e1558]
+                  - cell "360" [ref=f2e1559]
+                  - cell "Rs. 164,799.00" [ref=f2e1560]
+                  - cell "33.0%" [ref=f2e1561]
+              - rowgroup [ref=f2e1562]:
+                - row [ref=f2e1563]:
+                  - cell "—" [ref=f2e1564]
+                  - cell "Total" [ref=f2e1565]
+                  - cell "631" [ref=f2e1566]
+                  - cell "Rs. 499,914.00" [ref=f2e1567]
+                  - cell "100.0%" [ref=f2e1568]
+  - generic [aria-hidden] [ref=f2e1569]: Rs. 0

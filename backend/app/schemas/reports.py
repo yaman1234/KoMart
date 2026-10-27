@@ -174,6 +174,7 @@ class ExpenseSummary(BaseModel):
     total_expenses: float
     setup_investment: float
     operating_expenses: float = 0.0
+    total_po_paid: float = 0.0
     by_category: list[ExpenseByCategory]
     daily: list[ExpenseDataPoint]
 
@@ -187,6 +188,7 @@ class DailyExpensesBlock(BaseModel):
     total: float
     setup_investment: float
     operating: float
+    po_paid: float = 0.0
 
 
 class DailyCashBlock(BaseModel):
@@ -251,6 +253,364 @@ class DayCloseUpsert(BaseModel):
     notes: str = ""
 
 
+# ---------------------------------------------------------------------------
+# Phase 2 Financial & Accounting Report Schemas
+# ---------------------------------------------------------------------------
+
+
+class TradingPnLWaterfall(BaseModel):
+    gross_sales: float
+    item_markdowns: float
+    bill_discounts: float
+    total_discounts: float
+    net_sales: float
+    total_cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+    operating_expenses: float
+    operating_profit: float  # EBIT
+    operating_margin_pct: float
+    setup_investment: float = 0.0
+    net_profit: float = 0.0
+
+
+class CashToProfitBridge(BaseModel):
+    accrual_operating_profit: float
+    non_cash_consumption: float = 0.0
+    cogs_inventory_reduction: float
+    supplier_po_payments: float
+    supplier_refunds_collected: float = 0.0
+    timing_float_difference: float = 0.0
+    net_cash_flow: float
+
+
+class WorkingCapitalSummary(BaseModel):
+    inventory_value: float
+    accounts_payable: float
+    accounts_receivable: float  # pending supplier return refunds
+
+
+class TaxVatSummary(BaseModel):
+    taxable_sales: float
+    exempt_sales: float
+    output_vat_13: float
+    round_off: float
+
+
+class ExecutiveFinancialSummary(BaseModel):
+    period_start: str
+    period_end: str
+    pnl: TradingPnLWaterfall
+    cash_flow_summary: dict[str, float]
+    cash_bridge: CashToProfitBridge
+    working_capital: WorkingCapitalSummary
+    tax_vat: TaxVatSummary
+
+
+class CategoryContribution(BaseModel):
+    category: str
+    units_sold: int
+    gross_sales: float
+    discounts: float
+    net_revenue: float
+    cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+    revenue_share_pct: float
+    profit_share_pct: float
+
+
+class TenderMixItem(BaseModel):
+    method: str
+    amount: float
+    transaction_count: int
+    share_pct: float
+
+
+class DailySalesPerformance(BaseModel):
+    date: str
+    gross_sales: float
+    discounts: float
+    net_revenue: float
+    cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+    transaction_count: int
+
+
+class SalesPerformanceReport(BaseModel):
+    period_start: str
+    period_end: str
+    total_gross_sales: float
+    total_discounts: float
+    total_net_revenue: float
+    total_cogs: float
+    total_gross_profit: float
+    gross_margin_pct: float
+    transaction_count: int
+    total_units_sold: int
+    avg_basket: float
+    categories: list[CategoryContribution]
+    tender_mix: list[TenderMixItem]
+    daily_trend: list[DailySalesPerformance]
+
+
+class SoldProductWithMargin(BaseModel):
+    product_id: str
+    name: str
+    sku: str
+    category: str
+    sell_uom: str = "pcs"
+    quantity_sold: int
+    avg_selling_price: float
+    gross_sales: float
+    line_discount: float
+    bill_discount: float
+    total_discount: float
+    net_revenue: float
+    unit_cost: float
+    total_cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+
+
+class APAgingBuckets(BaseModel):
+    current_0_30: float = 0.0
+    aging_31_60: float = 0.0
+    aging_61_90: float = 0.0
+    over_90: float = 0.0
+    total_ap: float = 0.0
+
+
+class SupplierLedgerRow(BaseModel):
+    supplier_id: str
+    supplier_name: str
+    pan_number: str = ""
+    phone: str = ""
+    order_count: int
+    gross_purchases: float
+    discounts: float
+    additional_charges: float
+    net_purchases: float
+    amount_paid: float
+    outstanding_balance: float
+    aging: APAgingBuckets
+
+
+class PurchaseReturnRow(BaseModel):
+    return_id: str
+    return_number: str
+    order_number: str = ""
+    supplier_id: str
+    supplier_name: str
+    return_date: str
+    items_count: int
+    total_amount: float
+    amount_received: float
+    write_off_amount: float
+    pending_receivable: float
+    status: str
+    settlement_type: str
+
+
+class PurchasingPayablesReport(BaseModel):
+    period_start: str
+    period_end: str
+    gross_purchases: float
+    purchase_discounts: float
+    additional_charges: float
+    net_purchases: float
+    total_amount_paid: float
+    total_outstanding_ap: float
+    ap_aging: APAgingBuckets
+    supplier_ledger: list[SupplierLedgerRow]
+    total_purchase_returns_value: float = 0.0
+    total_return_refunds_received: float = 0.0
+    total_supplier_receivables: float = 0.0
+    returns_ledger: list[PurchaseReturnRow] = Field(default_factory=list)
+
+
+class CategoryValuationRow(BaseModel):
+    category: str
+    sku_count: int
+    total_units: int
+    batch_valuation: float
+    valuation_share_pct: float
+
+
+class ReorderCandidateRow(BaseModel):
+    product_id: str
+    name: str
+    sku: str
+    category: str
+    stock: int
+    low_stock_threshold: int
+    status: str
+    cost_price: float
+    selling_price: float
+    units_needed: int
+    estimated_reorder_cost: float
+
+
+class ExpiryBatchRow(BaseModel):
+    product_id: str
+    product_name: str
+    sku: str
+    category: str
+    batch_number: str
+    quantity: int
+    unit_cost: float
+    stock_value_at_risk: float
+    expiry_date: str
+    days_until_expiry: int
+
+
+class DeadStockRow(BaseModel):
+    product_id: str
+    product_name: str
+    sku: str
+    category: str
+    stock: int
+    cost_price: float
+    stock_value: float
+    days_without_sale: int
+    product_status: str
+
+
+class InventoryHealthReport(BaseModel):
+    total_skus: int
+    low_stock_count: int
+    out_of_stock_count: int
+    expiring_count: int
+    dead_stock_count: int
+    total_inventory_value: float
+    inventory_turnover_rate: float = 0.0   # COGS / avg inventory value
+    days_sales_of_inventory: float = 0.0   # 365 / turnover_rate
+    valuation_by_category: list[CategoryValuationRow]
+    reorder_candidates: list[ReorderCandidateRow]
+    near_expiry_batches: list[ExpiryBatchRow]
+    dead_stock_items: list[DeadStockRow]
+    untracked_expiry_count: int = 0
+
+
+class CashFlowInflows(BaseModel):
+    sales_cash: float = 0.0
+    sales_bank: float = 0.0
+    sales_esewa: float = 0.0
+    total_sales_collections: float = 0.0
+    supplier_refunds: float = 0.0
+    transfers_in: float = 0.0
+    adjustments_in: float = 0.0
+    other_inflows: float = 0.0
+    total_inflows: float = 0.0
+
+
+class CashFlowOutflows(BaseModel):
+    operating_expenses: float = 0.0
+    supplier_po_payments: float = 0.0
+    setup_investment: float = 0.0
+    transfers_out: float = 0.0
+    adjustments_out: float = 0.0
+    other_outflows: float = 0.0
+    total_outflows: float = 0.0
+
+
+class WalletMovementSummary(BaseModel):
+    wallet: str
+    opening_balance: float = 0.0
+    total_inflows: float = 0.0
+    total_outflows: float = 0.0
+    net_movement: float = 0.0
+    closing_balance: float = 0.0
+
+
+class CashFlowStatement(BaseModel):
+    period_start: str
+    period_end: str
+    inflows: CashFlowInflows
+    outflows: CashFlowOutflows
+    net_cash_flow: float
+    wallets: list[WalletMovementSummary]
+    cash_to_profit_bridge: CashToProfitBridge
+
+
+# ---------------------------------------------------------------------------
+# Loss, Anomaly & Audit Detection Report Schemas
+# ---------------------------------------------------------------------------
+
+
+class VoidedTransactionRow(BaseModel):
+    transaction_number: str
+    date: str
+    cashier: str
+    amount: float
+    void_reason: str
+
+
+class LargeDiscountRow(BaseModel):
+    transaction_number: str
+    date: str
+    cashier: str
+    gross_sales: float
+    total_discount: float
+    discount_pct: float
+    net_total: float
+
+
+class NegativeMarginProduct(BaseModel):
+    product_id: str
+    name: str
+    sku: str
+    category: str
+    units_sold: int
+    net_revenue: float
+    total_cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+
+
+class ExpiredStockRow(BaseModel):
+    product_id: str
+    product_name: str
+    sku: str
+    category: str
+    batch_number: str
+    quantity: int
+    unit_cost: float
+    write_off_value: float
+    expiry_date: str
+
+
+class MissingDayCloseRow(BaseModel):
+    date: str
+    day_label: str   # e.g. "Mon 21 Oct"
+
+
+class LossAuditReport(BaseModel):
+    period_start: str
+    period_end: str
+    # Voids
+    total_void_count: int = 0
+    total_void_amount: float = 0.0
+    voided_transactions: list[VoidedTransactionRow] = Field(default_factory=list)
+    # Large discounts (discount % > threshold)
+    large_discount_threshold_pct: float = 20.0
+    large_discount_count: int = 0
+    total_large_discount_amount: float = 0.0
+    large_discount_transactions: list[LargeDiscountRow] = Field(default_factory=list)
+    # Negative-margin products (sold below cost)
+    negative_margin_product_count: int = 0
+    total_loss_on_neg_margin: float = 0.0
+    negative_margin_products: list[NegativeMarginProduct] = Field(default_factory=list)
+    # Expired stock still in inventory
+    expired_stock_count: int = 0
+    expired_stock_write_off_value: float = 0.0
+    expired_stock_items: list[ExpiredStockRow] = Field(default_factory=list)
+    # Days where till was not closed
+    missing_day_close_count: int = 0
+    missing_day_closes: list[MissingDayCloseRow] = Field(default_factory=list)
+
+
 # Re-export dashboard shapes used by reports endpoints
 __all__ = [
     "SalesSummary",
@@ -278,4 +638,35 @@ __all__ = [
     "DailySummary",
     "DayCloseUpsert",
     "DayCloseBlock",
+    # Phase 2 exports
+    "TradingPnLWaterfall",
+    "CashToProfitBridge",
+    "WorkingCapitalSummary",
+    "TaxVatSummary",
+    "ExecutiveFinancialSummary",
+    "CategoryContribution",
+    "TenderMixItem",
+    "DailySalesPerformance",
+    "SalesPerformanceReport",
+    "SoldProductWithMargin",
+    "APAgingBuckets",
+    "SupplierLedgerRow",
+    "PurchaseReturnRow",
+    "PurchasingPayablesReport",
+    "CategoryValuationRow",
+    "ReorderCandidateRow",
+    "ExpiryBatchRow",
+    "DeadStockRow",
+    "InventoryHealthReport",
+    "CashFlowInflows",
+    "CashFlowOutflows",
+    "WalletMovementSummary",
+    "CashFlowStatement",
+    # Loss & Audit schemas
+    "VoidedTransactionRow",
+    "LargeDiscountRow",
+    "NegativeMarginProduct",
+    "ExpiredStockRow",
+    "MissingDayCloseRow",
+    "LossAuditReport",
 ]

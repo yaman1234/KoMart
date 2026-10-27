@@ -1,0 +1,22 @@
+- generic [ref=f1e4]:
+  - generic [ref=f1e6]:
+    - img "KoMart logo" [ref=f1e8]
+    - generic [ref=f1e9]:
+      - heading "KoMart" [level=5] [ref=f1e10]
+      - paragraph [ref=f1e11]: Korean & Asian Snacks Retail Management
+  - generic [ref=f1e12]:
+    - generic [ref=f1e13]:
+      - generic: Email
+      - generic [ref=f1e14]:
+        - textbox "Email" [ref=f1e15]
+        - group [aria-hidden]:
+          - generic: Email
+    - generic [ref=f1e16]:
+      - generic: Password
+      - generic [ref=f1e17]:
+        - textbox "Password" [ref=f1e18]
+        - button [ref=f1e20] [cursor=pointer]
+        - group [aria-hidden]:
+          - generic: Password
+    - button "Sign In" [ref=f1e23] [cursor=pointer]
+    - button "Navigate to Home" [ref=f1e24] [cursor=pointer]

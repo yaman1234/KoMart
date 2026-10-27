@@ -16,7 +16,7 @@ from app.models.day_close import DayClose
 from app.models.transaction import Transaction, TransactionStatus
 from app.models.user import User
 from app.services.payment_methods import normalize_payment_method
-from app.services.expense_helpers import is_setup_investment
+from app.services.expense_helpers import is_purchase_order_payment, is_setup_investment
 import re
 from app.schemas.common import PaginatedResponse
 from app.schemas.dashboard import RevenueDataPoint, SalesByCategory
@@ -49,9 +49,18 @@ from app.schemas.reports import (
     SalesByPaymentMethod,
     SalesSummary,
     TopCustomer,
+    # Phase 2 schemas
+    ExecutiveFinancialSummary,
+    SalesPerformanceReport,
+    SoldProductWithMargin,
+    PurchasingPayablesReport,
+    InventoryHealthReport,
+    CashFlowStatement,
+    LossAuditReport,
 )
 from app.services.reporting import (
     aggregate_inventory_by_category,
+    aggregate_items_sold_with_margin,
     aggregate_last_sale_before,
     aggregate_product_inventory_stats,
     aggregate_sales_by_day,
@@ -67,8 +76,24 @@ from app.services.reporting import (
     line_revenue,
     parse_date_range,
 )
-from app.services.stock import expiring_product_ids, get_current_stock, get_current_stock_batch
-from app.services.time_nepal import to_npt
+from app.services.retail_finance import (
+    calculate_cash_flow_statement,
+    calculate_trading_pnl,
+    generate_executive_financial_summary,
+    generate_sales_performance_report,
+)
+from app.services.procurement_reports import (
+    generate_inventory_health_report,
+    generate_loss_audit_report,
+    generate_purchasing_payables_report,
+)
+from app.services.stock import (
+    classify_on_hand_stock,
+    expiring_product_ids,
+    get_current_stock,
+    get_current_stock_batch,
+)
+from app.services.time_nepal import npt_day_end_utc, npt_day_start_utc, to_npt
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -138,8 +163,8 @@ async def daily_summary_report(
     if not _ISO_DATE_RE.match(date):
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
 
-    start = datetime.fromisoformat(date).replace(tzinfo=timezone.utc)
-    end = start.replace(hour=23, minute=59, second=59, microsecond=999999)
+    start = npt_day_start_utc(date)
+    end = npt_day_end_utc(date)
 
     txns = await Transaction.find({
         "created_at": {"$gte": start, "$lte": end},
@@ -162,7 +187,8 @@ async def daily_summary_report(
     expenses = await ExpenseDoc.find({"date": date}).to_list()
     total_expenses = round(sum(e.amount for e in expenses), 2)
     setup_investment = round(sum(e.amount for e in expenses if is_setup_investment(e)), 2)
-    operating = round(total_expenses - setup_investment, 2)
+    po_paid = round(sum(e.amount for e in expenses if not is_setup_investment(e) and is_purchase_order_payment(e)), 2)
+    operating = round(total_expenses - setup_investment - po_paid, 2)
     cash_expenses = round(
         sum(
             e.amount
@@ -231,6 +257,7 @@ async def daily_summary_report(
             total=total_expenses,
             setup_investment=setup_investment,
             operating=operating,
+            po_paid=po_paid,
         ),
         by_payment_method=by_payment,
         cash=DailyCashBlock(
@@ -415,23 +442,18 @@ async def expiring_products_report(
 @router.get("/low-stock", response_model=PaginatedResponse[LowStockProductRow])
 async def low_stock_report(
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page_size: int = Query(25, ge=1, le=500),
+    page_size_alias: int | None = Query(None, alias="pageSize", ge=1, le=500),
     stock_filter: str = Query("low", pattern="^(low|out|both)$"),
     product_status: str = Query("", pattern="^(|active|discontinued|seasonal)$"),
     _: User = Depends(require_manager_or_above),
 ):
+    limit = page_size_alias or page_size
     query = Product.find(Product.is_active == True)  # noqa: E712
     if product_status:
         query = query.find(Product.status == ProductStatus(product_status))
 
-    total = await query.count()
-    products = (
-        await query.sort("name")
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-        .to_list()
-    )
-
+    products = await query.sort("name").to_list()
     product_ids = [str(p.id) for p in products]
     stock_map = await get_current_stock_batch(product_ids)
 
@@ -439,14 +461,14 @@ async def low_stock_report(
     for product in products:
         pid = str(product.id)
         stock = stock_map.get(pid, 0)
-        if stock_filter == "out" and stock != 0:
+        c = classify_on_hand_stock(stock, product.low_stock_threshold)
+        if stock_filter == "out" and c != "out":
             continue
-        elif stock_filter == "low" and (stock == 0 or stock > product.low_stock_threshold):
+        elif stock_filter == "low" and c != "low":
             continue
-        elif stock_filter == "both" and stock > product.low_stock_threshold:
+        elif stock_filter == "both" and c not in ("out", "low"):
             continue
 
-        stock_status = "out" if stock == 0 else "low"
         prod_status = product.status.value if hasattr(product, "status") and product.status else "active"
         rows.append(
             LowStockProductRow(
@@ -456,16 +478,22 @@ async def low_stock_report(
                 category=product.category,
                 stock=stock,
                 low_stock_threshold=product.low_stock_threshold,
-                status=stock_status,
+                status=c,
                 product_status=prod_status,
             )
         )
+
+    total = len(rows)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    page_data = rows[start_idx:end_idx]
+
     return PaginatedResponse(
-        data=rows,
+        data=page_data,
         total=total,
         page=page,
-        page_size=page_size,
-        total_pages=ceil(total / page_size) if total else 1,
+        page_size=limit,
+        total_pages=ceil(total / limit) if total else 1,
     )
 
 
@@ -484,16 +512,19 @@ async def profit_summary_report(
     total_discount = sum(t.discount for t in txns)
     daily: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "cogs": 0.0})
 
-    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    while current <= end:
+    current = to_npt(start).date()
+    end_d = to_npt(end).date()
+    while current <= end_d:
         daily[current.strftime("%Y-%m-%d")] = {"revenue": 0.0, "cogs": 0.0}
         current += timedelta(days=1)
 
     for txn in txns:
-        day = txn.created_at.strftime("%Y-%m-%d")
-        txn_cogs = sum(
-            line_cogs(item, product_cache.get(item.product_id)) for item in txn.items
-        )
+        day = to_npt(txn.created_at).strftime("%Y-%m-%d")
+        txn_cogs = float(getattr(txn, "total_cost", 0.0) or 0.0)
+        if txn_cogs <= 0:
+            txn_cogs = sum(
+                line_cogs(item, product_cache.get(item.product_id)) for item in txn.items
+            )
         rev = txn.total
         total_revenue += rev
         total_cogs += txn_cogs
@@ -802,8 +833,8 @@ async def expense_summary_report(
     _: User = Depends(require_manager_or_above),
 ):
     start, end = parse_date_range(start_date, end_date)
-    start_str = start.strftime("%Y-%m-%d")
-    end_str = end.strftime("%Y-%m-%d")
+    start_str = to_npt(start).strftime("%Y-%m-%d")
+    end_str = to_npt(end).strftime("%Y-%m-%d")
 
     expenses = await ExpenseDoc.find(
         {"date": {"$gte": start_str, "$lte": end_str}}
@@ -811,11 +842,13 @@ async def expense_summary_report(
 
     total_expenses = 0.0
     setup_investment = 0.0
+    po_paid = 0.0
     category_stats: dict[str, dict] = defaultdict(lambda: {"amount": 0.0, "count": 0})
     daily: dict[str, float] = {}
 
-    current = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    while current <= end:
+    current = to_npt(start).date()
+    end_d = to_npt(end).date()
+    while current <= end_d:
         daily[current.strftime("%Y-%m-%d")] = 0.0
         current += timedelta(days=1)
 
@@ -823,16 +856,21 @@ async def expense_summary_report(
         total_expenses += expense.amount
         if is_setup_investment(expense):
             setup_investment += expense.amount
+        elif is_purchase_order_payment(expense):
+            po_paid += expense.amount
         cat_key = str(getattr(expense.category, "value", expense.category))
         category_stats[cat_key]["amount"] += expense.amount
         category_stats[cat_key]["count"] += 1
         if expense.date in daily:
             daily[expense.date] += expense.amount
 
+    operating_expenses = total_expenses - setup_investment - po_paid
+
     return ExpenseSummary(
         total_expenses=round(total_expenses, 2),
         setup_investment=round(setup_investment, 2),
-        operating_expenses=round(total_expenses - setup_investment, 2),
+        operating_expenses=round(operating_expenses, 2),
+        total_po_paid=round(po_paid, 2),
         by_category=[
             ExpenseByCategory(
                 category=cat,
@@ -846,3 +884,151 @@ async def expense_summary_report(
             for d, v in sorted(daily.items())
         ],
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 Financial & Operational Intelligence Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/executive-summary", response_model=ExecutiveFinancialSummary)
+async def executive_summary_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Landing Executive Financial Summary:
+    Trading P&L Waterfall (EBIT), Cash Flow Bridge, Working Capital Indicators, and IRD VAT.
+    """
+    start, end = parse_date_range(start_date, end_date)
+    return await generate_executive_financial_summary(start, end)
+
+
+@router.get("/sales-performance", response_model=SalesPerformanceReport)
+async def sales_performance_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Sales & Merchandising Intelligence:
+    Gross/Net sales, discounts, category contribution with revenue/profit shares, tender mix, and daily trend.
+    """
+    start, end = parse_date_range(start_date, end_date)
+    return await generate_sales_performance_report(start, end)
+
+
+@router.get("/items-sold", response_model=PaginatedResponse[SoldProductWithMargin])
+async def items_sold_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(500, ge=1, le=5000),
+    page_size_alias: int | None = Query(None, alias="pageSize", ge=1, le=5000),
+    search: str = Query(""),
+    category: str = Query(""),
+    sort_by: str = Query("net_revenue"),
+    sort_order: str = Query("desc", pattern="^(|asc|desc)$"),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Comprehensive product performance matrix with proportional bill discount allocation
+    and FEFO batch COGS. No synthetic reconciliation rows.
+    """
+    limit = page_size_alias or page_size
+    start, end = parse_date_range(start_date, end_date)
+    txns = await fetch_transactions(start, end)
+    product_ids = collect_product_ids(txns)
+    product_cache = await build_product_cache(product_ids)
+
+    all_rows = aggregate_items_sold_with_margin(txns, product_cache)
+
+    filtered = all_rows
+    if search and search.strip():
+        q = search.strip().lower()
+        filtered = [r for r in filtered if q in r.name.lower() or q in r.sku.lower()]
+    if category and category.strip():
+        cat_q = category.strip().lower()
+        filtered = [r for r in filtered if r.category.lower() == cat_q]
+
+    sort_key = sort_by if hasattr(SoldProductWithMargin, sort_by) else "net_revenue"
+    reverse = (sort_order.lower() != "asc")
+    filtered.sort(key=lambda x: getattr(x, sort_key, 0.0), reverse=reverse)
+
+    total = len(filtered)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    page_rows = filtered[start_idx:end_idx]
+
+    return PaginatedResponse(
+        data=page_rows,
+        total=total,
+        page=page,
+        page_size=limit,
+        total_pages=ceil(total / limit) if total else 1,
+    )
+
+
+@router.get("/purchasing-payables", response_model=PurchasingPayablesReport)
+async def purchasing_payables_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    date_basis: str = Query("received", pattern="^(received|ordered)$"),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Supplier Ledger, Accounts Payable aging analysis (0-30d, 31-60d, 61-90d, 90d+),
+    and Purchase Returns & open receivables.
+    """
+    start, end = parse_date_range(start_date, end_date)
+    return await generate_purchasing_payables_report(start, end, date_basis=date_basis)
+
+
+@router.get("/inventory-health", response_model=InventoryHealthReport)
+async def inventory_health_report(
+    stock_filter: str = Query("both", pattern="^(low|out|both)$"),
+    expiry_days: int = Query(30, ge=1, le=365),
+    dead_days: int = Query(30, ge=1, le=365),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Complete Inventory Health: Category batch valuation, reorder action center,
+    near-expiry batches, and dead capital analysis.
+    """
+    return await generate_inventory_health_report(
+        stock_filter=stock_filter,
+        expiry_days=expiry_days,
+        dead_days=dead_days,
+    )
+
+
+@router.get("/cash-flow", response_model=CashFlowStatement)
+async def cash_flow_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Multi-wallet Cash Flow Statement (Cash, Bank, eSewa) and Cash-to-Profit Bridge.
+    """
+    start, end = parse_date_range(start_date, end_date)
+    pnl, txns, expenses = await calculate_trading_pnl(start, end)
+    statement, _ = await calculate_cash_flow_statement(start, end, pnl, txns, expenses)
+    return statement
+
+
+@router.get("/loss-audit", response_model=LossAuditReport)
+async def loss_audit_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    discount_threshold: float = Query(20.0, ge=5.0, le=100.0),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Loss & Anomaly Audit: voided transactions, large-discount bills, products sold
+    below cost (negative margin), expired stock still on shelf, and days without a
+    till close record.
+    """
+    start, end = parse_date_range(start_date, end_date)
+    return await generate_loss_audit_report(start, end, large_discount_threshold_pct=discount_threshold)

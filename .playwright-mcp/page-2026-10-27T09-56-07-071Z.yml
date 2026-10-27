@@ -1,0 +1,231 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e6]:
+      - img "KoMart logo" [ref=f2e10]
+      - separator [ref=f2e11]
+      - list [ref=f2e12]:
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f2e19]:
+          - link "POS" [ref=f2e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f2e25]:
+          - link "Sales" [ref=f2e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f2e32]:
+          - link "Products" [ref=f2e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f2e38]:
+          - link "Inventory" [ref=f2e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f2e44]:
+          - link "Stock Count" [ref=f2e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f2e50]:
+          - link "Suppliers" [ref=f2e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f2e56]:
+          - link "Purchase Orders" [ref=f2e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f2e62]:
+          - link "Purchase Returns" [ref=f2e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f2e68]:
+          - link "Expenses" [ref=f2e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f2e74]:
+          - link "Accounts" [ref=f2e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f2e80]:
+          - link "Reconciliation" [ref=f2e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f2e86]:
+          - link "Customers" [ref=f2e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f2e92]:
+          - link "Reports" [ref=f2e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f2e98]:
+          - link "Notifications" [ref=f2e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f2e104]:
+          - link "Settings" [ref=f2e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f2e110]:
+      - generic [ref=f2e112]:
+        - button "Go to Home" [ref=f2e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f2e117] [cursor=pointer]
+        - button "Notifications" [ref=f2e120] [cursor=pointer]
+        - button "Y" [ref=f2e124] [cursor=pointer]
+      - generic [ref=f2e127]:
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f2e130]
+            - paragraph [ref=f2e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f2e132]:
+            - button [ref=f2e133] [cursor=pointer]
+            - button [ref=f2e137] [cursor=pointer]
+        - generic [ref=f2e141]:
+          - generic [ref=f2e142]:
+            - generic [ref=f2e143]:
+              - group [ref=f2e144]:
+                - button "Today" [ref=f2e145] [cursor=pointer]
+                - button "Yesterday" [ref=f2e146] [cursor=pointer]
+                - button "7D" [ref=f2e147] [cursor=pointer]
+                - button "30D" [ref=f2e148] [cursor=pointer]
+                - button "Month" [ref=f2e149] [cursor=pointer]
+              - generic [ref=f2e227]:
+                - generic [ref=f2e228]: Start Date
+                - group "Start Date" [ref=f2e229]:
+                  - generic [ref=f2e230]:
+                    - generic [ref=f2e231]:
+                      - spinbutton "Month" [ref=f2e232]: "09"
+                      - text: /
+                    - generic [ref=f2e233]:
+                      - spinbutton "Day" [ref=f2e234]: "28"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e236]: "2026"
+                  - button "Choose date, selected date is Sep 28, 2026" [ref=f2e410] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f2e241]: 09/28/2026
+              - generic [ref=f2e242]:
+                - generic [ref=f2e243]: End Date
+                - group "End Date" [ref=f2e244]:
+                  - generic [ref=f2e245]:
+                    - generic [ref=f2e246]:
+                      - spinbutton "Month" [ref=f2e247]: "10"
+                      - text: /
+                    - generic [ref=f2e248]:
+                      - spinbutton "Day" [ref=f2e249]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e251]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f2e253] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f2e256]: 10/27/2026
+            - generic [ref=f2e168]:
+              - button "Today" [ref=f2e169] [cursor=pointer]
+              - button "Yesterday" [ref=f2e171] [cursor=pointer]
+              - button "This Week" [ref=f2e173] [cursor=pointer]
+              - button "This Month" [ref=f2e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f2e177] [cursor=pointer]
+          - generic [ref=f2e179]: "Nepal BS: Ashwin 12 – Kartik 10, 2083 BS"
+        - generic [ref=f2e184]:
+          - tablist [ref=f2e186]:
+            - tab "Executive Financials" [ref=f2e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [ref=f2e190] [cursor=pointer]
+            - tab "Purchases & Payables" [ref=f2e193] [cursor=pointer]
+            - tab "Inventory & Health" [ref=f2e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [active] [selected] [ref=f2e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [ref=f2e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [ref=f2e205] [cursor=pointer]
+          - generic [ref=f2e257] [cursor=pointer]
+        - generic [ref=f2e3340]:
+          - generic [ref=f2e3341]:
+            - generic [ref=f2e3343]:
+              - generic [ref=f2e3344]: Total Cash Inflows
+              - heading "+Rs. 499,994.00" [level=5] [ref=f2e3348]
+              - text: POS sales, return refunds & collections
+            - generic [ref=f2e3350]:
+              - generic [ref=f2e3351]: Total Cash Outflows
+              - heading "-Rs. 165,277.12" [level=5] [ref=f2e3355]
+              - text: Supplier bills, store overheads & disbursements
+            - generic [ref=f2e3357]:
+              - generic [ref=f2e3358]: Net Cash Flow
+              - heading "+Rs. 334,716.88" [level=5] [ref=f2e3362]
+              - text: Net Cash Surplus Generated
+          - generic [ref=f2e3363]:
+            - generic [ref=f2e3365]:
+              - heading "A. Cash Inflows (Collections)" [level=6] [ref=f2e3369]
+              - generic [ref=f2e3370]:
+                - generic [ref=f2e3371]:
+                  - paragraph [ref=f2e3372]: POS Register Cash Collections
+                  - paragraph [ref=f2e3373]: Rs. 164,839.00
+                - generic [ref=f2e3374]:
+                  - paragraph [ref=f2e3375]: POS Card & Bank Swipe Collections
+                  - paragraph [ref=f2e3376]: Rs. 335,115.00
+                - generic [ref=f2e3377]:
+                  - paragraph [ref=f2e3378]: POS eSewa / Digital Wallet Collections
+                  - paragraph [ref=f2e3379]: Rs. 0.00
+                - generic [ref=f2e3380]:
+                  - paragraph [ref=f2e3381]: Supplier Return Refunds Collected
+                  - paragraph [ref=f2e3382]: Rs. 40.00
+                - generic [ref=f2e3383]:
+                  - paragraph [ref=f2e3384]: Transfers & Adjustments In
+                  - paragraph [ref=f2e3385]: Rs. 0.00
+                - separator [ref=f2e3386]
+                - generic [ref=f2e3387]:
+                  - heading "Total Period Cash Inflows" [level=6] [ref=f2e3388]
+                  - heading "+Rs. 499,994.00" [level=6] [ref=f2e3389]
+            - generic [ref=f2e3391]:
+              - heading "B. Cash Outflows (Disbursements)" [level=6] [ref=f2e3395]
+              - generic [ref=f2e3396]:
+                - generic [ref=f2e3397]:
+                  - paragraph [ref=f2e3398]: Supplier PO Bill Payments
+                  - paragraph [ref=f2e3399]: (Rs. 152,367.12)
+                - generic [ref=f2e3400]:
+                  - paragraph [ref=f2e3401]: Operating Expenses (Rent, Utilities, Staff)
+                  - paragraph [ref=f2e3402]: (Rs. 12,870.00)
+                - generic [ref=f2e3403]:
+                  - paragraph [ref=f2e3404]: Setup & Capital Investments
+                  - paragraph [ref=f2e3405]: —
+                - generic [ref=f2e3406]:
+                  - paragraph [ref=f2e3407]: Transfers & Adjustments Out
+                  - paragraph [ref=f2e3408]: (Rs. 40.00)
+                - separator [ref=f2e3409]
+                - generic [ref=f2e3410]:
+                  - heading "Total Period Cash Outflows" [level=6] [ref=f2e3411]
+                  - heading "-Rs. 165,277.12" [level=6] [ref=f2e3412]
+          - generic [ref=f2e3413]:
+            - generic [ref=f2e3414]:
+              - generic [ref=f2e3418]:
+                - heading "Live Wallet Balances & Period Movements" [level=6] [ref=f2e3419]
+                - text: Audit trail across physical cash registers, bank accounts, and merchant wallets
+              - button [ref=f2e3420] [cursor=pointer]
+            - table [ref=f2e3425]:
+              - rowgroup [ref=f2e3426]:
+                - row [ref=f2e3427]:
+                  - columnheader "#" [ref=f2e3428]
+                  - columnheader "Wallet Account" [ref=f2e3429]
+                  - columnheader "Opening Balance" [ref=f2e3430]
+                  - columnheader "Period Inflows" [ref=f2e3431]
+                  - columnheader "Period Outflows" [ref=f2e3432]
+                  - columnheader "Net Movement" [ref=f2e3433]
+                  - columnheader "Closing Balance" [ref=f2e3434]
+              - rowgroup [ref=f2e3435]:
+                - row [ref=f2e3436]:
+                  - cell "1" [ref=f2e3437]
+                  - cell "💵 Cash in Till" [ref=f2e3438]
+                  - cell "Rs. 292,466.96" [ref=f2e3439]
+                  - cell "+Rs. 164,879.00" [ref=f2e3440]
+                  - cell "-Rs. 12,160.00" [ref=f2e3441]
+                  - cell "+Rs. 152,719.00" [ref=f2e3442]
+                  - cell "Rs. 445,185.96" [ref=f2e3443]
+                - row [ref=f2e3444]:
+                  - cell "2" [ref=f2e3445]
+                  - cell "🏦 Bank Operating Account" [ref=f2e3446]
+                  - cell "−Rs. 92,345.20" [ref=f2e3447]
+                  - cell "+Rs. 335,115.00" [ref=f2e3448]
+                  - cell "-Rs. 153,117.12" [ref=f2e3449]
+                  - cell "+Rs. 181,997.88" [ref=f2e3450]
+                  - cell "Rs. 89,652.68" [ref=f2e3451]
+                - row [ref=f2e3452]:
+                  - cell "3" [ref=f2e3453]
+                  - cell "📱 esewa Merchant Wallet" [ref=f2e3454]
+                  - cell "Rs. 219,669.00" [ref=f2e3455]
+                  - cell "+Rs. 0.00" [ref=f2e3456]
+                  - cell "-Rs. 0.00" [ref=f2e3457]
+                  - cell "+Rs. 0.00" [ref=f2e3458]
+                  - cell "Rs. 219,669.00" [ref=f2e3459]
+              - rowgroup [ref=f2e3460]:
+                - row [ref=f2e3461]:
+                  - cell [ref=f2e3462]
+                  - cell "Total Liquid Position" [ref=f2e3463]
+                  - cell "Rs. 419,790.76" [ref=f2e3464]
+                  - cell "+Rs. 499,994.00" [ref=f2e3465]
+                  - cell "-Rs. 165,277.12" [ref=f2e3466]
+                  - cell "+Rs. 334,716.88" [ref=f2e3467]
+                  - cell "Rs. 754,507.64" [ref=f2e3468]
+  - generic [aria-hidden] [ref=f2e1569]: Rs. 0

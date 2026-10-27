@@ -1,0 +1,440 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e6]:
+      - img "KoMart logo" [ref=f2e10]
+      - separator [ref=f2e11]
+      - list [ref=f2e12]:
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f2e19]:
+          - link "POS" [ref=f2e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f2e25]:
+          - link "Sales" [ref=f2e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f2e32]:
+          - link "Products" [ref=f2e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f2e38]:
+          - link "Inventory" [ref=f2e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f2e44]:
+          - link "Stock Count" [ref=f2e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f2e50]:
+          - link "Suppliers" [ref=f2e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f2e56]:
+          - link "Purchase Orders" [ref=f2e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f2e62]:
+          - link "Purchase Returns" [ref=f2e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f2e68]:
+          - link "Expenses" [ref=f2e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f2e74]:
+          - link "Accounts" [ref=f2e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f2e80]:
+          - link "Reconciliation" [ref=f2e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f2e86]:
+          - link "Customers" [ref=f2e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f2e92]:
+          - link "Reports" [ref=f2e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f2e98]:
+          - link "Notifications" [ref=f2e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f2e104]:
+          - link "Settings" [ref=f2e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f2e110]:
+      - generic [ref=f2e112]:
+        - button "Go to Home" [ref=f2e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f2e117] [cursor=pointer]
+        - button "Notifications" [ref=f2e120] [cursor=pointer]
+        - button "Y" [ref=f2e124] [cursor=pointer]
+      - generic [ref=f2e127]:
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f2e130]
+            - paragraph [ref=f2e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f2e132]:
+            - button [ref=f2e133] [cursor=pointer]
+            - button [ref=f2e137] [cursor=pointer]
+        - generic [ref=f2e141]:
+          - generic [ref=f2e142]:
+            - generic [ref=f2e143]:
+              - group [ref=f2e144]:
+                - button "Today" [ref=f2e145] [cursor=pointer]
+                - button "Yesterday" [ref=f2e146] [cursor=pointer]
+                - button "7D" [ref=f2e147] [cursor=pointer]
+                - button "30D" [ref=f2e148] [cursor=pointer]
+                - button "Month" [ref=f2e149] [cursor=pointer]
+              - generic [ref=f2e227]:
+                - generic [ref=f2e228]: Start Date
+                - group "Start Date" [ref=f2e229]:
+                  - generic [ref=f2e230]:
+                    - generic [ref=f2e231]:
+                      - spinbutton "Month" [ref=f2e232]: "09"
+                      - text: /
+                    - generic [ref=f2e233]:
+                      - spinbutton "Day" [ref=f2e234]: "28"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e236]: "2026"
+                  - button "Choose date, selected date is Sep 28, 2026" [ref=f2e410] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+                  - textbox [aria-hidden] [ref=f2e241]: 09/28/2026
+              - generic [ref=f2e242]:
+                - generic [ref=f2e243]: End Date
+                - group "End Date" [ref=f2e244]:
+                  - generic [ref=f2e245]:
+                    - generic [ref=f2e246]:
+                      - spinbutton "Month" [ref=f2e247]: "10"
+                      - text: /
+                    - generic [ref=f2e248]:
+                      - spinbutton "Day" [ref=f2e249]: "27"
+                      - text: /
+                    - spinbutton "Year" [ref=f2e251]: "2026"
+                  - button "Choose date, selected date is Oct 27, 2026" [ref=f2e253] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+                  - textbox [aria-hidden] [ref=f2e256]: 10/27/2026
+            - generic [ref=f2e168]:
+              - button "Today" [ref=f2e169] [cursor=pointer]
+              - button "Yesterday" [ref=f2e171] [cursor=pointer]
+              - button "This Week" [ref=f2e173] [cursor=pointer]
+              - button "This Month" [ref=f2e175] [cursor=pointer]
+              - button "Last 30 Days" [ref=f2e177] [cursor=pointer]
+          - generic [ref=f2e179]: "Nepal BS: Ashwin 12 – Kartik 10, 2083 BS"
+        - generic [ref=f2e184]:
+          - tablist [ref=f2e186]:
+            - tab "Executive Financials" [ref=f2e187] [cursor=pointer]
+            - tab "Sales & Merchandising" [ref=f2e190] [cursor=pointer]
+            - tab "Purchases & Payables" [active] [selected] [ref=f2e193] [cursor=pointer]
+            - tab "Inventory & Health" [ref=f2e196] [cursor=pointer]
+            - tab "Cash Flow & Wallets" [ref=f2e199] [cursor=pointer]
+            - tab "Loss & Operational Audit" [ref=f2e202] [cursor=pointer]
+            - tab "Customers & Loyalty" [ref=f2e205] [cursor=pointer]
+          - generic [ref=f2e257] [cursor=pointer]
+        - generic [ref=f2e1576]:
+          - generic [ref=f2e1577]:
+            - generic [ref=f2e1579]:
+              - generic [ref=f2e1580]:
+                - generic [ref=f2e1581]: Gross Purchases
+                - img [aria-hidden] [ref=f2e1582] [cursor=pointer]
+              - heading "Rs. 366,291.93" [level=6] [ref=f2e1584]
+              - generic [ref=f2e1585]: PO subtotal before adjustments
+            - generic [ref=f2e1587]:
+              - generic [ref=f2e1588]:
+                - generic [ref=f2e1589]: PO Discounts
+                - img [aria-hidden] [ref=f2e1590] [cursor=pointer]
+              - heading "-Rs. 3,113.00" [level=6] [ref=f2e1592]
+              - generic [ref=f2e1593]: Negotiated trade discounts
+            - generic [ref=f2e1595]:
+              - generic [ref=f2e1596]:
+                - generic [ref=f2e1597]: Freight & Charges
+                - img [aria-hidden] [ref=f2e1598] [cursor=pointer]
+              - heading "Rs. 403.00" [level=6] [ref=f2e1600]
+              - generic [ref=f2e1601]: Transportation & unloading
+            - generic [ref=f2e1603]:
+              - generic [ref=f2e1604]:
+                - generic [ref=f2e1605]: Net Purchases
+                - img [aria-hidden] [ref=f2e1606] [cursor=pointer]
+              - heading "Rs. 363,582.93" [level=6] [ref=f2e1608]
+              - generic [ref=f2e1609]: Net procurement obligation
+            - generic [ref=f2e1611]:
+              - generic [ref=f2e1612]:
+                - generic [ref=f2e1613]: Total AP Owed
+                - img [aria-hidden] [ref=f2e1614] [cursor=pointer]
+              - heading "Rs. 1,263,617.21" [level=6] [ref=f2e1616]
+              - generic [ref=f2e1617]: Unpaid vendor bills (AP liability)
+          - generic [ref=f2e1618]:
+            - generic [ref=f2e1619]:
+              - generic [ref=f2e1621]:
+                - generic [ref=f2e1622]:
+                  - heading "Accounts Payable (AP) Aging Breakdown" [level=6] [ref=f2e1623]
+                  - img [aria-hidden] [ref=f2e1624] [cursor=pointer]
+                - generic [ref=f2e1626]: "Total Outstanding Vendor Debt: Rs. 1,263,617.21"
+              - generic [ref=f2e1627]: 50% Critical Overdue
+            - generic [ref=f2e1632]:
+              - 'generic "0-30 Days (Current): Rs. 243,182.01 (19%)" [ref=f2e1633]'
+              - 'generic "31-60 Days (Due): Rs. 145,027.40 (11%)" [ref=f2e1634]'
+              - 'generic "61-90 Days (Overdue): Rs. 246,988.00 (20%)" [ref=f2e1635]'
+              - 'generic ">90 Days (Critical Overdue): Rs. 628,419.80 (50%)" [ref=f2e1636]'
+            - generic [ref=f2e1637]:
+              - generic [ref=f2e1640]:
+                - text: Current (0–30d)
+                - paragraph [ref=f2e1641]: Rs. 243,182.01 (19%)
+              - generic [ref=f2e1644]:
+                - text: Due (31–60d)
+                - paragraph [ref=f2e1645]: Rs. 145,027.40 (11%)
+              - generic [ref=f2e1648]:
+                - text: Overdue (61–90d)
+                - paragraph [ref=f2e1649]: Rs. 246,988.00 (20%)
+              - generic [ref=f2e1652]:
+                - text: Critical (>90d)
+                - paragraph [ref=f2e1653]: Rs. 628,419.80 (50%)
+          - generic [ref=f2e1654]:
+            - generic [ref=f2e1655]:
+              - generic [ref=f2e1659]:
+                - heading "Supplier Ledger & Balance Reconciliation" [level=6] [ref=f2e1660]
+                - text: Audit trail of purchase orders, payments, and unpaid balances
+              - generic [ref=f2e1661]:
+                - generic [ref=f2e1663]:
+                  - textbox "Search supplier..." [ref=f2e1667]
+                  - group [aria-hidden]
+                - generic [ref=f2e1669]:
+                  - combobox [ref=f2e1670] [cursor=pointer]: All Suppliers
+                  - textbox [aria-hidden]: ALL
+                  - group [aria-hidden]
+            - table [ref=f2e1672]:
+              - rowgroup [ref=f2e1673]:
+                - row [ref=f2e1674]:
+                  - columnheader "#" [ref=f2e1675]
+                  - columnheader "Supplier Name" [ref=f2e1676]
+                  - columnheader "Orders" [ref=f2e1677]
+                  - columnheader "Gross PO" [ref=f2e1678]
+                  - columnheader "Discounts" [ref=f2e1679]
+                  - columnheader "Freight/Charges" [ref=f2e1680]
+                  - columnheader "Net PO Total" [ref=f2e1681]
+                  - columnheader "Amount Paid" [ref=f2e1682]
+                  - columnheader "Balance Due" [ref=f2e1683]
+                  - columnheader "Aging Status" [ref=f2e1684]
+              - rowgroup [ref=f2e1685]:
+                - row [ref=f2e1686]:
+                  - cell "1" [ref=f2e1687]
+                  - cell [ref=f2e1688]:
+                    - paragraph [ref=f2e1689]: Boudha
+                    - text: "9860212741"
+                  - cell "2 POs" [ref=f2e1690]
+                  - cell "Rs. 95,084.44" [ref=f2e1693]
+                  - cell "—" [ref=f2e1694]
+                  - cell "—" [ref=f2e1695]
+                  - cell "Rs. 95,084.44" [ref=f2e1696]
+                  - cell "Rs. 51,364.44" [ref=f2e1697]
+                  - cell "Rs. 43,720.00" [ref=f2e1698]
+                  - cell "<30d Current" [ref=f2e1699]
+                - row [ref=f2e1702]:
+                  - cell "2" [ref=f2e1703]
+                  - cell [ref=f2e1704]:
+                    - paragraph [ref=f2e1705]: Seoul Korean Pasal
+                    - text: "9818656760"
+                  - cell "2 POs" [ref=f2e1706]
+                  - cell "Rs. 86,820.00" [ref=f2e1709]
+                  - cell "—" [ref=f2e1710]
+                  - cell "—" [ref=f2e1711]
+                  - cell "Rs. 86,820.00" [ref=f2e1712]
+                  - cell "Rs. 0.00" [ref=f2e1713]
+                  - cell "Rs. 86,820.00" [ref=f2e1714]
+                  - cell "<30d Current" [ref=f2e1715]
+                - row [ref=f2e1718]:
+                  - cell "3" [ref=f2e1719]
+                  - cell [ref=f2e1720]:
+                    - paragraph [ref=f2e1721]: New road indrachowk pasal
+                    - text: "9860212741"
+                  - cell "2 POs" [ref=f2e1722]
+                  - cell "Rs. 44,570.00" [ref=f2e1725]
+                  - cell "—" [ref=f2e1726]
+                  - cell "—" [ref=f2e1727]
+                  - cell "Rs. 44,570.00" [ref=f2e1728]
+                  - cell "Rs. 3,600.00" [ref=f2e1729]
+                  - cell "Rs. 40,970.00" [ref=f2e1730]
+                  - cell "<30d Current" [ref=f2e1731]
+                - row [ref=f2e1734]:
+                  - cell "4" [ref=f2e1735]
+                  - cell [ref=f2e1736]:
+                    - paragraph [ref=f2e1737]: Asia trade international pvt.ltd
+                    - text: "9860412294"
+                  - cell "2 POs" [ref=f2e1738]
+                  - cell "Rs. 37,756.48" [ref=f2e1741]
+                  - cell "—" [ref=f2e1742]
+                  - cell "—" [ref=f2e1743]
+                  - cell "Rs. 37,756.48" [ref=f2e1744]
+                  - cell "Rs. 37,756.48" [ref=f2e1745]
+                  - cell "Rs. 0.00" [ref=f2e1746]
+                  - cell "Cleared" [ref=f2e1747]
+                - row [ref=f2e1750]:
+                  - cell "5" [ref=f2e1751]
+                  - cell [ref=f2e1752]:
+                    - paragraph [ref=f2e1753]: Pratham Trade Line PVT. LTD
+                    - text: "9801015177"
+                  - cell "2 POs" [ref=f2e1754]
+                  - cell "Rs. 30,289.01" [ref=f2e1757]
+                  - cell "-Rs. 1.00" [ref=f2e1758]
+                  - cell "—" [ref=f2e1759]
+                  - cell "Rs. 30,288.01" [ref=f2e1760]
+                  - cell "Rs. 0.00" [ref=f2e1761]
+                  - cell "Rs. 30,288.01" [ref=f2e1762]
+                  - cell "<30d Current" [ref=f2e1763]
+                - row [ref=f2e1766]:
+                  - cell "6" [ref=f2e1767]
+                  - cell [ref=f2e1768]:
+                    - paragraph [ref=f2e1769]: KoMart supplier
+                    - text: "99999999999"
+                  - cell "3 POs" [ref=f2e1770]
+                  - cell "Rs. 16,500.00" [ref=f2e1773]
+                  - cell "—" [ref=f2e1774]
+                  - cell "—" [ref=f2e1775]
+                  - cell "Rs. 16,500.00" [ref=f2e1776]
+                  - cell "Rs. 8,000.00" [ref=f2e1777]
+                  - cell "Rs. 8,500.00" [ref=f2e1778]
+                  - cell "<30d Current" [ref=f2e1779]
+                - row [ref=f2e1782]:
+                  - cell "7" [ref=f2e1783]
+                  - cell [ref=f2e1784]:
+                    - paragraph [ref=f2e1785]: Right Station - Yala Chocolate
+                    - text: "9851363484"
+                  - cell "2 POs" [ref=f2e1786]
+                  - cell "Rs. 15,980.00" [ref=f2e1789]
+                  - cell "—" [ref=f2e1790]
+                  - cell "—" [ref=f2e1791]
+                  - cell "Rs. 15,980.00" [ref=f2e1792]
+                  - cell "Rs. 0.00" [ref=f2e1793]
+                  - cell "Rs. 15,980.00" [ref=f2e1794]
+                  - cell "<30d Current" [ref=f2e1795]
+                - row [ref=f2e1798]:
+                  - cell "8" [ref=f2e1799]
+                  - cell [ref=f2e1800]:
+                    - paragraph [ref=f2e1801]: A & B Traders
+                    - text: "9823829815"
+                  - cell "2 POs" [ref=f2e1802]
+                  - cell "Rs. 15,532.00" [ref=f2e1805]
+                  - cell "-Rs. 3,106.00" [ref=f2e1806]
+                  - cell "+Rs. 403.00" [ref=f2e1807]
+                  - cell "Rs. 12,830.00" [ref=f2e1808]
+                  - cell "Rs. 12,830.00" [ref=f2e1809]
+                  - cell "Rs. 0.00" [ref=f2e1810]
+                  - cell "Cleared" [ref=f2e1811]
+                - row [ref=f2e1814]:
+                  - cell "9" [ref=f2e1815]
+                  - cell [ref=f2e1816]:
+                    - paragraph [ref=f2e1817]: Pokhara Kimchi - URI
+                    - text: "9849935893"
+                  - cell "1 POs" [ref=f2e1818]
+                  - cell "Rs. 9,200.00" [ref=f2e1821]
+                  - cell "—" [ref=f2e1822]
+                  - cell "—" [ref=f2e1823]
+                  - cell "Rs. 9,200.00" [ref=f2e1824]
+                  - cell "Rs. 0.00" [ref=f2e1825]
+                  - cell "Rs. 9,200.00" [ref=f2e1826]
+                  - cell "<30d Current" [ref=f2e1827]
+                - row [ref=f2e1830]:
+                  - cell "10" [ref=f2e1831]
+                  - cell [ref=f2e1832]:
+                    - paragraph [ref=f2e1833]: Suun Trading
+                    - text: "9708094364"
+                  - cell "1 POs" [ref=f2e1834]
+                  - cell "Rs. 7,664.00" [ref=f2e1837]
+                  - cell "—" [ref=f2e1838]
+                  - cell "—" [ref=f2e1839]
+                  - cell "Rs. 7,664.00" [ref=f2e1840]
+                  - cell "Rs. 0.00" [ref=f2e1841]
+                  - cell "Rs. 7,664.00" [ref=f2e1842]
+                  - cell "<30d Current" [ref=f2e1843]
+                - row [ref=f2e1846]:
+                  - cell "11" [ref=f2e1847]
+                  - cell [ref=f2e1848]:
+                    - paragraph [ref=f2e1849]: Chysal ko Godown
+                    - text: "9860212741"
+                  - cell "1 POs" [ref=f2e1850]
+                  - cell "Rs. 6,400.00" [ref=f2e1853]
+                  - cell "—" [ref=f2e1854]
+                  - cell "—" [ref=f2e1855]
+                  - cell "Rs. 6,400.00" [ref=f2e1856]
+                  - cell "Rs. 6,400.00" [ref=f2e1857]
+                  - cell "Rs. 0.00" [ref=f2e1858]
+                  - cell "Cleared" [ref=f2e1859]
+                - row [ref=f2e1862]:
+                  - cell "12" [ref=f2e1863]
+                  - cell [ref=f2e1864]:
+                    - paragraph [ref=f2e1865]: Suppliers Unknown
+                    - text: "9860124359"
+                  - cell "1 POs" [ref=f2e1866]
+                  - cell "Rs. 396.00" [ref=f2e1869]
+                  - cell "-Rs. 6.00" [ref=f2e1870]
+                  - cell "—" [ref=f2e1871]
+                  - cell "Rs. 390.00" [ref=f2e1872]
+                  - cell "Rs. 390.00" [ref=f2e1873]
+                  - cell "Rs. 0.00" [ref=f2e1874]
+                  - cell "Cleared" [ref=f2e1875]
+                - row [ref=f2e1878]:
+                  - cell "13" [ref=f2e1879]
+                  - cell [ref=f2e1880]:
+                    - paragraph [ref=f2e1881]: Unknown Supplier
+                    - text: No contact
+                  - cell "1 POs" [ref=f2e1882]
+                  - cell "Rs. 100.00" [ref=f2e1885]
+                  - cell "—" [ref=f2e1886]
+                  - cell "—" [ref=f2e1887]
+                  - cell "Rs. 100.00" [ref=f2e1888]
+                  - cell "Rs. 60.00" [ref=f2e1889]
+                  - cell "Rs. 40.00" [ref=f2e1890]
+                  - cell "<30d Current" [ref=f2e1891]
+              - rowgroup [ref=f2e1894]:
+                - row [ref=f2e1895]:
+                  - cell "—" [ref=f2e1896]
+                  - cell "Total (13 Suppliers)" [ref=f2e1897]
+                  - cell "22 POs" [ref=f2e1898]
+                  - cell "Rs. 366,291.93" [ref=f2e1901]
+                  - cell "-Rs. 3,113.00" [ref=f2e1902]
+                  - cell "+Rs. 403.00" [ref=f2e1903]
+                  - cell "Rs. 363,582.93" [ref=f2e1904]
+                  - cell "Rs. 120,400.92" [ref=f2e1905]
+                  - cell "Rs. 243,182.01" [ref=f2e1906]
+                  - cell "—" [ref=f2e1907]
+            - generic [ref=f2e1909]:
+              - paragraph [ref=f2e1910]: "Rows per page:"
+              - generic [ref=f2e1911]:
+                - combobox "Rows per page:" [ref=f2e1912] [cursor=pointer]: "25"
+                - textbox [aria-hidden]: "25"
+              - paragraph [ref=f2e1913]: 1–13 of 13
+              - generic [ref=f2e1914]:
+                - button "Go to previous page" [disabled]
+                - button "Go to next page" [disabled]
+          - generic [ref=f2e1915]:
+            - generic [ref=f2e1916]:
+              - generic [ref=f2e1920]:
+                - heading "Purchase Returns & Supplier Receivables (Debit Notes)" [level=6] [ref=f2e1921]
+                - text: Damaged/expired goods returned to vendors and pending cash/cheque refunds
+              - generic [ref=f2e1922]:
+                - generic [ref=f2e1923]:
+                  - text: Total Returns Recorded
+                  - paragraph [ref=f2e1924]: Rs. 40.00
+                - generic [ref=f2e1925]:
+                  - text: Refunds Collected
+                  - paragraph [ref=f2e1926]: Rs. 40.00
+                - generic [ref=f2e1927]:
+                  - text: Open Receivables
+                  - paragraph [ref=f2e1928]: Rs. 0.00
+            - table [ref=f2e1930]:
+              - rowgroup [ref=f2e1931]:
+                - row [ref=f2e1932]:
+                  - columnheader "#" [ref=f2e1933]
+                  - 'columnheader "Return #" [ref=f2e1934]'
+                  - columnheader "Return Date" [ref=f2e1935]
+                  - columnheader "Supplier" [ref=f2e1936]
+                  - columnheader "PO Reference" [ref=f2e1937]
+                  - columnheader "Total Value" [ref=f2e1938]
+                  - columnheader "Refund Received" [ref=f2e1939]
+                  - columnheader "Pending Refund" [ref=f2e1940]
+                  - columnheader "Settlement" [ref=f2e1941]
+                  - columnheader "Status" [ref=f2e1942]
+              - rowgroup [ref=f2e1943]:
+                - row [ref=f2e1944]:
+                  - cell "1" [ref=f2e1945]
+                  - cell "PR-0001" [ref=f2e1946]
+                  - cell "2026-10-26" [ref=f2e1947]
+                  - cell "Vendor" [ref=f2e1948]
+                  - cell "PO-CF-74121" [ref=f2e1949]
+                  - cell "Rs. 40.00" [ref=f2e1950]
+                  - cell "Rs. 40.00" [ref=f2e1951]
+                  - cell "Rs. 0.00" [ref=f2e1952]
+                  - cell "refund" [ref=f2e1953]
+                  - cell "closed" [ref=f2e1956]
+  - generic [aria-hidden] [ref=f2e1569]: Rs. 0

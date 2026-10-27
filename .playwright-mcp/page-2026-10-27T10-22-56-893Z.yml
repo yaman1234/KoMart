@@ -1,0 +1,103 @@
+- generic [ref=f8e2]:
+  - generic:
+    - progressbar
+  - generic [ref=f8e3]:
+    - generic [ref=f8e6]:
+      - img "KoMart logo" [ref=f8e10]
+      - separator [ref=f8e11]
+      - list [ref=f8e12]:
+        - listitem [ref=f8e13]:
+          - link "Dashboard" [ref=f8e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f8e19]:
+          - link "POS" [ref=f8e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f8e25]:
+          - link "Sales" [ref=f8e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f8e32]:
+          - link "Products" [ref=f8e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f8e38]:
+          - link "Inventory" [ref=f8e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f8e44]:
+          - link "Stock Count" [ref=f8e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f8e50]:
+          - link "Suppliers" [ref=f8e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f8e56]:
+          - link "Purchase Orders" [ref=f8e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f8e62]:
+          - link "Purchase Returns" [ref=f8e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f8e68]:
+          - link "Expenses" [ref=f8e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f8e74]:
+          - link "Accounts" [ref=f8e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f8e80]:
+          - link "Reconciliation" [ref=f8e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f8e86]:
+          - link "Customers" [ref=f8e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f8e92]:
+          - link "Reports" [ref=f8e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f8e98]:
+          - link "Notifications" [ref=f8e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f8e104]:
+          - link "Settings" [ref=f8e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f8e110]:
+      - generic [ref=f8e112]:
+        - button "Go to Home" [ref=f8e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f8e117] [cursor=pointer]
+        - button "Notifications" [ref=f8e120] [cursor=pointer]
+        - button "Y" [ref=f8e124] [cursor=pointer]
+      - generic [ref=f8e127]:
+        - generic [ref=f8e128]:
+          - generic [ref=f8e129]:
+            - heading "Retail Intelligence & Reports" [level=5] [ref=f8e130]
+            - paragraph [ref=f8e131]: Accrual P&L, Cash Flow, Merchandising, Supply Chain & Working Capital
+          - generic [ref=f8e132]:
+            - button [ref=f8e133] [cursor=pointer]
+            - button [ref=f8e137] [cursor=pointer]
+        - generic [ref=f8e141]:
+          - generic [ref=f8e143]:
+            - group [ref=f8e144]:
+              - button "Today" [ref=f8e145] [cursor=pointer]
+              - button "Yesterday" [ref=f8e146] [cursor=pointer]
+              - button "7D" [ref=f8e147] [cursor=pointer]
+              - button "30D" [ref=f8e148] [cursor=pointer]
+              - button "Month" [ref=f8e149] [cursor=pointer]
+            - generic "BS 2083-07-10 · AD 2026-10-27" [ref=f8e150]:
+              - generic [ref=f8e151]:
+                - generic [ref=f8e152]: Start Date
+                - generic [ref=f8e153]:
+                  - textbox "Start Date" [ref=f8e154] [cursor=pointer]: 2083-07-10
+                  - button "Open calendar" [ref=f8e156] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Start Date
+            - generic "BS 2083-07-10 · AD 2026-10-27" [ref=f8e159]:
+              - generic [ref=f8e160]:
+                - generic [ref=f8e161]: End Date
+                - generic [ref=f8e162]:
+                  - textbox "End Date" [ref=f8e163] [cursor=pointer]: 2083-07-10
+                  - button "Open calendar" [ref=f8e165] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: End Date
+          - generic [ref=f8e168]: "Nepal BS: Kartik 10 – 10, 2083 BS"
+        - tablist [ref=f8e175]:
+          - tab "Executive Financials" [ref=f8e176] [cursor=pointer]
+          - tab "Sales & Merchandising" [selected] [ref=f8e179] [cursor=pointer]
+          - tab "Purchases & Payables" [ref=f8e182] [cursor=pointer]
+          - tab "Inventory & Health" [ref=f8e185] [cursor=pointer]
+          - tab "Cash Flow & Wallets" [ref=f8e188] [cursor=pointer]
+          - tab "Loss & Operational Audit" [ref=f8e191] [cursor=pointer]
+          - tab "Customers & Loyalty" [ref=f8e194] [cursor=pointer]

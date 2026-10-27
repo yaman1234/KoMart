@@ -1,0 +1,266 @@
+- generic [ref=f3e2]:
+  - generic:
+    - progressbar
+  - generic [ref=f3e3]:
+    - generic [ref=f3e6]:
+      - img "KoMart logo" [ref=f3e10]
+      - separator [ref=f3e11]
+      - list [ref=f3e12]:
+        - listitem [ref=f3e13]:
+          - link "Dashboard" [ref=f3e14] [cursor=pointer]:
+            - /url: /dashboard
+        - listitem [ref=f3e19]:
+          - link "POS" [ref=f3e20] [cursor=pointer]:
+            - /url: /pos
+        - listitem [ref=f3e25]:
+          - link "Sales" [ref=f3e26] [cursor=pointer]:
+            - /url: /sales
+        - listitem [ref=f3e32]:
+          - link "Products" [ref=f3e33] [cursor=pointer]:
+            - /url: /products
+        - listitem [ref=f3e38]:
+          - link "Inventory" [ref=f3e39] [cursor=pointer]:
+            - /url: /inventory
+        - listitem [ref=f3e44]:
+          - link "Stock Count" [ref=f3e45] [cursor=pointer]:
+            - /url: /stock-count
+        - listitem [ref=f3e50]:
+          - link "Suppliers" [ref=f3e51] [cursor=pointer]:
+            - /url: /suppliers
+        - listitem [ref=f3e56]:
+          - link "Purchase Orders" [ref=f3e57] [cursor=pointer]:
+            - /url: /purchase-orders
+        - listitem [ref=f3e62]:
+          - link "Purchase Returns" [ref=f3e63] [cursor=pointer]:
+            - /url: /purchase-returns
+        - listitem [ref=f3e68]:
+          - link "Expenses" [ref=f3e69] [cursor=pointer]:
+            - /url: /expenses
+        - listitem [ref=f3e74]:
+          - link "Accounts" [ref=f3e75] [cursor=pointer]:
+            - /url: /accounts
+        - listitem [ref=f3e80]:
+          - link "Reconciliation" [ref=f3e81] [cursor=pointer]:
+            - /url: /reconciliation
+        - listitem [ref=f3e86]:
+          - link "Customers" [ref=f3e87] [cursor=pointer]:
+            - /url: /customers
+        - listitem [ref=f3e92]:
+          - link "Reports" [ref=f3e93] [cursor=pointer]:
+            - /url: /reports
+        - listitem [ref=f3e98]:
+          - link "Notifications" [ref=f3e99] [cursor=pointer]:
+            - /url: /notifications
+        - listitem [ref=f3e104]:
+          - link "Settings" [ref=f3e105] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f3e110]:
+      - generic [ref=f3e112]:
+        - button "Go to Home" [ref=f3e113] [cursor=pointer]: Home
+        - button "Toggle theme" [ref=f3e117] [cursor=pointer]
+        - button "Notifications" [ref=f3e120] [cursor=pointer]
+        - button "Y" [ref=f3e124] [cursor=pointer]
+      - generic [ref=f3e127]:
+        - generic [ref=f3e128]:
+          - generic [ref=f3e129]:
+            - navigation [ref=f3e130]:
+              - list [ref=f3e131]:
+                - listitem [ref=f3e132]:
+                  - link "Reports" [ref=f3e133] [cursor=pointer]:
+                    - /url: /reports
+                - listitem [aria-hidden] [ref=f3e134]: /
+                - listitem [ref=f3e135]:
+                  - paragraph [ref=f3e136]: Day Cash Book
+            - paragraph [ref=f3e138]: Per-wallet movements and end-of-day reconciliation
+          - generic [ref=f3e140]:
+            - button [ref=f3e141] [cursor=pointer]
+            - button [ref=f3e145] [cursor=pointer]
+            - button "Deposit to bank" [ref=f3e149] [cursor=pointer]
+            - button "Float from bank" [ref=f3e150] [cursor=pointer]
+            - button [ref=f3e151] [cursor=pointer]
+        - generic [ref=f3e155]:
+          - generic "BS 2083-07-10 · AD 2026-10-27" [ref=f3e156]:
+            - generic [ref=f3e157]:
+              - generic [ref=f3e158]: Business date
+              - generic [ref=f3e159]:
+                - textbox "Business date" [ref=f3e160] [cursor=pointer]: 2083-07-10
+                - button "Open calendar" [ref=f3e162] [cursor=pointer]
+                - group [aria-hidden]:
+                  - generic: Business date
+          - button "◀ Prev Day" [ref=f3e165] [cursor=pointer]
+          - button "Next Day ▶" [ref=f3e166] [cursor=pointer]
+          - button "Today" [ref=f3e167] [cursor=pointer]
+          - paragraph [ref=f3e168]: Review Cash / Bank / eSewa for the day, enter counted/statement closings, then print.
+        - alert [ref=f3e169]:
+          - generic [ref=f3e173]: "Open till: set Opening cash (suggested from yesterday’s close), then Save day close."
+        - generic [ref=f3e174]:
+          - heading "Close-day checklist" [level=6] [ref=f3e175]
+          - paragraph [ref=f3e176]: ○ Count till cash and save closing
+          - paragraph [ref=f3e177]: "○ Optional: bank / eSewa statement closings"
+          - paragraph [ref=f3e178]: ✓ Review variances (post if needed)
+          - paragraph [ref=f3e179]: ○ Close day
+          - button "Close day" [disabled]
+        - generic [ref=f3e180]:
+          - generic [ref=f3e185]:
+            - paragraph [ref=f3e186]: Total Sales
+            - heading "—" [level=4] [ref=f3e187]
+          - generic [ref=f3e192]:
+            - paragraph [ref=f3e193]: Total Expenses
+            - heading "—" [level=4] [ref=f3e194]
+          - generic [ref=f3e199]:
+            - paragraph [ref=f3e200]: Net (Sales − Expenses)
+            - heading "—" [level=4] [ref=f3e201]
+        - generic [ref=f3e202]:
+          - generic [ref=f3e204]:
+            - heading "Till (today)" [level=6] [ref=f3e205]
+            - generic [ref=f3e206]:
+              - generic [ref=f3e208]:
+                - generic [ref=f3e209]: Opening cash
+                - generic [ref=f3e210]:
+                  - spinbutton "Opening cash" [ref=f3e211]: "0"
+                  - group [aria-hidden]:
+                    - generic: Opening cash
+              - generic [ref=f3e213]:
+                - generic [ref=f3e214]: Closing cash (counted)
+                - generic [ref=f3e215]:
+                  - spinbutton "Closing cash (counted)" [ref=f3e216]: "0"
+                  - button "Count Notes" [ref=f3e218] [cursor=pointer]
+                  - group [aria-hidden]:
+                    - generic: Closing cash (counted)
+              - generic [ref=f3e220]:
+                - generic: Notes
+                - generic [ref=f3e221]:
+                  - textbox "Notes" [ref=f3e222]
+                  - group [aria-hidden]:
+                    - generic: Notes
+              - button [ref=f3e224] [cursor=pointer]
+            - separator [ref=f3e228]
+            - generic [ref=f3e229]:
+              - paragraph [ref=f3e230]: Opening
+              - paragraph [ref=f3e231]: Rs. 0.00
+            - generic [ref=f3e232]:
+              - paragraph [ref=f3e233]: Sales in
+              - paragraph [ref=f3e234]: Rs. 0.00
+            - generic [ref=f3e235]:
+              - paragraph [ref=f3e236]: Expenses out
+              - paragraph [ref=f3e237]: Rs. 0.00
+            - generic [ref=f3e238]:
+              - paragraph [ref=f3e239]: Transfers in
+              - paragraph [ref=f3e240]: Rs. 0.00
+            - generic [ref=f3e241]:
+              - paragraph [ref=f3e242]: Transfers out
+              - paragraph [ref=f3e243]: Rs. 0.00
+            - generic [ref=f3e244]:
+              - paragraph [ref=f3e245]: Adjustments in
+              - paragraph [ref=f3e246]: Rs. 0.00
+            - generic [ref=f3e247]:
+              - paragraph [ref=f3e248]: Adjustments out
+              - paragraph [ref=f3e249]: Rs. 0.00
+            - generic [ref=f3e250]:
+              - paragraph [ref=f3e251]: Custody in (return)
+              - paragraph [ref=f3e252]: Rs. 0.00
+            - generic [ref=f3e253]:
+              - paragraph [ref=f3e254]: Custody out (take)
+              - paragraph [ref=f3e255]: Rs. 0.00
+            - separator [ref=f3e256]
+            - generic [ref=f3e257]:
+              - paragraph [ref=f3e258]: Expected closing
+              - paragraph [ref=f3e259]: Rs. 0.00
+            - generic [ref=f3e260]:
+              - paragraph [ref=f3e261]: Closing
+              - paragraph [ref=f3e262]: Rs. 0.00
+            - generic [ref=f3e263]:
+              - paragraph [ref=f3e264]: Variance
+              - paragraph [ref=f3e266]: Rs. 0.00
+            - generic [ref=f3e267]: Expected = Opening + sales − expenses ± transfers ± adjustments ± custody
+          - generic [ref=f3e269]:
+            - heading "Bank" [level=6] [ref=f3e270]
+            - generic [ref=f3e273]:
+              - generic: Closing (statement)
+              - generic [ref=f3e274]:
+                - spinbutton "Closing (statement)" [ref=f3e275]
+                - group [aria-hidden]:
+                  - generic: Closing (statement)
+            - separator [ref=f3e276]
+            - generic [ref=f3e277]:
+              - paragraph [ref=f3e278]: Opening
+              - paragraph [ref=f3e279]: Rs. 0.00
+            - generic [ref=f3e280]:
+              - paragraph [ref=f3e281]: Sales in
+              - paragraph [ref=f3e282]: Rs. 0.00
+            - generic [ref=f3e283]:
+              - paragraph [ref=f3e284]: Expenses out
+              - paragraph [ref=f3e285]: Rs. 0.00
+            - generic [ref=f3e286]:
+              - paragraph [ref=f3e287]: Transfers in
+              - paragraph [ref=f3e288]: Rs. 0.00
+            - generic [ref=f3e289]:
+              - paragraph [ref=f3e290]: Transfers out
+              - paragraph [ref=f3e291]: Rs. 0.00
+            - generic [ref=f3e292]:
+              - paragraph [ref=f3e293]: Adjustments in
+              - paragraph [ref=f3e294]: Rs. 0.00
+            - generic [ref=f3e295]:
+              - paragraph [ref=f3e296]: Adjustments out
+              - paragraph [ref=f3e297]: Rs. 0.00
+            - separator [ref=f3e298]
+            - generic [ref=f3e299]:
+              - paragraph [ref=f3e300]: Expected closing
+              - paragraph [ref=f3e301]: Rs. 0.00
+            - generic [ref=f3e302]: Enter statement closing, then Save day close on Till. Variance = statement − expected.
+          - generic [ref=f3e304]:
+            - heading "eSewa" [level=6] [ref=f3e305]
+            - generic [ref=f3e308]:
+              - generic: Closing (statement)
+              - generic [ref=f3e309]:
+                - spinbutton "Closing (statement)" [ref=f3e310]
+                - group [aria-hidden]:
+                  - generic: Closing (statement)
+            - separator [ref=f3e311]
+            - generic [ref=f3e312]:
+              - paragraph [ref=f3e313]: Opening
+              - paragraph [ref=f3e314]: Rs. 0.00
+            - generic [ref=f3e315]:
+              - paragraph [ref=f3e316]: Sales in
+              - paragraph [ref=f3e317]: Rs. 0.00
+            - generic [ref=f3e318]:
+              - paragraph [ref=f3e319]: Expenses out
+              - paragraph [ref=f3e320]: Rs. 0.00
+            - generic [ref=f3e321]:
+              - paragraph [ref=f3e322]: Transfers in
+              - paragraph [ref=f3e323]: Rs. 0.00
+            - generic [ref=f3e324]:
+              - paragraph [ref=f3e325]: Transfers out
+              - paragraph [ref=f3e326]: Rs. 0.00
+            - generic [ref=f3e327]:
+              - paragraph [ref=f3e328]: Adjustments in
+              - paragraph [ref=f3e329]: Rs. 0.00
+            - generic [ref=f3e330]:
+              - paragraph [ref=f3e331]: Adjustments out
+              - paragraph [ref=f3e332]: Rs. 0.00
+            - separator [ref=f3e333]
+            - generic [ref=f3e334]:
+              - paragraph [ref=f3e335]: Expected closing
+              - paragraph [ref=f3e336]: Rs. 0.00
+            - generic [ref=f3e337]: Enter statement closing, then Save day close on Till. Variance = statement − expected.
+        - generic [ref=f3e338]:
+          - heading "Payments received" [level=6] [ref=f3e339]
+          - table [ref=f3e340]:
+            - rowgroup [ref=f3e341]:
+              - row [ref=f3e342]:
+                - columnheader "Method" [ref=f3e343]
+                - columnheader "Txns" [ref=f3e344]
+                - columnheader "Amount" [ref=f3e345]
+            - rowgroup [ref=f3e346]:
+              - row [ref=f3e347]:
+                - cell "Cash" [ref=f3e348]
+                - cell "0" [ref=f3e349]
+                - cell "Rs. 0.00" [ref=f3e350]
+              - row [ref=f3e351]:
+                - cell "Bank" [ref=f3e352]
+                - cell "0" [ref=f3e353]
+                - cell "Rs. 0.00" [ref=f3e354]
+              - row [ref=f3e355]:
+                - cell "eSewa" [ref=f3e356]
+                - cell "0" [ref=f3e357]
+                - cell "Rs. 0.00" [ref=f3e358]

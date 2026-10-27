@@ -1,0 +1,210 @@
+- generic [ref=e2]:
+  - alert [ref=e3]:
+    - generic [ref=e7]: Your session has expired. Please login again.
+    - button "Close" [ref=e9] [cursor=pointer]
+  - generic [ref=e12]:
+    - banner [ref=e13]:
+      - generic [ref=e14]:
+        - img "KoMart Logo" [ref=e15] [cursor=pointer]
+        - heading "KoMart" [level=6] [ref=e16] [cursor=pointer]
+        - button [ref=e17] [cursor=pointer]
+        - button "Toggle theme" [ref=e21] [cursor=pointer]
+    - generic [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e29]:
+            - img "KoMart" [ref=e30]
+            - heading "Welcome to KoMart" [level=3] [ref=e31]
+            - heading "Korean & Asian Snacks — Browse our collection" [level=6] [ref=e32]
+          - generic:
+            - generic:
+              - heading "Rs. 15 OFF" [level=3]
+              - heading "Buldak noodles discount" [level=6]
+          - generic:
+            - generic:
+              - heading "Rs. 0 OFF" [level=3]
+              - heading "Buy 1 get 1 free" [level=6]
+          - generic:
+            - generic:
+              - heading "Visit Us" [level=4]
+              - generic:
+                - generic:
+                  - paragraph: "PAN : 107686059"
+                - generic:
+                  - paragraph: "9768537050"
+                - generic:
+                  - paragraph: komartlalitpur@gmail.com
+        - button "Previous slide" [ref=e33] [cursor=pointer]
+        - button "Next slide" [ref=e36] [cursor=pointer]
+        - generic [ref=e39]:
+          - button "Go to slide 1" [ref=e40] [cursor=pointer]
+          - button "Go to slide 2" [ref=e41] [cursor=pointer]
+          - button "Go to slide 3" [ref=e42] [cursor=pointer]
+          - button "Go to slide 4" [ref=e43] [cursor=pointer]
+      - generic [ref=e44]:
+        - generic [ref=e47]:
+          - textbox "Search products..." [ref=e51]
+          - group [aria-hidden]
+        - group [ref=e52]:
+          - button "Price ascending" [ref=e53] [cursor=pointer]:
+            - generic [ref=e56]: Price
+          - button "Price descending" [ref=e57] [cursor=pointer]:
+            - generic [ref=e58]: Price
+        - button "Offer" [ref=e61] [cursor=pointer]
+        - button "Most Popular" [ref=e65] [cursor=pointer]
+        - button "Trending" [ref=e67] [cursor=pointer]
+        - paragraph [ref=e69]: 400 products
+      - button "All" [ref=e71] [cursor=pointer]
+      - generic [ref=e73]:
+        - button "500gm Kimchi - Uri 500gm Kimchi - Uri Pickle Rs. 550.00" [ref=e76] [cursor=pointer]:
+          - img "500gm Kimchi - Uri" [ref=e78]
+          - generic [ref=e79]:
+            - heading "500gm Kimchi - Uri" [level=6] [ref=e80]
+            - generic [ref=e81]: Pickle
+            - paragraph [ref=e85]: Rs. 550.00
+        - button "900 biscuit 900 biscuit Biscuits Rs. 180.00" [ref=e88] [cursor=pointer]:
+          - img "900 biscuit" [ref=e90]
+          - generic [ref=e91]:
+            - heading "900 biscuit" [level=6] [ref=e92]
+            - generic [ref=e93]: Biscuits
+            - paragraph [ref=e97]: Rs. 180.00
+        - button "Aila Soju 360ml Aila Soju 360ml Beverages Rs. 850.00" [ref=e100] [cursor=pointer]:
+          - img "Aila Soju 360ml" [ref=e102]
+          - generic [ref=e103]:
+            - heading "Aila Soju 360ml" [level=6] [ref=e104]
+            - generic [ref=e105]: Beverages
+            - paragraph [ref=e109]: Rs. 850.00
+        - button "Anchovy Fish sauce Korean 250g Anchovy Fish sauce Korean 250g Sauces Rs. 450.00" [ref=e112] [cursor=pointer]:
+          - img "Anchovy Fish sauce Korean 250g" [ref=e114]
+          - generic [ref=e115]:
+            - heading "Anchovy Fish sauce Korean 250g" [level=6] [ref=e116]
+            - generic [ref=e117]: Sauces
+            - paragraph [ref=e121]: Rs. 450.00
+        - button "BBQ Sunflower Tong Garden BBQ Sunflower Tong Garden Snacks Rs. 75.00" [ref=e124] [cursor=pointer]:
+          - img "BBQ Sunflower Tong Garden" [ref=e126]
+          - generic [ref=e127]:
+            - heading "BBQ Sunflower Tong Garden" [level=6] [ref=e128]
+            - generic [ref=e129]: Snacks
+            - paragraph [ref=e133]: Rs. 75.00
+        - button "Baihui Milk Tea Baihui Milk Tea Beverages Rs. 180.00" [ref=e136] [cursor=pointer]:
+          - img "Baihui Milk Tea" [ref=e138]
+          - generic [ref=e139]:
+            - heading "Baihui Milk Tea" [level=6] [ref=e140]
+            - generic [ref=e141]: Beverages
+            - paragraph [ref=e145]: Rs. 180.00
+        - button "Bamboo chopstick Bamboo chopstick Kitchen Rs. 15.00" [ref=e148] [cursor=pointer]:
+          - img "Bamboo chopstick" [ref=e150]
+          - generic [ref=e151]:
+            - heading "Bamboo chopstick" [level=6] [ref=e152]
+            - generic [ref=e153]: Kitchen
+            - paragraph [ref=e157]: Rs. 15.00
+        - button "Bamboo sushi mat Out of Stock Bamboo sushi mat Kitchen Rs. 500.00" [ref=e160] [cursor=pointer]:
+          - generic [ref=e161]:
+            - img "Bamboo sushi mat" [ref=e162]
+            - generic [ref=e163]: Out of Stock
+          - generic [ref=e165]:
+            - heading "Bamboo sushi mat" [level=6] [ref=e166]
+            - generic [ref=e167]: Kitchen
+            - paragraph [ref=e171]: Rs. 500.00
+        - button "Banana Chocolate & Candy Out of Stock Banana Chocolate & Candy Chocolate & Candy Rs. 449.00" [ref=e174] [cursor=pointer]:
+          - generic [ref=e175]:
+            - img "Banana Chocolate & Candy" [ref=e176]
+            - generic [ref=e177]: Out of Stock
+          - generic [ref=e179]:
+            - heading "Banana Chocolate & Candy" [level=6] [ref=e180]
+            - generic [ref=e181]: Chocolate & Candy
+            - paragraph [ref=e185]: Rs. 449.00
+        - button "Basa Fish big pack Basa Fish big pack Sea Food Rs. 1,100.00" [ref=e188] [cursor=pointer]:
+          - img "Basa Fish big pack" [ref=e190]
+          - generic [ref=e191]:
+            - heading "Basa Fish big pack" [level=6] [ref=e192]
+            - generic [ref=e193]: Sea Food
+            - paragraph [ref=e197]: Rs. 1,100.00
+        - button "Bauli Moonfils Croissant Bauli Moonfils Croissant Biscuits Rs. 75.00" [ref=e200] [cursor=pointer]:
+          - img "Bauli Moonfils Croissant" [ref=e202]
+          - generic [ref=e203]:
+            - heading "Bauli Moonfils Croissant" [level=6] [ref=e204]
+            - generic [ref=e205]: Biscuits
+            - paragraph [ref=e209]: Rs. 75.00
+        - button "Bibigo Tteokbokki Bibigo Tteokbokki Noodles Rs. 437.00" [ref=e212] [cursor=pointer]:
+          - img "Bibigo Tteokbokki" [ref=e214]
+          - generic [ref=e215]:
+            - heading "Bibigo Tteokbokki" [level=6] [ref=e216]
+            - generic [ref=e217]: Noodles
+            - paragraph [ref=e221]: Rs. 437.00
+        - button "Binchi biscuit Binchi biscuit Biscuits Rs. 450.00" [ref=e224] [cursor=pointer]:
+          - img "Binchi biscuit" [ref=e226]
+          - generic [ref=e227]:
+            - heading "Binchi biscuit" [level=6] [ref=e228]
+            - generic [ref=e229]: Biscuits
+            - paragraph [ref=e233]: Rs. 450.00
+        - button "Black Florida Cup Black Florida Cup Ice Cream Rs. 100.00" [ref=e236] [cursor=pointer]:
+          - img "Black Florida Cup" [ref=e238]
+          - generic [ref=e239]:
+            - heading "Black Florida Cup" [level=6] [ref=e240]
+            - generic [ref=e241]: Ice Cream
+            - paragraph [ref=e245]: Rs. 100.00
+        - button "Black Matcha Black Matcha Beverages Rs. 400.00" [ref=e248] [cursor=pointer]:
+          - img "Black Matcha" [ref=e250]
+          - generic [ref=e251]:
+            - heading "Black Matcha" [level=6] [ref=e252]
+            - generic [ref=e253]: Beverages
+            - paragraph [ref=e257]: Rs. 400.00
+        - button "Black Rice Crispy Biscuit Black Rice Crispy Biscuit Biscuits Rs. 450.00" [ref=e260] [cursor=pointer]:
+          - img "Black Rice Crispy Biscuit" [ref=e262]
+          - generic [ref=e263]:
+            - heading "Black Rice Crispy Biscuit" [level=6] [ref=e264]
+            - generic [ref=e265]: Biscuits
+            - paragraph [ref=e269]: Rs. 450.00
+        - button "Black Tea 100 gm Out of Stock Black Tea 100 gm Beverages Rs. 200.00" [ref=e272] [cursor=pointer]:
+          - generic [ref=e273]:
+            - img "Black Tea 100 gm" [ref=e274]
+            - generic [ref=e275]: Out of Stock
+          - generic [ref=e277]:
+            - heading "Black Tea 100 gm" [level=6] [ref=e278]
+            - generic [ref=e279]: Beverages
+            - paragraph [ref=e283]: Rs. 200.00
+        - button "Black Tea 200gms Out of Stock Black Tea 200gms Beverages Rs. 350.00" [ref=e286] [cursor=pointer]:
+          - generic [ref=e287]:
+            - img "Black Tea 200gms" [ref=e288]
+            - generic [ref=e289]: Out of Stock
+          - generic [ref=e291]:
+            - heading "Black Tea 200gms" [level=6] [ref=e292]
+            - generic [ref=e293]: Beverages
+            - paragraph [ref=e297]: Rs. 350.00
+        - button "Black chopstick Black chopstick Kitchen Rs. 100.00" [ref=e300] [cursor=pointer]:
+          - img "Black chopstick" [ref=e302]
+          - generic [ref=e303]:
+            - heading "Black chopstick" [level=6] [ref=e304]
+            - generic [ref=e305]: Kitchen
+            - paragraph [ref=e309]: Rs. 100.00
+        - button "Body gloves Body gloves Household Rs. 350.00" [ref=e312] [cursor=pointer]:
+          - img "Body gloves" [ref=e314]
+          - generic [ref=e315]:
+            - heading "Body gloves" [level=6] [ref=e316]
+            - generic [ref=e317]: Household
+            - paragraph [ref=e321]: Rs. 350.00
+        - button "Body towel Body towel Household Rs. 200.00" [ref=e324] [cursor=pointer]:
+          - img "Body towel" [ref=e326]
+          - generic [ref=e327]:
+            - heading "Body towel" [level=6] [ref=e328]
+            - generic [ref=e329]: Household
+            - paragraph [ref=e333]: Rs. 200.00
+        - button "Bombay Kulfi Bombay Kulfi Ice Cream Rs. 95.00" [ref=e336] [cursor=pointer]:
+          - img "Bombay Kulfi" [ref=e338]
+          - generic [ref=e339]:
+            - heading "Bombay Kulfi" [level=6] [ref=e340]
+            - generic [ref=e341]: Ice Cream
+            - paragraph [ref=e345]: Rs. 95.00
+        - button "Bounty Chocolate Bounty Chocolate Chocolate & Candy Rs. 180.00" [ref=e348] [cursor=pointer]:
+          - img "Bounty Chocolate" [ref=e350]
+          - generic [ref=e351]:
+            - heading "Bounty Chocolate" [level=6] [ref=e352]
+            - generic [ref=e353]: Chocolate & Candy
+            - paragraph [ref=e357]: Rs. 180.00
+        - button "Bubble gum Bubble gum Chocolate & Candy Rs. 20.00" [ref=e360] [cursor=pointer]:
+          - img "Bubble gum" [ref=e362]
+          - generic [ref=e363]:
+            - heading "Bubble gum" [level=6] [ref=e364]
+            - generic [ref=e365]: Chocolate & Candy
+            - paragraph [ref=e369]: Rs. 20.00

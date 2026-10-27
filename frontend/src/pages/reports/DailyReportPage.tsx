@@ -13,6 +13,12 @@ import {
   TableRow,
   TextField,
   Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
+  Stack,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
@@ -21,9 +27,10 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { PageHeader } from '@/components/common/PageHeader';
-import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
+import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import {
   useCloseDay,
   useDailySummary,
@@ -49,6 +56,96 @@ function paymentLabel(method: string): string {
   const normalized =
     method === 'card' ? 'bank' : method === 'khalti' ? 'esewa' : method;
   return PAYMENT_METHODS.find((p) => p.value === normalized)?.label ?? method;
+}
+
+function CashDenominationModal({
+  open,
+  onClose,
+  onApply,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onApply: (total: number) => void;
+}) {
+  const [denoms, setDenoms] = useState<Record<number, number>>({
+    1000: 0,
+    500: 0,
+    100: 0,
+    50: 0,
+    20: 0,
+    10: 0,
+    5: 0,
+    1: 0,
+  });
+
+  const total = Object.entries(denoms).reduce(
+    (sum, [val, count]) => sum + Number(val) * (Number(count) || 0),
+    0,
+  );
+
+  const handleChange = (val: number, countStr: string) => {
+    const count = parseInt(countStr, 10);
+    setDenoms((prev) => ({
+      ...prev,
+      [val]: isNaN(count) || count < 0 ? 0 : count,
+    }));
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700, pb: 1, fontSize: '1rem' }}>
+        💵 Physical Cash Denomination Calculator
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1}>
+          {[1000, 500, 100, 50, 20, 10, 5, 1].map((denom) => {
+            const count = denoms[denom] || 0;
+            const subtotal = denom * count;
+            return (
+              <Box key={denom} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, width: 75 }}>
+                  {denom === 1 ? 'Coins' : `Rs. ${denom}`}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">×</Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  placeholder="0"
+                  value={count === 0 ? '' : count}
+                  onChange={(e) => handleChange(denom, e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, style: { textAlign: 'center', width: 60 } } }}
+                />
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, width: 90, textAlign: 'right' }}>
+                  {formatCurrency(subtotal)}
+                </Typography>
+              </Box>
+            );
+          })}
+          <Divider sx={{ my: 1 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Total Counted Cash:</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
+              {formatCurrency(total)}
+            </Typography>
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 2.5, py: 1.5 }}>
+        <Button onClick={onClose} color="inherit" size="small">Cancel</Button>
+        <Button
+          variant="contained"
+          size="small"
+          onClick={() => {
+            onApply(total);
+            onClose();
+          }}
+          disabled={total <= 0}
+        >
+          Apply Rs. {total.toLocaleString()}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
 }
 
 function WalletSection({
@@ -85,6 +182,7 @@ function WalletSection({
   readOnly?: boolean;
   openingHint?: string;
 }) {
+  const [showDenomModal, setShowDenomModal] = useState(false);
   const opening = block?.opening ?? 0;
   const salesIn = block?.salesIn ?? 0;
   const expensesOut = block?.expensesOut ?? 0;
@@ -140,7 +238,22 @@ function WalletSection({
                 onChange={(e) => onClosingChange?.(e.target.value)}
                 disabled={readOnly}
                 placeholder={mode === 'statement' ? 'Leave blank if not reconciled' : undefined}
-                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                slotProps={{
+                  htmlInput: { min: 0, step: 0.01 },
+                  input: mode === 'cash' && !readOnly ? {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button
+                          size="small"
+                          onClick={() => setShowDenomModal(true)}
+                          sx={{ minWidth: 'auto', p: 0.25, fontSize: '0.72rem', fontWeight: 700 }}
+                        >
+                          Count Notes
+                        </Button>
+                      </InputAdornment>
+                    ),
+                  } : undefined,
+                }}
               />
             </Grid>
             {mode === 'cash' && (
@@ -262,6 +375,14 @@ function WalletSection({
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
           Enter statement closing, then Save day close on Till. Variance = statement − expected.
         </Typography>
+      )}
+
+      {mode === 'cash' && (
+        <CashDenominationModal
+          open={showDenomModal}
+          onClose={() => setShowDenomModal(false)}
+          onApply={(total) => onClosingChange?.(String(total))}
+        />
       )}
     </Paper>
   );
@@ -560,7 +681,7 @@ export function DailyReportPage() {
       <Paper
         variant="outlined"
         className="no-print"
-        sx={{ p: 2, mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}
+        sx={{ p: 2, mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}
       >
         <NepaliAwareDatePicker
           label="Business date"
@@ -568,7 +689,31 @@ export function DailyReportPage() {
           onChange={setDate}
           size="small"
         />
-        <Typography variant="body2" color="text.secondary">
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => setDate(dayjs(date).subtract(1, 'day').format('YYYY-MM-DD'))}
+          sx={{ fontWeight: 600, minWidth: 'auto' }}
+        >
+          ◀ Prev Day
+        </Button>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => setDate(dayjs(date).add(1, 'day').format('YYYY-MM-DD'))}
+          sx={{ fontWeight: 600, minWidth: 'auto' }}
+        >
+          Next Day ▶
+        </Button>
+        <Button
+          size="small"
+          variant="text"
+          onClick={() => setDate(todayIso())}
+          sx={{ fontWeight: 700 }}
+        >
+          Today
+        </Button>
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
           Review Cash / Bank / eSewa for the day, enter counted/statement closings, then print.
         </Typography>
       </Paper>

@@ -1,0 +1,280 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - alert [ref=f1e25]:
+      - generic [ref=f1e29]: Logged in successfully.
+      - button "Close" [ref=f1e31] [cursor=pointer]
+    - generic [ref=f1e34]:
+      - generic [ref=f1e37]:
+        - img "KoMart logo" [ref=f1e41]
+        - separator [ref=f1e42]
+        - list [ref=f1e43]:
+          - listitem [ref=f1e44]:
+            - link "Dashboard" [ref=f1e45] [cursor=pointer]:
+              - /url: /dashboard
+          - listitem [ref=f1e50]:
+            - link "POS" [ref=f1e51] [cursor=pointer]:
+              - /url: /pos
+          - listitem [ref=f1e56]:
+            - link "Sales" [ref=f1e57] [cursor=pointer]:
+              - /url: /sales
+          - listitem [ref=f1e63]:
+            - link "Products" [ref=f1e64] [cursor=pointer]:
+              - /url: /products
+          - listitem [ref=f1e69]:
+            - link "Inventory" [ref=f1e70] [cursor=pointer]:
+              - /url: /inventory
+          - listitem [ref=f1e75]:
+            - link "Stock Count" [ref=f1e76] [cursor=pointer]:
+              - /url: /stock-count
+          - listitem [ref=f1e81]:
+            - link "Suppliers" [ref=f1e82] [cursor=pointer]:
+              - /url: /suppliers
+          - listitem [ref=f1e87]:
+            - link "Purchase Orders" [ref=f1e88] [cursor=pointer]:
+              - /url: /purchase-orders
+          - listitem [ref=f1e93]:
+            - link "Purchase Returns" [ref=f1e94] [cursor=pointer]:
+              - /url: /purchase-returns
+          - listitem [ref=f1e99]:
+            - link "Expenses" [ref=f1e100] [cursor=pointer]:
+              - /url: /expenses
+          - listitem [ref=f1e105]:
+            - link "Accounts" [ref=f1e106] [cursor=pointer]:
+              - /url: /accounts
+          - listitem [ref=f1e111]:
+            - link "Reconciliation" [ref=f1e112] [cursor=pointer]:
+              - /url: /reconciliation
+          - listitem [ref=f1e117]:
+            - link "Customers" [ref=f1e118] [cursor=pointer]:
+              - /url: /customers
+          - listitem [ref=f1e123]:
+            - link "Reports" [ref=f1e124] [cursor=pointer]:
+              - /url: /reports
+          - listitem [ref=f1e129]:
+            - link "Notifications" [ref=f1e130] [cursor=pointer]:
+              - /url: /notifications
+          - listitem [ref=f1e135]:
+            - link "Settings" [ref=f1e136] [cursor=pointer]:
+              - /url: /settings
+      - main [ref=f1e141]:
+        - generic [ref=f1e143]:
+          - button "Go to Home" [ref=f1e144] [cursor=pointer]: Home
+          - button "Toggle theme" [ref=f1e148] [cursor=pointer]
+          - button "Notifications" [ref=f1e151] [cursor=pointer]
+          - button "Y" [ref=f1e155] [cursor=pointer]
+        - generic [ref=f1e158]:
+          - generic [ref=f1e159]:
+            - heading "Day Wise Transactions" [level=6] [ref=f1e160]
+            - paragraph [ref=f1e161]: Oct 27, 2026
+            - generic [ref=f1e162]:
+              - generic [ref=f1e164] [cursor=pointer]:
+                - generic [ref=f1e165]: Today Sale
+                - heading "Rs. 0.00" [level=6] [ref=f1e170]
+                - generic [ref=f1e171]:
+                  - button "Cash Rs. 0.00" [ref=f1e172]:
+                    - generic [ref=f1e173]: Cash
+                    - generic [ref=f1e177]: Rs. 0.00
+                  - button "eSewa Rs. 0.00" [ref=f1e181]:
+                    - generic [ref=f1e182]: eSewa
+                    - generic [ref=f1e186]: Rs. 0.00
+                  - button "Bank Rs. 0.00" [ref=f1e190]:
+                    - generic [ref=f1e191]: Bank
+                    - generic [ref=f1e195]: Rs. 0.00
+              - generic [ref=f1e200] [cursor=pointer]:
+                - generic [ref=f1e201]: Today Expense
+                - heading "Rs. 0.00" [level=6] [ref=f1e207]
+                - generic [ref=f1e208]:
+                  - button "Cash Rs. 0.00" [ref=f1e209]:
+                    - generic [ref=f1e210]: Cash
+                    - generic [ref=f1e214]: Rs. 0.00
+                  - button "eSewa Rs. 0.00" [ref=f1e218]:
+                    - generic [ref=f1e219]: eSewa
+                    - generic [ref=f1e223]: Rs. 0.00
+                  - button "Bank Rs. 0.00" [ref=f1e227]:
+                    - generic [ref=f1e228]: Bank
+                    - generic [ref=f1e232]: Rs. 0.00
+          - generic [ref=f1e236]:
+            - generic [ref=f1e238] [cursor=pointer]:
+              - generic [ref=f1e239]: Sales
+              - heading "Rs. 1,345,484.96" [level=6] [ref=f1e244]
+              - generic [ref=f1e245]: Month Rs. 449,813.00 · Day Rs. 0.00
+            - generic [ref=f1e247] [cursor=pointer]:
+              - generic [ref=f1e248]: Purchase
+              - heading "Rs. 573,427.32" [level=6] [ref=f1e253]
+              - generic [ref=f1e254]: Month Rs. 72,406.44 · Day Rs. 0.00
+            - generic [ref=f1e256] [cursor=pointer]:
+              - generic [ref=f1e257]: Receivables
+              - heading "Rs. 0.00" [level=6] [ref=f1e262]
+              - generic [ref=f1e263]: Open supplier refunds — see Purchase Returns
+            - generic [ref=f1e265] [cursor=pointer]:
+              - generic [ref=f1e266]: Payables
+              - heading "Rs. 1,266,317.21" [level=6] [ref=f1e271]
+              - generic [ref=f1e272]: Month paid Rs. 72,406.44 · Day Rs. 0.00
+            - generic [ref=f1e274]:
+              - generic [ref=f1e275]: Cash / Bank / eSewa
+              - heading "Rs. 764,507.64" [level=6] [ref=f1e280]
+              - generic [ref=f1e281]:
+                - button "Cash Rs. 455,185.96" [ref=f1e282] [cursor=pointer]:
+                  - generic [ref=f1e283]: Cash
+                  - generic [ref=f1e287]: Rs. 455,185.96
+                - button "Bank Rs. 89,652.68" [ref=f1e288] [cursor=pointer]:
+                  - generic [ref=f1e289]: Bank
+                  - generic [ref=f1e293]: Rs. 89,652.68
+                - button "eSewa Rs. 219,669.00" [ref=f1e294] [cursor=pointer]:
+                  - generic [ref=f1e295]: eSewa
+                  - generic [ref=f1e299]: Rs. 219,669.00
+          - generic [ref=f1e300]:
+            - generic [ref=f1e302]:
+              - generic [ref=f1e303]:
+                - generic [ref=f1e304]: Cash Inflow / Outflow
+                - generic [ref=f1e307]:
+                  - button "Download PNG" [ref=f1e308] [cursor=pointer]
+                  - button "Fullscreen" [ref=f1e311] [cursor=pointer]
+              - generic [ref=f1e317]:
+                - list [ref=f1e319]:
+                  - listitem [ref=f1e320]:
+                    - img "Outflow legend icon" [ref=f1e321]
+                    - text: Outflow
+                  - listitem [ref=f1e323]:
+                    - img "Sales legend icon" [ref=f1e324]
+                    - text: Sales
+                  - listitem [ref=f1e326]:
+                    - img "Supplier refunds legend icon" [ref=f1e327]
+                    - text: Supplier refunds
+                - application [ref=f1e329]:
+                  - generic [ref=f1e359]:
+                    - generic [ref=f1e360]:
+                      - generic [ref=f1e361]: 09-29
+                      - generic [ref=f1e363]: 10-01
+                      - generic [ref=f1e365]: 10-03
+                      - generic [ref=f1e367]: 10-05
+                      - generic [ref=f1e369]: 10-07
+                      - generic [ref=f1e371]: 10-09
+                      - generic [ref=f1e373]: 10-11
+                      - generic [ref=f1e375]: 10-13
+                      - generic [ref=f1e377]: 10-15
+                      - generic [ref=f1e379]: 10-17
+                      - generic [ref=f1e381]: 10-19
+                      - generic [ref=f1e383]: 10-21
+                      - generic [ref=f1e385]: 10-23
+                      - generic [ref=f1e387]: 10-25
+                      - generic [ref=f1e389]: 10-27
+                    - generic [ref=f1e391]:
+                      - generic [ref=f1e392]: "0"
+                      - generic [ref=f1e394]: "20000"
+                      - generic [ref=f1e396]: "40000"
+                      - generic [ref=f1e398]: "60000"
+                      - generic [ref=f1e400]: "80000"
+            - generic [ref=f1e404]:
+              - heading "Quick Links" [level=6] [ref=f1e405]
+              - list [ref=f1e406]:
+                - button "New Sale" [ref=f1e407] [cursor=pointer]
+                - button "Add Product" [ref=f1e413] [cursor=pointer]
+                - button "Expenses" [ref=f1e419] [cursor=pointer]
+                - button "Purchase Orders" [ref=f1e426] [cursor=pointer]
+                - button "Day Cash Book" [ref=f1e432] [cursor=pointer]
+                - button "Accounts" [ref=f1e438] [cursor=pointer]
+                - button "View Reports" [ref=f1e444] [cursor=pointer]
+              - button [ref=f1e450] [cursor=pointer]
+          - generic [ref=f1e454]:
+            - generic [ref=f1e456]:
+              - generic [ref=f1e457]:
+                - generic [ref=f1e458]: Operational Expenses
+                - generic [ref=f1e461]:
+                  - button "Pie chart" [ref=f1e462] [cursor=pointer]
+                  - button "Download PNG" [ref=f1e465] [cursor=pointer]
+                  - button "Fullscreen" [ref=f1e468] [cursor=pointer]
+              - application [ref=f1e475]:
+                - generic [ref=f1e511]:
+                  - generic [ref=f1e512]:
+                    - generic [ref=f1e513]: utilities
+                    - generic [ref=f1e515]: equipment
+                    - generic [ref=f1e517]: transportation
+                    - generic [ref=f1e519]: lunch and tea
+                    - generic [ref=f1e521]: supplies
+                    - generic [ref=f1e523]: other
+                    - generic [ref=f1e525]: marketing
+                  - generic [ref=f1e527]:
+                    - generic [ref=f1e528]: "0"
+                    - generic [ref=f1e530]: "1500"
+                    - generic [ref=f1e532]: "3000"
+                    - generic [ref=f1e534]: "4500"
+                    - generic [ref=f1e536]: "6000"
+            - generic [ref=f1e539]:
+              - generic [ref=f1e540]:
+                - generic [ref=f1e541]: Top 6 Profit Items
+                - generic [ref=f1e544]:
+                  - button "Pie chart" [ref=f1e545] [cursor=pointer]
+                  - button "Download PNG" [ref=f1e548] [cursor=pointer]
+                  - button "Fullscreen" [ref=f1e551] [cursor=pointer]
+              - application [ref=f1e558]:
+                - generic [ref=f1e591]:
+                  - generic [ref=f1e592]:
+                    - generic [ref=f1e593]: Buldak sauce (Buy 1 get 1 free)
+                    - generic [ref=f1e595]: Maxim Coffee 100pcs
+                    - generic [ref=f1e597]: Sausage 1 Pc
+                    - generic [ref=f1e599]: Tofu small packet 38g
+                  - generic [ref=f1e601]:
+                    - generic [ref=f1e602]: "0"
+                    - generic [ref=f1e604]: "2000"
+                    - generic [ref=f1e606]: "4000"
+                    - generic [ref=f1e608]: "6000"
+                    - generic [ref=f1e610]: "8000"
+            - generic [ref=f1e613]:
+              - generic [ref=f1e614]:
+                - generic [ref=f1e615]: Top 6 Items Sold (30 Days)
+                - generic [ref=f1e618]:
+                  - button "Pie chart" [ref=f1e619] [cursor=pointer]
+                  - button "Download PNG" [ref=f1e622] [cursor=pointer]
+                  - button "Fullscreen" [ref=f1e625] [cursor=pointer]
+              - application [ref=f1e632]:
+                - generic [ref=f1e665]:
+                  - generic [ref=f1e666]:
+                    - generic [ref=f1e667]: Tofu small packet 38g
+                    - generic [ref=f1e669]: Cheese Slices (per piece)
+                    - generic [ref=f1e671]: Buldak Hot Chicken Noodles
+                  - generic [ref=f1e673]:
+                    - generic [ref=f1e674]: "0"
+                    - generic [ref=f1e676]: "150"
+                    - generic [ref=f1e678]: "300"
+                    - generic [ref=f1e680]: "450"
+                    - generic [ref=f1e682]: "600"
+            - generic [ref=f1e685]:
+              - generic [ref=f1e686]:
+                - generic [ref=f1e687]: Sales / Collection
+                - generic [ref=f1e690]:
+                  - button "Download PNG" [ref=f1e691] [cursor=pointer]
+                  - button "Fullscreen" [ref=f1e694] [cursor=pointer]
+              - generic [ref=f1e700]:
+                - list [ref=f1e702]:
+                  - listitem [ref=f1e703]:
+                    - img "Collection legend icon" [ref=f1e704]
+                    - text: Collection
+                  - listitem [ref=f1e706]:
+                    - img "Sales legend icon" [ref=f1e707]
+                    - text: Sales
+                - application [ref=f1e709]:
+                  - generic [ref=f1e865]:
+                    - generic [ref=f1e866]:
+                      - generic [ref=f1e867]: 09-29
+                      - generic [ref=f1e869]: 10-01
+                      - generic [ref=f1e871]: 10-03
+                      - generic [ref=f1e873]: 10-05
+                      - generic [ref=f1e875]: 10-07
+                      - generic [ref=f1e877]: 10-09
+                      - generic [ref=f1e879]: 10-11
+                      - generic [ref=f1e881]: 10-13
+                      - generic [ref=f1e883]: 10-15
+                      - generic [ref=f1e885]: 10-17
+                      - generic [ref=f1e887]: 10-19
+                      - generic [ref=f1e889]: 10-21
+                      - generic [ref=f1e891]: 10-23
+                      - generic [ref=f1e893]: 10-25
+                      - generic [ref=f1e895]: 10-27
+                    - generic [ref=f1e897]:
+                      - generic [ref=f1e898]: "0"
+                      - generic [ref=f1e900]: "10000"
+                      - generic [ref=f1e902]: "20000"
+                      - generic [ref=f1e904]: "30000"
+                      - generic [ref=f1e906]: "40000"
+  - generic [aria-hidden] [ref=f1e908]: "10000"
