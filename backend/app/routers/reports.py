@@ -56,6 +56,7 @@ from app.schemas.reports import (
     PurchasingPayablesReport,
     InventoryHealthReport,
     CashFlowStatement,
+    LossAuditReport,
 )
 from app.services.reporting import (
     aggregate_inventory_by_category,
@@ -83,6 +84,7 @@ from app.services.retail_finance import (
 )
 from app.services.procurement_reports import (
     generate_inventory_health_report,
+    generate_loss_audit_report,
     generate_purchasing_payables_report,
 )
 from app.services.stock import (
@@ -922,8 +924,8 @@ async def items_sold_report(
     start_date: str = Query(""),
     end_date: str = Query(""),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
-    page_size_alias: int | None = Query(None, alias="pageSize", ge=1, le=500),
+    page_size: int = Query(500, ge=1, le=5000),
+    page_size_alias: int | None = Query(None, alias="pageSize", ge=1, le=5000),
     search: str = Query(""),
     category: str = Query(""),
     sort_by: str = Query("net_revenue"),
@@ -1014,3 +1016,19 @@ async def cash_flow_report(
     pnl, txns, expenses = await calculate_trading_pnl(start, end)
     statement, _ = await calculate_cash_flow_statement(start, end, pnl, txns, expenses)
     return statement
+
+
+@router.get("/loss-audit", response_model=LossAuditReport)
+async def loss_audit_report(
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    discount_threshold: float = Query(20.0, ge=5.0, le=100.0),
+    _: User = Depends(require_manager_or_above),
+):
+    """
+    Loss & Anomaly Audit: voided transactions, large-discount bills, products sold
+    below cost (negative margin), expired stock still on shelf, and days without a
+    till close record.
+    """
+    start, end = parse_date_range(start_date, end_date)
+    return await generate_loss_audit_report(start, end, large_discount_threshold_pct=discount_threshold)

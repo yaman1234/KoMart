@@ -2,20 +2,20 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
+  Button,
+  Chip,
   Grid,
   Paper,
   Typography,
   Divider,
-  Chip,
   Skeleton,
   Stack,
   Tooltip,
-  Button,
 } from '@mui/material';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { formatCurrency } from '@/utils';
 import { useExecutiveSummary, useExpenseSummary } from '@/hooks/useReports';
@@ -36,7 +36,7 @@ export function ExecutiveSummaryTab() {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <Grid container spacing={2}>
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
               <Skeleton variant="rounded" height={105} sx={{ borderRadius: 2 }} />
             </Grid>
@@ -90,61 +90,34 @@ export function ExecutiveSummaryTab() {
 
   const kpis = [
     {
-      label: 'Gross Sales',
-      value: grossSales,
-      subtitle: 'Total shelf scan value',
-      color: '#10B981',
-      bg: 'rgba(16, 185, 129, 0.08)',
-    },
-    {
-      label: 'Total Discounts',
-      value: totalDiscounts,
-      isNegative: true,
-      subtitle: `${grossSales > 0 ? ((totalDiscounts / grossSales) * 100).toFixed(1) : '0.0'}% retail markdown`,
-      color: '#F43F5E',
-      bg: 'rgba(244, 63, 94, 0.08)',
-    },
-    {
       label: 'Net Sales Revenue',
       value: netSales,
-      subtitle: 'Turnover after all markdowns',
+      subtitle: `${grossSales > 0 ? ((totalDiscounts / grossSales) * 100).toFixed(1) : '0.0'}% discount rate · Gross ${formatCurrency(grossSales)}`,
+      tooltip: 'Realized sales income after customer discounts and promotions (Gross Sales minus Discounts).',
       color: '#0284C7',
       bg: 'rgba(2, 132, 199, 0.08)',
     },
     {
-      label: 'Cost of Goods Sold (COGS)',
-      value: totalCogs,
-      isNegative: true,
-      subtitle: 'FEFO acquisition batch cost',
-      color: '#F59E0B',
-      bg: 'rgba(245, 158, 11, 0.08)',
-    },
-    {
-      label: 'Gross Trading Profit',
+      label: 'Gross Profit',
       value: grossProfit,
-      subtitle: `Trading Margin: ${Number(grossMarginPct).toFixed(1)}%`,
+      subtitle: `Trading Margin: ${Number(grossMarginPct).toFixed(1)}% · COGS: ${formatCurrency(totalCogs)}`,
+      tooltip: 'Profit generated purely from product sales: Net Sales Revenue minus Cost of Goods Sold (FEFO batch costing).',
       color: '#6366F1',
       bg: 'rgba(99, 102, 241, 0.08)',
     },
     {
-      label: 'Operating Expenses',
-      value: operatingExpenses,
-      isNegative: true,
-      subtitle: 'Excl. supplier PO payments',
-      color: '#EA580C',
-      bg: 'rgba(234, 88, 12, 0.08)',
-    },
-    {
-      label: 'Operating EBIT',
+      label: 'Operating Profit (EBIT)',
       value: operatingProfit,
-      subtitle: `Operating Margin: ${Number(operatingMarginPct).toFixed(1)}%`,
+      subtitle: `Operating Margin: ${Number(operatingMarginPct).toFixed(1)}% · Overhead: ${formatCurrency(operatingExpenses)}`,
+      tooltip: 'Operating EBIT (Earnings Before Interest and Taxes): Core store operating profit (Gross Profit minus Operating Expenses). It shows what the store earns from retail operations before financing costs and taxes.',
       color: operatingProfit >= 0 ? '#10B981' : '#F43F5E',
       bg: operatingProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
     },
     {
       label: 'Net Cash Flow',
       value: netCashFlow,
-      subtitle: 'Actual net cash delta',
+      subtitle: netCashFlow >= 0 ? 'Net Cash Surplus' : 'Net Cash Deficit',
+      tooltip: 'The actual net change in physical cash registers and digital/bank account balances over the selected period.',
       color: netCashFlow >= 0 ? '#0D9488' : '#F43F5E',
       bg: netCashFlow >= 0 ? 'rgba(13, 148, 136, 0.08)' : 'rgba(244, 63, 94, 0.08)',
     },
@@ -171,9 +144,16 @@ export function ExecutiveSummaryTab() {
                 },
               }}
             >
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                {kpi.label}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  {kpi.label}
+                </Typography>
+                {kpi.tooltip && (
+                  <Tooltip title={kpi.tooltip} arrow placement="top">
+                    <InfoOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary', cursor: 'pointer', flexShrink: 0 }} />
+                  </Tooltip>
+                )}
+              </Box>
               <Typography
                 variant="h6"
                 sx={{
@@ -183,7 +163,7 @@ export function ExecutiveSummaryTab() {
                   mt: 0.5,
                 }}
               >
-                {kpi.isNegative && kpi.value > 0 ? `-${formatCurrency(kpi.value)}` : formatCurrency(kpi.value)}
+                {formatCurrency(kpi.value)}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                 {kpi.subtitle}
@@ -229,14 +209,14 @@ export function ExecutiveSummaryTab() {
 
             <Stack spacing={1.5} sx={{ flex: 1 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Gross Scanned Sales</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Gross Sales (Shelf Price)</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(grossSales)}
                 </Typography>
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 2, color: 'text.secondary' }}>
-                <Typography variant="caption">(-) Item Price Markdowns</Typography>
+                <Typography variant="caption">(-) Item Discounts</Typography>
                 <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#F43F5E' }}>
                   ({formatCurrency(itemMarkdowns)})
                 </Typography>
@@ -252,14 +232,14 @@ export function ExecutiveSummaryTab() {
               <Divider sx={{ my: 0.5 }} />
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#0284C7' }}>Net Sales Turnover</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: '#0284C7' }}>Net Sales Revenue</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 700, color: '#0284C7', fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(netSales)}
                 </Typography>
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 2, color: 'text.secondary' }}>
-                <Typography variant="caption">(-) Cost of Goods Sold (FEFO Batch Cost)</Typography>
+                <Typography variant="caption">(-) Cost of Goods Sold (Product Cost)</Typography>
                 <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#F43F5E' }}>
                   ({formatCurrency(totalCogs)})
                 </Typography>
@@ -279,10 +259,10 @@ export function ExecutiveSummaryTab() {
               >
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: '#4338CA' }}>
-                    Gross Trading Profit
+                    Gross Profit
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#6366F1' }}>
-                    Trading Margin: {Number(grossMarginPct).toFixed(1)}%
+                    Gross Margin: {Number(grossMarginPct).toFixed(1)}%
                   </Typography>
                 </Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#4338CA', fontVariantNumeric: 'tabular-nums' }}>
@@ -291,7 +271,7 @@ export function ExecutiveSummaryTab() {
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 2, color: 'text.secondary' }}>
-                <Typography variant="caption">(-) Operating Overheads (Rent, Staff, Utilities)</Typography>
+                <Typography variant="caption">(-) Operating Expenses (Staff, Rent, Utilities)</Typography>
                 <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#F43F5E' }}>
                   ({formatCurrency(operatingExpenses)})
                 </Typography>
@@ -312,11 +292,19 @@ export function ExecutiveSummaryTab() {
                 }}
               >
                 <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: operatingProfit >= 0 ? '#047857' : '#BE123C' }}>
-                    Operating Profit (EBIT)
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: operatingProfit >= 0 ? '#047857' : '#BE123C' }}>
+                      Operating Profit (EBIT)
+                    </Typography>
+                    <Tooltip
+                      title="Operating EBIT (Earnings Before Interest and Taxes): Your core store operating earnings (Gross Profit minus Operating Expenses). It measures the profit generated from retail store activities before financing charges, bank loan interest, and government income taxes."
+                      arrow
+                    >
+                      <InfoOutlinedIcon sx={{ fontSize: 16, color: operatingProfit >= 0 ? '#047857' : '#BE123C', cursor: 'pointer' }} />
+                    </Tooltip>
+                  </Box>
                   <Typography variant="caption" color="text.secondary">
-                    EBIT Margin: {Number(operatingMarginPct).toFixed(1)}% · Excludes CapEx & PO payments
+                    Operating Margin: {Number(operatingMarginPct).toFixed(1)}% · Excludes capital investments & PO bills
                   </Typography>
                 </Box>
                 <Typography
@@ -354,19 +342,19 @@ export function ExecutiveSummaryTab() {
                     Cash-to-Profit Reconciliation Bridge
                   </Typography>
                 </Box>
-                <Tooltip title="Explains the exact mathematical difference between your accrual paper profit and the actual cash movement in your till and bank accounts.">
+                <Tooltip title="Explains the exact difference between your paper P&L operating profit and the actual cash movement in your till and bank accounts.">
                   <InfoOutlinedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                 </Tooltip>
               </Box>
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Reconciles accrual P&L profit with physical and digital cash movements over the selected period.
+                Reconciles accounting profit with physical cash and digital bank balance movements over the selected period.
               </Typography>
 
               <Stack spacing={1.2}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Accrual Operating Profit (P&L)
+                    Operating Profit (P&L)
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                     {formatCurrency(accrualOperatingProfit)}
@@ -374,35 +362,35 @@ export function ExecutiveSummaryTab() {
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 1.5, color: 'text.secondary' }}>
-                  <Typography variant="caption">(+) Internal Store Non-Cash Consumption</Typography>
+                  <Typography variant="caption">(+) Store Internal Use (Non-Cash Expense)</Typography>
                   <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#10B981' }}>
                     +{formatCurrency(nonCashConsumption)}
                   </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 1.5, color: 'text.secondary' }}>
-                  <Typography variant="caption">(+) Non-Cash COGS Expense (Stock Depleted)</Typography>
+                  <Typography variant="caption">(+) Product Cost Depleted (Non-Cash Stock)</Typography>
                   <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#10B981' }}>
                     +{formatCurrency(cogsInventoryReduction)}
                   </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 1.5, color: 'text.secondary' }}>
-                  <Typography variant="caption">(-) Supplier PO Bill Payments (Cash Disbursed)</Typography>
+                  <Typography variant="caption">(-) Supplier Bill Payments (Cash Paid Out)</Typography>
                   <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#F43F5E' }}>
                     ({formatCurrency(supplierPoPayments)})
                   </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 1.5, color: 'text.secondary' }}>
-                  <Typography variant="caption">(+) Supplier Return Refunds Collected</Typography>
+                  <Typography variant="caption">(+) Supplier Return Refunds (Cash Collected)</Typography>
                   <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: '#10B981' }}>
                     +{formatCurrency(supplierRefundsCollected)}
                   </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 1.5, color: 'text.secondary' }}>
-                  <Typography variant="caption">(±) Float & Non-Operating Cash Timing</Typography>
+                  <Typography variant="caption">(±) Non-Operating Cash & Float Movements</Typography>
                   <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums', color: timingFloatDifference >= 0 ? '#10B981' : '#F43F5E' }}>
                     {timingFloatDifference >= 0 ? `+${formatCurrency(timingFloatDifference)}` : `(${formatCurrency(Math.abs(timingFloatDifference))})`}
                   </Typography>
@@ -424,7 +412,7 @@ export function ExecutiveSummaryTab() {
                 >
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: netCashFlow >= 0 ? '#0F766E' : '#BE123C' }}>
-                      Period Net Cash Inflow / Outflow
+                      Net Cash Movement (Till & Bank)
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Exact net change in till and digital bank balances
@@ -472,13 +460,13 @@ export function ExecutiveSummaryTab() {
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="caption" color="text.secondary">Accounts Payable (AP):</Typography>
+                      <Typography variant="caption" color="text.secondary">Unpaid Supplier Bills (AP):</Typography>
                       <Typography variant="caption" sx={{ fontWeight: 700, color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
                         {formatCurrency(accountsPayable)}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="caption" color="text.secondary">Supplier Receivables:</Typography>
+                      <Typography variant="caption" color="text.secondary">Supplier Refunds Pending:</Typography>
                       <Typography variant="caption" sx={{ fontWeight: 700, color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
                         {formatCurrency(accountsReceivable)}
                       </Typography>
@@ -513,7 +501,7 @@ export function ExecutiveSummaryTab() {
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="caption" color="text.secondary">Exempt / Basic Foods:</Typography>
+                      <Typography variant="caption" color="text.secondary">Tax-Exempt Sales (Basic Foods):</Typography>
                       <Typography variant="caption" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                         {formatCurrency(exemptSales)}
                       </Typography>
@@ -525,7 +513,7 @@ export function ExecutiveSummaryTab() {
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="caption" color="text.secondary">Paisa Round-Off:</Typography>
+                      <Typography variant="caption" color="text.secondary">Cash Currency Round-Off:</Typography>
                       <Typography variant="caption" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                         {roundOff >= 0 ? `+${formatCurrency(roundOff)}` : formatCurrency(roundOff)}
                       </Typography>
@@ -535,7 +523,7 @@ export function ExecutiveSummaryTab() {
               </Grid>
             </Grid>
 
-            {/* Operating Overheads Breakdown Card */}
+            {/* Operating Expenses Breakdown Card */}
             <Paper
               elevation={0}
               sx={{
@@ -550,7 +538,7 @@ export function ExecutiveSummaryTab() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <AccountBalanceWalletIcon sx={{ color: '#EA580C', fontSize: 20 }} />
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    Operating Overheads Breakdown (OpEx)
+                    Operating Expenses Breakdown
                   </Typography>
                 </Box>
                 <Button
@@ -564,7 +552,7 @@ export function ExecutiveSummaryTab() {
 
               {expenseCategories.length === 0 ? (
                 <Typography variant="caption" color="text.secondary">
-                  No operating overheads recorded for this selected period.
+                  No operating expenses recorded for this selected period.
                 </Typography>
               ) : (
                 <Stack spacing={1}>

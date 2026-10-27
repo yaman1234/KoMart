@@ -10,6 +10,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableFooter,
   Skeleton,
   Stack,
   Divider,
@@ -30,6 +31,22 @@ export function CashFlowLiquidityTab() {
   const walletsList = useMemo(() => {
     return data?.wallets || [];
   }, [data]);
+
+  const walletTotals = useMemo(() => {
+    let open = 0;
+    let inf = 0;
+    let outf = 0;
+    let net = 0;
+    let close = 0;
+    walletsList.forEach((w) => {
+      open += w.openingBalance ?? w.opening_balance ?? 0;
+      inf += w.totalInflows ?? w.total_inflows ?? 0;
+      outf += w.totalOutflows ?? w.total_outflows ?? 0;
+      net += w.netMovement ?? w.net_movement ?? 0;
+      close += w.closingBalance ?? w.closing_balance ?? 0;
+    });
+    return { open, inf, outf, net, close };
+  }, [walletsList]);
 
   if (isLoading || !data) {
     return (
@@ -353,6 +370,7 @@ export function CashFlowLiquidityTab() {
           <Table size="small">
             <TableHead>
               <TableRow>
+                <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Wallet Account</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Opening Balance</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Period Inflows</TableCell>
@@ -362,7 +380,7 @@ export function CashFlowLiquidityTab() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {walletsList.map((w) => {
+              {walletsList.map((w, idx) => {
                 const openBal = w.openingBalance ?? w.opening_balance ?? 0;
                 const wInflows = w.totalInflows ?? w.total_inflows ?? 0;
                 const wOutflows = w.totalOutflows ?? w.total_outflows ?? 0;
@@ -371,6 +389,9 @@ export function CashFlowLiquidityTab() {
 
                 return (
                   <TableRow key={w.wallet} hover>
+                    <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                      {idx + 1}
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
                       {w.wallet === 'cash' ? '💵 Cash in Till' : w.wallet === 'bank' ? '🏦 Bank Operating Account' : `📱 ${w.wallet} Merchant Wallet`}
                     </TableCell>
@@ -400,6 +421,33 @@ export function CashFlowLiquidityTab() {
                 );
               })}
             </TableBody>
+            <TableFooter sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', zIndex: 1, boxShadow: '0 -2px 6px rgba(0,0,0,0.06)' }}>
+              <TableRow sx={{ '& td': { fontWeight: 800, borderTop: '2px solid', borderColor: 'divider' } }}>
+                <TableCell />
+                <TableCell>Total Liquid Position</TableCell>
+                <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {formatCurrency(walletTotals.open)}
+                </TableCell>
+                <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#10B981' }}>
+                  +{formatCurrency(walletTotals.inf)}
+                </TableCell>
+                <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#F43F5E' }}>
+                  -{formatCurrency(walletTotals.outf)}
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: walletTotals.net >= 0 ? '#10B981' : '#F43F5E',
+                  }}
+                >
+                  {walletTotals.net >= 0 ? `+${formatCurrency(walletTotals.net)}` : formatCurrency(walletTotals.net)}
+                </TableCell>
+                <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#0284C7' }}>
+                  {formatCurrency(walletTotals.close)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
           </Table>
         </TableContainer>
       </Paper>

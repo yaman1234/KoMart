@@ -157,12 +157,18 @@ export function PurchaseOrderFormPage() {
 
   useEffect(() => {
     if (isEdit || prefillApplied.current) return;
-    const state = location.state as { prefillProducts?: Product[] } | null;
+    const state = location.state as {
+      prefillProducts?: Product[];
+      prefillQuantity?: number;
+    } | null;
     const prefill = state?.prefillProducts;
     if (!prefill?.length) return;
 
     prefillApplied.current = true;
     const loaded = productsToPoLines(prefill, nextLineId.current);
+    if (state?.prefillQuantity && loaded.length === 1) {
+      loaded[0].quantityInput = String(state.prefillQuantity);
+    }
     nextLineId.current += loaded.length;
     nextLineId.current += 1;
     setLines([...loaded, emptyPoLineItem(nextLineId.current, primaryUom)]);

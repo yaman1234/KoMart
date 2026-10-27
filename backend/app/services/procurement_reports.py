@@ -16,19 +16,31 @@ from app.schemas.reports import (
     APAgingBuckets,
     CategoryValuationRow,
     DeadStockRow,
+    ExpiredStockRow,
     ExpiryBatchRow,
     InventoryHealthReport,
+    LargeDiscountRow,
+    LossAuditReport,
+    MissingDayCloseRow,
+    NegativeMarginProduct,
     PurchaseReturnRow,
     PurchasingPayablesReport,
     ReorderCandidateRow,
     SupplierLedgerRow,
+    VoidedTransactionRow,
 )
 from app.services.reporting import (
     aggregate_batch_inventory_value,
+    aggregate_items_sold_with_margin,
     aggregate_last_sale_before,
     aggregate_sold_product_ids,
     build_product_cache,
+    collect_product_ids,
     days_until,
+    fetch_transactions,
+    line_cogs,
+    line_discount,
+    line_gross,
 )
 from app.services.stock import classify_on_hand_stock, get_current_stock_batch
 from app.services.time_nepal import NPT, to_npt
@@ -378,13 +390,13 @@ async def generate_inventory_health_report(
 
     reorder_candidates.sort(key=lambda x: x.estimated_reorder_cost, reverse=True)
 
-    # 4. Near-Expiry Batches
+    # 4. Near-Expiry & Expired Batches
     today_str = date.today().isoformat()
     cutoff_str = (date.today() + timedelta(days=expiry_days)).isoformat()
     near_batches = (
         await InventoryBatch.find(
             InventoryBatch.quantity > 0,
-            {"expiry_date": {"$gte": today_str, "$lte": cutoff_str}},
+            {"expiry_date": {"$ne": None, "$nin": [None, ""], "$lte": cutoff_str}},
         )
         .sort("+expiry_date")
         .to_list()
@@ -410,6 +422,15 @@ async def generate_inventory_health_report(
                 days_until_expiry=days_until(batch.expiry_date),
             )
         )
+
+    # Count of products with on-hand stock that have NO expiry date configured
+    batches_with_valid_expiry = await InventoryBatch.find(
+        InventoryBatch.quantity > 0,
+        {"expiry_date": {"$ne": None, "$nin": [None, ""]}},
+    ).to_list()
+    pids_with_expiry = {b.product_id for b in batches_with_valid_expiry}
+    products_with_stock_ids = [str(p.id) for p in products if stock_map.get(str(p.id), 0) > 0]
+    untracked_expiry_count = len([pid for pid in products_with_stock_ids if pid not in pids_with_expiry])
 
     # 5. Dead Stock Items
     now_utc = datetime.now(timezone.utc)
@@ -451,6 +472,26 @@ async def generate_inventory_health_report(
 
     dead_stock_rows.sort(key=lambda x: x.stock_value, reverse=True)
 
+    # 6. Inventory Turnover Rate & Days Sales of Inventory
+    # Compute COGS for last 365 days to derive annualised turnover
+    from datetime import timezone as _tz
+    from app.models.transaction import Transaction as Tx, TransactionStatus as TxSt
+    one_year_ago = datetime.now(timezone.utc) - timedelta(days=365)
+    annual_txns = await Tx.find({
+        "created_at": {"$gte": one_year_ago},
+        "status": {"$ne": TxSt.voided.value},
+    }).to_list()
+    annual_cogs = 0.0
+    ann_product_ids = {item.product_id for t in annual_txns for item in t.items}
+    ann_product_cache = await build_product_cache(ann_product_ids)
+    for t in annual_txns:
+        for item in t.items:
+            from app.services.reporting import line_cogs as _lc
+            annual_cogs += _lc(item, ann_product_cache.get(item.product_id))
+    avg_inventory = total_inv_val if total_inv_val > 0 else 1.0
+    turnover_rate = round(annual_cogs / avg_inventory, 2) if avg_inventory > 0 else 0.0
+    dsi = round(365 / turnover_rate, 1) if turnover_rate > 0 else 0.0
+
     return InventoryHealthReport(
         total_skus=len(products),
         low_stock_count=low_count,
@@ -458,8 +499,163 @@ async def generate_inventory_health_report(
         expiring_count=len(expiry_rows),
         dead_stock_count=len(dead_stock_rows),
         total_inventory_value=round(total_inv_val, 2),
+        inventory_turnover_rate=turnover_rate,
+        days_sales_of_inventory=dsi,
         valuation_by_category=category_valuation_rows,
         reorder_candidates=reorder_candidates,
         near_expiry_batches=expiry_rows,
         dead_stock_items=dead_stock_rows,
+        untracked_expiry_count=untracked_expiry_count,
+    )
+
+
+async def generate_loss_audit_report(
+    start: datetime,
+    end: datetime,
+    large_discount_threshold_pct: float = 20.0,
+) -> LossAuditReport:
+    """Generate Loss & Anomaly Audit: voids, large discounts, negative margins, expired stock, missing day closes."""
+    from app.models.day_close import DayClose
+    from app.models.transaction import Transaction, TransactionStatus
+
+    start_str = to_npt(start).strftime("%Y-%m-%d")
+    end_str = to_npt(end).strftime("%Y-%m-%d")
+    today_npt = datetime.now(NPT).date()
+
+    # 1. Voided Transactions in period
+    voided_txns = await Transaction.find({
+        "created_at": {"$gte": start, "$lte": end},
+        "status": TransactionStatus.voided.value,
+    }).to_list()
+
+    voided_rows: list[VoidedTransactionRow] = []
+    total_void_amount = 0.0
+    for txn in voided_txns:
+        txn_date = to_npt(txn.created_at).strftime("%Y-%m-%d")
+        gross = sum(float(item.price) * float(item.quantity) for item in txn.items)
+        total_void_amount += gross
+        voided_rows.append(VoidedTransactionRow(
+            transaction_number=txn.transaction_number,
+            date=txn_date,
+            cashier=txn.created_by or "Unknown",
+            amount=round(gross, 2),
+            void_reason=txn.void_reason or "",
+        ))
+    voided_rows.sort(key=lambda x: x.amount, reverse=True)
+
+    # 2. Large Discount Transactions (discount % > threshold)
+    completed_txns = await Transaction.find({
+        "created_at": {"$gte": start, "$lte": end},
+        "status": {"$ne": TransactionStatus.voided.value},
+    }).to_list()
+
+    large_disc_rows: list[LargeDiscountRow] = []
+    total_large_disc_amount = 0.0
+    for txn in completed_txns:
+        gross = sum(float(item.price) * float(item.quantity) for item in txn.items)
+        item_disc = sum(float(item.discount) * float(item.quantity) for item in txn.items)
+        bill_disc = float(getattr(txn, "discount", 0.0) or 0.0)
+        total_disc = item_disc + bill_disc
+        disc_pct = (total_disc / gross * 100) if gross > 0 else 0.0
+        if disc_pct >= large_discount_threshold_pct:
+            txn_date = to_npt(txn.created_at).strftime("%Y-%m-%d")
+            total_large_disc_amount += total_disc
+            large_disc_rows.append(LargeDiscountRow(
+                transaction_number=txn.transaction_number,
+                date=txn_date,
+                cashier=txn.created_by or "Unknown",
+                gross_sales=round(gross, 2),
+                total_discount=round(total_disc, 2),
+                discount_pct=round(disc_pct, 1),
+                net_total=round(txn.total, 2),
+            ))
+    large_disc_rows.sort(key=lambda x: x.discount_pct, reverse=True)
+
+    # 3. Negative-Margin Products (net revenue < COGS)
+    product_ids = {item.product_id for t in completed_txns for item in t.items}
+    product_cache = await build_product_cache(product_ids)
+    items_with_margin = aggregate_items_sold_with_margin(completed_txns, product_cache)
+    neg_margin_rows: list[NegativeMarginProduct] = []
+    total_neg_loss = 0.0
+    for row in items_with_margin:
+        if row.gross_profit < 0:
+            total_neg_loss += abs(row.gross_profit)
+            neg_margin_rows.append(NegativeMarginProduct(
+                product_id=row.product_id,
+                name=row.name,
+                sku=row.sku,
+                category=row.category,
+                units_sold=row.quantity_sold,
+                net_revenue=row.net_revenue,
+                total_cogs=row.total_cogs,
+                gross_profit=row.gross_profit,
+                gross_margin_pct=row.gross_margin_pct,
+            ))
+    neg_margin_rows.sort(key=lambda x: x.gross_profit)
+
+    # 4. Expired Stock Still In Inventory (past expiry date, qty > 0)
+    today_str = date.today().isoformat()
+    expired_batches = await InventoryBatch.find(
+        InventoryBatch.quantity > 0,
+        {"expiry_date": {"$lt": today_str, "$exists": True}},
+    ).to_list()
+    exp_rows: list[ExpiredStockRow] = []
+    total_exp_value = 0.0
+    exp_product_ids = {b.product_id for b in expired_batches}
+    exp_product_cache = await build_product_cache(exp_product_ids)
+    for batch in expired_batches:
+        if not batch.expiry_date:
+            continue
+        prod = exp_product_cache.get(batch.product_id)
+        write_off = round(batch.quantity * batch.unit_cost, 2)
+        total_exp_value += write_off
+        exp_rows.append(ExpiredStockRow(
+            product_id=batch.product_id,
+            product_name=prod.name if prod else "Unknown",
+            sku=prod.sku if prod else "",
+            category=prod.category if prod else "Other",
+            batch_number=batch.batch_number,
+            quantity=batch.quantity,
+            unit_cost=batch.unit_cost,
+            write_off_value=write_off,
+            expiry_date=batch.expiry_date,
+        ))
+    exp_rows.sort(key=lambda x: x.write_off_value, reverse=True)
+
+    # 5. Missing Day Closes (each day in range without a DayClose record)
+    existing_closes = await DayClose.find({
+        "date": {"$gte": start_str, "$lte": end_str}
+    }).to_list()
+    closed_dates = {dc.date for dc in existing_closes}
+    missing_closes: list[MissingDayCloseRow] = []
+    DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    cur = to_npt(start).date()
+    end_d = to_npt(end).date()
+    # Don't flag today as missing
+    check_until = min(end_d, today_npt - timedelta(days=1))
+    while cur <= check_until:
+        day_str = cur.isoformat()
+        if day_str not in closed_dates:
+            day_label = f"{DAY_SHORT[cur.weekday()]} {cur.strftime('%d %b')}"
+            missing_closes.append(MissingDayCloseRow(date=day_str, day_label=day_label))
+        cur += timedelta(days=1)
+
+    return LossAuditReport(
+        period_start=start_str,
+        period_end=end_str,
+        total_void_count=len(voided_rows),
+        total_void_amount=round(total_void_amount, 2),
+        voided_transactions=voided_rows,
+        large_discount_threshold_pct=large_discount_threshold_pct,
+        large_discount_count=len(large_disc_rows),
+        total_large_discount_amount=round(total_large_disc_amount, 2),
+        large_discount_transactions=large_disc_rows,
+        negative_margin_product_count=len(neg_margin_rows),
+        total_loss_on_neg_margin=round(total_neg_loss, 2),
+        negative_margin_products=neg_margin_rows,
+        expired_stock_count=len(exp_rows),
+        expired_stock_write_off_value=round(total_exp_value, 2),
+        expired_stock_items=exp_rows,
+        missing_day_close_count=len(missing_closes),
+        missing_day_closes=missing_closes,
     )

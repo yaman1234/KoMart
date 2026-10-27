@@ -2010,6 +2010,7 @@ export interface InventoryHealthReport {
   reorderCandidates: ReorderCandidateRow[];
   nearExpiryBatches: ExpiryBatchRow[];
   deadStockItems: DeadStockRow[];
+  untrackedExpiryCount?: number;
   // Fallbacks
   total_skus?: number;
   low_stock_count?: number;
@@ -2093,3 +2094,70 @@ export interface CashFlowStatement {
   cash_to_profit_bridge?: CashToProfitBridge;
 }
 
+
+export interface VoidedTransactionRow {
+  transaction_number: string;
+  date: string;
+  cashier: string;
+  amount: number;
+  void_reason: string;
+}
+
+export interface LargeDiscountRow {
+  transaction_number: string;
+  date: string;
+  cashier: string;
+  gross_sales: number;
+  total_discount: number;
+  discount_pct: number;
+  net_total: number;
+}
+
+export interface NegativeMarginProduct {
+  product_id: string;
+  name: string;
+  sku: string;
+  category: string;
+  units_sold: number;
+  net_revenue: number;
+  total_cogs: number;
+  gross_profit: number;
+  gross_margin_pct: number;
+}
+
+export interface ExpiredStockRow {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  category: string;
+  batch_number: string;
+  quantity: number;
+  unit_cost: number;
+  write_off_value: number;
+  expiry_date: string;
+}
+
+export interface MissingDayCloseRow {
+  date: string;
+  day_label: string;
+}
+
+export interface LossAuditReport {
+  period_start: string;
+  period_end: string;
+  total_void_count: number;
+  total_void_amount: number;
+  voided_transactions: VoidedTransactionRow[];
+  large_discount_threshold_pct: number;
+  large_discount_count: number;
+  total_large_discount_amount: number;
+  large_discount_transactions: LargeDiscountRow[];
+  negative_margin_product_count: number;
+  total_loss_on_neg_margin: number;
+  negative_margin_products: NegativeMarginProduct[];
+  expired_stock_count: number;
+  expired_stock_write_off_value: number;
+  expired_stock_items: ExpiredStockRow[];
+  missing_day_close_count: number;
+  missing_day_closes: MissingDayCloseRow[];
+}

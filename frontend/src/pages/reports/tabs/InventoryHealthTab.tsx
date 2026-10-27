@@ -17,13 +17,14 @@ import {
   Skeleton,
   LinearProgress,
   Button,
-  Stack,
+  Tooltip,
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import WarningIcon from '@mui/icons-material/Warning';
 import AccessTimeFilledIcon from '@mui/icons-material/AccessTimeFilled';
 import PauseCircleFilledIcon from '@mui/icons-material/PauseCircleFilled';
 import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@/utils';
 import { useInventoryHealth } from '@/hooks/useReports';
@@ -59,7 +60,13 @@ export function InventoryHealthTab() {
   if (isLoading || !data) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <Skeleton variant="rounded" height={120} sx={{ borderRadius: 3 }} />
+        <Grid container spacing={2}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
+              <Skeleton variant="rounded" height={95} sx={{ borderRadius: 2.5 }} />
+            </Grid>
+          ))}
+        </Grid>
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 6 }}>
             <Skeleton variant="rounded" height={360} sx={{ borderRadius: 3 }} />
@@ -76,6 +83,7 @@ export function InventoryHealthTab() {
   const totalInventoryValue = data.totalInventoryValue ?? data.total_inventory_value ?? 0;
   const outOfStockCount = data.outOfStockCount ?? data.out_of_stock_count ?? 0;
   const lowStockCount = data.lowStockCount ?? data.low_stock_count ?? 0;
+  const untrackedExpiryCount = data.untrackedExpiryCount ?? (data as any).untracked_expiry_count ?? 0;
 
   const paginatedReorder = reorderCandidates.slice(
     reorderPage * reorderRowsPerPage,
@@ -97,46 +105,112 @@ export function InventoryHealthTab() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* 1. INVENTORY CAPITAL & ASSET VALUATION BANNER */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 3,
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%)',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <InventoryIcon sx={{ color: '#0284C7', fontSize: 28 }} />
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Inventory Capital & Asset Valuation
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Exact balance sheet valuation derived from on-hand FEFO batch acquisition costs
+      {/* 1. INVENTORY HEALTH KPI STRIP */}
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: 2.5,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'rgba(2, 132, 199, 0.08)',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <InventoryIcon sx={{ color: '#0284C7', fontSize: 20 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                Total Stock Valuation
               </Typography>
             </Box>
-          </Box>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: '#0284C7', fontVariantNumeric: 'tabular-nums' }}>
+              {formatCurrency(totalInventoryValue)}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {totalSkus.toLocaleString()} Active Catalog SKUs
+            </Typography>
+          </Paper>
+        </Grid>
 
-          <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap' }}>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" color="text.secondary">Active Catalog SKUs</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                {totalSkus.toLocaleString()} SKUs
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: 2.5,
+              border: '1px solid',
+              borderColor: outOfStockCount + lowStockCount > 0 ? 'rgba(244, 63, 94, 0.3)' : 'divider',
+              bgcolor: outOfStockCount + lowStockCount > 0 ? 'rgba(244, 63, 94, 0.08)' : 'background.paper',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <WarningIcon sx={{ color: '#F43F5E', fontSize: 20 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                Stockout & Low Alerts
               </Typography>
             </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" color="text.secondary">Total Batch Valuation</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: '#0284C7', fontVariantNumeric: 'tabular-nums' }}>
-                {formatCurrency(totalInventoryValue)}
+            <Typography variant="h6" sx={{ fontWeight: 800, color: '#BE123C', fontVariantNumeric: 'tabular-nums' }}>
+              {outOfStockCount + lowStockCount} SKUs
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {outOfStockCount} Out · {lowStockCount} Low · Replenish: {formatCurrency(totalReorderCost)}
+            </Typography>
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: 2.5,
+              border: '1px solid',
+              borderColor: nearExpiryBatches.length > 0 ? 'rgba(245, 158, 11, 0.3)' : 'divider',
+              bgcolor: nearExpiryBatches.length > 0 ? 'rgba(245, 158, 11, 0.08)' : 'background.paper',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <AccessTimeFilledIcon sx={{ color: '#F59E0B', fontSize: 20 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                Near-Expiry Risk (&lt;{expiryDays}d)
               </Typography>
             </Box>
-          </Stack>
-        </Box>
-      </Paper>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: '#B45309', fontVariantNumeric: 'tabular-nums' }}>
+              {nearExpiryBatches.length} Batches
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              At-Risk Value: {formatCurrency(totalNearExpiryValue)}
+            </Typography>
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: 2.5,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'rgba(107, 114, 128, 0.08)',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <PauseCircleFilledIcon sx={{ color: '#4B5563', fontSize: 20 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                Dead Capital (&gt;{deadDays}d)
+              </Typography>
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
+              {deadStockItems.length} SKUs
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Capital Tied Up: {formatCurrency(totalDeadStockValue)}
+            </Typography>
+          </Paper>
+        </Grid>
+      </Grid>
 
       {/* 2. REORDER ACTION CENTER (FAST FILTERING LOW / OUT OF STOCK) */}
       <Paper
@@ -180,6 +254,7 @@ export function InventoryHealthTab() {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
+                <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Product & SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Current Stock</TableCell>
@@ -194,12 +269,12 @@ export function InventoryHealthTab() {
             <TableBody>
               {paginatedReorder.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                     All products are healthy! No items below low stock threshold.
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedReorder.map((r) => {
+                paginatedReorder.map((r, idx) => {
                   const rId = r.productId || r.product_id || '';
                   const rStock = r.stock ?? 0;
                   const rThreshold = r.lowStockThreshold ?? r.low_stock_threshold ?? 0;
@@ -209,6 +284,9 @@ export function InventoryHealthTab() {
 
                   return (
                     <TableRow key={rId || r.name} hover>
+                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                        {reorderPage * reorderRowsPerPage + idx + 1}
+                      </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.name}</Typography>
                         <Typography variant="caption" color="text.secondary">{r.sku}</Typography>
@@ -244,7 +322,19 @@ export function InventoryHealthTab() {
                           size="small"
                           variant="outlined"
                           startIcon={<ShoppingCartCheckoutIcon />}
-                          onClick={() => navigate('/purchases')}
+                          onClick={() => navigate('/purchase-orders/new', {
+                            state: {
+                              prefillProducts: [{
+                                id: rId,
+                                name: r.name,
+                                sku: r.sku,
+                                category: r.category,
+                                costPrice: rCost,
+                                price: rCost,
+                              }],
+                              prefillQuantity: rNeeded > 0 ? rNeeded : 1,
+                            }
+                          })}
                           sx={{ fontSize: '0.75rem', py: 0.25 }}
                         >
                           Draft PO
@@ -290,6 +380,7 @@ export function InventoryHealthTab() {
           <Table size="small">
             <TableHead>
               <TableRow>
+                <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Catalog SKUs</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Total Units</TableCell>
@@ -298,7 +389,7 @@ export function InventoryHealthTab() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {valuationByCategory.map((cat) => {
+              {valuationByCategory.map((cat, idx) => {
                 const skuCount = cat.skuCount ?? cat.sku_count ?? 0;
                 const totalUnits = cat.totalUnits ?? cat.total_units ?? 0;
                 const batchVal = cat.batchValuation ?? cat.batch_valuation ?? 0;
@@ -306,6 +397,9 @@ export function InventoryHealthTab() {
 
                 return (
                   <TableRow key={cat.category} hover>
+                    <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                      {idx + 1}
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>{cat.category}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{skuCount}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{totalUnits.toLocaleString()}</TableCell>
@@ -351,9 +445,21 @@ export function InventoryHealthTab() {
                 <AccessTimeFilledIcon sx={{ color: '#F59E0B' }} />
                 <Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Near-Expiry Radar</Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                     {nearExpiryBatches.length} batches expiring · Risk: {formatCurrency(totalNearExpiryValue)}
                   </Typography>
+                  {untrackedExpiryCount > 0 && (
+                    <Tooltip title="In-stock products currently without any batch expiry date recorded. Configure expiry dates during receiving/batch setup to ensure accurate FEFO tracking.">
+                      <Chip
+                        icon={<InfoOutlinedIcon sx={{ fontSize: '1rem !important' }} />}
+                        label={`${untrackedExpiryCount} in-stock SKUs missing expiry date`}
+                        size="small"
+                        color="default"
+                        variant="outlined"
+                        sx={{ mt: 0.5, fontSize: '0.72rem', height: 22 }}
+                      />
+                    </Tooltip>
+                  )}
                 </Box>
               </Box>
 
@@ -375,6 +481,7 @@ export function InventoryHealthTab() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Product & Batch</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>Units</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>Value at Risk</TableCell>
@@ -384,7 +491,7 @@ export function InventoryHealthTab() {
                 <TableBody>
                   {nearExpiryBatches.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                         No batches expiring within {expiryDays} days.
                       </TableCell>
                     </TableRow>
@@ -399,6 +506,9 @@ export function InventoryHealthTab() {
 
                       return (
                         <TableRow key={idx} hover>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                            {idx + 1}
+                          </TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{pName}</Typography>
                             <Typography variant="caption" color="text.secondary">
@@ -413,7 +523,7 @@ export function InventoryHealthTab() {
                           </TableCell>
                           <TableCell align="center">
                             <Chip
-                              label={daysUntil <= 0 ? 'Expired' : `${daysUntil}d`}
+                              label={daysUntil < 0 ? `Expired (${Math.abs(daysUntil)}d ago)` : daysUntil === 0 ? 'Expires Today' : `${daysUntil}d`}
                               size="small"
                               color={daysUntil <= 7 ? 'error' : 'warning'}
                               sx={{ fontWeight: 700 }}
@@ -469,6 +579,7 @@ export function InventoryHealthTab() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Product</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>On-Hand</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>Capital Tied Up</TableCell>
@@ -478,12 +589,12 @@ export function InventoryHealthTab() {
                 <TableBody>
                   {deadStockItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                         No dead stock items detected! All inventory has moved recently.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    deadStockItems.map((d) => {
+                    deadStockItems.map((d, idx) => {
                       const pId = d.productId || d.product_id || '';
                       const pName = d.productName || d.product_name || 'Product';
                       const dStock = d.stock ?? 0;
@@ -492,6 +603,9 @@ export function InventoryHealthTab() {
 
                       return (
                         <TableRow key={pId || pName} hover>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                            {idx + 1}
+                          </TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{pName}</Typography>
                             <Typography variant="caption" color="text.secondary">{d.category}</Typography>

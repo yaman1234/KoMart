@@ -484,10 +484,13 @@ class InventoryHealthReport(BaseModel):
     expiring_count: int
     dead_stock_count: int
     total_inventory_value: float
+    inventory_turnover_rate: float = 0.0   # COGS / avg inventory value
+    days_sales_of_inventory: float = 0.0   # 365 / turnover_rate
     valuation_by_category: list[CategoryValuationRow]
     reorder_candidates: list[ReorderCandidateRow]
     near_expiry_batches: list[ExpiryBatchRow]
     dead_stock_items: list[DeadStockRow]
+    untracked_expiry_count: int = 0
 
 
 class CashFlowInflows(BaseModel):
@@ -529,6 +532,83 @@ class CashFlowStatement(BaseModel):
     net_cash_flow: float
     wallets: list[WalletMovementSummary]
     cash_to_profit_bridge: CashToProfitBridge
+
+
+# ---------------------------------------------------------------------------
+# Loss, Anomaly & Audit Detection Report Schemas
+# ---------------------------------------------------------------------------
+
+
+class VoidedTransactionRow(BaseModel):
+    transaction_number: str
+    date: str
+    cashier: str
+    amount: float
+    void_reason: str
+
+
+class LargeDiscountRow(BaseModel):
+    transaction_number: str
+    date: str
+    cashier: str
+    gross_sales: float
+    total_discount: float
+    discount_pct: float
+    net_total: float
+
+
+class NegativeMarginProduct(BaseModel):
+    product_id: str
+    name: str
+    sku: str
+    category: str
+    units_sold: int
+    net_revenue: float
+    total_cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+
+
+class ExpiredStockRow(BaseModel):
+    product_id: str
+    product_name: str
+    sku: str
+    category: str
+    batch_number: str
+    quantity: int
+    unit_cost: float
+    write_off_value: float
+    expiry_date: str
+
+
+class MissingDayCloseRow(BaseModel):
+    date: str
+    day_label: str   # e.g. "Mon 21 Oct"
+
+
+class LossAuditReport(BaseModel):
+    period_start: str
+    period_end: str
+    # Voids
+    total_void_count: int = 0
+    total_void_amount: float = 0.0
+    voided_transactions: list[VoidedTransactionRow] = Field(default_factory=list)
+    # Large discounts (discount % > threshold)
+    large_discount_threshold_pct: float = 20.0
+    large_discount_count: int = 0
+    total_large_discount_amount: float = 0.0
+    large_discount_transactions: list[LargeDiscountRow] = Field(default_factory=list)
+    # Negative-margin products (sold below cost)
+    negative_margin_product_count: int = 0
+    total_loss_on_neg_margin: float = 0.0
+    negative_margin_products: list[NegativeMarginProduct] = Field(default_factory=list)
+    # Expired stock still in inventory
+    expired_stock_count: int = 0
+    expired_stock_write_off_value: float = 0.0
+    expired_stock_items: list[ExpiredStockRow] = Field(default_factory=list)
+    # Days where till was not closed
+    missing_day_close_count: int = 0
+    missing_day_closes: list[MissingDayCloseRow] = Field(default_factory=list)
 
 
 # Re-export dashboard shapes used by reports endpoints
@@ -582,4 +662,11 @@ __all__ = [
     "CashFlowOutflows",
     "WalletMovementSummary",
     "CashFlowStatement",
+    # Loss & Audit schemas
+    "VoidedTransactionRow",
+    "LargeDiscountRow",
+    "NegativeMarginProduct",
+    "ExpiredStockRow",
+    "MissingDayCloseRow",
+    "LossAuditReport",
 ]

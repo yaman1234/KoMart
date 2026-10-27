@@ -815,8 +815,15 @@ export const reportsService = {
     return data;
   },
   getItemsSold: async (range?: DateRange): Promise<SoldProductWithMargin[]> => {
-    const { data } = await apiClient.get('/reports/items-sold', { params: withRange(range) });
-    return ensureArray(data) as SoldProductWithMargin[];
+    const { data } = await apiClient.get('/reports/items-sold', {
+      params: { ...withRange(range), page_size: 1000 },
+    });
+    const items = Array.isArray(data)
+      ? data
+      : data && Array.isArray((data as any).data)
+        ? (data as any).data
+        : ensureArray(data);
+    return items as SoldProductWithMargin[];
   },
   getPurchasingPayables: async (range?: DateRange): Promise<PurchasingPayablesReport> => {
     const { data } = await apiClient.get('/reports/purchasing-payables', { params: withRange(range) });
@@ -834,6 +841,12 @@ export const reportsService = {
   },
   getCashFlow: async (range?: DateRange): Promise<CashFlowStatement> => {
     const { data } = await apiClient.get('/reports/cash-flow', { params: withRange(range) });
+    return data;
+  },
+  getLossAudit: async (range?: DateRange, discountThreshold = 20): Promise<import('@/types').LossAuditReport> => {
+    const { data } = await apiClient.get('/reports/loss-audit', {
+      params: { ...withRange(range), discount_threshold: discountThreshold },
+    });
     return data;
   },
 };

@@ -10,6 +10,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableFooter,
   TablePagination,
   TextField,
   MenuItem,
@@ -22,8 +23,9 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { formatCurrency } from '@/utils';
 import { usePurchasingPayables } from '@/hooks/useReports';
 
@@ -59,6 +61,26 @@ export function PurchasesPayablesTab() {
     const start = page * rowsPerPage;
     return filteredSuppliers.slice(start, start + rowsPerPage);
   }, [filteredSuppliers, page, rowsPerPage]);
+
+  const supplierTotals = useMemo(() => {
+    let orders = 0;
+    let gross = 0;
+    let disc = 0;
+    let charges = 0;
+    let net = 0;
+    let paid = 0;
+    let bal = 0;
+    filteredSuppliers.forEach((s) => {
+      orders += s.orderCount ?? s.order_count ?? 0;
+      gross += s.grossPurchases ?? s.gross_purchases ?? 0;
+      disc += s.discounts ?? 0;
+      charges += s.additionalCharges ?? s.additional_charges ?? 0;
+      net += s.netPurchases ?? s.net_purchases ?? 0;
+      paid += s.amountPaid ?? s.amount_paid ?? 0;
+      bal += s.outstandingBalance ?? s.outstanding_balance ?? 0;
+    });
+    return { orders, gross, disc, charges, net, paid, bal };
+  }, [filteredSuppliers]);
 
   if (isLoading || !data) {
     return (
@@ -102,6 +124,7 @@ export function PurchasesPayablesTab() {
       label: 'Gross Purchases',
       value: grossPurchases,
       subtitle: 'PO subtotal before adjustments',
+      tooltip: 'Total value of all merchandise ordered on purchase orders before discounts or freight.',
       color: '#0284C7',
       bg: 'rgba(2, 132, 199, 0.08)',
     },
@@ -110,6 +133,7 @@ export function PurchasesPayablesTab() {
       value: purchaseDiscounts,
       isNegative: true,
       subtitle: 'Negotiated trade discounts',
+      tooltip: 'Discounts negotiated with suppliers on purchase orders.',
       color: '#10B981',
       bg: 'rgba(16, 185, 129, 0.08)',
     },
@@ -117,6 +141,7 @@ export function PurchasesPayablesTab() {
       label: 'Freight & Charges',
       value: additionalCharges,
       subtitle: 'Transportation & unloading',
+      tooltip: 'Added transportation, freight, customs, or unloading charges incurred on purchase orders.',
       color: '#F59E0B',
       bg: 'rgba(245, 158, 11, 0.08)',
     },
@@ -124,13 +149,15 @@ export function PurchasesPayablesTab() {
       label: 'Net Purchases',
       value: netPurchases,
       subtitle: 'Net procurement obligation',
+      tooltip: 'Total net purchase obligation across all POs (Gross Purchases minus Discounts plus Freight).',
       color: '#6366F1',
       bg: 'rgba(99, 102, 241, 0.08)',
     },
     {
       label: 'Total AP Owed',
       value: totalOutstandingAp,
-      subtitle: 'Unpaid vendor balance',
+      subtitle: 'Unpaid vendor bills (AP liability)',
+      tooltip: 'Total Accounts Payable (AP) Owed: The total money your store owes to suppliers for received or confirmed purchase orders (Total PO Value minus supplier payments already disbursed). It represents your outstanding vendor liability.',
       color: totalOutstandingAp > 0 ? '#F43F5E' : '#10B981',
       bg: totalOutstandingAp > 0 ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)',
     },
@@ -152,9 +179,16 @@ export function PurchasesPayablesTab() {
                 backgroundColor: kpi.bg,
               }}
             >
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                {kpi.label}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  {kpi.label}
+                </Typography>
+                {kpi.tooltip && (
+                  <Tooltip title={kpi.tooltip} arrow placement="top">
+                    <InfoOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary', cursor: 'pointer', flexShrink: 0 }} />
+                  </Tooltip>
+                )}
+              </Box>
               <Typography
                 variant="h6"
                 sx={{
@@ -185,13 +219,23 @@ export function PurchasesPayablesTab() {
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Accounts Payable (AP) Aging Breakdown
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Total Outstanding Vendor Debt: {formatCurrency(totalOutstandingAp)}
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Accounts Payable (AP) Aging Breakdown
+                </Typography>
+                <Tooltip
+                  title="Accounts Payable (AP) Aging categorizes unpaid vendor obligations by age: Current (0–30 days), Due (31–60 days), Overdue (61–90 days), and Critical Overdue (>90 days). Helps prioritize cash disbursements and avoid supplier credit holds."
+                  arrow
+                >
+                  <InfoOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'pointer' }} />
+                </Tooltip>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Total Outstanding Vendor Debt: {formatCurrency(totalOutstandingAp)}
+              </Typography>
+            </Box>
           </Box>
           <Chip
             icon={totalOutstandingAp === 0 ? <CheckCircleIcon /> : <WarningAmberIcon />}
@@ -203,7 +247,7 @@ export function PurchasesPayablesTab() {
         </Box>
 
         {/* Multi-segmented Aging Bar */}
-        <Box sx={{ width: '100%', height: 16, borderRadius: 2, display: 'flex', overflow: 'hidden', bgcolor: 'divider', mb: 2 }}>
+        <Box sx={{ width: '100%', height: 10, borderRadius: 2, display: 'flex', overflow: 'hidden', bgcolor: 'divider', mb: 2 }}>
           {cur30 > 0 && (
             <Tooltip title={`0-30 Days (Current): ${formatCurrency(cur30)} (${pctCurrent}%)`}>
               <Box sx={{ width: `${pctCurrent}%`, bgcolor: '#10B981', transition: 'width 0.3s' }} />
@@ -226,41 +270,45 @@ export function PurchasesPayablesTab() {
           )}
         </Box>
 
-        {/* Aging Pills Legend */}
-        <Grid container spacing={1.5}>
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-              <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700 }}>Current (0–30d)</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
-                {formatCurrency(cur30)}
+        {/* Compact Aging Metrics Strip */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#10B981', flexShrink: 0 }} />
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Current (0–30d)</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>
+                {formatCurrency(cur30)} ({pctCurrent}%)
               </Typography>
             </Box>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
-              <Typography variant="caption" sx={{ color: '#A16207', fontWeight: 700 }}>Due (31–60d)</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#A16207', fontVariantNumeric: 'tabular-nums' }}>
-                {formatCurrency(age60)}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#EAB308', flexShrink: 0 }} />
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Due (31–60d)</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: '#A16207', fontVariantNumeric: 'tabular-nums' }}>
+                {formatCurrency(age60)} ({pct31_60}%)
               </Typography>
             </Box>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
-              <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700 }}>Overdue (61–90d)</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#C2410C', fontVariantNumeric: 'tabular-nums' }}>
-                {formatCurrency(age90)}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#F97316', flexShrink: 0 }} />
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Overdue (61–90d)</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: '#C2410C', fontVariantNumeric: 'tabular-nums' }}>
+                {formatCurrency(age90)} ({pct61_90}%)
               </Typography>
             </Box>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-              <Typography variant="caption" sx={{ color: '#B91C1C', fontWeight: 700 }}>Critical (&gt;90d)</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#EF4444', flexShrink: 0 }} />
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Critical (&gt;90d)</Typography>
               <Typography variant="body2" sx={{ fontWeight: 800, color: '#B91C1C', fontVariantNumeric: 'tabular-nums' }}>
-                {formatCurrency(over90)}
+                {formatCurrency(over90)} ({pctOver90}%)
               </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </Paper>
 
       {/* 3. SUPPLIER LEDGER & BILL RECONCILIATION TABLE */}
@@ -322,6 +370,7 @@ export function PurchasesPayablesTab() {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
+                <TableCell sx={{ fontWeight: 700, width: 45 }}>#</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Supplier Name</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700 }}>Orders</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Gross PO</TableCell>
@@ -336,12 +385,12 @@ export function PurchasesPayablesTab() {
             <TableBody>
               {paginatedSuppliers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                     No supplier records found matching the filter.
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedSuppliers.map((s) => {
+                paginatedSuppliers.map((s, idx) => {
                   const sId = s.supplierId || s.supplier_id || '';
                   const sName = s.supplierName || s.supplier_name || 'Unknown Supplier';
                   const pan = s.panNumber || s.pan_number || '';
@@ -372,6 +421,9 @@ export function PurchasesPayablesTab() {
 
                   return (
                     <TableRow key={sId || sName} hover>
+                      <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 45 }}>
+                        {page * rowsPerPage + idx + 1}
+                      </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{sName}</Typography>
                         <Typography variant="caption" color="text.secondary">
@@ -412,6 +464,53 @@ export function PurchasesPayablesTab() {
                 })
               )}
             </TableBody>
+            {filteredSuppliers.length > 0 && (
+              <TableFooter sx={{ position: 'sticky', bottom: 0, zIndex: 2 }}>
+                <TableRow
+                  sx={{
+                    bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'grey.900' : '#f8fafc'),
+                    '& td': {
+                      fontWeight: 800,
+                      borderTop: '2px solid',
+                      borderColor: 'divider',
+                      bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'grey.900' : '#f8fafc'),
+                    },
+                  }}
+                >
+                  <TableCell>—</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Total ({filteredSuppliers.length} Suppliers)</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 800 }}>
+                    <Chip label={`${supplierTotals.orders} POs`} size="small" sx={{ fontWeight: 800 }} />
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                    {formatCurrency(supplierTotals.gross)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800, color: '#10B981' }}>
+                    {supplierTotals.disc > 0 ? `-${formatCurrency(supplierTotals.disc)}` : 'Rs. 0.00'}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800, color: '#F59E0B' }}>
+                    {supplierTotals.charges > 0 ? `+${formatCurrency(supplierTotals.charges)}` : 'Rs. 0.00'}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                    {formatCurrency(supplierTotals.net)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800, color: '#047857' }}>
+                    {formatCurrency(supplierTotals.paid)}
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{
+                      fontVariantNumeric: 'tabular-nums',
+                      fontWeight: 800,
+                      color: supplierTotals.bal > 0 ? '#F43F5E' : '#10B981',
+                    }}
+                  >
+                    {formatCurrency(supplierTotals.bal)}
+                  </TableCell>
+                  <TableCell align="center">—</TableCell>
+                </TableRow>
+              </TableFooter>
+            )}
           </Table>
         </TableContainer>
 
@@ -478,6 +577,7 @@ export function PurchasesPayablesTab() {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
+                <TableCell sx={{ fontWeight: 700, width: 45 }}>#</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Return #</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Return Date</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
@@ -492,12 +592,12 @@ export function PurchasesPayablesTab() {
             <TableBody>
               {returnsLedger.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     No purchase return credit notes recorded in this period.
                   </TableCell>
                 </TableRow>
               ) : (
-                returnsLedger.map((ret) => {
+                returnsLedger.map((ret, idx) => {
                   const retId = ret.returnId || ret.return_id || '';
                   const retNumber = ret.returnNumber || ret.return_number || '';
                   const retDate = ret.returnDate || ret.return_date || '';
@@ -511,6 +611,9 @@ export function PurchasesPayablesTab() {
 
                   return (
                     <TableRow key={retId || retNumber} hover>
+                      <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 45 }}>
+                        {idx + 1}
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{retNumber}</TableCell>
                       <TableCell>{retDate}</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{supName}</TableCell>

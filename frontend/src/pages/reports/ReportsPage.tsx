@@ -17,8 +17,10 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import SecurityIcon from '@mui/icons-material/Security';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import dayjs from 'dayjs';
 
 import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { useDashboardStore } from '@/store';
@@ -26,16 +28,17 @@ import { adToBs, BS_MONTHS } from '@/utils/nepaliDate';
 import { showSuccess, showApiError } from '@/utils/toast';
 import { reportsService } from '@/services';
 
-// 5 Pillar Tabs + Customers
+// 5 Pillar Tabs + Customers + Loss Audit
 import { ExecutiveSummaryTab } from '@/pages/reports/tabs/ExecutiveSummaryTab';
 import { SalesMerchandisingTab } from '@/pages/reports/tabs/SalesMerchandisingTab';
 import { PurchasesPayablesTab } from '@/pages/reports/tabs/PurchasesPayablesTab';
 import { InventoryHealthTab } from '@/pages/reports/tabs/InventoryHealthTab';
 import { CashFlowLiquidityTab } from '@/pages/reports/tabs/CashFlowLiquidityTab';
 import { CustomersLoyaltyTab } from '@/pages/reports/tabs/CustomersLoyaltyTab';
+import { LossAuditTab } from '@/pages/reports/tabs/LossAuditTab';
 import { exportReportsWorkbook } from '@/pages/reports/export/reportsExcelExport';
 
-type ReportTab = 'executive' | 'sales' | 'purchasing' | 'inventory' | 'cashflow' | 'customers';
+type ReportTab = 'executive' | 'sales' | 'purchasing' | 'inventory' | 'cashflow' | 'audit' | 'customers';
 
 function formatBsRange(adStart: string, adEnd: string): string {
   const bsStart = adToBs(adStart);
@@ -58,9 +61,49 @@ function formatBsRange(adStart: string, adEnd: string): string {
 
 export function ReportsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { dateRange, setDateRange } = useDashboardStore();
-  const [activeTab, setActiveTab] = useState<ReportTab>('executive');
   const [isExporting, setIsExporting] = useState(false);
+
+  const urlTab = searchParams.get('tab') as ReportTab;
+  const validTabs: ReportTab[] = ['executive', 'sales', 'purchasing', 'inventory', 'cashflow', 'audit', 'customers'];
+  const activeTab: ReportTab = validTabs.includes(urlTab) ? urlTab : 'executive';
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: ReportTab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', newValue);
+      return next;
+    }, { replace: true });
+  };
+
+  const applyPreset = (preset: 'today' | 'yesterday' | 'week' | 'month' | 'last30') => {
+    const today = dayjs();
+    let start = today;
+    let end = today;
+
+    if (preset === 'today') {
+      start = today;
+      end = today;
+    } else if (preset === 'yesterday') {
+      start = today.subtract(1, 'day');
+      end = today.subtract(1, 'day');
+    } else if (preset === 'week') {
+      start = today.startOf('week');
+      end = today;
+    } else if (preset === 'month') {
+      start = today.startOf('month');
+      end = today;
+    } else if (preset === 'last30') {
+      start = today.subtract(29, 'days');
+      end = today;
+    }
+
+    setDateRange({
+      startDate: start.format('YYYY-MM-DD'),
+      endDate: end.format('YYYY-MM-DD'),
+    });
+  };
 
   const bsDateString = formatBsRange(dateRange.startDate, dateRange.endDate);
 
@@ -147,11 +190,20 @@ export function ReportsPage() {
           gap: 2,
         }}
       >
-        <DateRangePicker
-          startDate={dateRange.startDate}
-          endDate={dateRange.endDate}
-          onChange={setDateRange}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <DateRangePicker
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            onChange={setDateRange}
+          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Chip label="Today" size="small" onClick={() => applyPreset('today')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
+            <Chip label="Yesterday" size="small" onClick={() => applyPreset('yesterday')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
+            <Chip label="This Week" size="small" onClick={() => applyPreset('week')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
+            <Chip label="This Month" size="small" onClick={() => applyPreset('month')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
+            <Chip label="Last 30 Days" size="small" onClick={() => applyPreset('last30')} variant="outlined" sx={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }} />
+          </Box>
+        </Box>
 
         {/* Bikram Sambat (BS) Dual Calendar Pill */}
         {bsDateString && (
@@ -183,7 +235,7 @@ export function ReportsPage() {
       >
         <Tabs
           value={activeTab}
-          onChange={(_, val) => setActiveTab(val)}
+          onChange={handleTabChange}
           variant="scrollable"
           scrollButtons="auto"
           sx={{
@@ -201,37 +253,43 @@ export function ReportsPage() {
             value="executive"
             icon={<QueryStatsIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="1. Executive Financials (P&L)"
+            label="Executive Financials"
           />
           <Tab
             value="sales"
             icon={<MonetizationOnIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="2. Sales & Merchandising"
+            label="Sales & Merchandising"
           />
           <Tab
             value="purchasing"
             icon={<LocalShippingIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="3. Purchases & Payables"
+            label="Purchases & Payables"
           />
           <Tab
             value="inventory"
             icon={<Inventory2Icon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="4. Inventory & Health"
+            label="Inventory & Health"
           />
           <Tab
             value="cashflow"
             icon={<AccountBalanceWalletIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="5. Cash Flow & Wallets"
+            label="Cash Flow & Wallets"
+          />
+          <Tab
+            value="audit"
+            icon={<SecurityIcon sx={{ fontSize: 20 }} />}
+            iconPosition="start"
+            label="Loss & Operational Audit"
           />
           <Tab
             value="customers"
             icon={<PeopleAltIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="6. Customers & Loyalty"
+            label="Customers & Loyalty"
           />
         </Tabs>
       </Paper>
@@ -243,6 +301,7 @@ export function ReportsPage() {
         {activeTab === 'purchasing' && <PurchasesPayablesTab />}
         {activeTab === 'inventory' && <InventoryHealthTab />}
         {activeTab === 'cashflow' && <CashFlowLiquidityTab />}
+        {activeTab === 'audit' && <LossAuditTab />}
         {activeTab === 'customers' && <CustomersLoyaltyTab />}
       </Box>
     </Box>

@@ -104,8 +104,8 @@ async def test_npt_midnight_crossover_sales_included():
 
     Querying start_date=2026-10-10 must include this transaction!
     """
-    # 2026-10-10 01:00:00 NPT
-    dt_npt = datetime(2026, 10, 10, 1, 0, 0, tzinfo=NPT)
+    # 2029-10-10 01:00:00 NPT (isolated date so seeded DB data doesn't collide)
+    dt_npt = datetime(2029, 10, 10, 1, 0, 0, tzinfo=NPT)
     dt_utc = dt_npt.astimezone(timezone.utc)
 
     txn = Transaction(
@@ -132,18 +132,18 @@ async def test_npt_midnight_crossover_sales_included():
     await txn.insert()
 
     try:
-        start, end = parse_date_range("2026-10-10", "2026-10-10")
+        start, end = parse_date_range("2029-10-10", "2029-10-10")
         assert start <= dt_utc <= end
 
-        # Also verify aggregate_sales_by_day buckets to 2026-10-10
+        # Also verify aggregate_sales_by_day buckets to 2029-10-10
         daily = await aggregate_sales_by_day(start, end)
-        assert "2026-10-10" in daily
-        assert daily["2026-10-10"] == 150.0
+        assert "2029-10-10" in daily
+        assert daily["2029-10-10"] == 150.0
 
-        # Verify fill_daily_revenue generates the single 2026-10-10 key
+        # Verify fill_daily_revenue generates the single 2029-10-10 key
         filled = dict(fill_daily_revenue(start, end, daily))
-        assert "2026-10-10" in filled
-        assert filled["2026-10-10"] == 150.0
+        assert "2029-10-10" in filled
+        assert filled["2029-10-10"] == 150.0
     finally:
         await txn.delete()
 

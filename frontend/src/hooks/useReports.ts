@@ -379,3 +379,13 @@ export function useCashFlowStatement(enabled = true) {
   );
 }
 
+export function useLossAudit(enabled = true, discountThreshold = 20) {
+  const dateRange = useReportDateRange();
+  return useQuery(
+    reportQueryOptions(
+      [...QUERY_KEYS.reports('lossAudit'), dateRange, discountThreshold],
+      () => reportsService.getLossAudit(dateRange, discountThreshold),
+      enabled,
+    ),
+  );
+}
