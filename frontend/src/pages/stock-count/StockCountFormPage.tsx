@@ -13,6 +13,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/PageHeader';
 import { stockCountService, categoryService } from '@/services';
 import { showApiError } from '@/utils/toast';
+import { navigateBack } from '@/utils';
 import type { StockCountType, StockCountMode } from '@/types';
 import dayjs from 'dayjs';
 
@@ -127,7 +128,7 @@ export function StockCountFormPage() {
           </Typography>
 
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-            <Button variant="outlined" onClick={() => navigate('/stock-count')}>
+            <Button variant="outlined" onClick={() => navigateBack(navigate, '/stock-count')}>
               Cancel
             </Button>
             <Button

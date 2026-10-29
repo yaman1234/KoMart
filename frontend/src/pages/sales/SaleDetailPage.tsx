@@ -25,7 +25,7 @@ import { useTransaction, useUpdateTransaction, useVoidTransaction } from '@/hook
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { useAuthStore } from '@/store';
-import { isAdminOrManager } from '@/utils';
+import { isAdminOrManager, navigateBack } from '@/utils';
 import { showSuccess } from '@/utils/toast';
 
 export function SaleDetailPage() {
@@ -96,7 +96,7 @@ export function SaleDetailPage() {
               View Receipt
             </Button>
             <ReceiptActions transaction={txn} showReprintLabel branding={receiptBranding} />
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/sales')}>
               Back
             </Button>
           </Box>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from "@/hooks/useListState";
 
 import {
   Box,
@@ -28,7 +29,7 @@ import BlockIcon from "@mui/icons-material/Block";
 
 import { StatCard } from "@/components/common/StatCard";
 
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { PageHeader } from "@/components/common/PageHeader";
 
@@ -55,44 +56,28 @@ import dayjs from "dayjs";
 export function SalesPage() {
   const navigate = useNavigate();
 
-  const [searchParams] = useSearchParams();
-
   const user = useAuthStore((s) => s.user);
 
-  const [search, setSearch] = useState("");
+  const defaultStartDate = dayjs().subtract(30, "day").format("YYYY-MM-DD");
+  const defaultEndDate = dayjs().format("YYYY-MM-DD");
 
-  const [page, setPage] = useState(0);
-
-  const [pageSize, setPageSize] = useState(25);
-
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">(() => {
-    const value = searchParams.get("paymentMethod");
-
-    return value === "cash" ||
-      value === "bank" ||
-      value === "card" ||
-      value === "esewa"
-      ? value
-      : "";
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: "/sales",
+    schema: {
+      search: stringParam(""),
+      page: pageParam(0),
+      pageSize: pageSizeParam(25),
+      paymentMethod: enumParam(["", "cash", "bank", "card", "esewa"] as const, ""),
+      status: enumParam(["all", "completed", "voided"] as const, "all"),
+      startDate: stringParam(defaultStartDate),
+      endDate: stringParam(defaultEndDate),
+      sortBy: stringParam("createdAt"),
+      sortOrder: enumParam(["asc", "desc"] as const, "desc"),
+    },
   });
 
-  const [status, setStatus] = useState<"all" | "completed" | "voided">(() => {
-    const value = searchParams.get("status");
-
-    return value === "completed" || value === "voided" ? value : "all";
-  });
-
-  const [dateRange, setDateRange] = useState(() => ({
-    startDate:
-      searchParams.get("startDate") ??
-      dayjs().subtract(30, "day").format("YYYY-MM-DD"),
-
-    endDate: searchParams.get("endDate") ?? dayjs().format("YYYY-MM-DD"),
-  }));
-
-  const [sortBy, setSortBy] = useState("createdAt");
-
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const { search, page, pageSize, paymentMethod, status, startDate, endDate, sortBy, sortOrder } = filters;
+  const dateRange = { startDate, endDate };
 
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
@@ -133,16 +118,16 @@ export function SalesPage() {
     sortOrder,
   });
 
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
+
   const handleSort = (key: string) => {
     if (sortBy === key) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+      setFilters({ sortOrder: sortOrder === "asc" ? "desc" : "asc", page: 0 });
     } else {
-      setSortBy(key);
-
-      setSortOrder("desc");
+      setFilters({ sortBy: key, sortOrder: "desc", page: 0 });
     }
-
-    setPage(0);
   };
 
   const columns: Column<Transaction>[] = [
@@ -503,11 +488,7 @@ export function SalesPage() {
           loading={isLoading}
 
           onClick={() => {
-            setPaymentMethod("");
-
-            setStatus("all");
-
-            setPage(0);
+            setFilters({ paymentMethod: "", status: "all", page: 0 });
           }}
 
           sx={{
@@ -542,9 +523,7 @@ export function SalesPage() {
           loading={isLoading}
 
           onClick={() => {
-            setPaymentMethod((prev) => (prev === "cash" ? "" : "cash"));
-
-            setPage(0);
+            setFilters({ paymentMethod: paymentMethod === "cash" ? "" : "cash", page: 0 });
           }}
 
           sx={{
@@ -578,9 +557,7 @@ export function SalesPage() {
           loading={isLoading}
 
           onClick={() => {
-            setPaymentMethod((prev) => (prev === "bank" ? "" : "bank"));
-
-            setPage(0);
+            setFilters({ paymentMethod: paymentMethod === "bank" ? "" : "bank", page: 0 });
           }}
 
           sx={{
@@ -614,9 +591,7 @@ export function SalesPage() {
           loading={isLoading}
 
           onClick={() => {
-            setPaymentMethod((prev) => (prev === "esewa" ? "" : "esewa"));
-
-            setPage(0);
+            setFilters({ paymentMethod: paymentMethod === "esewa" ? "" : "esewa", page: 0 });
           }}
 
           sx={{
@@ -650,9 +625,7 @@ export function SalesPage() {
           loading={isLoading}
 
           onClick={() => {
-            setStatus((prev) => (prev === "voided" ? "all" : "voided"));
-
-            setPage(0);
+            setFilters({ status: status === "voided" ? "all" : "voided", page: 0 });
           }}
 
           sx={{
@@ -685,8 +658,7 @@ export function SalesPage() {
             value={search}
 
             onChange={(v) => {
-              setSearch(v);
-              setPage(0);
+              setFilter("search", v);
             }}
 
             placeholder="Search bill no. or customer..."
@@ -703,8 +675,7 @@ export function SalesPage() {
           value={paymentMethod}
 
           onChange={(e) => {
-            setPaymentMethod(e.target.value as PaymentMethod | "");
-            setPage(0);
+            setFilter("paymentMethod", e.target.value as PaymentMethod | "");
           }}
 
           sx={{ minWidth: 140 }}
@@ -728,8 +699,7 @@ export function SalesPage() {
           value={status}
 
           onChange={(e) => {
-            setStatus(e.target.value as "all" | "completed" | "voided");
-            setPage(0);
+            setFilter("status", e.target.value as "all" | "completed" | "voided");
           }}
 
           sx={{ minWidth: 140 }}
@@ -747,8 +717,7 @@ export function SalesPage() {
           endDate={dateRange.endDate}
 
           onChange={(range) => {
-            setDateRange(range);
-            setPage(0);
+            setFilters({ startDate: range.startDate, endDate: range.endDate, page: 0 });
           }}
         />
       </Box>
@@ -772,11 +741,10 @@ export function SalesPage() {
 
         onSort={handleSort}
 
-        onPageChange={setPage}
+        onPageChange={(p) => setFilter("page", p)}
 
         onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPage(0);
+          setFilters({ pageSize: size, page: 0 });
         }}
 
         onRowDoubleClick={(row) => navigate(`/sales/${row.id}`)}

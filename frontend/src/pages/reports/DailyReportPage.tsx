@@ -42,7 +42,7 @@ import {
 import { useWalletTransfer } from '@/hooks/useWallets';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { PAYMENT_METHODS } from '@/constants';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, navigateBack } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
@@ -647,7 +647,7 @@ export function DailyReportPage() {
         breadcrumbs={[{ label: 'Reports', path: '/reports' }, { label: 'Day Cash Book' }]}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }} className="no-print">
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/reports')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/reports')}>
               Back
             </Button>
             <Button

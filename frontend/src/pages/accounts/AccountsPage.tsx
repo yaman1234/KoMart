@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -20,7 +20,8 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import TuneIcon from '@mui/icons-material/Tune';
 import TodayIcon from '@mui/icons-material/Today';
 import PersonIcon from '@mui/icons-material/Person';
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from '@/hooks/useListState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { StatCard } from '@/components/common/StatCard';
@@ -115,26 +116,32 @@ export function AccountsPage() {
   const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canAdjust = isAdminOrManager(user?.role);
-  const [searchParams] = useSearchParams();
 
-  const [walletFilter, setWalletFilter] = useState<'' | WalletCode>('');
-  const [entryTypeFilter, setEntryTypeFilter] = useState(() => searchParams.get('entryType') || '');
-  const [referenceIdFilter, setReferenceIdFilter] = useState(() => searchParams.get('referenceId') || '');
-  const [dateFrom, setDateFrom] = useState(() =>
-    searchParams.get('referenceId') ? '' : daysAgoIso(6),
-  );
-  const [dateTo, setDateTo] = useState(() => (searchParams.get('referenceId') ? '' : todayIso()));
+  const { filters, setFilter, setFilters } = useListState({
+    routePrefix: '/accounts',
+    schema: {
+      wallet: enumParam(['', 'cash', 'bank', 'esewa'] as const, ''),
+      entryType: stringParam(''),
+      referenceId: stringParam(''),
+      dateFrom: stringParam(daysAgoIso(6)),
+      dateTo: stringParam(todayIso()),
+      page: pageParam(0),
+      pageSize: pageSizeParam(25),
+    },
+  });
 
-  useEffect(() => {
-    const entryType = searchParams.get('entryType') || '';
-    const referenceId = searchParams.get('referenceId') || '';
-    if (entryType) setEntryTypeFilter(entryType);
-    if (referenceId) {
-      setReferenceIdFilter(referenceId);
-      setDateFrom('');
-      setDateTo('');
-    }
-  }, [searchParams]);
+  const {
+    wallet: walletFilter,
+    entryType: entryTypeFilter,
+    referenceId: referenceIdFilter,
+    dateFrom: rawDateFrom,
+    dateTo: rawDateTo,
+    page: ledgerPage,
+    pageSize: ledgerPageSize,
+  } = filters;
+
+  const dateFrom = referenceIdFilter ? '' : rawDateFrom;
+  const dateTo = referenceIdFilter ? '' : rawDateTo;
 
   const [transferOpen, setTransferOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -163,8 +170,7 @@ export function AccountsPage() {
   const [resolveRemarks, setResolveRemarks] = useState('');
   const [depositWallet, setDepositWallet] = useState<'bank' | 'esewa'>('bank');
 
-  const [ledgerPage, setLedgerPage] = useState(0);
-  const [ledgerPageSize, setLedgerPageSize] = useState(25);
+
 
   const today = todayIso();
   const { data: balances, isLoading: balancesLoading, isError: balancesError } = useWalletBalances();
@@ -676,8 +682,7 @@ export function AccountsPage() {
               label="Wallet"
               value={walletFilter}
               onChange={(e) => {
-                setWalletFilter(e.target.value as '' | WalletCode);
-                setLedgerPage(0);
+                setFilter('wallet', e.target.value as '' | WalletCode);
               }}
             >
               <MenuItem value="">All</MenuItem>
@@ -694,8 +699,7 @@ export function AccountsPage() {
               label="Entry type"
               value={entryTypeFilter}
               onChange={(e) => {
-                setEntryTypeFilter(e.target.value);
-                setLedgerPage(0);
+                setFilter('entryType', e.target.value);
               }}
             >
               <MenuItem value="">All</MenuItem>
@@ -710,8 +714,7 @@ export function AccountsPage() {
             label="From"
             value={dateFrom}
             onChange={(v) => {
-              setDateFrom(v);
-              setLedgerPage(0);
+              setFilter('dateFrom', v);
             }}
             size="small"
           />
@@ -719,8 +722,7 @@ export function AccountsPage() {
             label="To"
             value={dateTo}
             onChange={(v) => {
-              setDateTo(v);
-              setLedgerPage(0);
+              setFilter('dateTo', v);
             }}
             size="small"
           />
@@ -733,10 +735,9 @@ export function AccountsPage() {
           page={ledgerPage}
           pageSize={ledgerPageSize}
           total={displayLedger.length}
-          onPageChange={setLedgerPage}
+          onPageChange={(p) => setFilter('page', p)}
           onPageSizeChange={(size) => {
-            setLedgerPageSize(size);
-            setLedgerPage(0);
+            setFilters({ pageSize: size, page: 0 });
           }}
           emptyMessage="No ledger entries in this range."
           getRowId={(row) => row.id}

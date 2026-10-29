@@ -23,6 +23,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { stockCountService } from '@/services';
 import { showApiError, showSuccess } from '@/utils/toast';
+import { navigateBack } from '@/utils';
 import { QUERY_KEYS } from '@/constants';
 import { useAuthStore } from '@/store';
 import type { StockCountItem } from '@/types';
@@ -129,7 +130,7 @@ export function StockCountCountPage() {
 
       {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <IconButton onClick={() => navigate(`/stock-count/${id}`)} size="small">
+        <IconButton onClick={() => navigateBack(navigate, `/stock-count/${id}`)} size="small">
           <ArrowBackIcon />
         </IconButton>
         <Box sx={{ flex: 1 }}>

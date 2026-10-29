@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from '@/hooks/useListState';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
   Box,
@@ -40,7 +41,6 @@ type StockFilter = 'all' | 'low' | 'out' | 'expiring';
 type PageView = 'stock' | 'ledger';
 
 const STOCK_FILTERS: StockFilter[] = ['all', 'low', 'out', 'expiring'];
-const PAGE_VIEWS: PageView[] = ['stock', 'ledger'];
 
 function nearestActiveBatch(item: InventoryItem) {
   return item.batches.find((b) => b.quantity > 0);
@@ -60,52 +60,36 @@ function stockStatus(item: InventoryItem): 'out' | 'low' | 'ok' {
   return 'ok';
 }
 
-function parsePageView(raw: string | null): PageView {
-  return PAGE_VIEWS.includes(raw as PageView) ? (raw as PageView) : 'stock';
-}
-
-function parseStockFilter(raw: string | null): StockFilter {
-  return STOCK_FILTERS.includes(raw as StockFilter) ? (raw as StockFilter) : 'all';
-}
-
 export function InventoryPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useAuthStore((s) => s.user);
   const canCorrectStock = isAdmin(currentUser?.role);
-
-  const pageView = parsePageView(searchParams.get('tab'));
-  const filter = parseStockFilter(searchParams.get('filter'));
-
-  const [search, setSearch] = useState('');
-  const [supplierId, setSupplierId] = useState('');
-  const [category, setCategory] = useState('');
   const categoryOptions = useCategoryNames();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
-  const [exporting, setExporting] = useState(false);
 
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: '/inventory',
+    schema: {
+      tab: enumParam(['stock', 'ledger'] as const, 'stock'),
+      filter: enumParam(['all', 'low', 'out', 'expiring'] as const, 'all'),
+      search: stringParam(''),
+      supplierId: stringParam(''),
+      category: stringParam(''),
+      page: pageParam(0),
+      pageSize: pageSizeParam(25),
+    },
+  });
+
+  const { tab: pageView, filter, search, supplierId, category, page, pageSize } = filters;
+  const [exporting, setExporting] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
 
   const setTab = useCallback((tab: PageView) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (tab === 'stock') next.delete('tab');
-      else next.set('tab', tab);
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+    setFilters({ tab, page: 0 });
+  }, [setFilters]);
 
-  const setFilter = useCallback((nextFilter: StockFilter) => {
-    setPage(0);
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.delete('tab');
-      if (nextFilter === 'all') next.delete('filter');
-      else next.set('filter', nextFilter);
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
+  const handleStockFilter = useCallback((nextFilter: StockFilter) => {
+    setFilters({ filter: nextFilter, page: 0 });
+  }, [setFilters]);
 
   const inventoryParams: InventoryQueryParams = {
     search,
@@ -117,6 +101,10 @@ export function InventoryPage() {
   };
 
   const { data, isLoading } = useInventory(inventoryParams, pageView === 'stock');
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
   const { data: stats } = useInventoryStats();
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const adjustMutation = useAdjustStock();
@@ -294,7 +282,7 @@ export function InventoryPage() {
             value={stats?.totalSkus ?? '—'}
             gradient={['#f0f9ff', '#bae6fd']}
             color="#0369a1"
-            onClick={() => setFilter('all')}
+            onClick={() => handleStockFilter('all')}
             subtitle="Show all"
           />
         </Grid>
@@ -304,7 +292,7 @@ export function InventoryPage() {
             value={stats?.lowStock ?? '—'}
             gradient={['#fff7ed', '#fed7aa']}
             color="#c2410c"
-            onClick={() => setFilter('low')}
+            onClick={() => handleStockFilter('low')}
             subtitle="Filter low stock"
           />
         </Grid>
@@ -314,7 +302,7 @@ export function InventoryPage() {
             value={stats?.outOfStock ?? '—'}
             gradient={['#fff1f2', '#fecdd3']}
             color="#be123c"
-            onClick={() => setFilter('out')}
+            onClick={() => handleStockFilter('out')}
             subtitle="Filter out of stock"
           />
         </Grid>
@@ -344,7 +332,7 @@ export function InventoryPage() {
             <Box sx={{ flex: 1, minWidth: 200 }}>
               <SearchBar
                 value={search}
-                onChange={(v) => { setSearch(v); setPage(0); }}
+                onChange={(v) => { setFilter('search', v); }}
                 placeholder="Search products..."
               />
             </Box>
@@ -352,7 +340,7 @@ export function InventoryPage() {
               select
               label="Supplier"
               value={supplierId}
-              onChange={(e) => { setSupplierId(e.target.value); setPage(0); }}
+              onChange={(e) => { setFilter('supplierId', e.target.value); }}
               size="small"
               sx={{ minWidth: 200 }}
             >
@@ -365,7 +353,7 @@ export function InventoryPage() {
               select
               label="Category"
               value={category}
-              onChange={(e) => { setCategory(e.target.value); setPage(0); }}
+              onChange={(e) => { setFilter('category', e.target.value); }}
               size="small"
               sx={{ minWidth: 180 }}
             >
@@ -379,7 +367,7 @@ export function InventoryPage() {
               size="small"
               value={filter}
               onChange={(_, v: StockFilter | null) => {
-                if (v) setFilter(v);
+                if (v) handleStockFilter(v);
               }}
             >
               {STOCK_FILTERS.map((f) => (
@@ -406,8 +394,8 @@ export function InventoryPage() {
             page={page}
             pageSize={pageSize}
             total={data?.total}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+            onPageChange={(p) => setFilter('page', p)}
+            onPageSizeChange={(size) => { setFilters({ pageSize: size, page: 0 }); }}
             onRowClick={(row) => navigate(`/inventory/${row.id}`)}
             getRowId={(r) => r.id}
           />

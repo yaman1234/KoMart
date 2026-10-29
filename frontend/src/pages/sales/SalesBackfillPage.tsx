@@ -20,7 +20,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, navigateBack } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
 import { useBackfillSales, usePostBackfillVariance, useValidateBackfillSales } from '@/hooks/useTransactions';
@@ -460,7 +460,7 @@ export function SalesBackfillPage() {
         title="Backfill Sales"
         subtitle="Admin-only Excel import of historical sales (stock, wallets, reports)"
         action={
-          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')}>
+          <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/sales')}>
             Back to Sales
           </Button>
         }

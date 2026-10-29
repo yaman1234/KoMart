@@ -22,7 +22,7 @@ import { useInventoryItem, useAdjustStock } from '@/hooks/useInventory';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { PurchasePriceHistoryTab } from './PurchasePriceHistoryTab';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatExpiryDate, isAdmin } from '@/utils';
+import { formatCurrency, formatExpiryDate, isAdmin, navigateBack } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch } from '@/types';
@@ -141,7 +141,7 @@ export function InventoryDetailPage() {
                 Correct stock
               </Button>
             )}
-            <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/inventory')}>
+            <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/inventory')}>
               Back
             </Button>
           </Box>

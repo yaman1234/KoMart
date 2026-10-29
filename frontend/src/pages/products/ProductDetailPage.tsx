@@ -30,6 +30,7 @@ import { useFormatDate } from '@/hooks/useFormatDate';
 import { useProduct, useDeleteProduct } from '@/hooks/useProducts';
 import {
   isAdminOrManager,
+  navigateBack,
   productStatusColor,
   productStatusLabel,
   uomLabel,
@@ -213,7 +214,7 @@ export function ProductDetailPage() {
         breadcrumbs={[{ label: 'Products', path: '/products' }, { label: product.name }]}
         action={
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/products')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/products')}>
               Back
             </Button>
             {canEdit && (
@@ -251,7 +252,7 @@ export function ProductDetailPage() {
             onSuccess: () => {
               showSuccess('Product deleted.');
               setConfirmDelete(false);
-              navigate('/products');
+              navigateBack(navigate, '/products');
             },
             onError: (err) => showApiError(err, 'Product could not be deleted.'),
           });

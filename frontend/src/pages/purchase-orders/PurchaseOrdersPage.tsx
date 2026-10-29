@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from "@/hooks/useListState";
 
 import {
   Box,
@@ -128,45 +129,31 @@ export function PurchaseOrdersPage() {
 
   const canManage = canManagePurchaseOrders(user?.role);
 
-  const [search, setSearch] = useState("");
+  const { filters, setFilter, setFilters, resetFilters, clampPage } = useListState({
+    routePrefix: "/purchase-orders",
+    schema: {
+      search: stringParam(""),
+      page: pageParam(0),
+      pageSize: pageSizeParam(10),
+      status: enumParam(["", ...PO_STATUS_OPTIONS] as const, ""),
+      paymentStatus: enumParam(["", ...PO_PAYMENT_OPTIONS] as const, ""),
+      sortBy: stringParam("createdAt"),
+      sortOrder: enumParam(["asc", "desc"] as const, "desc"),
+    },
+  });
 
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const { search, page, pageSize, status, paymentStatus, sortBy, sortOrder } = filters;
 
-  const [status, setStatus] = useState<PurchaseOrderStatus | "">("");
 
-  const [paymentStatus, setPaymentStatus] = useState<
-    PurchaseOrderPaymentStatus | ""
-  >("");
 
-  const [sortBy, setSortBy] = useState("createdAt");
-
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-
-  const resetFilters = () => {
-    setSearch("");
-
-    setStatus("");
-
-    setPaymentStatus("");
-
-    setSortBy("createdAt");
-
-    setSortOrder("desc");
-
-    setPage(0);
-  };
+// resetFilters provided by useListState
 
   const handleSort = (key: string) => {
     if (sortBy === key) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+      setFilters({ sortOrder: sortOrder === "asc" ? "desc" : "asc", page: 0 });
     } else {
-      setSortBy(key);
-
-      setSortOrder("desc");
+      setFilters({ sortBy: key, sortOrder: "desc", page: 0 });
     }
-
-    setPage(0);
   };
 
   const { data, isLoading } = usePurchaseOrders({
@@ -188,6 +175,10 @@ export function PurchaseOrdersPage() {
 
     includeSummary: true,
   });
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
 
   const rows = data?.data ?? [];
 
@@ -477,11 +468,7 @@ export function PurchaseOrdersPage() {
           loading={isLoading}
 
           onClick={() => {
-            setStatus("");
-
-            setPaymentStatus("");
-
-            setPage(0);
+            setFilters({ status: "", paymentStatus: "", page: 0 });
           }}
 
           sx={{
@@ -516,9 +503,7 @@ export function PurchaseOrdersPage() {
           loading={isLoading}
 
           onClick={() => {
-            setPaymentStatus((prev) => (prev === "paid" ? "" : "paid"));
-
-            setPage(0);
+            setFilters({ paymentStatus: paymentStatus === "paid" ? "" : "paid", page: 0 });
           }}
 
           sx={{
@@ -554,17 +539,7 @@ export function PurchaseOrdersPage() {
           loading={isLoading}
 
           onClick={() => {
-            if (status === "received" && paymentStatus === "unpaid") {
-              setStatus("");
-
-              setPaymentStatus("");
-            } else {
-              setStatus("received");
-
-              setPaymentStatus("unpaid");
-            }
-
-            setPage(0);
+            if (status === "received" && paymentStatus === "unpaid") { setFilters({ status: "", paymentStatus: "", page: 0 }); } else { setFilters({ status: "received", paymentStatus: "unpaid", page: 0 }); }
           }}
 
           sx={{
@@ -599,9 +574,7 @@ export function PurchaseOrdersPage() {
           loading={isLoading}
 
           onClick={() => {
-            setStatus((prev) => (prev === "ordered" ? "" : "ordered"));
-
-            setPage(0);
+            setFilters({ status: status === "ordered" ? "" : "ordered", page: 0 });
           }}
 
           sx={{
@@ -635,9 +608,7 @@ export function PurchaseOrdersPage() {
           loading={isLoading}
 
           onClick={() => {
-            setStatus((prev) => (prev === "cancelled" ? "" : "cancelled"));
-
-            setPage(0);
+            setFilters({ status: status === "cancelled" ? "" : "cancelled", page: 0 });
           }}
 
           sx={{
@@ -670,8 +641,7 @@ export function PurchaseOrdersPage() {
             value={search}
 
             onChange={(v) => {
-              setSearch(v);
-              setPage(0);
+              setFilter("search", v);
             }}
 
             placeholder="Search by PO number or supplier..."
@@ -688,9 +658,7 @@ export function PurchaseOrdersPage() {
           value={status}
 
           onChange={(e) => {
-            setStatus(e.target.value as PurchaseOrderStatus | "");
-
-            setPage(0);
+            setFilter("status", e.target.value as PurchaseOrderStatus | "");
           }}
 
           sx={{ minWidth: 180 }}
@@ -714,9 +682,7 @@ export function PurchaseOrdersPage() {
           value={paymentStatus}
 
           onChange={(e) => {
-            setPaymentStatus(e.target.value as PurchaseOrderPaymentStatus | "");
-
-            setPage(0);
+            setFilter("paymentStatus", e.target.value as PurchaseOrderPaymentStatus | "");
           }}
 
           sx={{ minWidth: 160 }}
@@ -737,7 +703,7 @@ export function PurchaseOrdersPage() {
 
           startIcon={<RestartAltIcon />}
 
-          onClick={resetFilters}
+          onClick={() => resetFilters()}
         >
           Reset filters
         </Button>
@@ -753,14 +719,11 @@ export function PurchaseOrdersPage() {
         page={page}
 
         pageSize={pageSize}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPage(0);
-        }}
+        onPageSizeChange={(size) => setFilters({ pageSize: size, page: 0 })}
 
         total={data?.total}
 
-        onPageChange={setPage}
+        onPageChange={(p) => setFilter("page", p)}
 
         getRowId={(r) => r.id}
 

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from '@/hooks/useListState';
 import {
   Box,
   Button,
@@ -31,7 +32,7 @@ import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import ReceiptIcon from '@mui/icons-material/Receipt';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { SearchBar } from '@/components/common/SearchBar';
 import { DateRangePicker } from '@/components/common/DateRangePicker';
@@ -72,20 +73,27 @@ function monthStartIso() {
 
 export function ExpensesPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canManage = isAdminOrManager(user?.role);
   const categoryOptions = useExpenseCategoryOptions();
   const categoryLabels = useExpenseCategoryLabelMap();
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [setupFilter, setSetupFilter] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState(() => searchParams.get('paymentMethod') ?? '');
-  const [startDate, setStartDate] = useState(() => searchParams.get('startDate') ?? monthStartIso());
-  const [endDate, setEndDate] = useState(() => searchParams.get('endDate') ?? todayIso());
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: '/expenses',
+    schema: {
+      search: stringParam(''),
+      category: stringParam(''),
+      setupFilter: enumParam(['', 'true', 'false'] as const, ''),
+      paymentMethod: enumParam(['', 'cash', 'bank', 'esewa', 'inventory'] as const, ''),
+      startDate: stringParam(monthStartIso()),
+      endDate: stringParam(todayIso()),
+      page: pageParam(0),
+      pageSize: pageSizeParam(10),
+    },
+  });
+
+  const { search, category, setupFilter, paymentMethod, startDate, endDate, page, pageSize } = filters;
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [staffExpenseOpen, setStaffExpenseOpen] = useState(false);
   const [viewingItemsExpense, setViewingItemsExpense] = useState<Expense | null>(null);
@@ -114,6 +122,10 @@ export function ExpensesPage() {
 
   const { data, isLoading } = useExpenses(listParams);
   const { data: stats, isLoading: statsLoading } = useExpenseStats(listParams);
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
   const deleteMutation = useDeleteExpense();
 
   const rows = data?.data ?? [];
@@ -398,7 +410,7 @@ export function ExpensesPage() {
           <Box sx={{ flex: 1, minWidth: 220 }}>
             <SearchBar
               value={search}
-              onChange={(v) => { setSearch(v); setPage(0); }}
+              onChange={(v) => { setFilter('search', v); }}
               placeholder="Search expenses..."
             />
           </Box>
@@ -408,7 +420,7 @@ export function ExpensesPage() {
               <Select
                 label="Category"
                 value={category}
-                onChange={(e) => { setCategory(e.target.value); setPage(0); }}
+                onChange={(e) => { setFilter('category', e.target.value); }}
               >
                 <MenuItem value="">All Categories</MenuItem>
                 {categoryOptions.map((c) => (
@@ -423,7 +435,7 @@ export function ExpensesPage() {
             <Select
               label="Payment Method"
               value={paymentMethod}
-              onChange={(e) => { setPaymentMethod(e.target.value); setPage(0); }}
+              onChange={(e) => { setFilter('paymentMethod', e.target.value as any); }}
             >
               <MenuItem value="">All Methods</MenuItem>
               <MenuItem value="cash">Cash</MenuItem>
@@ -437,7 +449,7 @@ export function ExpensesPage() {
             <Select
               label="Setup filter"
               value={setupFilter}
-              onChange={(e) => { setSetupFilter(e.target.value); setPage(0); }}
+              onChange={(e) => { setFilter('setupFilter', e.target.value as any); }}
             >
               <MenuItem value="">All</MenuItem>
               <MenuItem value="true">Setup only</MenuItem>
@@ -448,9 +460,7 @@ export function ExpensesPage() {
             startDate={startDate}
             endDate={endDate}
             onChange={(range) => {
-              setStartDate(range.startDate);
-              setEndDate(range.endDate);
-              setPage(0);
+              setFilters({ startDate: range.startDate, endDate: range.endDate, page: 0 });
             }}
           />
         </Box>
@@ -463,8 +473,8 @@ export function ExpensesPage() {
         page={page}
         pageSize={pageSize}
         total={data?.total ?? 0}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+        onPageChange={(p) => setFilter('page', p)}
+        onPageSizeChange={(s) => { setFilters({ pageSize: s, page: 0 }); }}
         getRowId={(r) => r.id}
       />
 

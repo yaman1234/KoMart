@@ -22,6 +22,7 @@ import { useSupplier, useCreateSupplier, useUpdateSupplier } from '@/hooks/useSu
 import { COUNTRIES } from '@/constants';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
+import { navigateBack } from '@/utils';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -119,7 +120,7 @@ export function SupplierFormPage() {
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               startIcon={<ArrowBackIcon />}
-              onClick={() => navigate(isEditing && id ? `/suppliers/${id}` : '/suppliers')}
+              onClick={() => navigateBack(navigate, isEditing && id ? `/suppliers/${id}` : '/suppliers')}
             >
               Cancel
             </Button>

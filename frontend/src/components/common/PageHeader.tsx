@@ -1,6 +1,7 @@
 import { Box, Typography, Breadcrumbs, Link } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { getLastListUrl } from '@/utils/navigation';
 
 interface PageHeaderProps {
   title?: string;
@@ -63,12 +64,13 @@ export function PageHeader({ breadcrumbs, action, subtitle, subtitleEnd, subtitl
       <Box>
         {hasBreadcrumbs && (
           <Breadcrumbs>
-            {breadcrumbs!.map((crumb, i) =>
-              crumb.path ? (
+            {breadcrumbs!.map((crumb, i) => {
+              const targetPath = crumb.path ? (getLastListUrl(crumb.path) || crumb.path) : undefined;
+              return targetPath ? (
                 <Link
                   key={i}
                   component={RouterLink}
-                  to={crumb.path}
+                  to={targetPath}
                   underline="hover"
                   color="inherit"
                   variant="body2"
@@ -79,8 +81,8 @@ export function PageHeader({ breadcrumbs, action, subtitle, subtitleEnd, subtitl
                 <Typography key={i} variant="body2" color="text.secondary">
                   {crumb.label}
                 </Typography>
-              ),
-            )}
+              );
+            })}
           </Breadcrumbs>
         )}
         {subtitle ? (

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
+import { useListState, stringParam, pageParam, pageSizeParam } from '@/hooks/useListState';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -51,11 +52,19 @@ const COUNT_TYPE_LABELS: Record<string, string> = {
 
 export function StockCountsPage() {
   const navigate = useNavigate();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [countTypeFilter, setCountTypeFilter] = useState('');
+
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: '/stock-count',
+    schema: {
+      search: stringParam(''),
+      statusFilter: stringParam(''),
+      countTypeFilter: stringParam(''),
+      page: pageParam(0),
+      pageSize: pageSizeParam(25),
+    },
+  });
+
+  const { search, statusFilter, countTypeFilter, page, pageSize } = filters;
 
   const filtersKey = JSON.stringify({ page, pageSize, search, statusFilter, countTypeFilter });
 
@@ -71,6 +80,10 @@ export function StockCountsPage() {
         search: search || undefined,
       }),
   });
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
 
   const rows = data?.data ?? [];
 
@@ -178,7 +191,7 @@ export function StockCountsPage() {
         <Box sx={{ flex: 1, minWidth: 200 }}>
           <SearchBar
             value={search}
-            onChange={(v) => { setSearch(v); setPage(0); }}
+            onChange={(v) => { setFilter('search', v); }}
             placeholder="Search by Count ID..."
           />
         </Box>
@@ -186,7 +199,7 @@ export function StockCountsPage() {
           select
           label="Status"
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+          onChange={(e) => { setFilter('statusFilter', e.target.value); }}
           size="small"
           sx={{ minWidth: 160 }}
         >
@@ -199,7 +212,7 @@ export function StockCountsPage() {
           select
           label="Count Type"
           value={countTypeFilter}
-          onChange={(e) => { setCountTypeFilter(e.target.value); setPage(0); }}
+          onChange={(e) => { setFilter('countTypeFilter', e.target.value); }}
           size="small"
           sx={{ minWidth: 150 }}
         >
@@ -217,8 +230,8 @@ export function StockCountsPage() {
         page={page}
         pageSize={pageSize}
         total={data?.total}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+        onPageChange={(p) => setFilter('page', p)}
+        onPageSizeChange={(s) => { setFilters({ pageSize: s, page: 0 }); }}
         onRowClick={(row) => navigate(`/stock-count/${row.id}`)}
         getRowId={(r) => r.id}
       />

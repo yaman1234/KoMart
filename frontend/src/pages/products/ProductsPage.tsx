@@ -46,6 +46,14 @@ import { ProductSheetView } from '@/pages/products/components/ProductSheetView';
 import { filterByStock, type StockFilter } from '@/pages/products/productStockFilter';
 import { exportProductsToExcel } from '@/pages/products/exportProductsExcel';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
+import {
+  useListState,
+  stringParam,
+  pageParam,
+  pageSizeParam,
+  booleanParam,
+  enumParam,
+} from '@/hooks/useListState';
 
 const SHEET_PAGE_SIZE = 25;
 
@@ -179,18 +187,39 @@ export function ProductsPage() {
   const canCreatePo = canManagePurchaseOrders(user?.role);
   const dbCategories = useCategoryNames();
   const categoryOptions = dbCategories;
-  const [search, setSearch] = useState('');
+
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: '/products',
+    schema: {
+      search: stringParam(''),
+      category: stringParam(''),
+      supplierId: stringParam(''),
+      stockFilter: enumParam(['', 'low', 'out', 'in'] as const, ''),
+      offerOnly: booleanParam(false),
+      statusFilter: enumParam(['', 'active', 'seasonal', 'discontinued'] as const, '', 'status'),
+      sortBy: enumParam(['', 'name', 'sku', 'sellingPrice', 'createdAt'] as const, ''),
+      sortOrder: enumParam(['asc', 'desc'] as const, 'asc'),
+      page: pageParam(0),
+      pageSize: pageSizeParam(GRID_PAGE_SIZE),
+      viewMode: enumParam(['grid', 'sheet'] as const, 'grid'),
+    },
+  });
+
+  const {
+    search,
+    category,
+    supplierId,
+    stockFilter,
+    offerOnly,
+    statusFilter,
+    sortBy,
+    sortOrder,
+    page,
+    pageSize,
+    viewMode,
+  } = filters;
+
   const debouncedSearch = useDebouncedValue(search, 300);
-  const [category, setCategory] = useState('');
-  const [supplierId, setSupplierId] = useState('');
-  const [stockFilter, setStockFilter] = useState<StockFilter>('');
-  const [offerOnly, setOfferOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'' | ProductStatus>('');
-  const [sortBy, setSortBy] = useState<ProductSortField>('');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZE);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [exporting, setExporting] = useState(false);
 
   // sentinel ref for infinite scroll
@@ -213,18 +242,22 @@ export function ProductsPage() {
   const handleSort = (field: ProductSortField) => {
     if (!field) return;
     if (sortBy === field) {
-      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+      setFilters({ sortOrder: sortOrder === 'asc' ? 'desc' : 'asc', page: 0 });
     } else {
-      setSortBy(field);
-      setSortOrder('asc');
+      setFilters({ sortBy: field, sortOrder: 'asc', page: 0 });
     }
-    setPage(0);
   };
 
   const handlePriceSort = (order: 'asc' | 'desc') => {
-    setSortBy('sellingPrice');
-    setSortOrder(order);
-    setPage(0);
+    setFilters({ sortBy: 'sellingPrice', sortOrder: order, page: 0 });
+  };
+
+  const handleViewModeChange = (newMode: ViewMode) => {
+    setFilters({
+      viewMode: newMode,
+      pageSize: newMode === 'grid' ? GRID_PAGE_SIZE : SHEET_PAGE_SIZE,
+      page: 0,
+    });
   };
 
   // ── Infinite query (grid) ────────────────────────────────────────────────────
@@ -242,9 +275,14 @@ export function ProductsPage() {
     { enabled: viewMode === 'sheet' },
   );
 
+  useEffect(() => {
+    if (viewMode === 'sheet') {
+      clampPage(pagedData?.total);
+    }
+  }, [clampPage, pagedData?.total, viewMode]);
+
   // ── Flatten infinite pages for grid ─────────────────────────────────────────
   const allGridProducts = infiniteData?.pages.flatMap((p) => p.data) ?? [];
-
   const stockFilteredGrid = filterByStock(allGridProducts, stockFilter);
 
   // ── Sheet products (paged) ──────────────────────────────────────────────────
@@ -295,14 +333,6 @@ export function ProductsPage() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [viewMode, hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  const resetFilters = (newViewMode?: ViewMode) => {
-    setPage(0);
-    if (newViewMode) {
-      setViewMode(newViewMode);
-      setPageSize(newViewMode === 'grid' ? GRID_PAGE_SIZE : SHEET_PAGE_SIZE);
-    }
-  };
 
   const isSheetView = viewMode === 'sheet';
 
@@ -389,7 +419,7 @@ export function ProductsPage() {
         <Box sx={{ flex: 1, minWidth: 200 }}>
           <SearchBar
             value={search}
-            onChange={(v) => { setSearch(v); resetFilters(); }}
+            onChange={(v) => setFilter('search', v)}
             placeholder="Search by name, SKU, barcode..."
           />
         </Box>
@@ -400,7 +430,7 @@ export function ProductsPage() {
           <Select
             label="Category"
             value={category}
-            onChange={(e) => { setCategory(e.target.value); resetFilters(); }}
+            onChange={(e) => setFilter('category', e.target.value)}
           >
             <MenuItem value="">All Categories</MenuItem>
             {categoryOptions.map((c) => (
@@ -415,7 +445,7 @@ export function ProductsPage() {
           <Select
             label="Supplier"
             value={supplierId}
-            onChange={(e) => { setSupplierId(e.target.value); resetFilters(); }}
+            onChange={(e) => setFilter('supplierId', e.target.value)}
           >
             <MenuItem value="">All Suppliers</MenuItem>
             {suppliers.map((s) => (
@@ -430,7 +460,7 @@ export function ProductsPage() {
           <Select
             label="Status"
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value as '' | ProductStatus); resetFilters(); }}
+            onChange={(e) => setFilter('statusFilter', e.target.value as '' | ProductStatus)}
           >
             <MenuItem value="">All Statuses</MenuItem>
             {PRODUCT_STATUS_OPTIONS.map((s) => (
@@ -444,7 +474,7 @@ export function ProductsPage() {
           value={stockFilter}
           exclusive
           size="small"
-          onChange={(_, v: StockFilter) => setStockFilter(v ?? '')}
+          onChange={(_, v: StockFilter) => setFilter('stockFilter', v ?? '')}
         >
           <ToggleButton value="">All</ToggleButton>
           <ToggleButton value="in">In Stock</ToggleButton>
@@ -458,7 +488,7 @@ export function ProductsPage() {
           size="small"
           variant={offerOnly ? 'filled' : 'outlined'}
           color={offerOnly ? 'success' : 'default'}
-          onClick={() => { setOfferOnly((v) => !v); setPage(0); }}
+          onClick={() => setFilter('offerOnly', !offerOnly)}
           sx={{ fontWeight: 600, cursor: 'pointer' }}
         />
 
@@ -469,13 +499,10 @@ export function ProductsPage() {
           size="small"
           onClick={() => {
             if (sortBy === 'createdAt' && sortOrder === 'desc') {
-              setSortBy('');
-              setSortOrder('asc');
+              setFilters({ sortBy: '', sortOrder: 'asc', page: 0 });
             } else {
-              setSortBy('createdAt');
-              setSortOrder('desc');
+              setFilters({ sortBy: 'createdAt', sortOrder: 'desc', page: 0 });
             }
-            setPage(0);
           }}
         >
           New
@@ -509,7 +536,7 @@ export function ProductsPage() {
           value={viewMode}
           exclusive
           size="small"
-          onChange={(_, v: ViewMode) => { if (v) resetFilters(v); }}
+          onChange={(_, v: ViewMode | null) => { if (v) handleViewModeChange(v); }}
         >
           <ToggleButton value="grid" aria-label="Grid view">
             <Tooltip title="Grid view">
@@ -572,8 +599,8 @@ export function ProductsPage() {
             page={page}
             pageSize={pageSize}
             total={pagedData?.total}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => { setPageSize(s); setPage(0); }}
+            onPageChange={(p) => setFilter('page', p)}
+            onPageSizeChange={(s) => setFilters({ pageSize: s, page: 0 })}
             filters={sharedParams}
             stockFilter={stockFilter}
             canCreatePo={canCreatePo}
