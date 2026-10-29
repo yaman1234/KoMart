@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from '@/hooks/useListState';
 import {
   Alert, Avatar, Box, Button, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle,
   Divider, FormControl, Grid, InputLabel, MenuItem, Paper, Select, TextField, Typography, useTheme,
@@ -84,7 +85,6 @@ function todayIsoStr() {
 type ReconType = 'cash' | 'bank';
 
 export function ReconciliationPage() {
-  const [type, setType] = useState<ReconType | null>(null);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const formatDate = useFormatDate();
@@ -93,13 +93,30 @@ export function ReconciliationPage() {
   const [custodyExpanded, setCustodyExpanded] = useState(false);
   const [walletExpanded, setWalletExpanded] = useState(false);
 
-  // Wallet statement state
-  const [walletFilter, setWalletFilter] = useState<'' | WalletCode>('');
-  const [entryTypeFilter, setEntryTypeFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState(todayIsoStr);
-  const [dateTo, setDateTo] = useState(todayIsoStr);
-  const [ledgerPage, setLedgerPage] = useState(0);
-  const [ledgerPageSize, setLedgerPageSize] = useState(25);
+  const { filters, setFilter, setFilters } = useListState({
+    routePrefix: '/reconciliation',
+    schema: {
+      type: enumParam(['', 'cash', 'bank'] as const, ''),
+      wallet: enumParam(['', 'cash', 'bank', 'esewa'] as const, ''),
+      entryType: stringParam(''),
+      dateFrom: stringParam(todayIsoStr()),
+      dateTo: stringParam(todayIsoStr()),
+      page: pageParam(0),
+      pageSize: pageSizeParam(25),
+    },
+  });
+
+  const {
+    type: typeParam,
+    wallet: walletFilter,
+    entryType: entryTypeFilter,
+    dateFrom,
+    dateTo,
+    page: ledgerPage,
+    pageSize: ledgerPageSize,
+  } = filters;
+  const type = (typeParam || null) as ReconType | null;
+  const setType = (t: ReconType | null) => setFilter('type', t ?? '');
 
   const ledgerParams = useMemo(() => ({
     wallet: walletFilter || undefined,
@@ -478,22 +495,22 @@ export function ReconciliationPage() {
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                 <FormControl size="small" sx={{ minWidth: 140 }}>
                   <InputLabel>Wallet</InputLabel>
-                  <Select label="Wallet" value={walletFilter} onChange={(e) => { setWalletFilter(e.target.value as '' | WalletCode); setLedgerPage(0); }}>
+                  <Select label="Wallet" value={walletFilter} onChange={(e) => { setFilter('wallet', e.target.value as '' | WalletCode); }}>
                     <MenuItem value="">All</MenuItem>
                     {PAYMENT_METHODS.map((p) => <MenuItem key={p.value} value={p.value}>{p.label}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <FormControl size="small" sx={{ minWidth: 160 }}>
                   <InputLabel>Entry type</InputLabel>
-                  <Select label="Entry type" value={entryTypeFilter} onChange={(e) => { setEntryTypeFilter(e.target.value); setLedgerPage(0); }}>
+                  <Select label="Entry type" value={entryTypeFilter} onChange={(e) => { setFilter('entryType', e.target.value); }}>
                     <MenuItem value="">All</MenuItem>
                     {['sale', 'expense', 'po_payment', 'purchase_return', 'transfer', 'adjustment', 'custody'].map((t) => (
                       <MenuItem key={t} value={t}>{entryTypeLabel(t)}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
-                <NepaliAwareDatePicker label="From" value={dateFrom} onChange={(v) => { setDateFrom(v); setLedgerPage(0); }} size="small" />
-                <NepaliAwareDatePicker label="To" value={dateTo} onChange={(v) => { setDateTo(v); setLedgerPage(0); }} size="small" />
+                <NepaliAwareDatePicker label="From" value={dateFrom} onChange={(v) => { setFilter('dateFrom', v); }} size="small" />
+                <NepaliAwareDatePicker label="To" value={dateTo} onChange={(v) => { setFilter('dateTo', v); }} size="small" />
               </Box>
               <DataTable
                 columns={ledgerColumns}
@@ -502,8 +519,8 @@ export function ReconciliationPage() {
                 page={ledgerPage}
                 pageSize={ledgerPageSize}
                 total={displayLedger.length}
-                onPageChange={setLedgerPage}
-                onPageSizeChange={(size) => { setLedgerPageSize(size); setLedgerPage(0); }}
+                onPageChange={(p) => setFilter('page', p)}
+                onPageSizeChange={(size) => { setFilters({ pageSize: size, page: 0 }); }}
                 emptyMessage="No ledger entries in this range."
                 getRowId={(row) => row.id}
               />

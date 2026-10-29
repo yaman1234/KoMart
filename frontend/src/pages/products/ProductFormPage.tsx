@@ -39,7 +39,7 @@ import { useUomOptions } from '@/hooks/useUoms';
 import { DROPDOWN_PAGE_SIZE, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
 import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
 import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, navigateBack } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
@@ -465,7 +465,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               startIcon={embedded ? undefined : <ArrowBackIcon />}
-              onClick={() => (onCancel ? onCancel() : navigate('/products'))}
+              onClick={() => (onCancel ? onCancel() : navigateBack(navigate, '/products'))}
             >
               Cancel
             </Button>

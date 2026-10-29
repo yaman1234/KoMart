@@ -16,7 +16,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { useCustomer, useCustomerTransactions } from '@/hooks/useCustomers';
-import { formatCurrency, getInitials } from '@/utils';
+import { formatCurrency, getInitials, navigateBack } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { MEMBERSHIP_TIER_LABELS } from '@/constants';
 import type { Transaction, MembershipTier } from '@/types';
@@ -60,7 +60,7 @@ export function CustomerDetailPage() {
         title={customer.name}
         breadcrumbs={[{ label: 'Customers', path: '/customers' }, { label: customer.name }]}
         action={
-          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/customers')}>Back</Button>
+          <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/customers')}>Back</Button>
         }
       />
 

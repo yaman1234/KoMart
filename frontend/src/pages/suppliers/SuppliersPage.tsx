@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { Box, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
@@ -9,18 +9,31 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useAuthStore } from '@/store';
 import { canManageSuppliers } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
+import { useListState, stringParam, pageParam, pageSizeParam } from '@/hooks/useListState';
 import type { Supplier } from '@/types';
 
 export function SuppliersPage() {
   const navigate = useNavigate();
   const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: '/suppliers',
+    schema: {
+      search: stringParam(''),
+      page: pageParam(0),
+      pageSize: pageSizeParam(10),
+    },
+  });
+
+  const { search, page, pageSize } = filters;
 
   const { data, isLoading } = useSuppliers({ search, page: page + 1, pageSize });
   const canManage = canManageSuppliers(user?.role);
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
 
   const columns: Column<Supplier>[] = [
     { id: 'name', label: 'Name', minWidth: 180, accessor: 'name' },
@@ -56,7 +69,7 @@ export function SuppliersPage() {
       <Box sx={{ mb: 3 }}>
         <SearchBar
           value={search}
-          onChange={(v) => { setSearch(v); setPage(0); }}
+          onChange={(v) => { setFilter('search', v); }}
           placeholder="Search by supplier name..."
         />
       </Box>
@@ -68,8 +81,8 @@ export function SuppliersPage() {
         page={page}
         pageSize={pageSize}
         total={data?.total}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+        onPageChange={(p) => setFilter('page', p)}
+        onPageSizeChange={(size) => { setFilters({ pageSize: size, page: 0 }); }}
         getRowId={(r) => r.id}
         onRowClick={(r) => navigate(`/suppliers/${r.id}`)}
       />

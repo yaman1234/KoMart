@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -59,6 +60,16 @@ export function DataTable<T>({
   sortOrder = 'asc',
   onSort,
 }: DataTableProps<T>) {
+  const count = total ?? rows.length;
+  const maxPage = count > 0 ? Math.max(0, Math.ceil(count / pageSize) - 1) : 0;
+  const safePage = Math.min(page, maxPage);
+
+  useEffect(() => {
+    if (page > maxPage && count > 0 && onPageChange) {
+      onPageChange(safePage);
+    }
+  }, [page, maxPage, count, safePage, onPageChange]);
+
   return (
     <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', border: 1, borderColor: 'divider', borderRadius: 1 }}>
       <TableContainer sx={{ maxHeight: 600, borderTop: 1, borderColor: 'divider' }}>
@@ -117,7 +128,7 @@ export function DataTable<T>({
                   {columns.map((col) => (
                     <TableCell key={col.id} align={col.align ?? 'left'} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
                       {col.render
-                        ? col.render(row, rowIndex + page * pageSize)
+                        ? col.render(row, rowIndex + safePage * pageSize)
                         : col.accessor
                           ? String(row[col.accessor] ?? '')
                           : null}
@@ -132,8 +143,8 @@ export function DataTable<T>({
       {onPageChange && (
         <TablePagination
           component="div"
-          count={total ?? rows.length}
-          page={page}
+          count={count}
+          page={safePage}
           onPageChange={(_, p) => onPageChange(p)}
           rowsPerPage={pageSize}
           onRowsPerPageChange={(e) => {

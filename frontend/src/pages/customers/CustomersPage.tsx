@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useListState, stringParam, pageParam } from '@/hooks/useListState';
 import {
   Box,
   Button,
@@ -51,8 +52,12 @@ type FormValues = z.infer<typeof schema>;
 export function CustomersPage() {
   const navigate = useNavigate();
   const formatDate = useFormatDate();
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
+  const { filters, setFilter, clampPage } = useListState({
+    routePrefix: '/customers',
+    schema: { search: stringParam(''), page: pageParam(0) },
+  });
+  const { search, page } = filters;
+
   const [addOpen, setAddOpen] = useState(false);
   const [formError, setFormError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -65,6 +70,10 @@ export function CustomersPage() {
 
   const { data, isLoading } = useCustomers({ search, page: page + 1, pageSize: 10 });
   const createMutation = useCreateCustomer();
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
 
   const { register, handleSubmit, control, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -148,7 +157,7 @@ export function CustomersPage() {
       <Box sx={{ mb: 3 }}>
         <SearchBar
           value={search}
-          onChange={(v) => { setSearch(v); setPage(0); }}
+          onChange={(v) => { setFilter('search', v); }}
           placeholder="Search by name, phone or email..."
         />
       </Box>
@@ -160,7 +169,7 @@ export function CustomersPage() {
         page={page}
         pageSize={10}
         total={data?.total}
-        onPageChange={setPage}
+        onPageChange={(p) => setFilter('page', p)}
         getRowId={(r) => r.id}
         onRowClick={(r) => navigate(`/customers/${r.id}`)}
       />

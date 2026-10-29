@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useListState, stringParam, pageParam, enumParam } from '@/hooks/useListState';
 import {
   Box,
   Button,
@@ -15,7 +16,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
@@ -62,14 +63,19 @@ const PAYMENT_METHODS = [
 
 export function PurchaseReturnsPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(() => searchParams.get('search') || '');
-  const [page, setPage] = useState(0);
-  const [returnMode, setReturnMode] = useState<PurchaseReturnMode | ''>('');
-  const [settlementType, setSettlementType] = useState<PurchaseReturnSettlement | ''>('');
-  const [statusFilter, setStatusFilter] = useState<PurchaseReturnStatus | ''>(
-    () => (searchParams.get('status') as PurchaseReturnStatus | '') || '',
-  );
+
+  const { filters, setFilter, setFilters, resetFilters, clampPage } = useListState({
+    routePrefix: '/purchase-returns',
+    schema: {
+      search: stringParam(''),
+      page: pageParam(0),
+      returnMode: enumParam(['', 'po_linked', 'supplier'] as const, ''),
+      settlementType: enumParam(['', 'refund', 'reduce_payable', 'stock_only'] as const, ''),
+      status: enumParam(['', 'requested', 'closed'] as const, ''),
+    },
+  });
+
+  const { search, page, returnMode, settlementType, status: statusFilter } = filters;
   const [createOpen, setCreateOpen] = useState(false);
   const [detail, setDetail] = useState<PurchaseReturn | null>(null);
   const [closeTarget, setCloseTarget] = useState<PurchaseReturn | null>(null);
@@ -113,12 +119,8 @@ export function PurchaseReturnsPage() {
     }
   };
 
-  const resetFilters = () => {
-    setSearch('');
-    setReturnMode('');
-    setSettlementType('');
-    setStatusFilter('');
-    setPage(0);
+  const handleResetFilters = () => {
+    resetFilters();
   };
 
   const { data, isLoading } = useAllPurchaseReturns({
@@ -130,13 +132,15 @@ export function PurchaseReturnsPage() {
     pageSize: 10,
   });
   const { data: summary, isLoading: summaryLoading } = usePurchaseReturnSummary();
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
 
   const applyOpenReceivableFilters = () => {
-    setStatusFilter('requested');
-    setSettlementType('refund');
-    setPage(0);
+    setFilters({ status: 'requested', settlementType: 'refund', page: 0 });
   };
 
   const confirmClose = async () => {
@@ -342,8 +346,7 @@ export function PurchaseReturnsPage() {
           <SearchBar
             value={search}
             onChange={(v) => {
-              setSearch(v);
-              setPage(0);
+              setFilter('search', v);
             }}
             placeholder="Search return #, supplier, PO…"
           />
@@ -353,8 +356,7 @@ export function PurchaseReturnsPage() {
             label="Status"
             value={statusFilter}
             onChange={(e) => {
-              setStatusFilter(e.target.value as PurchaseReturnStatus | '');
-              setPage(0);
+              setFilter('status', e.target.value as PurchaseReturnStatus | '');
             }}
             sx={{ minWidth: 140 }}
           >
@@ -368,8 +370,7 @@ export function PurchaseReturnsPage() {
             label="Mode"
             value={returnMode}
             onChange={(e) => {
-              setReturnMode(e.target.value as PurchaseReturnMode | '');
-              setPage(0);
+              setFilter('returnMode', e.target.value as PurchaseReturnMode | '');
             }}
             sx={{ minWidth: 140 }}
           >
@@ -383,8 +384,7 @@ export function PurchaseReturnsPage() {
             label="Settlement"
             value={settlementType}
             onChange={(e) => {
-              setSettlementType(e.target.value as PurchaseReturnSettlement | '');
-              setPage(0);
+              setFilter('settlementType', e.target.value as PurchaseReturnSettlement | '');
             }}
             sx={{ minWidth: 160 }}
           >
@@ -393,7 +393,7 @@ export function PurchaseReturnsPage() {
             <MenuItem value="reduce_payable">Reduce payable</MenuItem>
             <MenuItem value="stock_only">Stock only</MenuItem>
           </TextField>
-          <Button startIcon={<RestartAltIcon />} onClick={resetFilters}>
+          <Button startIcon={<RestartAltIcon />} onClick={handleResetFilters}>
             Reset
           </Button>
         </Box>
@@ -408,7 +408,7 @@ export function PurchaseReturnsPage() {
         loading={isLoading}
         getRowId={(r) => r.id}
         page={page}
-        onPageChange={setPage}
+        onPageChange={(p) => setFilter('page', p)}
         total={total}
         pageSize={10}
         onRowClick={(row) => void openDetail(row)}

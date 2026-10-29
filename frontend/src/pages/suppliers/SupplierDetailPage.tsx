@@ -25,7 +25,7 @@ import {
 } from '@/hooks/usePurchaseReturns';
 import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierReturnDialog';
 import { useAuthStore } from '@/store';
-import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders } from '@/utils';
+import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { PO_STATUS_LABELS } from '@/constants';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
@@ -170,7 +170,7 @@ export function SupplierDetailPage() {
                 Edit
               </Button>
             )}
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/suppliers')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/suppliers')}>
               Back
             </Button>
           </Box>

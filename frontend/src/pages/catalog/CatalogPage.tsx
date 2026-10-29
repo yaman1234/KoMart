@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Card,
@@ -24,6 +24,7 @@ import { useInfiniteCatalogProducts, useCatalogOffers, useCatalogTags, useStoreI
 import { buildCatalogDiscountMap, hasActiveDiscount } from '@/utils/catalogDiscounts';
 import { formatCurrency, productStatusOf, productStatusLabel, productStatusColor } from '@/utils';
 import { useCategoryNames } from '@/hooks/useCategories';
+import { useListState, stringParam, booleanParam, enumParam } from '@/hooks/useListState';
 import type { CatalogProduct } from '@/types';
 
 // ── Product Card ────────────────────────────────────────────────────────────
@@ -167,13 +168,20 @@ export function CatalogPage() {
   const navigate = useNavigate();
   const categoryOptions = useCategoryNames();
 
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [selectedTag, setSelectedTag] = useState('');
-  const [onSaleOnly, setOnSaleOnly] = useState(false);
-  const [popularOnly, setPopularOnly] = useState(false);
-  const [trendingOnly, setTrendingOnly] = useState(false);
-  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
+  const { filters, setFilter } = useListState({
+    routePrefix: '/',
+    schema: {
+      search: stringParam(''),
+      category: stringParam(''),
+      tag: stringParam(''),
+      onSaleOnly: booleanParam(false),
+      popularOnly: booleanParam(false),
+      trendingOnly: booleanParam(false),
+      priceSort: enumParam(['', 'asc', 'desc'] as const, ''),
+    },
+  });
+
+  const { search, category, tag: selectedTag, onSaleOnly, popularOnly, trendingOnly, priceSort } = filters;
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -240,7 +248,7 @@ export function CatalogPage() {
         <Box sx={{ flex: 1, minWidth: 200 }}>
           <SearchBar
             value={search}
-            onChange={setSearch}
+            onChange={(v) => setFilter('search', v)}
             placeholder="Search products..."
           />
         </Box>
@@ -249,7 +257,7 @@ export function CatalogPage() {
           value={priceSort}
           exclusive
           size="small"
-          onChange={(_, v: 'asc' | 'desc' | '') => setPriceSort(v ?? '')}
+          onChange={(_, v: 'asc' | 'desc' | '') => setFilter('priceSort', v ?? '')}
         >
           <Tooltip title="Price: Low to High">
             <ToggleButton value="asc" aria-label="Price ascending">
@@ -270,21 +278,21 @@ export function CatalogPage() {
           label="Offer"
           variant={onSaleOnly ? 'filled' : 'outlined'}
           color={onSaleOnly ? 'success' : 'default'}
-          onClick={() => setOnSaleOnly(!onSaleOnly)}
+          onClick={() => setFilter('onSaleOnly', !onSaleOnly)}
           sx={{ fontWeight: 600, cursor: 'pointer' }}
         />
         <Chip
           label="Most Popular"
           variant={popularOnly ? 'filled' : 'outlined'}
           color={popularOnly ? 'secondary' : 'default'}
-          onClick={() => setPopularOnly(!popularOnly)}
+          onClick={() => setFilter('popularOnly', !popularOnly)}
           sx={{ fontWeight: 600, cursor: 'pointer' }}
         />
         <Chip
           label="Trending"
           variant={trendingOnly ? 'filled' : 'outlined'}
           color={trendingOnly ? 'secondary' : 'default'}
-          onClick={() => setTrendingOnly(!trendingOnly)}
+          onClick={() => setFilter('trendingOnly', !trendingOnly)}
           sx={{ fontWeight: 600, cursor: 'pointer' }}
         />
 
@@ -300,7 +308,7 @@ export function CatalogPage() {
           size="small"
           variant={category === '' ? 'filled' : 'outlined'}
           color={category === '' ? 'secondary' : 'default'}
-          onClick={() => setCategory('')}
+          onClick={() => setFilter('category', '')}
           sx={{ fontWeight: 600, cursor: 'pointer' }}
         />
         {categoryOptions.map((c) => (
@@ -310,7 +318,7 @@ export function CatalogPage() {
             size="small"
             variant={category === c ? 'filled' : 'outlined'}
             color={category === c ? 'secondary' : 'default'}
-            onClick={() => setCategory(category === c ? '' : c)}
+            onClick={() => setFilter('category', category === c ? '' : c)}
             sx={{ cursor: 'pointer' }}
           />
         ))}
@@ -326,7 +334,7 @@ export function CatalogPage() {
               size="small"
               variant={selectedTag === tag ? 'filled' : 'outlined'}
               color={selectedTag === tag ? 'info' : 'default'}
-              onClick={() => setSelectedTag(selectedTag === tag ? '' : tag)}
+              onClick={() => setFilter('tag', selectedTag === tag ? '' : tag)}
               sx={{ cursor: 'pointer' }}
             />
           ))}
