@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Box,
   Button,
@@ -26,6 +26,7 @@ import {
   useSyncNotifications,
 } from '@/hooks/useNotifications';
 import { NOTIFICATION_TYPE_LABELS } from '@/utils/notificationUtils';
+import { useListState, enumParam } from '@/hooks/useListState';
 import type { AppNotification, NotificationType } from '@/types';
 
 type ReadFilter = 'all' | 'unread';
@@ -40,8 +41,15 @@ const TYPE_OPTIONS: { value: '' | NotificationType; label: string }[] = [
 
 export function NotificationsPage() {
   const navigate = useNavigate();
-  const [readFilter, setReadFilter] = useState<ReadFilter>('all');
-  const [typeFilter, setTypeFilter] = useState<'' | NotificationType>('');
+  const { filters, setFilter } = useListState({
+    routePrefix: '/notifications',
+    schema: {
+      readFilter: enumParam(['all', 'unread'] as const, 'all'),
+      typeFilter: enumParam(['', 'low_stock', 'expiry', 'purchase_reminder', 'system'] as const, ''),
+    },
+  });
+  const { readFilter, typeFilter } = filters;
+
 
   const { data: notifications = [], isLoading, isError, refetch, isFetching } = useNotifications({
     unreadOnly: readFilter === 'unread',
@@ -105,7 +113,7 @@ export function NotificationsPage() {
             exclusive
             size="small"
             value={readFilter}
-            onChange={(_, value: ReadFilter | null) => value && setReadFilter(value)}
+            onChange={(_, value: ReadFilter | null) => value && setFilter('readFilter', value)}
           >
             <ToggleButton value="all">All</ToggleButton>
             <ToggleButton value="unread">Unread</ToggleButton>
@@ -116,7 +124,7 @@ export function NotificationsPage() {
             <Select
               label="Type"
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as '' | NotificationType)}
+              onChange={(e) => setFilter('typeFilter', e.target.value as '' | NotificationType)}
             >
               {TYPE_OPTIONS.map((opt) => (
                 <MenuItem key={opt.value || 'all'} value={opt.value}>
@@ -139,7 +147,7 @@ export function NotificationsPage() {
                   label={`${label}: ${count}`}
                   variant={typeFilter === type ? 'filled' : 'outlined'}
                   onClick={() =>
-                    setTypeFilter((current) => (current === type ? '' : (type as NotificationType)))
+                    setFilter('typeFilter', typeFilter === type ? '' : (type as NotificationType))
                   }
                 />
               );

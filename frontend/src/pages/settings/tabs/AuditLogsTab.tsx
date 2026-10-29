@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useListState, stringParam, pageParam, pageSizeParam } from '@/hooks/useListState';
 import {
   Box,
   Chip,
@@ -47,12 +48,18 @@ function entityLabel(row: AuditLog): string {
 }
 
 export function AuditLogsTab() {
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
-  const [moduleFilter, setModuleFilter] = useState('');
-  const [actionFilter, setActionFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const { filters, setFilter, setFilters, clampPage } = useListState({
+    routePrefix: '/settings/audit',
+    schema: {
+      page: pageParam(0),
+      pageSize: pageSizeParam(25),
+      module: stringParam(''),
+      action: stringParam(''),
+      startDate: stringParam(''),
+      endDate: stringParam(''),
+    },
+  });
+  const { page, pageSize, module: moduleFilter, action: actionFilter, startDate, endDate } = filters;
   const [selected, setSelected] = useState<AuditLog | null>(null);
 
   const queryParams = useMemo(
@@ -68,6 +75,10 @@ export function AuditLogsTab() {
   );
 
   const { data, isLoading } = useAuditLogs(queryParams);
+
+  useEffect(() => {
+    clampPage(data?.total);
+  }, [clampPage, data?.total]);
 
   const columns: Column<AuditLog>[] = [
     {
@@ -132,7 +143,7 @@ export function AuditLogsTab() {
               <Select
                 label="Module"
                 value={moduleFilter}
-                onChange={(e) => { setModuleFilter(e.target.value); setPage(0); }}
+                onChange={(e) => { setFilter('module', e.target.value); }}
               >
                 <MenuItem value="">All</MenuItem>
                 {MODULES.map((m) => (
@@ -149,7 +160,7 @@ export function AuditLogsTab() {
               size="small"
               label="Action"
               value={actionFilter}
-              onChange={(e) => { setActionFilter(e.target.value); setPage(0); }}
+              onChange={(e) => { setFilter('action', e.target.value); }}
               placeholder="e.g. wallet_transfer, day_close"
             />
           </Grid>
@@ -157,7 +168,7 @@ export function AuditLogsTab() {
             <NepaliAwareDatePicker
               label="From"
               value={startDate}
-              onChange={(d) => { setStartDate(d); setPage(0); }}
+              onChange={(d) => { setFilter('startDate', d); }}
               size="small"
               fullWidth
             />
@@ -166,7 +177,7 @@ export function AuditLogsTab() {
             <NepaliAwareDatePicker
               label="To"
               value={endDate}
-              onChange={(d) => { setEndDate(d); setPage(0); }}
+              onChange={(d) => { setFilter('endDate', d); }}
               size="small"
               fullWidth
             />
@@ -181,8 +192,8 @@ export function AuditLogsTab() {
         page={page}
         pageSize={pageSize}
         total={data?.total}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+        onPageChange={(p) => setFilter('page', p)}
+        onPageSizeChange={(size) => { setFilters({ pageSize: size, page: 0 }); }}
         getRowId={(row) => row.id}
         onRowClick={setSelected}
         emptyMessage="No audit logs found"

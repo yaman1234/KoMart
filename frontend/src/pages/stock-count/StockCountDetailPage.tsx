@@ -27,7 +27,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { stockCountService } from '@/services';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, navigateBack } from '@/utils';
 import { showApiError, showSuccess } from '@/utils/toast';
 import { QUERY_KEYS } from '@/constants';
 import { useAuthStore } from '@/store';
@@ -282,7 +282,7 @@ export function StockCountDetailPage() {
         subtitle={`${STATUS_LABELS[sc.status]} · ${sc.countType === 'full' ? 'Full Count' : sc.countType} · ${sc.countMode === 'blind' ? 'Blind' : 'Assisted'} Mode`}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Button onClick={() => navigate('/stock-count')} startIcon={<ArrowBackIcon />} size="small" sx={{ mr: 0.5 }}>
+            <Button onClick={() => navigateBack(navigate, '/stock-count')} startIcon={<ArrowBackIcon />} size="small" sx={{ mr: 0.5 }}>
               Back
             </Button>
             {canCount && (

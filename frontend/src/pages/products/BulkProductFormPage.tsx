@@ -52,6 +52,7 @@ import { getErrorMessage } from '@/services/apiClient';
 import type { ProductBulkCreateItem, ProductStatus, Supplier } from '@/types';
 import { defaultPrimaryUom, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showInfo, showSuccess } from '@/utils/toast';
+import { navigateBack } from '@/utils';
 import {
   downloadBulkAddSampleExcel,
   parseBulkAddExcelFile,
@@ -722,7 +723,7 @@ export function BulkProductFormPage() {
         );
         return;
       }
-      navigate('/products');
+      navigateBack(navigate, '/products');
     } catch (err) {
       setPageError(getErrorMessage(err));
     }
@@ -756,7 +757,7 @@ export function BulkProductFormPage() {
         breadcrumbs={[{ label: 'Products', path: '/products' }, { label: 'Bulk add' }]}
         action={(
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/products')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/products')}>
               Cancel
             </Button>
             <Button

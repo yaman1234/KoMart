@@ -53,7 +53,7 @@ import {
 import { usePurchaseReturns, useReturnableLines } from '@/hooks/usePurchaseReturns';
 import { useProductCatalog } from '@/hooks/useProductCatalog';
 import { PoReturnDialog } from '@/pages/purchase-orders/components/PoReturnDialog';
-import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { formatCurrency, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { CURRENCY_SYMBOL } from '@/constants';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
@@ -508,7 +508,7 @@ export function PurchaseOrderDetailPage() {
         breadcrumbs={[{ label: 'Purchase Orders', path: '/purchase-orders' }, { label: po.orderNumber }]}
         action={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/purchase-orders')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/purchase-orders')}>
               Back
             </Button>
             {canManage && canEditPurchaseOrder(po) && (

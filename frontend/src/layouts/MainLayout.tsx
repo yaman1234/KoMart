@@ -1,7 +1,9 @@
+import { useRef } from 'react';
 import { Box, Container } from '@mui/material';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 
 interface MainLayoutProps {
   title?: string;
@@ -11,6 +13,9 @@ export function MainLayout({ title }: MainLayoutProps) {
   const { pathname } = useLocation();
   const isPos = pathname === '/pos';
   const isFullWidth = isPos || pathname === '/products/bulk-add';
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useScrollRestoration(containerRef);
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default', overflow: 'hidden' }}>
@@ -29,6 +34,8 @@ export function MainLayout({ title }: MainLayoutProps) {
       >
         <TopBar title={title} />
         <Container
+          ref={containerRef}
+          id="main-scroll-container"
           maxWidth={false}
           disableGutters={isFullWidth}
           sx={{

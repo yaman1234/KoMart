@@ -30,7 +30,7 @@ import {
   usePurchaseOrder,
   useUpdatePurchaseOrder,
 } from '@/hooks/usePurchaseOrders';
-import { formatCurrency, canManagePurchaseOrders } from '@/utils';
+import { formatCurrency, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { computePoTotals } from '@/utils/poTotals';
 import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
@@ -367,7 +367,7 @@ export function PurchaseOrderFormPage() {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               startIcon={<ArrowBackIcon />}
-              onClick={() => navigate(isEdit ? `/purchase-orders/${id}` : '/purchase-orders')}
+              onClick={() => navigateBack(navigate, isEdit ? `/purchase-orders/${id}` : '/purchase-orders')}
             >
               Cancel
             </Button>

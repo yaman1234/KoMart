@@ -32,7 +32,7 @@ import { useCreateExpense, useUpdateExpense, useExpense } from '@/hooks/useExpen
 import { useExpenseCategoryOptions } from '@/hooks/useExpenseCategories';
 import { PAYMENT_METHODS, CURRENCY_SYMBOL } from '@/constants';
 import { showApiError, showSuccess } from '@/utils/toast';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, navigateBack } from '@/utils';
 import { ExpenseCategoryInfoIcon } from './expenseCategoryInfo';
 
 const schema = z.object({
@@ -158,7 +158,7 @@ export function ExpenseFormPage() {
             { label: 'View' },
           ]}
           action={
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/expenses')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/expenses')}>
               Back
             </Button>
           }
@@ -198,7 +198,7 @@ export function ExpenseFormPage() {
             { label: 'View Store Usage' },
           ]}
           action={
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/expenses')}>
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/expenses')}>
               Back
             </Button>
           }
@@ -447,7 +447,7 @@ export function ExpenseFormPage() {
             {/* Actions */}
             <Grid size={{ xs: 12 }}>
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                <Button onClick={() => navigate('/expenses')}>Cancel</Button>
+                <Button onClick={() => navigateBack(navigate, '/expenses')}>Cancel</Button>
                 <Button
                   type="submit"
                   variant="contained"

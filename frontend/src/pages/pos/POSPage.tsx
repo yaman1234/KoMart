@@ -64,6 +64,7 @@ import { showSuccess, showWarning, showApiError } from '@/utils/toast';
 import { formatAmount, formatCurrency } from '@/utils';
 import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE } from '@/constants';
 import { useCategoryNames } from '@/hooks/useCategories';
+import { useListState, stringParam, booleanParam, enumParam } from '@/hooks/useListState';
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { cartLineKey } from '@/utils/cartLine';
@@ -570,19 +571,41 @@ function CollapsedCartRail({ totalUnits, total, hasItems, onExpand, onPay }: Col
 
 export function POSPage() {
   const isMobile = useIsMobile();
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebouncedValue(search, 300);
-  const [categoryFilter, setCategoryFilter] = useState('');
   const categoryOptions = useCategoryNames();
-  const [supplierIdFilter, setSupplierIdFilter] = useState('');
-  const [popularOnly, setPopularOnly] = useState(false);
-  const [trendingOnly, setTrendingOnly] = useState(false);
-  const [offerOnly, setOfferOnly] = useState(false);
-  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
+
+  const { filters, setFilter } = useListState({
+    routePrefix: '/pos',
+    schema: {
+      search: stringParam(''),
+      category: stringParam(''),
+      supplierId: stringParam(''),
+      popularOnly: booleanParam(false),
+      trendingOnly: booleanParam(false),
+      offerOnly: booleanParam(false),
+      priceSort: enumParam(['', 'asc', 'desc'] as const, ''),
+      cartCollapsed: booleanParam(isMobile),
+    },
+  });
+
+  const {
+    search,
+    category: categoryFilter,
+    supplierId: supplierIdFilter,
+    popularOnly,
+    trendingOnly,
+    offerOnly,
+    priceSort,
+    cartCollapsed,
+  } = filters;
+
+  const debouncedSearch = useDebouncedValue(search, 300);
   const productGridSentinelRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const cartSnapshotRef = useRef<{ items: CartItem[]; customerId: string | null; saleDate: string } | null>(null);
-  const [cartCollapsed, setCartCollapsed] = useState(isMobile);
+  const setCartCollapsed = (v: boolean | ((prev: boolean) => boolean)) => {
+    setFilter('cartCollapsed', typeof v === 'function' ? v(cartCollapsed) : v);
+  };
+  const setSearch = (v: string) => setFilter('search', v);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<Transaction | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -972,7 +995,7 @@ export function POSPage() {
             <Select
               value={categoryFilter}
               label="Category"
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => setFilter('category', e.target.value)}
             >
               <MenuItem value="">All</MenuItem>
               {categoryOptions.map((c) => (
@@ -986,7 +1009,7 @@ export function POSPage() {
             <Select
               value={supplierIdFilter}
               label="Supplier"
-              onChange={(e) => setSupplierIdFilter(e.target.value)}
+              onChange={(e) => setFilter('supplierId', e.target.value)}
             >
               <MenuItem value="">All</MenuItem>
               {suppliers.map((s) => (
@@ -1001,7 +1024,7 @@ export function POSPage() {
             size="small"
             variant={offerOnly ? 'filled' : 'outlined'}
             color={offerOnly ? 'success' : 'default'}
-            onClick={() => setOfferOnly((v) => !v)}
+            onClick={() => setFilter('offerOnly', !offerOnly)}
             sx={{ fontWeight: 600 }}
           />
           <Chip
@@ -1009,7 +1032,7 @@ export function POSPage() {
             size="small"
             variant={popularOnly ? 'filled' : 'outlined'}
             color={popularOnly ? 'secondary' : 'default'}
-            onClick={() => setPopularOnly((v) => !v)}
+            onClick={() => setFilter('popularOnly', !popularOnly)}
             sx={{ fontWeight: 600 }}
           />
           <Chip
@@ -1017,7 +1040,7 @@ export function POSPage() {
             size="small"
             variant={trendingOnly ? 'filled' : 'outlined'}
             color={trendingOnly ? 'secondary' : 'default'}
-            onClick={() => setTrendingOnly((v) => !v)}
+            onClick={() => setFilter('trendingOnly', !trendingOnly)}
             sx={{ fontWeight: 600 }}
           />
 
@@ -1025,7 +1048,7 @@ export function POSPage() {
             value={priceSort}
             exclusive
             size="small"
-            onChange={(_, v: 'asc' | 'desc' | null) => setPriceSort(v ?? '')}
+            onChange={(_, v: 'asc' | 'desc' | null) => setFilter('priceSort', v ?? '')}
             sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.5 } }}
           >
             <ToggleButton value="asc">

@@ -8,6 +8,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useThemeStore, useAuthStore } from '@/store';
 import { APP_NAME } from '@/constants';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 
 function AuthButton() {
   const navigate = useNavigate();
@@ -67,6 +68,8 @@ export function CatalogLayout() {
   const navigate = useNavigate();
   const mode = useThemeStore((s) => s.mode);
   const toggleMode = useThemeStore((s) => s.toggleMode);
+
+  useScrollRestoration();
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>

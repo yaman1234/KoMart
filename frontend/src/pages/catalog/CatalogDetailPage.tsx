@@ -18,7 +18,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCatalogProduct, useCatalogOffers } from '@/hooks/useCatalog';
 import { getCatalogDiscountLabel } from '@/utils/catalogDiscounts';
-import { formatCurrency, productStatusOf, productStatusLabel, productStatusColor } from '@/utils';
+import { formatCurrency, productStatusOf, productStatusLabel, productStatusColor, navigateBack } from '@/utils';
 
 export function CatalogDetailPage() {
   const navigate = useNavigate();
@@ -53,7 +53,7 @@ export function CatalogDetailPage() {
       {/* Back button */}
       <Button
         startIcon={<ArrowBackIcon />}
-        onClick={() => navigate('/')}
+        onClick={() => navigateBack(navigate, '/')}
         sx={{ mb: 2 }}
       >
         Back to Catalog
