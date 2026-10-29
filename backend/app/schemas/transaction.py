@@ -54,6 +54,27 @@ class TransactionResponse(BaseModel):
     cashier_id: Optional[str] = None
     created_at: str
 
+from app.schemas.common import PaginatedResponse
+
+
+class PaymentMethodSummary(BaseModel):
+    amount: float = 0.0
+    count: int = 0
+
+
+class TransactionPaymentBreakdown(BaseModel):
+    cash: PaymentMethodSummary = Field(default_factory=PaymentMethodSummary)
+    bank: PaymentMethodSummary = Field(default_factory=PaymentMethodSummary)
+    esewa: PaymentMethodSummary = Field(default_factory=PaymentMethodSummary)
+
+
+class TransactionListResponse(PaginatedResponse[TransactionResponse]):
+    completed_amount: float = 0.0
+    completed_count: int = 0
+    voided_amount: float = 0.0
+    voided_count: int = 0
+    payment_breakdown: TransactionPaymentBreakdown = Field(default_factory=TransactionPaymentBreakdown)
+
 
 class TransactionItemUpdate(BaseModel):
     product_id: str

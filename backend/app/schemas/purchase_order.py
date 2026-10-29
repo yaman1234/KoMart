@@ -1,159 +1,172 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-from app.models.purchase_order import (
-    POStatus,
-    PaymentStatus,
-    PurchaseOrderItem,
-    PurchaseOrderPayment,
-    line_status,
-    LineStatus,
-)
-
-
-class PurchaseOrderItemResponse(BaseModel):
-    product_id: str
-    product_name: str
-    quantity: int
-    unit_cost: float
-    received_quantity: int
-    order_uom: str = "pcs"
-    base_uom: str = "pcs"
-    units_per_buy_uom: int = 1
-    line_status: LineStatus
-
-
-def item_to_response(item: PurchaseOrderItem) -> PurchaseOrderItemResponse:
-    return PurchaseOrderItemResponse(
-        product_id=item.product_id,
-        product_name=item.product_name,
-        quantity=item.quantity,
-        unit_cost=item.unit_cost,
-        received_quantity=item.received_quantity,
-        order_uom=getattr(item, "order_uom", None) or "pcs",
-        base_uom=getattr(item, "base_uom", None) or "pcs",
-        units_per_buy_uom=getattr(item, "units_per_buy_uom", None) or 1,
-        line_status=line_status(item),
-    )
-
-
-class PurchaseOrderCreate(BaseModel):
-    supplier_id: str
-    supplier_name: str
-    items: list[PurchaseOrderItem]
-    total_amount: float = Field(default=0, ge=0)
-    discount: float = Field(default=0, ge=0)
-    additional_charges: float = Field(default=0, ge=0)
-    subtotal: Optional[float] = Field(default=None, ge=0)
-    expected_delivery: Optional[str] = None
-    status: POStatus = POStatus.draft
-    ordered_by: Optional[str] = None
-    bill_number: Optional[str] = None
-    bill_images: list[str] = Field(default_factory=list)
-
-
-class PurchaseOrderUpdate(BaseModel):
-    supplier_id: str
-    supplier_name: str
-    items: list[PurchaseOrderItem]
-    total_amount: float = Field(default=0, ge=0)
-    discount: float = Field(default=0, ge=0)
-    additional_charges: float = Field(default=0, ge=0)
-    subtotal: Optional[float] = Field(default=None, ge=0)
-    expected_delivery: Optional[str] = None
-    status: POStatus = POStatus.draft
-    ordered_by: Optional[str] = None
-    bill_number: Optional[str] = None
-    bill_images: list[str] = Field(default_factory=list)
-
-
-class PurchaseOrderStatusUpdate(BaseModel):
-    status: POStatus
-
-
-class PurchaseOrderBillUpdate(BaseModel):
-    bill_number: Optional[str] = None
-    bill_images: list[str] = Field(default_factory=list)
-
-
-class PurchaseOrderReceiveItem(BaseModel):
-    product_id: str
-    receive_quantity: int = Field(ge=1)
-    expiry_date: Optional[str] = None
-    units_per_buy_uom: int | None = Field(default=None, ge=1)
-    sell_mode: Optional[str] = None
-    selling_price: float | None = Field(default=None, ge=0)
-    pack_selling_price: float | None = Field(default=None, ge=0)
-
-
-class PurchaseOrderReceiveRequest(BaseModel):
-    items: list[PurchaseOrderReceiveItem]
-
-
-class PurchaseOrderPaymentCreate(BaseModel):
-    amount: float = Field(gt=0)
-    date: str
-    payment_method: str = "cash"
-    bill_no: Optional[str] = None
-    notes: str = ""
-
-
-class PurchaseOrderPaymentResponse(BaseModel):
-    amount: float
-    date: str
-    payment_method: str
-    bill_no: Optional[str] = None
-    notes: str = ""
-    expense_id: str = ""
-    created_by: str = ""
-    created_at: str
-
-
-def payment_to_response(payment: PurchaseOrderPayment) -> PurchaseOrderPaymentResponse:
-    created_at = payment.created_at
-    created_at_str = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
-    bill_no = (getattr(payment, "bill_no", None) or "").strip() or None
-    return PurchaseOrderPaymentResponse(
-        amount=payment.amount,
-        date=payment.date,
-        payment_method=payment.payment_method,
-        bill_no=bill_no,
-        notes=payment.notes or "",
-        expense_id=payment.expense_id or "",
-        created_by=payment.created_by or "",
-        created_at=created_at_str,
-    )
-
-
-class PurchaseOrderResponse(BaseModel):
-    id: str
-    order_number: str
-    supplier_id: str
-    supplier_name: str
-    status: POStatus
-    items: list[PurchaseOrderItemResponse]
-    items_count: int = 0
-    subtotal: float = 0.0
-    discount: float = 0.0
-    additional_charges: float = 0.0
-    total_amount: float
-    amount_paid: float = 0.0
-    payment_status: PaymentStatus = PaymentStatus.unpaid
-    payments: list[PurchaseOrderPaymentResponse] = Field(default_factory=list)
-    expected_delivery: Optional[str]
-    ordered_by: Optional[str]
-    received_by: Optional[str]
-    received_date: Optional[str]
-    bill_number: Optional[str] = None
-    bill_images: list[str] = Field(default_factory=list)
-    created_at: str
-    updated_at: str
-
-
-class PurchaseOrderListResponse(BaseModel):
-    data: list[PurchaseOrderResponse]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
-    received_total_amount: float = 0.0
-    outstanding_amount: float = 0.0
+from pydantic import BaseModel, Field
+from typing import Optional
+from app.models.purchase_order import (
+    POStatus,
+    PaymentStatus,
+    PurchaseOrderItem,
+    PurchaseOrderPayment,
+    line_status,
+    LineStatus,
+)
+
+
+class PurchaseOrderItemResponse(BaseModel):
+    product_id: str
+    product_name: str
+    quantity: int
+    unit_cost: float
+    received_quantity: int
+    order_uom: str = "pcs"
+    base_uom: str = "pcs"
+    units_per_buy_uom: int = 1
+    line_status: LineStatus
+
+
+def item_to_response(item: PurchaseOrderItem) -> PurchaseOrderItemResponse:
+    return PurchaseOrderItemResponse(
+        product_id=item.product_id,
+        product_name=item.product_name,
+        quantity=item.quantity,
+        unit_cost=item.unit_cost,
+        received_quantity=item.received_quantity,
+        order_uom=getattr(item, "order_uom", None) or "pcs",
+        base_uom=getattr(item, "base_uom", None) or "pcs",
+        units_per_buy_uom=getattr(item, "units_per_buy_uom", None) or 1,
+        line_status=line_status(item),
+    )
+
+
+class PurchaseOrderCreate(BaseModel):
+    supplier_id: str
+    supplier_name: str
+    items: list[PurchaseOrderItem]
+    total_amount: float = Field(default=0, ge=0)
+    discount: float = Field(default=0, ge=0)
+    additional_charges: float = Field(default=0, ge=0)
+    subtotal: Optional[float] = Field(default=None, ge=0)
+    expected_delivery: Optional[str] = None
+    status: POStatus = POStatus.draft
+    ordered_by: Optional[str] = None
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
+
+
+class PurchaseOrderUpdate(BaseModel):
+    supplier_id: str
+    supplier_name: str
+    items: list[PurchaseOrderItem]
+    total_amount: float = Field(default=0, ge=0)
+    discount: float = Field(default=0, ge=0)
+    additional_charges: float = Field(default=0, ge=0)
+    subtotal: Optional[float] = Field(default=None, ge=0)
+    expected_delivery: Optional[str] = None
+    status: POStatus = POStatus.draft
+    ordered_by: Optional[str] = None
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
+
+
+class PurchaseOrderStatusUpdate(BaseModel):
+    status: POStatus
+
+
+class PurchaseOrderBillUpdate(BaseModel):
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
+
+
+class PurchaseOrderReceiveItem(BaseModel):
+    product_id: str
+    receive_quantity: int = Field(ge=1)
+    expiry_date: Optional[str] = None
+    units_per_buy_uom: int | None = Field(default=None, ge=1)
+    sell_mode: Optional[str] = None
+    selling_price: float | None = Field(default=None, ge=0)
+    pack_selling_price: float | None = Field(default=None, ge=0)
+
+
+class PurchaseOrderReceiveRequest(BaseModel):
+    items: list[PurchaseOrderReceiveItem]
+
+
+class PurchaseOrderPaymentCreate(BaseModel):
+    amount: float = Field(gt=0)
+    date: str
+    payment_method: str = "cash"
+    bill_no: Optional[str] = None
+    notes: str = ""
+
+
+class PurchaseOrderPaymentResponse(BaseModel):
+    amount: float
+    date: str
+    payment_method: str
+    bill_no: Optional[str] = None
+    notes: str = ""
+    expense_id: str = ""
+    created_by: str = ""
+    created_at: str
+
+
+def payment_to_response(payment: PurchaseOrderPayment) -> PurchaseOrderPaymentResponse:
+    created_at = payment.created_at
+    created_at_str = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
+    bill_no = (getattr(payment, "bill_no", None) or "").strip() or None
+    return PurchaseOrderPaymentResponse(
+        amount=payment.amount,
+        date=payment.date,
+        payment_method=payment.payment_method,
+        bill_no=bill_no,
+        notes=payment.notes or "",
+        expense_id=payment.expense_id or "",
+        created_by=payment.created_by or "",
+        created_at=created_at_str,
+    )
+
+
+class PurchaseOrderResponse(BaseModel):
+    id: str
+    order_number: str
+    supplier_id: str
+    supplier_name: str
+    status: POStatus
+    items: list[PurchaseOrderItemResponse]
+    items_count: int = 0
+    subtotal: float = 0.0
+    discount: float = 0.0
+    additional_charges: float = 0.0
+    total_amount: float
+    amount_paid: float = 0.0
+    payment_status: PaymentStatus = PaymentStatus.unpaid
+    payments: list[PurchaseOrderPaymentResponse] = Field(default_factory=list)
+    expected_delivery: Optional[str]
+    ordered_by: Optional[str]
+    received_by: Optional[str]
+    received_date: Optional[str]
+    bill_number: Optional[str] = None
+    bill_images: list[str] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
+
+
+class PurchaseOrderSummary(BaseModel):
+    total_purchases_amount: float = 0.0
+    total_purchases_count: int = 0
+    total_paid_amount: float = 0.0
+    amount_due: float = 0.0
+    amount_due_count: int = 0
+    pending_delivery_count: int = 0
+    pending_delivery_amount: float = 0.0
+    cancelled_count: int = 0
+    cancelled_amount: float = 0.0
+
+
+class PurchaseOrderListResponse(BaseModel):
+    data: list[PurchaseOrderResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    received_total_amount: float = 0.0
+    outstanding_amount: float = 0.0
+    summary: PurchaseOrderSummary = Field(default_factory=PurchaseOrderSummary)
