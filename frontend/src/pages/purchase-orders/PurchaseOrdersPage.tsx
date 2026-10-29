@@ -131,6 +131,7 @@ export function PurchaseOrdersPage() {
   const [search, setSearch] = useState("");
 
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
 
   const [status, setStatus] = useState<PurchaseOrderStatus | "">("");
 
@@ -173,7 +174,7 @@ export function PurchaseOrdersPage() {
 
     page: page + 1,
 
-    pageSize: 10,
+    pageSize,
 
     status: status || undefined,
 
@@ -200,7 +201,7 @@ export function PurchaseOrdersPage() {
 
       minWidth: 48,
 
-      render: (row) => rows.findIndex((r) => r.id === row.id) + 1,
+      render: (_, index) => index + 1,
     },
 
     {
@@ -751,7 +752,11 @@ export function PurchaseOrdersPage() {
 
         page={page}
 
-        pageSize={10}
+        pageSize={pageSize}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(0);
+        }}
 
         total={data?.total}
 
