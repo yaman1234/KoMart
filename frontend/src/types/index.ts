@@ -3,412 +3,737 @@ export type ThemeMode = 'light' | 'dark';
 export type UserRole = 'admin' | 'manager' | 'cashier';
 
 export interface Category {
+
   id: string;
+
   name: string;
+
   description: string;
+
   /** Two-digit SKU prefix (01–99). */
+
   code: string;
+
   isActive: boolean;
+
   createdAt: string;
+
 }
 
 export interface Uom {
+
   id: string;
+
   code: string;
+
   label: string;
+
   description: string;
+
   isActive: boolean;
+
   createdAt: string;
+
 }
 
 export interface ExpenseCategoryItem {
+
   id: string;
+
   code: string;
+
   label: string;
+
   description: string;
+
   isActive: boolean;
+
   isSystem: boolean;
+
   createdAt: string;
+
 }
 
 export interface UserListItem {
+
   id: string;
+
   name: string;
+
   email: string;
+
   role: UserRole;
+
   isActive: boolean;
+
   createdAt: string;
+
 }
 
 export interface AssignableUserItem {
+
   id: string;
+
   name: string;
+
   role?: UserRole;
+
 }
 
 export interface User {
+
   id: string;
+
   email: string;
+
   name: string;
+
   role: UserRole;
+
   avatar?: string;
+
   createdAt: string;
+
 }
 
 export interface AuthTokens {
+
   accessToken: string;
+
   refreshToken: string;
+
 }
 
 export interface LoginCredentials {
+
   email: string;
+
   password: string;
+
 }
 
 export type ProductStatus = 'active' | 'discontinued' | 'seasonal';
 
 export type DiscountRuleType =
+
   | 'product_percent'
+
   | 'product_flat'
+
   | 'product_bogo'
+
   | 'category_percent'
+
   | 'category_flat'
+
   | 'cart_percent'
+
   | 'cart_flat';
 
 export interface DiscountRule {
+
   id: string;
+
   name: string;
+
   code: string;
+
   ruleType: DiscountRuleType;
+
   value: number;
+
   productIds: string[];
+
   category: string;
+
   minCartTotal: number;
+
   minLineQty?: number;
+
   buyQty?: number;
+
   getQty?: number;
+
   sellUom?: string;
+
   maxDiscount: number;
+
   startsAt?: string;
+
   endsAt?: string;
+
   isActive: boolean;
+
   priority: number;
+
   createdAt: string;
+
   updatedAt: string;
+
 }
 
 export interface AppliedPromotion {
+
   ruleId: string;
+
   name: string;
+
   amount: number;
+
   productId?: string;
+
   sellUom?: string;
+
 }
 
 export interface ExcludedPromotion {
+
   ruleId: string;
+
   productId?: string;
+
   sellUom?: string;
+
 }
 
 export interface EvaluateDiscountResult {
+
   lineItems: Array<{
+
     productId: string;
+
     sellUom?: string;
+
     perUnitDiscount: number;
+
     lineDiscount: number;
+
   }>;
+
   lineDiscountTotal: number;
+
   cartDiscount: number;
+
   promotionDiscountTotal: number;
+
   appliedPromotions: AppliedPromotion[];
+
 }
 
 export interface CatalogStoreInfo {
+
   storeName: string;
+
   address: string;
+
   phone: string;
+
   email: string;
+
   logoUrl: string;
+
 }
 
 export interface CatalogOffer {
+
   id: string;
+
   name: string;
+
   ruleType: DiscountRuleType;
+
   value: number;
+
   productIds: string[];
+
   category: string;
+
   code?: string;
+
   buyQty?: number;
+
   getQty?: number;
+
   startsAt?: string;
+
   endsAt?: string;
+
 }
 
 export interface CatalogProduct {
+
   id: string;
+
   name: string;
+
   sku: string;
+
   barcode: string;
+
   brand: string;
+
   countryOfOrigin: string;
+
   category: string;
+
   description: string;
+
   uom: string;
+
   sellingPrice: number;
+
   images: string[];
+
   nutritionInfo?: string;
+
   allergenInfo?: string;
+
   status?: ProductStatus;
+
   tags?: string[];
+
   isPopular?: boolean;
+
   isTrending?: boolean;
+
   inStock?: boolean;
+
 }
 
 export interface Product {
+
   id: string;
+
   name: string;
+
   sku: string;
+
   barcode: string;
+
   brand: string;
+
   countryOfOrigin: string;
+
   category: string;
+
   supplierId: string;
+
   supplierName: string;
+
   description: string;
+
   buyUom?: string;
+
   buy_uom?: string;
+
   uom: string;
+
   unitsPerBuyUom?: number;
+
   units_per_buy_uom?: number;
+
   sellMode?: 'unit' | 'piece' | 'both';
+
   costPrice: number;
+
   cost_price?: number;
+
   sellingPrice: number;
+
   packSellingPrice?: number;
+
   marginPercent?: number;
+
   discountedAmount?: number;
+
   discountPercent?: number;
+
   offeredPrice?: number;
+
   packDiscountPercent?: number;
+
   packOfferedPrice?: number;
+
   images: string[];
+
   nutritionInfo?: string;
+
   allergenInfo?: string;
+
   stock: number;
+
   lowStockThreshold: number;
+
   status?: ProductStatus;
+
   tags?: string[];
+
   isPopular?: boolean;
+
   isTrending?: boolean;
+
   costPriceEffectiveFrom?: string;
+
   sellingPriceEffectiveFrom?: string;
+
   createdAt: string;
+
   updatedAt: string;
+
 }
 
 export interface ProductBulkUpdateItem {
+
   id: string;
+
   [key: string]: unknown;
+
 }
 
 export interface ProductBulkUpdateError {
+
   id: string;
+
   detail: string;
+
 }
 
 export interface ProductBulkUpdateResponse {
+
   updated: number;
+
   errors: ProductBulkUpdateError[];
+
 }
 
 export type ProductCreatePayload = Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'supplierName'>;
 
 export interface ProductBulkCreateItem extends ProductCreatePayload {
+
   row: number;
+
 }
 
 export interface ProductBulkCreateError {
+
   row: number;
+
   sku: string;
+
   detail: string;
+
 }
 
 export interface ProductBulkCreateResponse {
+
   created: number;
+
   errors: ProductBulkCreateError[];
+
 }
 
 export interface SkuSuggestItem {
+
   brand: string;
+
   category: string;
+
 }
 
 export interface SkuSuggestResponse {
+
   skus: string[];
+
 }
 
 export interface InventoryBatch {
+
   id: string;
+
   productId: string;
+
   batchNumber: string;
+
   quantity: number;
+
   receivedQuantity?: number | null;
+
   unitCost?: number;
+
   expiryDate?: string;
+
   purchaseOrderId?: string;
+
   receivedAt: string;
+
 }
 
 export interface PurchasePriceHistoryEntry {
+
   id: string;
+
   productId: string;
+
   purchasedAt: string;
+
   unitCost: number;
+
   quantity: number;
+
   baseQuantity?: number;
+
   purchaseOrderId: string;
+
   orderNumber: string;
+
   billNumber?: string | null;
+
   supplierId?: string;
+
   supplierName?: string;
+
   orderUom?: string;
+
   unitsPerBuyUom?: number;
+
 }
 
 export interface InventoryItem extends Product {
+
   batches: InventoryBatch[];
+
   batchCount: number;
+
   nearestExpiry?: string;
+
 }
 
 export interface InventoryStats {
+
   totalSkus: number;
+
   lowStock: number;
+
   outOfStock: number;
+
   expiring: number;
+
   inventoryValue: number;
+
 }
 
 export type StockAdjustmentType = 'adjustment' | 'damaged' | 'correction' | 'sale' | 'receive' | 'void' | 'purchase_return' | 'internal_use';
 
 export interface StockAdjustment {
+
   id: string;
+
   productId: string;
+
   productName?: string;
+
   batchId?: string;
+
   transactionId?: string;
+
   type: StockAdjustmentType;
+
   quantity: number;
+
   stockBefore?: number;
+
   stockAfter?: number;
+
   source?: 'manual' | 'sale';
+
   reason: string;
+
   createdBy: string;
+
   createdAt: string;
+
 }
 
 export type MovementDirection = 'in' | 'out';
 
 export type MovementReferenceType =
+
   | 'sale'
+
   | 'void'
+
   | 'receive'
+
   | 'purchase_order'
+
   | 'purchase_return'
+
   | 'adjustment'
+
   | 'damaged'
+
   | 'correction'
+
   | 'internal_use'
+
   | 'expense';
 
 export interface InventoryMovement {
+
   id: string;
+
   productId: string;
+
   productName: string;
+
   productSku: string;
+
   batchId?: string;
+
   transactionId?: string;
+
   referenceType: MovementReferenceType | string;
+
   referenceId: string;
+
   referenceLabel: string;
+
   transactionNumber?: string;
+
   type: StockAdjustmentType;
+
   direction: MovementDirection;
+
   movementLabel: string;
+
   quantity: number;
+
   stockBefore: number;
+
   stockAfter: number;
+
   unitCost?: number;
+
   extendedCost?: number;
+
   unitSellingPrice?: number;
+
   extendedRevenue?: number;
+
   reason: string;
+
   createdBy: string;
+
   createdAt: string;
+
 }
 
 export interface MovementSummary {
+
   movementCount: number;
+
   totalIn: number;
+
   totalOut: number;
+
   openingStock?: number | null;
+
   closingStock?: number | null;
+
   periodIn?: number | null;
+
   periodOut?: number | null;
+
   onHand?: number | null;
+
   variance?: number | null;
+
   outOfSyncCount?: number | null;
+
 }
 
 export interface InventoryIntegrityItem {
+
   productId: string;
+
   productName: string;
+
   productSku: string;
+
   onHand: number;
+
   ledgerClose: number;
+
   variance: number;
+
 }
 
 export interface InventoryIntegrityResponse {
+
   outOfSyncCount: number;
+
   data: InventoryIntegrityItem[];
+
   total: number;
+
   page: number;
+
   pageSize: number;
+
   totalPages: number;
+
 }
 
 export interface InventoryMovementQueryParams {
+
   page?: number;
+
   pageSize?: number;
+
   productId?: string;
+
   search?: string;
+
   direction?: '' | 'in' | 'out';
+
   movementType?: '' | MovementReferenceType;
+
   startDate?: string;
+
   endDate?: string;
+
 }
 
 export interface Supplier {
+
   id: string;
+
   name: string;
+
   country: string;
+
   contactPerson: string;
+
   phone: string;
+
   email?: string;
+
   address: string;
+
   createdAt: string;
+
 }
 
 export type PurchaseOrderStatus =
+
   | 'draft'
+
   | 'ordered'
+
   | 'partial'
+
   | 'received'
+
   | 'cancelled';
 
 export type PurchaseOrderPaymentStatus = 'unpaid' | 'partial' | 'paid';
@@ -416,74 +741,145 @@ export type PurchaseOrderPaymentStatus = 'unpaid' | 'partial' | 'paid';
 export type PurchaseOrderLineStatus = 'pending' | 'partial' | 'received';
 
 export interface PurchaseOrderItem {
+
   productId: string;
+
   productName: string;
+
   quantity: number;
+
   unitCost: number;
+
   receivedQuantity: number;
+
   orderUom?: string;
+
   baseUom?: string;
+
   unitsPerBuyUom?: number;
+
   lineStatus?: PurchaseOrderLineStatus;
+
 }
 
 export interface PurchaseOrderPayment {
+
   amount: number;
+
   date: string;
+
   paymentMethod: string;
+
   billNo?: string;
+
   notes?: string;
+
   expenseId?: string;
+
   createdBy?: string;
+
   createdAt: string;
+
 }
 
 export interface PurchaseOrderPaymentPayload {
+
   amount: number;
+
   date: string;
+
   paymentMethod: string;
+
   billNo?: string;
+
   notes?: string;
+
 }
 
 /** Payload for create/update — lineStatus is computed by the API on read */
+
 export type PurchaseOrderWritePayload = Omit<
+
   PurchaseOrder,
+
   'id' | 'orderNumber' | 'createdAt' | 'updatedAt' | 'items' | 'amountPaid' | 'paymentStatus' | 'payments'
+
 > & {
+
   items: Omit<PurchaseOrderItem, 'lineStatus'>[];
+
 };
 
 /** Status-independent bill update (PATCH /purchase-orders/{id}/bill) */
+
 export interface PurchaseOrderBillPayload {
+
   billNumber?: string | null;
+
   billImages?: string[];
+
 };
 
 export interface PurchaseOrder {
+
   id: string;
+
   orderNumber: string;
+
   supplierId: string;
+
   supplierName: string;
+
   status: PurchaseOrderStatus;
+
   items: PurchaseOrderItem[];
+
   /** Present on lean list responses when items[] is empty. */
+
   itemsCount?: number;
+
   subtotal?: number;
+
   discount?: number;
+
   additionalCharges?: number;
+
   totalAmount: number;
+
   amountPaid?: number;
+
   paymentStatus?: PurchaseOrderPaymentStatus;
+
   payments?: PurchaseOrderPayment[];
+
   expectedDelivery?: string;
+
   orderedBy?: string;
+
   receivedBy?: string;
+
   receivedDate?: string;
+
   billNumber?: string;
+
   billImages?: string[];
+
   createdAt: string;
+
   updatedAt: string;
+
+}
+
+export interface PurchaseOrderSummary {
+  totalPurchasesAmount: number;
+  totalPurchasesCount: number;
+  totalPaidAmount: number;
+  amountDue: number;
+  amountDueCount: number;
+  pendingDeliveryCount: number;
+  pendingDeliveryAmount: number;
+  cancelledCount: number;
+  cancelledAmount: number;
 }
 
 export interface PurchaseOrderListResponse {
@@ -494,141 +890,251 @@ export interface PurchaseOrderListResponse {
   totalPages: number;
   receivedTotalAmount: number;
   outstandingAmount?: number;
+  summary?: PurchaseOrderSummary;
 }
 
 export interface PurchaseOrderReceiveItem {
+
   productId: string;
+
   receiveQuantity: number;
+
   expiryDate?: string;
+
   unitsPerBuyUom?: number;
+
   sellMode?: 'unit' | 'piece' | 'both';
+
   sellingPrice?: number;
+
   packSellingPrice?: number;
+
 }
 
 export type PurchaseReturnMode = 'po_linked' | 'supplier';
+
 export type PurchaseReturnStatus = 'requested' | 'closed';
+
 export type PurchaseReturnSettlement = 'refund' | 'reduce_payable' | 'stock_only';
+
 export type PurchaseReturnReason =
+
   | 'damaged'
+
   | 'wrong_item'
+
   | 'expired'
+
   | 'quality'
+
   | 'other';
 
 export interface PurchaseReturnItem {
+
   productId: string;
+
   productName: string;
+
   returnQty: number;
+
   unitCost: number;
+
   lineTotal: number;
+
   baseUom?: string;
+
 }
 
 export interface PurchaseReturnPayment {
+
   id: string;
+
   date: string;
+
   amount: number;
+
   wallet: string;
+
   remarks?: string;
+
   createdBy?: string;
+
 }
 
 export interface PurchaseReturn {
+
   id: string;
+
   returnNumber: string;
+
   returnMode: PurchaseReturnMode;
+
   purchaseOrderId?: string;
+
   orderNumber?: string;
+
   supplierId: string;
+
   supplierName: string;
+
   items: PurchaseReturnItem[];
+
   totalAmount: number;
+
   amountReceived?: number;
+
   amountOutstanding?: number;
+
   writeOffAmount?: number;
+
   writeOffReason?: string;
+
   remarks?: string;
+
   reason: PurchaseReturnReason;
+
   settlementType: PurchaseReturnSettlement;
+
   status: PurchaseReturnStatus | string;
+
   paymentMethod?: string;
+
   returnDate: string;
+
   createdBy: string;
+
   createdAt: string;
+
   updatedAt: string;
+
   confirmedAt?: string | null;
+
   closedAt?: string | null;
+
   writeOffAt?: string | null;
+
   payments?: PurchaseReturnPayment[];
+
 }
 
 export interface PurchaseReturnableLine {
+
   productId: string;
+
   productName: string;
+
   availableQty: number;
+
   unitCost: number;
+
   baseUom: string;
+
   receivedQuantity?: number;
+
   unitsPerBuyUom?: number;
+
   sku?: string;
+
 }
 
 export interface PurchaseReturnCreatePayload {
+
   returnMode: PurchaseReturnMode;
+
   purchaseOrderId?: string;
+
   supplierId?: string;
+
   items: Array<{ productId: string; returnQty: number }>;
+
   remarks?: string;
+
   paymentMethod?: string;
+
   returnDate?: string;
+
   settlementType: PurchaseReturnSettlement;
+
   reason?: PurchaseReturnReason;
+
 }
 
 export interface PurchaseReturnListResponse {
+
   data: PurchaseReturn[];
+
   total: number;
+
 }
 
 export interface PurchaseReturnSummary {
+
   outstandingReceivable: number;
+
   refundsReceivedToday: number;
+
   refundsReceivedMonth: number;
+
   openRequestedCount: number;
+
 }
 
 export type MembershipTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
 export interface Customer {
+
   id: string;
+
   name: string;
+
   phone: string;
+
   email: string;
+
   birthday?: string;
+
   loyaltyPoints: number;
+
   membershipTier: MembershipTier;
+
   totalSpent: number;
+
   createdAt: string;
+
 }
 
 export type PaymentMethod = 'cash' | 'bank' | 'card' | 'esewa';
 
 export interface CartItem {
+
   productId: string;
+
   name: string;
+
   sku: string;
+
   image?: string;
+
   price: number;
+
   quantity: number;
+
   discount: number;
+
   sellUom?: string;
+
   unitFactor?: number;
+
   uom?: string;
+
   category?: string;
+
   listPrice?: number;
+
   unitCost?: number;
+
   batchAllocations?: Array<{ batchId: string; quantity: number; unitCost: number }>;
+
 }
 
 export type TransactionStatus = 'completed' | 'voided';
@@ -636,1587 +1142,2902 @@ export type TransactionStatus = 'completed' | 'voided';
 export type OrderSource = 'whatsapp' | 'instagram' | 'tiktok' | 'facebook' | 'phone_call';
 
 export interface Transaction {
+
   id: string;
+
   transactionNumber: string;
+
   customerId?: string;
+
   customerName?: string;
+
   items: CartItem[];
+
   subtotal: number;
+
   discount: number;
+
   promotionDiscount?: number;
+
   manualDiscount?: number;
+
   appliedPromotions?: AppliedPromotion[];
+
   excludedPromotions?: ExcludedPromotion[];
+
   couponCode?: string;
+
   tax: number;
+
   loyaltyPointsRedeemed: number;
+
   total: number;
+
   totalCost?: number;
+
   paymentMethod: PaymentMethod;
+
   status?: TransactionStatus;
+
   voidReason?: string;
+
   notes?: string;
+
   isOnlineOrder?: boolean;
+
   orderSource?: OrderSource;
+
   saleDate?: string;
+
   roundOff?: number;
+
   createdAt: string;
+
   createdBy: string;
+
 }
 
 export interface TransactionUpdatePayload {
+
   customerId?: string | null;
+
   customerName?: string;
+
   paymentMethod?: PaymentMethod;
+
   discount?: number;
+
   manualDiscount?: number;
+
   loyaltyPointsRedeemed?: number;
+
   tax?: number;
+
   roundOff?: number;
+
   notes?: string;
+
   items?: Array<{ productId: string; quantity: number; unitPrice: number; lineDiscount: number }>;
+
   expected_version?: number;
+
 }
 
 export interface BackfillSaleLinePayload {
+
   row: number;
+
   transactionNo: string;
+
   saleDate: string;
+
   sku?: string;
+
   barcode?: string;
+
   quantity: number;
+
   unitPrice?: number;
+
   discountAmount?: number;
+
   paymentMethod: string;
+
   customerPhone?: string;
+
   customerName?: string;
+
   notes?: string;
+
 }
 
 export interface BackfillSaleError {
+
   transactionNo: string;
+
   rows: number[];
+
   detail: string;
+
 }
 
 export interface BackfillSalesResponse {
+
   created: Transaction[];
+
   errors: BackfillSaleError[];
+
   createdCount: number;
+
   errorCount: number;
+
   expectedTotal?: number;
+
   actualTotal?: number;
+
   difference?: number;
+
 }
 
 export interface BackfillSalesRequestPayload {
+
   lines: BackfillSaleLinePayload[];
+
   expectedTotal: number;
+
   actualTotal: number;
+
 }
 
 export interface BackfillValidateResponse {
+
   ok: boolean;
+
   errors: BackfillSaleError[];
+
   errorCount: number;
+
 }
 
 export interface BackfillVariancePayload {
+
   expectedTotal: number;
+
   actualTotal: number;
+
   difference: number;
+
   date?: string;
+
   wallet?: string;
+
 }
 
 export interface BackfillVarianceResponse {
+
   id: string;
+
   wallet: string;
+
   amount: number;
+
   direction: string;
+
   date: string;
+
   remarks: string;
+
   expectedTotal: number;
+
   actualTotal: number;
+
   difference: number;
+
 }
 
 export type NotificationType =
+
   | 'low_stock'
+
   | 'expiry'
+
   | 'purchase_reminder'
+
   | 'system';
 
 export interface AppNotification {
+
   id: string;
+
   type: NotificationType;
+
   title: string;
+
   message: string;
+
   read: boolean;
+
   createdAt: string;
+
   link?: string;
+
 }
 
 export interface DashboardStats {
+
   todaySales: number;
+
   weeklySales: number;
+
   monthlySales: number;
+
   totalProducts: number;
+
   lowStockProducts: number;
+
   expiringProducts: number;
+
   inventoryValue: number;
+
   customerCount: number;
+
   monthlyExpenses: number;
+
   netRevenue: number;
+
 }
 
 export interface DayWiseTransactions {
+
   todaySale: number;
+
   todayCashSale: number;
+
   todayBankSale: number;
+
   todayEsewaSale: number;
+
   todayExpense: number;
+
   todayCashExpense: number;
+
   todayBankExpense: number;
+
   todayEsewaExpense: number;
+
 }
 
 export interface RevenueDataPoint {
+
   date: string;
+
   revenue: number;
+
 }
 
 export interface TopProduct {
+
   productId: string;
+
   name: string;
+
   quantitySold: number;
+
   revenue: number;
+
 }
 
 /** Reports Items Sold — product-level aggregate for the selected period */
+
 export interface SoldProduct {
+
   productId: string;
+
   name: string;
+
   quantitySold: number;
+
   unitSellingPrice: number;
+
   lineDiscount?: number;
+
   billDiscount?: number;
+
   discountGiven: number;
+
   lineTotal: number;
+
   revenue: number;
+
 }
 
 export interface KpiPeriodAmount {
+
   fiscalYear: number;
+
   month: number;
+
   day: number;
+
 }
 
 export interface DashboardKpiSummary {
+
   fiscalYearStart: string;
+
   sales: KpiPeriodAmount;
+
   purchase: KpiPeriodAmount;
+
   receivables: {
+
     outstanding: number;
+
   };
+
   payables: {
+
     outstanding: number;
+
     monthPaid: number;
+
     dayPaid: number;
+
   };
+
   cashBank: {
+
     total: number;
+
     cash: number;
+
     bank: number;
+
     esewa: number;
+
     monthNet: number;
+
     dayNet: number;
+
   };
+
 }
 
 export interface CashFlowPoint {
+
   date: string;
+
   inflow: number;
+
   outflow: number;
+
   salesInflow?: number;
+
   returnInflow?: number;
+
 }
 
 export interface NamedAmountPoint {
+
   name: string;
+
   amount: number;
+
 }
 
 export interface TopProfitProduct {
+
   productId: string;
+
   name: string;
+
   profit: number;
+
   revenue: number;
+
   quantitySold: number;
+
 }
 
 export interface SalesCollectionPoint {
+
   date: string;
+
   sales: number;
+
   collection: number;
+
 }
 
 export interface StoreSettings {
+
   storeName: string;
+
   address: string;
+
   phone: string;
+
   email: string;
+
   logoUrl: string;
+
   pan: string;
+
   vatNumber: string;
+
   currency: string;
+
   taxRate: number;
+
   taxInclusive: boolean;
+
   receiptHeader: string;
+
   receiptFooter: string;
+
   autoPrint: boolean;
+
   defaultPaymentMethod: PaymentMethod;
+
   defaultLowStockThreshold: number;
+
   expiryWarningDays: number;
+
   autoSku: boolean;
+
   barcodeFormat: string;
+
   loyaltyPointsPerCurrency: number;
+
   loyaltyRedeemRate: number;
+
   transactionPrefix: string;
+
   purchaseOrderPrefix: string;
+
   dateFormat: string;
+
   timeFormat: '12h' | '24h';
+
   calendarSystem: 'AD' | 'BS';
+
   fiscalYearStartMonth: number;
+
   fiscalYearStartDay: number;
+
   openingCashBalance: number;
+
   openingBankBalance: number;
+
   openingEsewaBalance: number;
+
 }
 
 export interface ReceiptBranding {
+
   storeName: string;
+
   address?: string;
+
   phone?: string;
+
   receiptHeader?: string;
+
   receiptFooter?: string;
+
 }
 
 export interface UserPreferences {
+
   language: string;
+
   theme: ThemeMode;
+
   sidebarCollapsed: boolean;
+
   dashboardLayout?: DashboardWidgetLayout[];
+
 }
 
 export interface DashboardWidgetLayout {
+
   i: string;
+
   x: number;
+
   y: number;
+
   w: number;
+
   h: number;
+
 }
 
 export interface PaginatedResponse<T> {
+
   data: T[];
+
   total: number;
+
   page: number;
+
   pageSize: number;
+
   totalPages: number;
+
   totalAmount?: number;
+
 }
 
 export interface PaymentMethodSummary {
+
   amount: number;
+
   count: number;
+
 }
 
 export interface TransactionPaymentBreakdown {
+
   cash: PaymentMethodSummary;
+
   bank: PaymentMethodSummary;
+
   esewa: PaymentMethodSummary;
+
 }
 
 export interface TransactionListResponse extends PaginatedResponse<Transaction> {
+
   completedAmount?: number;
+
   completedCount?: number;
+
   voidedAmount?: number;
+
   voidedCount?: number;
+
   paymentBreakdown?: TransactionPaymentBreakdown;
+
 }
 
 /** Inventory list includes filtered stock×cost total for the Value footer. */
+
 export interface InventoryListResponse extends PaginatedResponse<InventoryItem> {
+
   totalStockValue?: number;
+
 }
 
 export interface ApiError {
+
   message: string;
+
   code?: string;
+
   details?: Record<string, string[]>;
+
 }
 
 export interface DateRange {
+
   startDate: string;
+
   endDate: string;
+
 }
 
 export interface SalesSummary {
+
   totalRevenue: number;
+
   transactionCount: number;
+
   avgBasket: number;
+
   totalUnitsSold: number;
+
   totalDiscount: number;
+
   billDiscount: number;
+
   tax: number;
+
   roundOff: number;
+
 }
 
 export interface SalesByPaymentMethod {
+
   paymentMethod: string;
+
   revenue: number;
+
   count: number;
+
 }
 
 export interface SalesByCategory {
+
   category: string;
+
   revenue: number;
+
   count: number;
+
 }
 
 export interface InventoryCategoryBreakdown {
+
   category: string;
+
   skuCount: number;
+
   totalStock: number;
+
   stockValue: number;
+
 }
 
 export interface InventoryReportSummary {
+
   totalSkus: number;
+
   lowStock: number;
+
   outOfStock: number;
+
   expiring: number;
+
   inventoryValue: number;
+
   byCategory: InventoryCategoryBreakdown[];
+
 }
 
 export interface ExpiringProductRow {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   category: string;
+
   batchNumber: string;
+
   quantity: number;
+
   expiryDate: string;
+
   daysUntilExpiry: number;
+
 }
 
 export interface LowStockProductRow {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   category: string;
+
   stock: number;
+
   lowStockThreshold: number;
+
   status: 'low' | 'out';
+
   productStatus?: ProductStatus;
+
 }
 
 export interface ProfitDataPoint {
+
   date: string;
+
   revenue: number;
+
   cogs: number;
+
   grossProfit: number;
+
 }
 
 export interface ProfitSummary {
+
   totalRevenue: number;
+
   totalCogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
   totalDiscount: number;
+
   daily: ProfitDataPoint[];
+
 }
 
 export interface MarginByCategory {
+
   category: string;
+
   revenue: number;
+
   cogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
 }
 
 export interface PurchasingBySupplier {
+
   supplierId: string;
+
   supplierName: string;
+
   totalAmount: number;
+
   orderCount: number;
+
 }
 
 export interface PurchaseOrderStatusCount {
+
   status: string;
+
   count: number;
+
 }
 
 export interface PurchaseOrdersSummary {
+
   totalOrders: number;
+
   totalAmount: number;
+
   byStatus: PurchaseOrderStatusCount[];
+
 }
 
 export interface TopCustomer {
+
   customerId: string;
+
   customerName: string;
+
   transactionCount: number;
+
   totalSpent: number;
+
 }
 
 export interface LoyaltySummary {
+
   pointsRedeemed: number;
+
   activeMembers: number;
+
   newCustomers: number;
+
   totalMembers: number;
+
 }
 
 export interface SalesByHour {
+
   hour: number;
+
   label: string;
+
   revenue: number;
+
   transactionCount: number;
+
 }
 
 export interface SalesByDayOfWeek {
+
   day: number;
+
   label: string;
+
   revenue: number;
+
   transactionCount: number;
+
 }
 
 export interface SalesByCashier {
+
   cashier: string;
+
   revenue: number;
+
   transactionCount: number;
+
 }
 
 export interface DeadStockProduct {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   category: string;
+
   stock: number;
+
   stockValue: number;
+
   daysWithoutSale: number;
+
   productStatus?: ProductStatus;
+
 }
 
 export interface ListQueryParams {
+
   page?: number;
+
   pageSize?: number;
+
   search?: string;
+
   sortBy?: string;
+
   sortOrder?: 'asc' | 'desc';
+
   productId?: string;
+
   paymentMethod?: string;
+
   status?: string;
+
   startDate?: string;
+
   endDate?: string;
+
   lean?: boolean;
+
   includeSummary?: boolean;
+
   [key: string]: string | number | boolean | undefined;
+
 }
 
 export type ExpenseCategory = string;
 
 export interface ConsumedProductItem {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   quantity: number;
+
   unitCost: number;
+
   totalCost: number;
+
 }
 
 export interface Expense {
+
   id: string;
+
   title: string;
+
   description?: string;
+
   amount: number;
+
   category: ExpenseCategory;
+
   date: string;
+
   paidTo?: string;
+
   billNo?: string;
+
   paymentMethod?: string;
+
   isSetupCost: boolean;
+
   purchaseOrderId?: string;
+
   items?: ConsumedProductItem[];
+
   createdAt: string;
+
   updatedAt: string;
+
 }
 
 export interface ProductConsumptionPayload {
+
   items: { product_id: string; quantity: number }[];
+
   staff_name: string;
+
   category?: string;
+
   date: string;
+
   remarks?: string;
+
   bill_no?: string;
+
 }
 
 export type ExpenseWritePayload = Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>;
 
 export interface ExpenseByCategory {
+
   category: string;
+
   amount: number;
+
   count: number;
+
 }
 
 export interface ExpenseDataPoint {
+
   date: string;
+
   amount: number;
+
 }
 
 export interface ExpenseSummary {
+
   totalExpenses: number;
+
   setupInvestment: number;
+
   operatingExpenses?: number;
+
   byCategory: ExpenseByCategory[];
+
   daily: ExpenseDataPoint[];
+
 }
 
 export interface ExpenseStats {
+
   totalExpenses: number;
+
   thisMonth: number;
+
   setupInvestment: number;
+
   operatingExpenses?: number;
+
   cashOutflow?: number;
+
   inventoryConsumption?: number;
+
   totalPoPaid?: number;
+
   expenseCount?: number;
+
 }
 
 export interface DailySalesBlock {
+
   totalRevenue: number;
+
   transactionCount: number;
+
 }
 
 export interface DailyExpensesBlock {
+
   total: number;
+
   setupInvestment: number;
+
   operating: number;
+
 }
 
 export interface DailyCashBlock {
+
   opening: number;
+
   cashSales: number;
+
   cashExpenses: number;
+
   transfersIn?: number;
+
   transfersOut?: number;
+
   adjustmentsIn?: number;
+
   adjustmentsOut?: number;
+
   expected: number;
+
   closing: number;
+
   variance: number;
+
 }
 
 export interface WalletDayBookBlock {
+
   wallet: string;
+
   opening: number;
+
   salesIn: number;
+
   expensesOut: number;
+
   transfersIn: number;
+
   transfersOut: number;
+
   adjustmentsIn: number;
+
   adjustmentsOut: number;
+
   custodyIn?: number;
+
   custodyOut?: number;
+
   expected: number;
+
   closing?: number | null;
+
   variance?: number | null;
+
   variancePosted?: boolean;
+
 }
 
 export interface DayCloseRecord {
+
   date: string;
+
   openingCash: number;
+
   closingCash: number;
+
   closingBank?: number | null;
+
   closingEsewa?: number | null;
+
   notes?: string;
+
   status?: 'open' | 'closed' | string;
+
   closedAt?: string | null;
+
   closedBy?: string;
+
   updatedBy?: string;
+
   updatedAt?: string;
+
 }
 
 export interface DailySummary {
+
   date: string;
+
   sales: DailySalesBlock;
+
   expenses: DailyExpensesBlock;
+
   byPaymentMethod: SalesByPaymentMethod[];
+
   cash: DailyCashBlock;
+
   wallets?: WalletDayBookBlock[];
+
   dayClose?: DayCloseRecord | null;
+
 }
 
 export interface DayCloseUpsertPayload {
+
   openingCash: number;
+
   closingCash: number;
+
   closingBank?: number | null;
+
   closingEsewa?: number | null;
+
   notes?: string;
+
 }
 
 export type WalletCode = 'cash' | 'bank' | 'esewa';
 
 export interface WalletBalances {
+
   cash: number;
+
   cashTillExpected?: number;
+
   cashWithStaff?: number;
+
   bank: number;
+
   esewa: number;
+
   asOf: string;
+
 }
 
 export interface CashCustody {
+
   id: string;
+
   amount: number;
+
   heldByUserId: string;
+
   heldByName: string;
+
   status: 'held' | 'returned' | 'deposited' | string;
+
   takenDate: string;
+
   takenAt?: string;
+
   resolvedDate?: string | null;
+
   resolvedAt?: string | null;
+
   depositWallet?: string | null;
+
   remarks: string;
+
   takenLedgerId?: string;
+
   resolveLedgerId?: string;
+
   createdBy?: string;
+
 }
 
 export interface CashCustodySummary {
+
   totalHeld: number;
+
   byHolder: Array<{ userId: string; name: string; amount: number }>;
+
 }
 
 export interface CashCustodyTakePayload {
+
   amount: number;
+
   heldByUserId: string;
+
   takenDate: string;
+
   remarks: string;
+
 }
 
 export interface CashCustodyReturnPayload {
+
   resolvedDate: string;
+
   remarks?: string;
+
 }
 
 export interface CashCustodyDepositPayload {
+
   wallet: 'bank' | 'esewa' | string;
+
   resolvedDate: string;
+
   remarks?: string;
+
 }
 
 export interface DayOpeningSuggestion {
+
   date: string;
+
   suggestedOpeningCash: number;
+
   yesterdayClosingCash?: number | null;
+
   yesterdayDate?: string | null;
+
 }
 
 export interface WalletLedgerEntry {
+
   id: string;
+
   date: string;
+
   wallet: WalletCode | string;
+
   direction: 'in' | 'out' | string;
+
   amount: number;
+
   entryType: string;
+
   remarks: string;
+
   referenceType?: string;
+
   referenceId?: string;
+
   transferId?: string;
+
   createdBy?: string;
+
   createdAt?: string;
+
 }
 
 export interface WalletTransferPayload {
+
   fromWallet: WalletCode | string;
+
   toWallet: WalletCode | string;
+
   amount: number;
+
   date: string;
+
   remarks: string;
+
 }
 
 export interface WalletAdjustmentPayload {
+
   wallet: WalletCode | string;
+
   amount: number;
+
   direction: 'in' | 'out';
+
   date: string;
+
   remarks: string;
+
 }
 
 // ── Stock Count ──────────────────────────────────────────────────────────────
 
 export type StockCountStatus =
+
   | 'draft'
+
   | 'counting'
+
   | 'submitted'
+
   | 'under_review'
+
   | 'recount_required'
+
   | 'approved'
+
   | 'completed'
+
   | 'cancelled';
 
 export type StockCountType = 'full' | 'category' | 'section' | 'selected';
+
 export type StockCountMode = 'blind' | 'assisted';
 
 export interface StockCountItem {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   barcode: string;
+
   category: string;
+
   uom: string;
+
   imageUrl: string;
+
   unitCost: number;
+
   snapshotQty: number;   // -1 means hidden (blind mode)
+
   unitsSoldInWindow: number;
+
   adjustedSnapshotQty: number | null;
+
   physicalQty: number | null;
+
   recountQty: number | null;
+
   finalQty: number | null;
+
   varianceQty: number | null;
+
   varianceValue: number | null;
+
   reason: string;
+
   reasonNote: string;
+
   countedBy: string;
+
   countedAt: string | null;
+
   recountedBy: string;
+
   recountedAt: string | null;
+
 }
 
 export interface StockCountAuditEntry {
+
   action: string;
+
   userName: string;
+
   userId: string;
+
   timestamp: string;
+
   note: string;
+
 }
 
 export interface StockCount {
+
   id: string;
+
   countNumber: string;
+
   status: StockCountStatus;
+
   countType: StockCountType;
+
   countMode: StockCountMode;
+
   categoryFilter: string;
+
   notes: string;
+
   items: StockCountItem[];
+
   auditTrail: StockCountAuditEntry[];
+
   snapshotTakenAt: string | null;
+
   totalProducts: number;
+
   countedProducts: number;
+
   matchedCount: number;
+
   shortCount: number;
+
   excessCount: number;
+
   shortageValue: number;
+
   excessValue: number;
+
   netVarianceValue: number;
+
   stockAccuracyPct: number;
+
   createdBy: string;
+
   approvedBy: string;
+
   adjustmentId: string;
+
   countDate: string;
+
   createdAt: string;
+
   updatedAt: string;
+
 }
 
 export interface StockCountListItem {
+
   id: string;
+
   countNumber: string;
+
   status: StockCountStatus;
+
   countType: StockCountType;
+
   countMode: StockCountMode;
+
   categoryFilter: string;
+
   totalProducts: number;
+
   countedProducts: number;
+
   matchedCount: number;
+
   shortCount: number;
+
   excessCount: number;
+
   netVarianceValue: number;
+
   stockAccuracyPct: number;
+
   createdBy: string;
+
   approvedBy: string;
+
   adjustmentId: string;
+
   countDate: string;
+
   createdAt: string;
+
 }
 
 export interface StockCountListResponse {
+
   data: StockCountListItem[];
+
   total: number;
+
   page: number;
+
   pageSize: number;
+
   totalPages: number;
+
 }
 
 export interface StockCountCreatePayload {
+
   countType: StockCountType;
+
   countMode: StockCountMode;
+
   categoryFilter?: string;
+
   productIds?: string[];
+
   notes?: string;
+
   countDate?: string;
+
 }
 
 export type AuditModule =
+
   | 'auth'
+
   | 'products'
+
   | 'inventory'
+
   | 'sales'
+
   | 'purchase_orders'
+
   | 'settings'
+
   | 'users'
+
   | 'expenses'
+
   | 'accounts';
 
 export interface AuditLog {
+
   id: string;
+
   userId: string;
+
   userName: string;
+
   userEmail: string;
+
   module: AuditModule;
+
   action: string;
+
   entityType: string;
+
   entityId: string;
+
   previousValue: Record<string, unknown>;
+
   newValue: Record<string, unknown>;
+
   ipAddress: string;
+
   userAgent: string;
+
   browser: string;
+
   device: string;
+
   requestId: string;
+
   createdAt: string;
+
 }
 
 export interface AuditLogQueryParams {
+
   page?: number;
+
   pageSize?: number;
+
   module?: string;
+
   action?: string;
+
   userId?: string;
+
   entityType?: string;
+
   entityId?: string;
+
   startDate?: string;
+
   endDate?: string;
+
 }
+
 // ── Bank & FonePay Reconciliation ────────────────────────────────────────────
 
 export type ReconciliationStatus = 'reconciled' | 'difference';
 
 export interface BankReconciliation {
+
   id: string;
+
   date: string;
+
   isInitial: boolean;
+
   previousBankBalance: number;
+
   previousFonePayBalance: number;
+
   todayBankSalesIn: number;
+
   todayOtherBankIn: number;
+
   todayBankExpenses: number;
+
   todayTransfersIn: number;
+
   todayTransfersOut: number;
+
   todayAdjustmentsIn: number;
+
   todayAdjustmentsOut: number;
+
   todayCustodyIn: number;
+
   todayCustodyOut: number;
+
   expectedBalance: number;
+
   todayBankBalance: number;
+
   todayFonePayBalance: number;
+
   actualBalance: number;
+
   difference: number;
+
   status: ReconciliationStatus;
+
   notes?: string;
+
   createdAt: string;
+
   updatedAt: string;
+
   createdBy: string;
+
   updatedBy?: string;
+
 }
 
 export interface BankReconciliationCreatePayload {
+
   date: string;
+
   isInitial: boolean;
+
   previousBankBalance?: number;
+
   previousFonePayBalance?: number;
+
   todayOtherBankIn: number;
+
   todayBankBalance: number;
+
   todayFonePayBalance: number;
+
   notes?: string;
+
 }
 
 export interface BankReconciliationListResponse {
+
   data: BankReconciliation[];
+
   total: number;
+
   page: number;
+
   pageSize: number;
+
   totalPages: number;
+
 }
 
 export interface BankReconciliationDayData {
+
   date: string;
+
   todayBankSalesIn: number;
+
   todayBankExpenses: number;
+
   todayTransfersIn: number;
+
   todayTransfersOut: number;
+
   todayAdjustmentsIn: number;
+
   todayAdjustmentsOut: number;
+
   todayCustodyIn: number;
+
   todayCustodyOut: number;
+
   previousRecord: BankReconciliation | null;
+
 }
 
 // ── Cash Reconciliation (Daily Cash Book) ────────────────────────────────────
 
 export interface CashDenomination {
+
   denomination: number;
+
   quantity: number;
+
   amount: number;
+
 }
 
 export interface CashReconciliation {
+
   id: string;
+
   date: string;
+
   isInitial: boolean;
+
   openingCash: number;
+
   todayCashSalesIn: number;
+
   todayOtherCashIn: number;
+
   todayCashExpenses: number;
+
   todayTransfersIn: number;
+
   todayTransfersOut: number;
+
   todayAdjustmentsIn: number;
+
   todayAdjustmentsOut: number;
+
   todayCustodyIn: number;
+
   todayCustodyOut: number;
+
   expectedClosingCash: number;
+
   actualClosingCash: number;
+
   difference: number;
+
   status: ReconciliationStatus;
+
   notes?: string;
+
   cashCountMode?: 'direct' | 'denomination';
+
   denominations?: CashDenomination[];
+
   createdAt: string;
+
   updatedAt: string;
+
   createdBy: string;
+
   updatedBy?: string;
+
 }
 
 export interface CashReconciliationCreatePayload {
+
   date: string;
+
   isInitial: boolean;
+
   openingCash?: number;
+
   todayOtherCashIn: number;
+
   actualClosingCash: number;
+
   notes?: string;
+
   cashCountMode?: 'direct' | 'denomination';
+
   denominations?: CashDenomination[];
+
 }
 
 export interface CashReconciliationListResponse {
+
   data: CashReconciliation[];
+
   total: number;
+
   page: number;
+
   pageSize: number;
+
   totalPages: number;
+
 }
 
 export interface CashReconciliationDayData {
+
   date: string;
+
   todayCashSalesIn: number;
+
   todayCashExpenses: number;
+
   todayTransfersIn: number;
+
   todayTransfersOut: number;
+
   todayAdjustmentsIn: number;
+
   todayAdjustmentsOut: number;
+
   todayCustodyIn: number;
+
   todayCustodyOut: number;
+
   previousRecord: CashReconciliation | null;
+
 }
 
 // ---------------------------------------------------------------------------
+
 // Phase 2 & 3: Institutional-Grade Retail Accounting Report Types
+
 // ---------------------------------------------------------------------------
 
 export interface TradingPnLWaterfall {
+
   grossSales: number;
+
   itemMarkdowns: number;
+
   billDiscounts: number;
+
   totalDiscounts: number;
+
   netSales: number;
+
   totalCogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
   operatingExpenses: number;
+
   operatingProfit: number; // EBIT
+
   operatingMarginPct: number;
+
   setupInvestment: number;
+
   netProfit: number;
+
   // Fallbacks
+
   gross_sales?: number;
+
   item_markdowns?: number;
+
   bill_discounts?: number;
+
   total_discounts?: number;
+
   net_sales?: number;
+
   total_cogs?: number;
+
   gross_profit?: number;
+
   gross_margin_pct?: number;
+
   operating_expenses?: number;
+
   operating_profit?: number;
+
   operating_margin_pct?: number;
+
   setup_investment?: number;
+
   net_profit?: number;
+
 }
 
 export interface CashToProfitBridge {
+
   accrualOperatingProfit: number;
+
   nonCashConsumption: number;
+
   cogsInventoryReduction: number;
+
   supplierPoPayments: number;
+
   supplierRefundsCollected: number;
+
   timingFloatDifference: number;
+
   netCashFlow: number;
+
   // Fallbacks
+
   accrual_operating_profit?: number;
+
   non_cash_consumption?: number;
+
   cogs_inventory_reduction?: number;
+
   supplier_po_payments?: number;
+
   supplier_refunds_collected?: number;
+
   timing_float_difference?: number;
+
   net_cash_flow?: number;
+
 }
 
 export interface WorkingCapitalSummary {
+
   inventoryValue: number;
+
   accountsPayable: number;
+
   accountsReceivable: number;
+
   // Fallbacks
+
   inventory_value?: number;
+
   accounts_payable?: number;
+
   accounts_receivable?: number;
+
 }
 
 export interface TaxVatSummary {
+
   taxableSales: number;
+
   exemptSales: number;
+
   outputVat13: number;
+
   roundOff: number;
+
   // Fallbacks
+
   taxable_sales?: number;
+
   exempt_sales?: number;
+
   output_vat_13?: number;
+
   round_off?: number;
+
 }
 
 export interface ExecutiveFinancialSummary {
+
   periodStart: string;
+
   periodEnd: string;
+
   pnl: TradingPnLWaterfall;
+
   cashFlowSummary: Record<string, number>;
+
   cashBridge: CashToProfitBridge;
+
   workingCapital: WorkingCapitalSummary;
+
   taxVat: TaxVatSummary;
+
   // Fallbacks
+
   period_start?: string;
+
   period_end?: string;
+
   cash_flow_summary?: Record<string, number>;
+
   cash_bridge?: CashToProfitBridge;
+
   working_capital?: WorkingCapitalSummary;
+
   tax_vat?: TaxVatSummary;
+
 }
 
 export interface CategoryContribution {
+
   category: string;
+
   unitsSold: number;
+
   grossSales: number;
+
   discounts: number;
+
   netRevenue: number;
+
   cogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
   revenueSharePct: number;
+
   profitSharePct: number;
+
   // Fallbacks
+
   units_sold?: number;
+
   gross_sales?: number;
+
   net_revenue?: number;
+
   gross_profit?: number;
+
   gross_margin_pct?: number;
+
   revenue_share_pct?: number;
+
   profit_share_pct?: number;
+
 }
 
 export interface TenderMixItem {
+
   method: string;
+
   amount: number;
+
   transactionCount: number;
+
   sharePct: number;
+
   // Fallbacks
+
   transaction_count?: number;
+
   share_pct?: number;
+
 }
 
 export interface DailySalesPerformance {
+
   date: string;
+
   grossSales: number;
+
   discounts: number;
+
   netRevenue: number;
+
   cogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
   transactionCount: number;
+
   // Fallbacks
+
   gross_sales?: number;
+
   net_revenue?: number;
+
   gross_profit?: number;
+
   gross_margin_pct?: number;
+
   transaction_count?: number;
+
 }
 
 export interface SalesPerformanceReport {
+
   periodStart: string;
+
   periodEnd: string;
+
   totalGrossSales: number;
+
   totalDiscounts: number;
+
   totalNetRevenue: number;
+
   totalCogs: number;
+
   totalGrossProfit: number;
+
   grossMarginPct: number;
+
   transactionCount: number;
+
   totalUnitsSold: number;
+
   avgBasket: number;
+
   categories: CategoryContribution[];
+
   tenderMix: TenderMixItem[];
+
   dailyTrend: DailySalesPerformance[];
+
   // Fallbacks
+
   period_start?: string;
+
   period_end?: string;
+
   total_gross_sales?: number;
+
   total_discounts?: number;
+
   total_net_revenue?: number;
+
   total_cogs?: number;
+
   total_gross_profit?: number;
+
   gross_margin_pct?: number;
+
   transaction_count?: number;
+
   total_units_sold?: number;
+
   avg_basket?: number;
+
   tender_mix?: TenderMixItem[];
+
   daily_trend?: DailySalesPerformance[];
+
 }
 
 export interface SoldProductWithMargin {
+
   productId: string;
+
   name: string;
+
   sku: string;
+
   category: string;
+
   sellUom: string;
+
   quantitySold: number;
+
   avgSellingPrice: number;
+
   grossSales: number;
+
   lineDiscount: number;
+
   billDiscount: number;
+
   totalDiscount: number;
+
   netRevenue: number;
+
   unitCost: number;
+
   totalCogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
   // Fallbacks
+
   product_id?: string;
+
   sell_uom?: string;
+
   quantity_sold?: number;
+
   avg_selling_price?: number;
+
   gross_sales?: number;
+
   line_discount?: number;
+
   bill_discount?: number;
+
   total_discount?: number;
+
   net_revenue?: number;
+
   unit_cost?: number;
+
   total_cogs?: number;
+
   gross_profit?: number;
+
   gross_margin_pct?: number;
+
 }
 
 export interface APAgingBuckets {
+
   current_0_30: number;
+
   aging_31_60: number;
+
   aging_61_90: number;
+
   over_90: number;
+
   totalAp: number;
+
   total_ap?: number;
+
   current0To30?: number;
+
   aging31To60?: number;
+
   aging61To90?: number;
+
   over90?: number;
+
 }
 
 export interface SupplierLedgerRow {
+
   supplierId: string;
+
   supplierName: string;
+
   panNumber: string;
+
   phone: string;
+
   orderCount: number;
+
   grossPurchases: number;
+
   discounts: number;
+
   additionalCharges: number;
+
   netPurchases: number;
+
   amountPaid: number;
+
   outstandingBalance: number;
+
   aging: APAgingBuckets;
+
   // Fallbacks
+
   supplier_id?: string;
+
   supplier_name?: string;
+
   pan_number?: string;
+
   order_count?: number;
+
   gross_purchases?: number;
+
   additional_charges?: number;
+
   net_purchases?: number;
+
   amount_paid?: number;
+
   outstanding_balance?: number;
+
 }
 
 export interface PurchaseReturnRow {
+
   returnId: string;
+
   returnNumber: string;
+
   orderNumber: string;
+
   supplierId: string;
+
   supplierName: string;
+
   returnDate: string;
+
   itemsCount: number;
+
   totalAmount: number;
+
   amountReceived: number;
+
   writeOffAmount: number;
+
   pendingReceivable: number;
+
   status: string;
+
   settlementType: string;
+
   // Fallbacks
+
   return_id?: string;
+
   return_number?: string;
+
   order_number?: string;
+
   supplier_id?: string;
+
   supplier_name?: string;
+
   return_date?: string;
+
   items_count?: number;
+
   total_amount?: number;
+
   amount_received?: number;
+
   write_off_amount?: number;
+
   pending_receivable?: number;
+
   settlement_type?: string;
+
 }
 
 export interface PurchasingPayablesReport {
+
   periodStart: string;
+
   periodEnd: string;
+
   grossPurchases: number;
+
   purchaseDiscounts: number;
+
   additionalCharges: number;
+
   netPurchases: number;
+
   totalAmountPaid: number;
+
   totalOutstandingAp: number;
+
   apAging: APAgingBuckets;
+
   supplierLedger: SupplierLedgerRow[];
+
   totalPurchaseReturnsValue: number;
+
   totalReturnRefundsReceived: number;
+
   totalSupplierReceivables: number;
+
   returnsLedger: PurchaseReturnRow[];
+
   // Fallbacks
+
   period_start?: string;
+
   period_end?: string;
+
   gross_purchases?: number;
+
   purchase_discounts?: number;
+
   additional_charges?: number;
+
   net_purchases?: number;
+
   total_amount_paid?: number;
+
   total_outstanding_ap?: number;
+
   ap_aging?: APAgingBuckets;
+
   supplier_ledger?: SupplierLedgerRow[];
+
   total_purchase_returns_value?: number;
+
   total_return_refunds_received?: number;
+
   total_supplier_receivables?: number;
+
   returns_ledger?: PurchaseReturnRow[];
+
 }
 
 export interface CategoryValuationRow {
+
   category: string;
+
   skuCount: number;
+
   totalUnits: number;
+
   batchValuation: number;
+
   valuationSharePct: number;
+
   // Fallbacks
+
   sku_count?: number;
+
   total_units?: number;
+
   batch_valuation?: number;
+
   valuation_share_pct?: number;
+
 }
 
 export interface ReorderCandidateRow {
+
   productId: string;
+
   name: string;
+
   sku: string;
+
   category: string;
+
   stock: number;
+
   lowStockThreshold: number;
+
   status: string;
+
   costPrice: number;
+
   sellingPrice: number;
+
   unitsNeeded: number;
+
   estimatedReorderCost: number;
+
   // Fallbacks
+
   product_id?: string;
+
   low_stock_threshold?: number;
+
   cost_price?: number;
+
   selling_price?: number;
+
   units_needed?: number;
+
   estimated_reorder_cost?: number;
+
 }
 
 export interface ExpiryBatchRow {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   category: string;
+
   batchNumber: string;
+
   quantity: number;
+
   unitCost: number;
+
   stockValueAtRisk: number;
+
   expiryDate: string;
+
   daysUntilExpiry: number;
+
   // Fallbacks
+
   product_id?: string;
+
   product_name?: string;
+
   batch_number?: string;
+
   unit_cost?: number;
+
   stock_value_at_risk?: number;
+
   expiry_date?: string;
+
   days_until_expiry?: number;
+
 }
 
 export interface DeadStockRow {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   category: string;
+
   stock: number;
+
   costPrice: number;
+
   stockValue: number;
+
   daysWithoutSale: number;
+
   productStatus: string;
+
   // Fallbacks
+
   product_id?: string;
+
   product_name?: string;
+
   cost_price?: number;
+
   stock_value?: number;
+
   days_without_sale?: number;
+
   product_status?: string;
+
 }
 
 export interface InventoryHealthReport {
+
   totalSkus: number;
+
   lowStockCount: number;
+
   outOfStockCount: number;
+
   expiringCount: number;
+
   deadStockCount: number;
+
   totalInventoryValue: number;
+
   valuationByCategory: CategoryValuationRow[];
+
   reorderCandidates: ReorderCandidateRow[];
+
   nearExpiryBatches: ExpiryBatchRow[];
+
   deadStockItems: DeadStockRow[];
+
   untrackedExpiryCount?: number;
+
   // Fallbacks
+
   total_skus?: number;
+
   low_stock_count?: number;
+
   out_of_stock_count?: number;
+
   expiring_count?: number;
+
   dead_stock_count?: number;
+
   total_inventory_value?: number;
+
   valuation_by_category?: CategoryValuationRow[];
+
   reorder_candidates?: ReorderCandidateRow[];
+
   near_expiry_batches?: ExpiryBatchRow[];
+
   dead_stock_items?: DeadStockRow[];
+
 }
 
 export interface CashFlowInflows {
+
   salesCash: number;
+
   salesBank: number;
+
   salesEsewa: number;
+
   totalSalesCollections: number;
+
   supplierRefunds: number;
+
   transfersIn: number;
+
   adjustmentsIn: number;
+
   otherInflows: number;
+
   totalInflows: number;
+
   // Fallbacks
+
   sales_cash?: number;
+
   sales_bank?: number;
+
   sales_esewa?: number;
+
   total_sales_collections?: number;
+
   supplier_refunds?: number;
+
   transfers_in?: number;
+
   adjustments_in?: number;
+
   other_inflows?: number;
+
   total_inflows?: number;
+
 }
 
 export interface CashFlowOutflows {
+
   operatingExpenses: number;
+
   supplierPoPayments: number;
+
   setupInvestment: number;
+
   transfersOut: number;
+
   adjustmentsOut: number;
+
   otherOutflows: number;
+
   totalOutflows: number;
+
   // Fallbacks
+
   operating_expenses?: number;
+
   supplier_po_payments?: number;
+
   setup_investment?: number;
+
   transfers_out?: number;
+
   adjustments_out?: number;
+
   other_outflows?: number;
+
   total_outflows?: number;
+
 }
 
 export interface WalletMovementSummary {
+
   wallet: string;
+
   openingBalance: number;
+
   totalInflows: number;
+
   totalOutflows: number;
+
   netMovement: number;
+
   closingBalance: number;
+
   // Fallbacks
+
   opening_balance?: number;
+
   total_inflows?: number;
+
   total_outflows?: number;
+
   net_movement?: number;
+
   closing_balance?: number;
+
 }
 
 export interface CashFlowStatement {
+
   periodStart: string;
+
   periodEnd: string;
+
   inflows: CashFlowInflows;
+
   outflows: CashFlowOutflows;
+
   netCashFlow: number;
+
   wallets: WalletMovementSummary[];
+
   cashToProfitBridge: CashToProfitBridge;
+
   // Fallbacks
+
   period_start?: string;
+
   period_end?: string;
+
   net_cash_flow?: number;
+
   cash_to_profit_bridge?: CashToProfitBridge;
+
 }
 
-
 export interface VoidedTransactionRow {
+
   transactionNumber: string;
+
   date: string;
+
   cashier: string;
+
   amount: number;
+
   voidReason: string;
+
   transaction_number?: string;
+
   void_reason?: string;
+
 }
 
 export interface LargeDiscountRow {
+
   transactionNumber: string;
+
   date: string;
+
   cashier: string;
+
   grossSales: number;
+
   totalDiscount: number;
+
   discountPct: number;
+
   netTotal: number;
+
   transaction_number?: string;
+
   gross_sales?: number;
+
   total_discount?: number;
+
   discount_pct?: number;
+
   net_total?: number;
+
 }
 
 export interface NegativeMarginProduct {
+
   productId: string;
+
   name: string;
+
   sku: string;
+
   category: string;
+
   unitsSold: number;
+
   netRevenue: number;
+
   totalCogs: number;
+
   grossProfit: number;
+
   grossMarginPct: number;
+
   product_id?: string;
+
   units_sold?: number;
+
   net_revenue?: number;
+
   total_cogs?: number;
+
   gross_profit?: number;
+
   gross_margin_pct?: number;
+
 }
 
 export interface ExpiredStockRow {
+
   productId: string;
+
   productName: string;
+
   sku: string;
+
   category: string;
+
   batchNumber: string;
+
   quantity: number;
+
   unitCost: number;
+
   writeOffValue: number;
+
   expiryDate: string;
+
   product_id?: string;
+
   product_name?: string;
+
   batch_number?: string;
+
   unit_cost?: number;
+
   write_off_value?: number;
+
   expiry_date?: string;
+
 }
 
 export interface MissingDayCloseRow {
+
   date: string;
+
   dayLabel: string;
+
   day_label?: string;
+
 }
 
 export interface LossAuditReport {
+
   periodStart: string;
+
   periodEnd: string;
+
   totalVoidCount: number;
+
   totalVoidAmount: number;
+
   voidedTransactions: VoidedTransactionRow[];
+
   largeDiscountThresholdPct: number;
+
   largeDiscountCount: number;
+
   totalLargeDiscountAmount: number;
+
   largeDiscountTransactions: LargeDiscountRow[];
+
   negativeMarginProductCount: number;
+
   totalLossOnNegMargin: number;
+
   negativeMarginProducts: NegativeMarginProduct[];
+
   expiredStockCount: number;
+
   expiredStockWriteOffValue: number;
+
   expiredStockItems: ExpiredStockRow[];
+
   missingDayCloseCount: number;
+
   missingDayCloses: MissingDayCloseRow[];
 
   // Optional backwards compatibility
+
   period_start?: string;
+
   period_end?: string;
+
   total_void_count?: number;
+
   total_void_amount?: number;
+
   voided_transactions?: VoidedTransactionRow[];
+
   large_discount_threshold_pct?: number;
+
   large_discount_count?: number;
+
   total_large_discount_amount?: number;
+
   large_discount_transactions?: LargeDiscountRow[];
+
   negative_margin_product_count?: number;
+
   total_loss_on_neg_margin?: number;
+
   negative_margin_products?: NegativeMarginProduct[];
+
   expired_stock_count?: number;
+
   expired_stock_write_off_value?: number;
+
   expired_stock_items?: ExpiredStockRow[];
+
   missing_day_close_count?: number;
+
   missing_day_closes?: MissingDayCloseRow[];
+
 }
 
