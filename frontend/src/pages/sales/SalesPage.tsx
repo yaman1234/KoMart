@@ -1,336 +1,468 @@
-import { useState } from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  TextField,
-  Typography,
-} from '@mui/material';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import DeliveryDiningIcon from '@mui/icons-material/DeliveryDining';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { PageHeader } from '@/components/common/PageHeader';
-import { SearchBar } from '@/components/common/SearchBar';
-import { DateRangePicker } from '@/components/common/DateRangePicker';
-import { DataTable, type Column } from '@/components/tables/DataTable';
-import { useTransactions } from '@/hooks/useTransactions';
-import { formatCurrency, formatDateTime, isAdmin } from '@/utils';
-import { PAYMENT_METHODS } from '@/constants';
-import { useAuthStore } from '@/store';
-import type { PaymentMethod, Transaction } from '@/types';
-import { SaleDetailView } from './SaleDetailView';
-import dayjs from 'dayjs';
-
-export function SalesPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const user = useAuthStore((s) => s.user);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>(() => {
-    const value = searchParams.get('paymentMethod');
-    return value === 'cash' || value === 'bank' || value === 'card' || value === 'esewa' ? value : '';
-  });
-  const [status, setStatus] = useState<'all' | 'completed' | 'voided'>(() => {
-    const value = searchParams.get('status');
-    return value === 'completed' || value === 'voided' ? value : 'all';
-  });
-  const [dateRange, setDateRange] = useState(() => ({
-    startDate: searchParams.get('startDate') ?? dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
-    endDate: searchParams.get('endDate') ?? dayjs().format('YYYY-MM-DD'),
-  }));
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-
-  const SORT_KEY_MAP: Record<string, string> = {
-    transactionNumber: 'transaction_number',
-    customerName: 'customer_name',
-    total: 'total',
-    discount: 'discount',
-    paymentMethod: 'payment_method',
-    createdBy: 'created_by',
-    createdAt: 'created_at',
-  };
-
-  const { data, isLoading } = useTransactions({
-    search,
-    page: page + 1,
-    pageSize,
-    paymentMethod: paymentMethod || undefined,
-    status: status === 'all' ? undefined : status,
-    startDate: dateRange.startDate,
-    endDate: dateRange.endDate,
-    sortBy: sortBy ? SORT_KEY_MAP[sortBy] : undefined,
-    sortOrder,
-  });
-
-  const handleSort = (key: string) => {
-    if (sortBy === key) {
-      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(key);
-      setSortOrder('desc');
-    }
-    setPage(0);
-  };
-
-  const columns: Column<Transaction>[] = [
-    {
-      id: 'serial',
-      label: 'S.N',
-      minWidth: 60,
-      align: 'center',
-      render: (_, index) => String(index + 1),
-    },
-    {
-      id: 'number',
-      label: 'Bill No',
-      minWidth: 160,
-      sortable: true,
-      sortKey: 'transactionNumber',
-      render: (r) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <span>{r.transactionNumber}</span>
-          {r.isOnlineOrder && (
-            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 999, bgcolor: '#e3f2fd', color: '#1565c0', fontSize: 10, fontWeight: 700, cursor: 'default' }}>
-              <DeliveryDiningIcon sx={{ fontSize: 12 }} />
-              Online{r.orderSource ? ` · ${r.orderSource.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}` : ''}
-            </Box>
-          )}
-        </Box>
-      ),
-    },
-    { id: 'customer', label: 'Customer', render: (r) => r.customerName ?? 'Walk-In', sortable: true, sortKey: 'customerName' },
-    {
-      id: 'items',
-      label: 'Items',
-      align: 'right',
-      render: (r) => (
-        <Typography
-          component="button"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setSelectedTransaction(r);
-          }}
-          sx={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            color: 'primary.main',
-            textDecoration: 'underline',
-            fontWeight: 600,
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-          }}
-        >
-          {r.items.length}
-        </Typography>
-      ),
-    },
-    {
-      id: 'total',
-      label: 'Total',
-      align: 'right',
-      render: (r) => formatCurrency(r.total),
-      sortable: true,
-      sortKey: 'total',
-    },
-    {
-      id: 'discount',
-      label: 'Discount',
-      align: 'right',
-      render: (r) => {
-        const saved = (r.subtotal ?? 0) - (r.total ?? 0) + (r.tax ?? 0);
-        return saved > 0 ? (
-          <Typography component="span" variant="body2" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-            − {formatCurrency(saved)}
-          </Typography>
-        ) : '—';
-      },
-      sortable: true,
-      sortKey: 'discount',
-    },
-    {
-      id: 'payment',
-      label: 'Payment',
-      render: (r) => {
-        const gradients: Record<string, { bg: string; color: string }> = {
-          cash:  { bg: 'linear-gradient(135deg, #d4edda 0%, #a8d5b5 100%)', color: '#1b5e20' },
-          bank:  { bg: 'linear-gradient(135deg, #cce5ff 0%, #90c4f9 100%)', color: '#0d47a1' },
-          esewa: { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffd97d 100%)', color: '#7c4a00' },
-        };
-        const c = gradients[r.paymentMethod] ?? { bg: 'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)', color: '#212121' };
-        return (
-          <Typography
-            component="span"
-            variant="caption"
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              borderRadius: 999,
-              px: 1.25,
-              py: 0.5,
-              fontWeight: 700,
-              letterSpacing: 0.25,
-              background: c.bg,
-              color: c.color,
-            }}
-          >
-            {r.paymentMethod.toUpperCase()}
-          </Typography>
-        );
-      },
-      sortable: true,
-      sortKey: 'paymentMethod',
-    },
-    { id: 'cashier', label: 'Cashier', accessor: 'createdBy', sortable: true, sortKey: 'createdBy' },
-    {
-      id: 'date',
-      label: 'Date',
-      render: (r) => formatDateTime(r.createdAt),
-      sortable: true,
-      sortKey: 'createdAt',
-    },
-    {
-      id: 'status',
-      label: 'Status',
-      minWidth: 110,
-      align: 'center',
-      render: (r) => (
-        <Typography
-          component="span"
-          variant="caption"
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            borderRadius: 999,
-            px: 1.25,
-            py: 0.5,
-            fontWeight: 700,
-            letterSpacing: 0.25,
-            backgroundColor: r.status === 'voided' ? 'error.light' : 'success.light',
-            color: r.status === 'voided' ? 'error.dark' : 'success.dark',
-          }}
-        >
-          {r.status === 'voided' ? 'Voided' : 'Completed'}
-        </Typography>
-      ),
-    },
-    {
-      id: 'action',
-      label: 'Action',
-      minWidth: 120,
-      align: 'center',
-      render: (r) => (
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={(event) => {
-            event.stopPropagation();
-            window.open(`/sales/${r.id}`, '_blank', 'noopener,noreferrer');
-          }}
-        >
-          View Detail
-        </Button>
-      ),
-    },
-  ];
-
-  return (
-    <Box>
-      <PageHeader
-        title="Sales"
-        subtitle={`${data?.total ?? 0} transactions`}
-        subtitleEndLabel="Total Amount"
-        subtitleEnd={formatCurrency(data?.totalAmount ?? 0)}
-        action={
-          isAdmin(user?.role) ? (
-            <Button
-              variant="outlined"
-              startIcon={<UploadFileIcon />}
-              onClick={() => navigate('/sales/backfill')}
-            >
-              Backfill Sales
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Box sx={{ flex: 1, minWidth: 200 }}>
-          <SearchBar
-            value={search}
-            onChange={(v) => { setSearch(v); setPage(0); }}
-            placeholder="Search bill no. or customer..."
-          />
-        </Box>
-        <TextField
-          select
-          size="small"
-          label="Payment"
-          value={paymentMethod}
-          onChange={(e) => { setPaymentMethod(e.target.value as PaymentMethod | ''); setPage(0); }}
-          sx={{ minWidth: 140 }}
-        >
-          <MenuItem value="">All</MenuItem>
-          {PAYMENT_METHODS.map((m) => (
-            <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          size="small"
-          label="Status"
-          value={status}
-          onChange={(e) => { setStatus(e.target.value as 'all' | 'completed' | 'voided'); setPage(0); }}
-          sx={{ minWidth: 140 }}
-        >
-          <MenuItem value="all">All</MenuItem>
-          <MenuItem value="completed">Completed</MenuItem>
-          <MenuItem value="voided">Voided</MenuItem>
-        </TextField>
-        <DateRangePicker
-          startDate={dateRange.startDate}
-          endDate={dateRange.endDate}
-          onChange={(range) => { setDateRange(range); setPage(0); }}
-        />
-      </Box>
-
-      <DataTable
-        columns={columns}
-        rows={data?.data ?? []}
-        loading={isLoading}
-        page={page}
-        pageSize={pageSize}
-        total={data?.total}
-        sortBy={sortBy}
-        sortOrder={sortOrder}
-        onSort={handleSort}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
-        onRowDoubleClick={(row) => navigate(`/sales/${row.id}`)}
-        getRowId={(r) => r.id}
-      />
-
-      <Dialog open={!!selectedTransaction} onClose={() => setSelectedTransaction(null)} maxWidth="lg" fullWidth>
-        <DialogTitle>Sale Detail — {selectedTransaction?.transactionNumber}</DialogTitle>
-        <DialogContent dividers sx={{ p: 3 }}>
-          {selectedTransaction && <SaleDetailView transaction={selectedTransaction} />}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button variant="contained" onClick={() => setSelectedTransaction(null)}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
-}
+import { useState } from 'react';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  TextField,
+  Typography,
+} from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DeliveryDiningIcon from '@mui/icons-material/DeliveryDining';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import BlockIcon from '@mui/icons-material/Block';
+import { StatCard } from '@/components/common/StatCard';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PageHeader } from '@/components/common/PageHeader';
+import { SearchBar } from '@/components/common/SearchBar';
+import { DateRangePicker } from '@/components/common/DateRangePicker';
+import { DataTable, type Column } from '@/components/tables/DataTable';
+import { useTransactions } from '@/hooks/useTransactions';
+import { formatCurrency, formatDateTime, isAdmin } from '@/utils';
+import { PAYMENT_METHODS } from '@/constants';
+import { useAuthStore } from '@/store';
+import type { PaymentMethod, Transaction } from '@/types';
+import { SaleDetailView } from './SaleDetailView';
+import dayjs from 'dayjs';
+
+export function SalesPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const user = useAuthStore((s) => s.user);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>(() => {
+    const value = searchParams.get('paymentMethod');
+    return value === 'cash' || value === 'bank' || value === 'card' || value === 'esewa' ? value : '';
+  });
+  const [status, setStatus] = useState<'all' | 'completed' | 'voided'>(() => {
+    const value = searchParams.get('status');
+    return value === 'completed' || value === 'voided' ? value : 'all';
+  });
+  const [dateRange, setDateRange] = useState(() => ({
+    startDate: searchParams.get('startDate') ?? dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
+    endDate: searchParams.get('endDate') ?? dayjs().format('YYYY-MM-DD'),
+  }));
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+  const SORT_KEY_MAP: Record<string, string> = {
+    transactionNumber: 'transaction_number',
+    customerName: 'customer_name',
+    total: 'total',
+    discount: 'discount',
+    paymentMethod: 'payment_method',
+    createdBy: 'created_by',
+    createdAt: 'created_at',
+  };
+
+  const { data, isLoading } = useTransactions({
+    search,
+    page: page + 1,
+    pageSize,
+    paymentMethod: paymentMethod || undefined,
+    status: status === 'all' ? undefined : status,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+    sortBy: sortBy ? SORT_KEY_MAP[sortBy] : undefined,
+    sortOrder,
+  });
+
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortOrder('desc');
+    }
+    setPage(0);
+  };
+
+  const columns: Column<Transaction>[] = [
+    {
+      id: 'serial',
+      label: 'S.N',
+      minWidth: 60,
+      align: 'center',
+      render: (_, index) => String(index + 1),
+    },
+    {
+      id: 'number',
+      label: 'Bill No',
+      minWidth: 160,
+      sortable: true,
+      sortKey: 'transactionNumber',
+      render: (r) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <span>{r.transactionNumber}</span>
+          {r.isOnlineOrder && (
+            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 999, bgcolor: '#e3f2fd', color: '#1565c0', fontSize: 10, fontWeight: 700, cursor: 'default' }}>
+              <DeliveryDiningIcon sx={{ fontSize: 12 }} />
+              Online{r.orderSource ? ` · ${r.orderSource.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}` : ''}
+            </Box>
+          )}
+        </Box>
+      ),
+    },
+    { id: 'customer', label: 'Customer', render: (r) => r.customerName ?? 'Walk-In', sortable: true, sortKey: 'customerName' },
+    {
+      id: 'items',
+      label: 'Items',
+      align: 'right',
+      render: (r) => (
+        <Typography
+          component="button"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelectedTransaction(r);
+          }}
+          sx={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            color: 'primary.main',
+            textDecoration: 'underline',
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+          }}
+        >
+          {r.items.length}
+        </Typography>
+      ),
+    },
+    {
+      id: 'total',
+      label: 'Total',
+      align: 'right',
+      render: (r) => formatCurrency(r.total),
+      sortable: true,
+      sortKey: 'total',
+    },
+    {
+      id: 'discount',
+      label: 'Discount',
+      align: 'right',
+      render: (r) => {
+        const saved = (r.subtotal ?? 0) - (r.total ?? 0) + (r.tax ?? 0);
+        return saved > 0 ? (
+          <Typography component="span" variant="body2" color="success.main" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            − {formatCurrency(saved)}
+          </Typography>
+        ) : '—';
+      },
+      sortable: true,
+      sortKey: 'discount',
+    },
+    {
+      id: 'payment',
+      label: 'Payment',
+      render: (r) => {
+        const gradients: Record<string, { bg: string; color: string }> = {
+          cash:  { bg: 'linear-gradient(135deg, #d4edda 0%, #a8d5b5 100%)', color: '#1b5e20' },
+          bank:  { bg: 'linear-gradient(135deg, #cce5ff 0%, #90c4f9 100%)', color: '#0d47a1' },
+          esewa: { bg: 'linear-gradient(135deg, #fff3cd 0%, #ffd97d 100%)', color: '#7c4a00' },
+        };
+        const c = gradients[r.paymentMethod] ?? { bg: 'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)', color: '#212121' };
+        return (
+          <Typography
+            component="span"
+            variant="caption"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: 999,
+              px: 1.25,
+              py: 0.5,
+              fontWeight: 700,
+              letterSpacing: 0.25,
+              background: c.bg,
+              color: c.color,
+            }}
+          >
+            {r.paymentMethod.toUpperCase()}
+          </Typography>
+        );
+      },
+      sortable: true,
+      sortKey: 'paymentMethod',
+    },
+    { id: 'cashier', label: 'Cashier', accessor: 'createdBy', sortable: true, sortKey: 'createdBy' },
+    {
+      id: 'date',
+      label: 'Date',
+      render: (r) => formatDateTime(r.createdAt),
+      sortable: true,
+      sortKey: 'createdAt',
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      minWidth: 110,
+      align: 'center',
+      render: (r) => (
+        <Typography
+          component="span"
+          variant="caption"
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            borderRadius: 999,
+            px: 1.25,
+            py: 0.5,
+            fontWeight: 700,
+            letterSpacing: 0.25,
+            backgroundColor: r.status === 'voided' ? 'error.light' : 'success.light',
+            color: r.status === 'voided' ? 'error.dark' : 'success.dark',
+          }}
+        >
+          {r.status === 'voided' ? 'Voided' : 'Completed'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'action',
+      label: 'Action',
+      minWidth: 120,
+      align: 'center',
+      render: (r) => (
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={(event) => {
+            event.stopPropagation();
+            window.open(`/sales/${r.id}`, '_blank', 'noopener,noreferrer');
+          }}
+        >
+          View Detail
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <Box>
+      <PageHeader
+        title="Sales"
+        action={
+          isAdmin(user?.role) ? (
+            <Button
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+              onClick={() => navigate('/sales/backfill')}
+            >
+              Backfill Sales
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {/* Payment & Status KPI Cards */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'repeat(2, 1fr)',
+            sm: 'repeat(3, 1fr)',
+            md: 'repeat(5, 1fr)',
+          },
+          gap: 1.5,
+          mb: 2.5,
+        }}
+      >
+        <StatCard
+          title="Net Sales"
+          value={formatCurrency(data?.completedAmount ?? data?.totalAmount ?? 0)}
+          subtitle={`${data?.completedCount ?? (data?.total ?? 0)} completed`}
+          icon={<PointOfSaleIcon />}
+          color="primary.main"
+          loading={isLoading}
+          onClick={() => {
+            setPaymentMethod('');
+            setStatus('all');
+            setPage(0);
+          }}
+          sx={{
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            ...(status === 'all' && !paymentMethod && {
+              outline: '2px solid',
+              outlineColor: 'primary.main',
+              boxShadow: 2,
+            }),
+          }}
+        />
+
+        <StatCard
+          title="Cash"
+          value={formatCurrency(data?.paymentBreakdown?.cash?.amount ?? 0)}
+          subtitle={`${data?.paymentBreakdown?.cash?.count ?? 0} txns`}
+          icon={<PaymentsIcon />}
+          color="#1b5e20"
+          gradient={['rgba(46, 125, 50, 0.12)', 'rgba(46, 125, 50, 0.02)']}
+          loading={isLoading}
+          onClick={() => {
+            setPaymentMethod((prev) => (prev === 'cash' ? '' : 'cash'));
+            setPage(0);
+          }}
+          sx={{
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            ...(paymentMethod === 'cash' && {
+              outline: '2px solid',
+              outlineColor: '#2e7d32',
+              boxShadow: 2,
+            }),
+          }}
+        />
+
+        <StatCard
+          title="Bank / QR"
+          value={formatCurrency(data?.paymentBreakdown?.bank?.amount ?? 0)}
+          subtitle={`${data?.paymentBreakdown?.bank?.count ?? 0} txns`}
+          icon={<AccountBalanceIcon />}
+          color="#0d47a1"
+          gradient={['rgba(13, 71, 161, 0.12)', 'rgba(13, 71, 161, 0.02)']}
+          loading={isLoading}
+          onClick={() => {
+            setPaymentMethod((prev) => (prev === 'bank' ? '' : 'bank'));
+            setPage(0);
+          }}
+          sx={{
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            ...(paymentMethod === 'bank' && {
+              outline: '2px solid',
+              outlineColor: '#1565c0',
+              boxShadow: 2,
+            }),
+          }}
+        />
+
+        <StatCard
+          title="eSewa"
+          value={formatCurrency(data?.paymentBreakdown?.esewa?.amount ?? 0)}
+          subtitle={`${data?.paymentBreakdown?.esewa?.count ?? 0} txns`}
+          icon={<AccountBalanceWalletIcon />}
+          color="#7c4a00"
+          gradient={['rgba(245, 124, 0, 0.14)', 'rgba(245, 124, 0, 0.02)']}
+          loading={isLoading}
+          onClick={() => {
+            setPaymentMethod((prev) => (prev === 'esewa' ? '' : 'esewa'));
+            setPage(0);
+          }}
+          sx={{
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            ...(paymentMethod === 'esewa' && {
+              outline: '2px solid',
+              outlineColor: '#ed6c02',
+              boxShadow: 2,
+            }),
+          }}
+        />
+
+        <StatCard
+          title="Voided"
+          value={formatCurrency(data?.voidedAmount ?? 0)}
+          subtitle={`${data?.voidedCount ?? 0} voided`}
+          icon={<BlockIcon />}
+          color="#c62828"
+          gradient={['rgba(211, 47, 47, 0.12)', 'rgba(211, 47, 47, 0.02)']}
+          loading={isLoading}
+          onClick={() => {
+            setStatus((prev) => (prev === 'voided' ? 'all' : 'voided'));
+            setPage(0);
+          }}
+          sx={{
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            ...(status === 'voided' && {
+              outline: '2px solid',
+              outlineColor: '#d32f2f',
+              boxShadow: 2,
+            }),
+          }}
+        />
+      </Box>
+
+      <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Box sx={{ flex: 1, minWidth: 200 }}>
+          <SearchBar
+            value={search}
+            onChange={(v) => { setSearch(v); setPage(0); }}
+            placeholder="Search bill no. or customer..."
+          />
+        </Box>
+        <TextField
+          select
+          size="small"
+          label="Payment"
+          value={paymentMethod}
+          onChange={(e) => { setPaymentMethod(e.target.value as PaymentMethod | ''); setPage(0); }}
+          sx={{ minWidth: 140 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          {PAYMENT_METHODS.map((m) => (
+            <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={status}
+          onChange={(e) => { setStatus(e.target.value as 'all' | 'completed' | 'voided'); setPage(0); }}
+          sx={{ minWidth: 140 }}
+        >
+          <MenuItem value="all">All</MenuItem>
+          <MenuItem value="completed">Completed</MenuItem>
+          <MenuItem value="voided">Voided</MenuItem>
+        </TextField>
+        <DateRangePicker
+          startDate={dateRange.startDate}
+          endDate={dateRange.endDate}
+          onChange={(range) => { setDateRange(range); setPage(0); }}
+        />
+      </Box>
+
+      <DataTable
+        columns={columns}
+        rows={data?.data ?? []}
+        loading={isLoading}
+        page={page}
+        pageSize={pageSize}
+        total={data?.total}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={handleSort}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+        onRowDoubleClick={(row) => navigate(`/sales/${row.id}`)}
+        getRowId={(r) => r.id}
+      />
+
+      <Dialog open={!!selectedTransaction} onClose={() => setSelectedTransaction(null)} maxWidth="lg" fullWidth>
+        <DialogTitle>Sale Detail — {selectedTransaction?.transactionNumber}</DialogTitle>
+        <DialogContent dividers sx={{ p: 3 }}>
+          {selectedTransaction && <SaleDetailView transaction={selectedTransaction} />}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button variant="contained" onClick={() => setSelectedTransaction(null)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
