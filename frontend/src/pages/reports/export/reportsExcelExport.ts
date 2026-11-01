@@ -75,7 +75,17 @@ export function exportReportsWorkbook({
     const netCashFlow = bridge.netCashFlow ?? bridge.net_cash_flow ?? 0;
 
     const accountsPayable = wc.accountsPayable ?? wc.accounts_payable ?? 0;
+    const accountsReceivable = wc.accountsReceivable ?? wc.accounts_receivable ?? 0;
     const inventoryValue = wc.inventoryValue ?? wc.inventory_value ?? 0;
+    const bankBalance = wc.bankBalance ?? wc.bank_balance ?? 0;
+    const esewaBalance = wc.esewaBalance ?? wc.esewa_balance ?? 0;
+    const bankAndDigital = wc.bankAndDigitalTotal ?? wc.bank_and_digital_total ?? (bankBalance + esewaBalance);
+    const cashTillBalance = wc.cashTillBalance ?? wc.cash_till_balance ?? 0;
+    const cashWithStaff = wc.cashWithStaff ?? wc.cash_with_staff ?? 0;
+    const totalLiquidCash = wc.totalLiquidCash ?? wc.total_liquid_cash ?? (bankAndDigital + cashTillBalance + cashWithStaff);
+    const totalWorkingCapital = wc.totalWorkingCapital ?? wc.total_working_capital ?? (totalLiquidCash + inventoryValue);
+    const netWorkingCapital = wc.netWorkingCapital ?? wc.net_working_capital ?? ((totalWorkingCapital + accountsReceivable) - accountsPayable);
+    const cashCoverageRatio = wc.cashCoverageRatio ?? wc.cash_coverage_ratio ?? (accountsPayable > 0 ? totalLiquidCash / accountsPayable : 0);
 
     const taxableSales = tax.taxableSales ?? tax.taxable_sales ?? 0;
     const exemptSales = tax.exemptSales ?? tax.exempt_sales ?? 0;
@@ -95,11 +105,24 @@ export function exportReportsWorkbook({
       ['Gross Trading Profit', grossProfit, `Trading Margin: ${Number(grossMarginPct).toFixed(1)}%`],
       ['Operating Expenses (OpEx)', -operatingExpenses, 'Store overheads (excl. supplier bills)'],
       ['Operating Profit (EBIT)', operatingProfit, `Operating Margin: ${Number(operatingMarginPct).toFixed(1)}%`],
-      ['Period Net Cash Flow', netCashFlow, 'Actual net cash delta in till & bank'],
-      ['Total Accounts Payable Owed', accountsPayable, 'Unpaid balance to suppliers'],
-      ['Total Inventory Valuation', inventoryValue, 'Batch cost balance sheet asset value'],
+      ['Total Working Capital', totalWorkingCapital, 'Liquid Cash + Current Stock Valuation'],
+      ['Total Liquid Cash', totalLiquidCash, 'Bank + Till + Staff Custody'],
+      ['Net Working Capital (Assets - AP)', netWorkingCapital, 'Working capital buffer'],
+      ['Cash Coverage Ratio', `${cashCoverageRatio.toFixed(1)}x`, 'Liquid cash vs AP liabilities'],
       [],
-      ['=== 2. TRADING PROFIT & LOSS WATERFALL ==='],
+      ['=== 2. WORKING CAPITAL & LIQUIDITY SNAPSHOT ==='],
+      ['Component', 'Amount (NPR)', 'Details'],
+      ['Bank & Digital Accounts', bankAndDigital, `Bank: ${bankBalance} | eSewa: ${esewaBalance}`],
+      ['Cash in Till (Registers)', cashTillBalance, 'Physical register drawer cash'],
+      ['Cash with Staff (Custody)', cashWithStaff, 'Staff custody held for procurement / transit'],
+      ['Inventory Valuation', inventoryValue, 'Batch-weighted cost of stock on hand'],
+      ['Total Liquid Funds', totalLiquidCash, 'Instant liquid cash available'],
+      ['Total Operating Capital', totalWorkingCapital, 'Liquid cash + Inventory'],
+      ['Pending Supplier Return Receivables', accountsReceivable, 'Refunds owed by vendors on returns'],
+      ['Outstanding Accounts Payable (AP)', -accountsPayable, 'Unpaid balance to suppliers'],
+      ['Net Working Obligation Float', accountsReceivable - accountsPayable, 'Receivables minus Payables'],
+      [],
+      ['=== 3. TRADING PROFIT & LOSS WATERFALL ==='],
       ['Line Item', 'Amount (NPR)', 'Waterfall Type'],
       ['Gross Sales', grossSales, 'Inflow (+)'],
       ['(-) Item Price Markdowns', -itemMarkdowns, 'Markdown (-)'],

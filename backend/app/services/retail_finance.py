@@ -26,6 +26,7 @@ from app.models.wallet_ledger import (
     WalletLedgerEntry,
 )
 from app.schemas.reports import (
+    APAgingBuckets,
     CashFlowInflows,
     CashFlowOutflows,
     CashFlowStatement,
@@ -33,9 +34,12 @@ from app.schemas.reports import (
     CategoryContribution,
     DailySalesPerformance,
     ExecutiveFinancialSummary,
+    IncomeVsExpensesSummary,
+    ReceivablesVsPayablesSummary,
     SalesPerformanceReport,
     TaxVatSummary,
     TenderMixItem,
+    TopCreditorItem,
     TradingPnLWaterfall,
     WalletMovementSummary,
     WorkingCapitalSummary,
@@ -53,7 +57,13 @@ from app.services.reporting import (
     line_revenue,
 )
 from app.services.time_nepal import NPT, to_npt
-from app.services.wallet_ledger import ensure_backfill, ledger_net
+from app.services.wallet_ledger import (
+    all_balances,
+    current_wallet_balance,
+    ensure_backfill,
+    ledger_net,
+    open_custody_total,
+)
 
 
 async def calculate_trading_pnl(
@@ -163,7 +173,7 @@ async def calculate_tax_vat_summary(txns: list[Transaction]) -> TaxVatSummary:
 
 
 async def calculate_working_capital_indicators() -> WorkingCapitalSummary:
-    """Compute active inventory value, outstanding accounts payable, and pending returns receivables."""
+    """Compute active inventory value, live bank/till/custody, accounts payable, and pending returns receivables."""
     # 1. Total batch-weighted inventory valuation
     inventory_value = await aggregate_batch_inventory_value()
 
@@ -182,10 +192,41 @@ async def calculate_working_capital_indicators() -> WorkingCapitalSummary:
         for r in open_returns
     )
 
+    # 4. Cash & Bank balances from wallet ledger & custody
+    try:
+        balances = await all_balances()
+        bank_bal = round(float(balances.get("bank", 0.0) or 0.0), 2)
+        esewa_bal = round(float(balances.get("esewa", 0.0) or 0.0), 2)
+        bank_and_digital = round(bank_bal + esewa_bal, 2)
+        cash_ledger = await current_wallet_balance(Wallet.cash)
+        till_bal = round(float(cash_ledger or 0.0), 2)
+        with_staff = await open_custody_total()
+        staff_bal = round(float(with_staff or 0.0), 2)
+    except Exception:
+        bank_bal = 0.0
+        esewa_bal = 0.0
+        bank_and_digital = 0.0
+        till_bal = 0.0
+        staff_bal = 0.0
+
+    total_liquid = round(bank_and_digital + till_bal + staff_bal, 2)
+    total_wc = round(total_liquid + inventory_value, 2)
+    net_wc = round((total_wc + accounts_receivable) - accounts_payable, 2)
+    cov_ratio = round(total_liquid / accounts_payable, 2) if accounts_payable > 0 else (99.0 if total_liquid > 0 else 0.0)
+
     return WorkingCapitalSummary(
         inventory_value=round(inventory_value, 2),
         accounts_payable=round(accounts_payable, 2),
         accounts_receivable=round(accounts_receivable, 2),
+        bank_balance=bank_bal,
+        esewa_balance=esewa_bal,
+        bank_and_digital_total=bank_and_digital,
+        cash_till_balance=till_bal,
+        cash_with_staff=staff_bal,
+        total_liquid_cash=total_liquid,
+        total_working_capital=total_wc,
+        net_working_capital=net_wc,
+        cash_coverage_ratio=cov_ratio,
     )
 
 
@@ -395,6 +436,101 @@ async def generate_executive_financial_summary(
     start_str = to_npt(start).strftime("%Y-%m-%d")
     end_str = to_npt(end).strftime("%Y-%m-%d")
 
+    # Calculate Income vs Expenses summary
+    total_costs = round(pnl.total_cogs + pnl.operating_expenses, 2)
+    operating_surplus = round(pnl.net_sales - total_costs, 2)
+    cost_to_income = round((total_costs / pnl.net_sales * 100), 1) if pnl.net_sales > 0 else 0.0
+
+    income_vs_expenses = IncomeVsExpensesSummary(
+        gross_sales=pnl.gross_sales,
+        item_markdowns=pnl.item_markdowns,
+        bill_discounts=pnl.bill_discounts,
+        total_discounts=pnl.total_discounts,
+        net_sales=pnl.net_sales,
+        total_cogs=pnl.total_cogs,
+        gross_profit=pnl.gross_profit,
+        gross_margin_pct=pnl.gross_margin_pct,
+        operating_expenses=pnl.operating_expenses,
+        total_costs=total_costs,
+        operating_surplus=operating_surplus,
+        operating_margin_pct=pnl.operating_margin_pct,
+        cost_to_income_ratio=cost_to_income,
+    )
+
+    # Calculate AP aging & Top Creditors
+    all_active_pos = await PurchaseOrder.find({
+        "status": {"$in": [POStatus.ordered.value, POStatus.partial.value, POStatus.received.value]}
+    }).to_list()
+    today_npt = datetime.now(NPT).date()
+
+    ap_aging = APAgingBuckets()
+    supplier_creditors: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"name": "", "phone": "", "orders": 0, "invoiced": 0.0, "paid": 0.0, "unpaid": 0.0, "max_age": 0}
+    )
+
+    for po in all_active_pos:
+        unpaid = max(0.0, float(po.total_amount or 0.0) - float(po.amount_paid or 0.0))
+        if unpaid > 0.009:
+            if po.received_date and str(po.received_date).strip():
+                try:
+                    ref_date = date.fromisoformat(str(po.received_date)[:10])
+                except Exception:
+                    ref_date = to_npt(po.created_at).date()
+            else:
+                ref_date = to_npt(po.created_at).date()
+            age_days = max(0, (today_npt - ref_date).days)
+            if age_days <= 30:
+                ap_aging.current_0_30 += unpaid
+            elif age_days <= 60:
+                ap_aging.aging_31_60 += unpaid
+            elif age_days <= 90:
+                ap_aging.aging_61_90 += unpaid
+            else:
+                ap_aging.over_90 += unpaid
+            ap_aging.total_ap += unpaid
+
+            sid = po.supplier_id or "unknown"
+            c = supplier_creditors[sid]
+            c["name"] = po.supplier_name or "Unknown Supplier"
+            c["orders"] += 1
+            c["invoiced"] += float(po.total_amount or 0.0)
+            c["paid"] += float(po.amount_paid or 0.0)
+            c["unpaid"] += unpaid
+            if age_days > c["max_age"]:
+                c["max_age"] = age_days
+
+    ap_aging.current_0_30 = round(ap_aging.current_0_30, 2)
+    ap_aging.aging_31_60 = round(ap_aging.aging_31_60, 2)
+    ap_aging.aging_61_90 = round(ap_aging.aging_61_90, 2)
+    ap_aging.over_90 = round(ap_aging.over_90, 2)
+    ap_aging.total_ap = round(ap_aging.total_ap, 2)
+
+    top_creditors_list: list[TopCreditorItem] = []
+    sorted_creditors = sorted(supplier_creditors.items(), key=lambda x: x[1]["unpaid"], reverse=True)[:5]
+    for sid, c in sorted_creditors:
+        max_age = c["max_age"]
+        aging_stat = "current" if max_age <= 30 else ("due" if max_age <= 60 else ("overdue" if max_age <= 90 else "critical"))
+        top_creditors_list.append(
+            TopCreditorItem(
+                supplier_id=sid,
+                supplier_name=c["name"],
+                phone=c["phone"],
+                total_orders=c["orders"],
+                total_invoiced=round(c["invoiced"], 2),
+                amount_paid=round(c["paid"], 2),
+                outstanding_balance=round(c["unpaid"], 2),
+                aging_status=aging_stat,
+            )
+        )
+
+    receivables_vs_payables = ReceivablesVsPayablesSummary(
+        accounts_receivable=working_capital.accounts_receivable,
+        accounts_payable=working_capital.accounts_payable,
+        net_float=round(working_capital.accounts_receivable - working_capital.accounts_payable, 2),
+        cash_coverage_ratio=working_capital.cash_coverage_ratio,
+        ap_aging=ap_aging,
+    )
+
     return ExecutiveFinancialSummary(
         period_start=start_str,
         period_end=end_str,
@@ -407,6 +543,9 @@ async def generate_executive_financial_summary(
         cash_bridge=bridge,
         working_capital=working_capital,
         tax_vat=tax_vat,
+        income_vs_expenses=income_vs_expenses,
+        receivables_vs_payables=receivables_vs_payables,
+        top_creditors=top_creditors_list,
     )
 
 

@@ -284,10 +284,64 @@ class CashToProfitBridge(BaseModel):
     net_cash_flow: float
 
 
+class APAgingBuckets(BaseModel):
+    current_0_30: float = 0.0
+    aging_31_60: float = 0.0
+    aging_61_90: float = 0.0
+    over_90: float = 0.0
+    total_ap: float = 0.0
+
+
 class WorkingCapitalSummary(BaseModel):
     inventory_value: float
     accounts_payable: float
     accounts_receivable: float  # pending supplier return refunds
+
+    # Extended liquidity fields:
+    bank_balance: float = 0.0
+    esewa_balance: float = 0.0
+    bank_and_digital_total: float = 0.0
+    cash_till_balance: float = 0.0
+    cash_with_staff: float = 0.0
+    total_liquid_cash: float = 0.0
+    total_working_capital: float = 0.0  # liquid cash + inventory
+    net_working_capital: float = 0.0  # (total_working_capital + accounts_receivable) - accounts_payable
+    cash_coverage_ratio: float = 0.0  # total_liquid_cash / accounts_payable
+
+
+class IncomeVsExpensesSummary(BaseModel):
+    gross_sales: float = 0.0
+    item_markdowns: float = 0.0
+    bill_discounts: float = 0.0
+    total_discounts: float = 0.0
+    net_sales: float = 0.0
+    total_cogs: float = 0.0
+    gross_profit: float = 0.0
+    gross_margin_pct: float = 0.0
+    operating_expenses: float = 0.0
+    total_costs: float = 0.0  # cogs + operating_expenses
+    operating_surplus: float = 0.0  # net_sales - total_costs
+    operating_margin_pct: float = 0.0
+    cost_to_income_ratio: float = 0.0
+
+
+class ReceivablesVsPayablesSummary(BaseModel):
+    accounts_receivable: float = 0.0
+    accounts_payable: float = 0.0
+    net_float: float = 0.0
+    cash_coverage_ratio: float = 0.0
+    ap_aging: APAgingBuckets = Field(default_factory=APAgingBuckets)
+
+
+class TopCreditorItem(BaseModel):
+    supplier_id: str
+    supplier_name: str
+    phone: str = ''
+    total_orders: int = 0
+    total_invoiced: float = 0.0
+    amount_paid: float = 0.0
+    outstanding_balance: float = 0.0
+    aging_status: str = 'current'  # current | due | overdue | critical
 
 
 class TaxVatSummary(BaseModel):
@@ -305,6 +359,9 @@ class ExecutiveFinancialSummary(BaseModel):
     cash_bridge: CashToProfitBridge
     working_capital: WorkingCapitalSummary
     tax_vat: TaxVatSummary
+    income_vs_expenses: IncomeVsExpensesSummary = Field(default_factory=IncomeVsExpensesSummary)
+    receivables_vs_payables: ReceivablesVsPayablesSummary = Field(default_factory=ReceivablesVsPayablesSummary)
+    top_creditors: list[TopCreditorItem] = Field(default_factory=list)
 
 
 class CategoryContribution(BaseModel):
@@ -374,12 +431,7 @@ class SoldProductWithMargin(BaseModel):
     gross_margin_pct: float
 
 
-class APAgingBuckets(BaseModel):
-    current_0_30: float = 0.0
-    aging_31_60: float = 0.0
-    aging_61_90: float = 0.0
-    over_90: float = 0.0
-    total_ap: float = 0.0
+# APAgingBuckets defined above
 
 
 class SupplierLedgerRow(BaseModel):

@@ -199,10 +199,34 @@ async def test_executive_summary_waterfall_and_bridge(
         )
         assert round(expected_ncf, 2) == round(bridge["net_cash_flow"], 2)
 
-        # Working Capital structure exists
+        # Working Capital structure & liquidity fields
         assert "inventory_value" in data["working_capital"]
         assert "accounts_payable" in data["working_capital"]
         assert "accounts_receivable" in data["working_capital"]
+        assert "bank_balance" in data["working_capital"]
+        assert "cash_till_balance" in data["working_capital"]
+        assert "cash_with_staff" in data["working_capital"]
+        assert "total_liquid_cash" in data["working_capital"]
+        assert "total_working_capital" in data["working_capital"]
+
+        # Income vs Expenses structure
+        assert "income_vs_expenses" in data
+        ive = data["income_vs_expenses"]
+        assert ive["gross_sales"] == 3000.0
+        assert ive["net_sales"] == 2800.0
+        assert ive["total_cogs"] == 2400.0
+        assert ive["operating_expenses"] == 150.0
+        assert ive["total_costs"] == 2550.0
+        assert ive["operating_surplus"] == 250.0
+
+        # Receivables vs Payables & Top Creditors structure
+        assert "receivables_vs_payables" in data
+        rvp = data["receivables_vs_payables"]
+        assert "accounts_receivable" in rvp
+        assert "accounts_payable" in rvp
+        assert "net_float" in rvp
+        assert "ap_aging" in rvp
+        assert isinstance(data.get("top_creditors"), list)
     finally:
         await exp_po.delete()
         await exp_op.delete()
