@@ -25,11 +25,12 @@ import EventBusyIcon from '@mui/icons-material/EventBusy';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { formatCurrency } from '@/utils';
 import { useLossAudit } from '@/hooks/useReports';
+import { ReportErrorState } from '@/pages/reports/components';
 
 export function LossAuditTab() {
   const [discountThreshold, setDiscountThreshold] = useState(20);
   const [activeCategory, setActiveCategory] = useState<'all' | 'voids' | 'discounts' | 'margins' | 'expired'>('all');
-  const { data, isLoading } = useLossAudit(true, discountThreshold);
+  const { data, isLoading, isError, refetch } = useLossAudit(true, discountThreshold);
 
   // Pagination states
   const [voidPage, setVoidPage] = useState(0);
@@ -59,6 +60,17 @@ export function LossAuditTab() {
   const expiredStockCount = data?.expiredStockCount ?? data?.expired_stock_count ?? 0;
   const expiredStockWriteOffValue = data?.expiredStockWriteOffValue ?? data?.expired_stock_write_off_value ?? 0;
   const missingDayCloseCount = data?.missingDayCloseCount ?? data?.missing_day_close_count ?? 0;
+
+  if (isError && !data) {
+    return (
+      <ReportErrorState
+        title="Could not load Loss & Operational Audit"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return (

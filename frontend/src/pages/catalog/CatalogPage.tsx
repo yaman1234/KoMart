@@ -55,15 +55,15 @@ const CatalogCard = memo(function CatalogCard({ product, discountLabel, onClick 
     >
       <CardActionArea onClick={onClick} sx={{ flexGrow: 1 }}>
         <Box sx={{ position: 'relative' }}>
-            {product.images[0] ? (
-              <CardMedia
-                component="img"
-                image={product.images[0]}
-                alt={product.name}
-                loading="lazy"
-                sx={{ height: 180, objectFit: 'cover', ...(outOfStock && { filter: 'grayscale(40%)' }) }}
-              />
-            ) : (
+          {product.images[0] ? (
+            <CardMedia
+              component="img"
+              image={product.images[0]}
+              alt={product.name}
+              loading="lazy"
+              sx={{ height: 180, objectFit: 'cover', ...(outOfStock && { filter: 'grayscale(40%)' }) }}
+            />
+          ) : (
             <Box
               sx={{
                 height: 180,

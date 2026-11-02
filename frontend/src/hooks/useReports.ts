@@ -331,12 +331,23 @@ export function useSalesPerformance(enabled = true) {
   );
 }
 
-export function useItemsSold(enabled = true) {
+export function useItemsSold(
+  enabled = true,
+  query?: {
+    search?: string;
+    category?: string;
+    marginBand?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+  },
+) {
   const dateRange = useReportDateRange();
   return useQuery(
     reportQueryOptions(
-      [...QUERY_KEYS.reports('itemsSold'), dateRange],
-      () => reportsService.getItemsSold(dateRange),
+      [...QUERY_KEYS.reports('itemsSold'), dateRange, query],
+      () => reportsService.getItemsSold(dateRange, query),
       enabled,
     ),
   );

@@ -20,10 +20,21 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import SearchIcon from '@mui/icons-material/Search';
 import { formatCurrency } from '@/utils';
 import { useTopCustomers, useLoyaltySummary } from '@/hooks/useReports';
+import { AsOfChip, ReportErrorState } from '@/pages/reports/components';
 
 export function CustomersLoyaltyTab() {
-  const { data: topCustomers = [], isLoading: isTopLoading } = useTopCustomers();
-  const { data: loyaltySummary, isLoading: isLoyaltyLoading } = useLoyaltySummary();
+  const {
+    data: topCustomers = [],
+    isLoading: isTopLoading,
+    isError: isTopError,
+    refetch: refetchTop,
+  } = useTopCustomers();
+  const {
+    data: loyaltySummary,
+    isLoading: isLoyaltyLoading,
+    isError: isLoyaltyError,
+    refetch: refetchLoyalty,
+  } = useLoyaltySummary();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
@@ -55,6 +66,18 @@ export function CustomersLoyaltyTab() {
     return { count: filteredCustomers.length, tx, spent, avg };
   }, [filteredCustomers]);
 
+  if ((isTopError || isLoyaltyError) && !loyaltySummary && topCustomers.length === 0) {
+    return (
+      <ReportErrorState
+        title="Could not load Customers & Loyalty"
+        onRetry={() => {
+          void refetchTop();
+          void refetchLoyalty();
+        }}
+      />
+    );
+  }
+
   if (isTopLoading && isLoyaltyLoading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -78,6 +101,13 @@ export function CustomersLoyaltyTab() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AsOfChip kind="period" />
+        <Typography variant="caption" color="text.secondary">
+          Membership activity and top spenders for the selected report date range (not lifetime).
+        </Typography>
+      </Box>
+
       {/* Loyalty KPI Cards */}
       <Grid container spacing={2}>
         <Grid size={{ xs: 6, sm: 3 }}>
@@ -121,10 +151,10 @@ export function CustomersLoyaltyTab() {
             <PeopleAltIcon sx={{ color: '#6366F1' }} />
             <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Top Customers by Lifetime Spend
+                Top Customers by Period Spend
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {filteredCustomers.length} loyalty members · Total spend: {formatCurrency(customerTotals.spent)}
+                {filteredCustomers.length} customers in range · Period spend: {formatCurrency(customerTotals.spent)}
               </Typography>
             </Box>
           </Box>

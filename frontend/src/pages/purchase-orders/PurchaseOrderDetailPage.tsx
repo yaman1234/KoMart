@@ -935,8 +935,8 @@ export function PurchaseOrderDetailPage() {
                 const showPiecePrice = sellMode === 'piece' || sellMode === 'both' || unitsPerBuy <= 1;
                 const lineStatus = item.lineStatus ?? (
                   item.receivedQuantity <= 0 ? 'pending'
-                  : item.receivedQuantity >= item.quantity ? 'received'
-                  : 'partial'
+                    : item.receivedQuantity >= item.quantity ? 'received'
+                      : 'partial'
                 );
                 const defaultPackQty = rem > 0 ? rem : 1;
                 const lastBuy = lastBuyMap[item.productId];
@@ -951,10 +951,10 @@ export function PurchaseOrderDetailPage() {
                       opacity: rowDisabled ? 0.55 : 1,
                       ...(canReceive && !fullyReceived && receiveSel.selected
                         ? {
-                            '&.Mui-selected': { bgcolor: 'action.hover' },
-                            '&.Mui-selected:hover': { bgcolor: 'action.selected' },
-                            '& .MuiTableCell-root': { bgcolor: 'transparent' },
-                          }
+                          '&.Mui-selected': { bgcolor: 'action.hover' },
+                          '&.Mui-selected:hover': { bgcolor: 'action.selected' },
+                          '& .MuiTableCell-root': { bgcolor: 'transparent' },
+                        }
                         : undefined),
                     }}
                   >

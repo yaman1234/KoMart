@@ -407,58 +407,58 @@ export function PurchaseOrderFormPage() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ px: 2, py: 2, mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order details</Typography>
-            <Chip
-              label={`${lineCount} item${lineCount !== 1 ? 's' : ''} · ${formatCurrency(totalAmount)}`}
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 600 }}
-            />
-          </Box>
-          <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                select
-                label="Supplier"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                fullWidth
-                size="small"
-                required
-              >
-                {suppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <NepaliAwareDatePicker
-                label="Expected Delivery"
-                value={expectedDelivery}
-                onChange={setExpectedDelivery}
-                minDate={today().format('YYYY-MM-DD')}
-                size="small"
-                fullWidth
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                select
-                label="Ordered By"
-                value={orderedBy}
-                onChange={(e) => setOrderedBy(e.target.value)}
-                fullWidth
-                size="small"
-                required
-              >
-                {orderedByOptions.map((name) => (
-                  <MenuItem key={name} value={name}>{name}</MenuItem>
-                ))}
-              </TextField>
-            </Grid>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Order details</Typography>
+          <Chip
+            label={`${lineCount} item${lineCount !== 1 ? 's' : ''} · ${formatCurrency(totalAmount)}`}
+            color="primary"
+            variant="outlined"
+            sx={{ fontWeight: 600 }}
+          />
+        </Box>
+        <Grid container spacing={2} sx={{ alignItems: 'flex-start' }}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <TextField
+              select
+              label="Supplier"
+              value={supplierId}
+              onChange={(e) => setSupplierId(e.target.value)}
+              fullWidth
+              size="small"
+              required
+            >
+              {suppliers.map((s) => (
+                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+              ))}
+            </TextField>
           </Grid>
-        </Paper>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <NepaliAwareDatePicker
+              label="Expected Delivery"
+              value={expectedDelivery}
+              onChange={setExpectedDelivery}
+              minDate={today().format('YYYY-MM-DD')}
+              size="small"
+              fullWidth
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <TextField
+              select
+              label="Ordered By"
+              value={orderedBy}
+              onChange={(e) => setOrderedBy(e.target.value)}
+              fullWidth
+              size="small"
+              required
+            >
+              {orderedByOptions.map((name) => (
+                <MenuItem key={name} value={name}>{name}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+        </Grid>
+      </Paper>
 
       <Box sx={{ mb: 1.5 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Order Items</Typography>

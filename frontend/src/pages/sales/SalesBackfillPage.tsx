@@ -603,15 +603,15 @@ export function SalesBackfillPage() {
                       <TableCell align="right">
                         {r.unitPrice != null
                           ? (
-                              <>
-                                {formatCurrency(r.unitPrice)}
-                                {r.priceFromCatalog ? (
-                                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                                    (catalog)
-                                  </Typography>
-                                ) : null}
-                              </>
-                            )
+                            <>
+                              {formatCurrency(r.unitPrice)}
+                              {r.priceFromCatalog ? (
+                                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                                  (catalog)
+                                </Typography>
+                              ) : null}
+                            </>
+                          )
                           : '—'}
                       </TableCell>
                       <TableCell align="right">{formatCurrency(lineAmount(r))}</TableCell>
