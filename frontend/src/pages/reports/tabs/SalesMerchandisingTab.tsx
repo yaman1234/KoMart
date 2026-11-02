@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useDeferredValue } from 'react';
 import {
   Box,
   Paper,
@@ -19,12 +19,15 @@ import {
   Skeleton,
   LinearProgress,
   Button,
+  Grid,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CategoryIcon from '@mui/icons-material/Category';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ShoppingBasketIcon from '@mui/icons-material/ShoppingBasket';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { useDashboardStore } from '@/store';
 import {
   ResponsiveContainer,
@@ -39,6 +42,14 @@ import {
 import { formatCurrency } from '@/utils';
 import { useSalesPerformance, useItemsSold } from '@/hooks/useReports';
 import { ProductSalesDialog } from '@/pages/reports/ProductSalesDialog';
+import {
+  AsOfChip,
+  ReportEmptyState,
+  ReportErrorState,
+  stickyFirstColumnSx,
+  stickyFirstHeaderSx,
+} from '@/pages/reports/components';
+
 
 type SortField =
   | 'name'
@@ -54,11 +65,16 @@ type SortField =
 
 export function SalesMerchandisingTab() {
   const { dateRange } = useDashboardStore();
-  const { data: salesPerf, isLoading: isPerfLoading } = useSalesPerformance();
-  const { data: itemsSold = [], isLoading: isItemsLoading } = useItemsSold();
+  const {
+    data: salesPerf,
+    isLoading: isPerfLoading,
+    isError: isPerfError,
+    refetch: refetchPerf,
+  } = useSalesPerformance();
 
-  // Filters & Pagination for Product Profitability Matrix
+  // Filters & Pagination for Product Profitability Matrix (server-side)
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearch = useDeferredValue(searchTerm.trim());
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [marginFilter, setMarginFilter] = useState<'ALL' | 'HIGH' | 'HEALTHY' | 'LOW' | 'NEGATIVE'>('ALL');
   const [page, setPage] = useState(0);
@@ -66,43 +82,39 @@ export function SalesMerchandisingTab() {
   const [sortField, setSortField] = useState<SortField>('netRevenue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
+  const itemsQuery = useMemo(
+    () => ({
+      search: deferredSearch || undefined,
+      category: selectedCategory,
+      marginBand: marginFilter,
+      sortBy: sortField,
+      sortOrder: sortDirection,
+      page: page + 1,
+      pageSize: rowsPerPage,
+    }),
+    [deferredSearch, selectedCategory, marginFilter, sortField, sortDirection, page, rowsPerPage],
+  );
+
+  const {
+    data: itemsPage,
+    isLoading: isItemsLoading,
+    isError: isItemsError,
+    isFetching: isItemsFetching,
+    refetch: refetchItems,
+  } = useItemsSold(true, itemsQuery);
+
+  const paginatedItems = itemsPage?.data || [];
+  const itemsTotal = itemsPage?.total ?? 0;
+
   // Drill-down dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string } | null>(null);
 
-  // Categories list for filter dropdown
+  // Categories from sales performance (full list), not the current items page
   const categories = useMemo(() => {
-    const set = new Set<string>();
-    itemsSold.forEach((item) => {
-      if (item.category) set.add(item.category);
-    });
-    return Array.from(set).sort();
-  }, [itemsSold]);
-
-  // Filtered Items Sold list
-  const filteredItems = useMemo(() => {
-    return itemsSold.filter((item) => {
-      // Search
-      const search = searchTerm.toLowerCase();
-      const matchSearch =
-        !search ||
-        (item.name || '').toLowerCase().includes(search) ||
-        (item.sku && item.sku.toLowerCase().includes(search));
-      if (!matchSearch) return false;
-
-      // Category
-      if (selectedCategory !== 'ALL' && item.category !== selectedCategory) return false;
-
-      // Margin
-      const margin = item.grossMarginPct ?? item.gross_margin_pct ?? 0;
-      if (marginFilter === 'HIGH' && margin < 25) return false;
-      if (marginFilter === 'HEALTHY' && (margin < 15 || margin >= 25)) return false;
-      if (marginFilter === 'LOW' && (margin < 0 || margin >= 15)) return false;
-      if (marginFilter === 'NEGATIVE' && margin >= 0) return false;
-
-      return true;
-    });
-  }, [itemsSold, searchTerm, selectedCategory, marginFilter]);
+    const list = salesPerf?.categories || [];
+    return list.map((c) => c.category).filter(Boolean).sort();
+  }, [salesPerf]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -113,63 +125,6 @@ export function SalesMerchandisingTab() {
     }
     setPage(0);
   };
-
-  const sortedAndFilteredItems = useMemo(() => {
-    const result = [...filteredItems];
-    result.sort((a, b) => {
-      let aVal = 0;
-      let bVal = 0;
-      switch (sortField) {
-        case 'name': {
-          const comp = (a.name || '').localeCompare(b.name || '');
-          return sortDirection === 'asc' ? comp : -comp;
-        }
-        case 'quantitySold':
-          aVal = a.quantitySold ?? a.quantity_sold ?? 0;
-          bVal = b.quantitySold ?? b.quantity_sold ?? 0;
-          break;
-        case 'avgSellingPrice':
-          aVal = a.avgSellingPrice ?? a.avg_selling_price ?? 0;
-          bVal = b.avgSellingPrice ?? b.avg_selling_price ?? 0;
-          break;
-        case 'unitCost':
-          aVal = a.unitCost ?? a.unit_cost ?? 0;
-          bVal = b.unitCost ?? b.unit_cost ?? 0;
-          break;
-        case 'grossSales':
-          aVal = a.grossSales ?? a.gross_sales ?? 0;
-          bVal = b.grossSales ?? b.gross_sales ?? 0;
-          break;
-        case 'totalDiscount':
-          aVal = a.totalDiscount ?? a.total_discount ?? 0;
-          bVal = b.totalDiscount ?? b.total_discount ?? 0;
-          break;
-        case 'netRevenue':
-          aVal = a.netRevenue ?? a.net_revenue ?? 0;
-          bVal = b.netRevenue ?? b.net_revenue ?? 0;
-          break;
-        case 'totalCogs':
-          aVal = a.totalCogs ?? a.total_cogs ?? 0;
-          bVal = b.totalCogs ?? b.total_cogs ?? 0;
-          break;
-        case 'grossProfit':
-          aVal = a.grossProfit ?? a.gross_profit ?? 0;
-          bVal = b.grossProfit ?? b.gross_profit ?? 0;
-          break;
-        case 'grossMarginPct':
-          aVal = a.grossMarginPct ?? a.gross_margin_pct ?? 0;
-          bVal = b.grossMarginPct ?? b.gross_margin_pct ?? 0;
-          break;
-      }
-      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
-    });
-    return result;
-  }, [filteredItems, sortField, sortDirection]);
-
-  const paginatedItems = useMemo(() => {
-    const start = page * rowsPerPage;
-    return sortedAndFilteredItems.slice(start, start + rowsPerPage);
-  }, [sortedAndFilteredItems, page, rowsPerPage]);
 
   const handleOpenDialog = (productId: string, productName: string) => {
     setSelectedProduct({ id: productId, name: productName });
@@ -217,7 +172,7 @@ export function SalesMerchandisingTab() {
     let net = 0;
     let cogs = 0;
     let profit = 0;
-    filteredItems.forEach((item) => {
+    paginatedItems.forEach((item) => {
       units += item.quantitySold ?? item.quantity_sold ?? 0;
       gross += item.grossSales ?? item.gross_sales ?? 0;
       disc += item.totalDiscount ?? item.total_discount ?? 0;
@@ -227,7 +182,7 @@ export function SalesMerchandisingTab() {
     });
     const margin = net > 0 ? (profit / net) * 100 : 0;
     return { units, gross, disc, net, cogs, profit, margin };
-  }, [filteredItems]);
+  }, [paginatedItems]);
 
   const tenderTotals = useMemo(() => {
     let count = 0;
@@ -239,6 +194,18 @@ export function SalesMerchandisingTab() {
     return { count, amount };
   }, [tenderMixList]);
 
+  if ((isPerfError || isItemsError) && !salesPerf) {
+    return (
+      <ReportErrorState
+        title="Could not load Sales & Merchandising"
+        onRetry={() => {
+          void refetchPerf();
+          void refetchItems();
+        }}
+      />
+    );
+  }
+
   if (isPerfLoading && !salesPerf) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -248,10 +215,88 @@ export function SalesMerchandisingTab() {
     );
   }
 
+  const netRevenue = salesPerf?.totalNetRevenue ?? (salesPerf as any)?.total_net_revenue ?? 0;
+  const grossProfit = salesPerf?.totalGrossProfit ?? (salesPerf as any)?.total_gross_profit ?? 0;
+  const grossMarginPct = salesPerf?.grossMarginPct ?? (salesPerf as any)?.gross_margin_pct ?? 0;
+  const txnCount = salesPerf?.transactionCount ?? (salesPerf as any)?.transaction_count ?? 0;
+  const avgBasket = salesPerf?.avgBasket ?? (salesPerf as any)?.avg_basket ?? 0;
+  const unitsSold = salesPerf?.totalUnitsSold ?? (salesPerf as any)?.total_units_sold ?? 0;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* 0. DAILY REVENUE & GROSS PROFIT TREND CHART */}
-      {dailyTrendList.length > 1 && (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AsOfChip kind="period" />
+        <Typography variant="caption" color="text.secondary">
+          Merchandising figures for the selected report date range
+        </Typography>
+      </Box>
+
+      <Grid container spacing={2}>
+        {[
+          {
+            label: 'Net Sales',
+            value: formatCurrency(netRevenue),
+            hint: `${unitsSold.toLocaleString()} units`,
+            color: '#0284C7',
+            bg: 'rgba(2, 132, 199, 0.08)',
+            icon: <MonetizationOnIcon sx={{ color: '#0284C7', fontSize: 20 }} />,
+          },
+          {
+            label: 'Gross Profit',
+            value: formatCurrency(grossProfit),
+            hint: `Margin ${Number(grossMarginPct).toFixed(1)}%`,
+            color: '#047857',
+            bg: 'rgba(16, 185, 129, 0.08)',
+            icon: <TrendingUpIcon sx={{ color: '#047857', fontSize: 20 }} />,
+          },
+          {
+            label: 'Transactions',
+            value: Number(txnCount).toLocaleString(),
+            hint: 'Completed bills',
+            color: '#6366F1',
+            bg: 'rgba(99, 102, 241, 0.08)',
+            icon: <ReceiptLongIcon sx={{ color: '#6366F1', fontSize: 20 }} />,
+          },
+          {
+            label: 'Avg Basket',
+            value: formatCurrency(avgBasket),
+            hint: 'Net per transaction',
+            color: '#B45309',
+            bg: 'rgba(245, 158, 11, 0.08)',
+            icon: <ShoppingBasketIcon sx={{ color: '#B45309', fontSize: 20 }} />,
+          },
+        ].map((kpi) => (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={kpi.label}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: kpi.bg,
+                height: '100%',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                {kpi.icon}
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  {kpi.label}
+                </Typography>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: kpi.color, fontVariantNumeric: 'tabular-nums' }}>
+                {kpi.value}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {kpi.hint}
+              </Typography>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Daily revenue chart — show empty state for single-day ranges */}
+      {dailyTrendList.length > 1 ? (
         <Paper
           elevation={0}
           sx={{
@@ -301,6 +346,8 @@ export function SalesMerchandisingTab() {
             </ResponsiveContainer>
           </Box>
         </Paper>
+      ) : (
+        <ReportEmptyState message="Daily velocity chart needs a multi-day range. Widen the dates above to compare day-by-day revenue." />
       )}
 
       {/* 1. DEPARTMENT & CATEGORY CONTRIBUTION */}
@@ -491,7 +538,8 @@ export function SalesMerchandisingTab() {
                 Product Profitability Matrix (Items Sold)
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Exact FEFO batch acquisition costs & proportional bill discount allocation ({filteredItems.length} SKUs)
+                Exact FEFO batch acquisition costs & proportional bill discount allocation ({itemsTotal} SKUs)
+                {isItemsFetching ? ' · updating…' : ''}
               </Typography>
             </Box>
           </Box>
@@ -549,7 +597,7 @@ export function SalesMerchandisingTab() {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 700, width: 45 }}>#</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>
+                <TableCell sx={{ fontWeight: 700, minWidth: 180, ...stickyFirstHeaderSx }}>
                   <TableSortLabel
                     active={sortField === 'name'}
                     direction={sortField === 'name' ? sortDirection : 'asc'}
@@ -681,7 +729,7 @@ export function SalesMerchandisingTab() {
                       <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 45 }}>
                         {page * rowsPerPage + idx + 1}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={stickyFirstColumnSx}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.name}</Typography>
                         <Typography variant="caption" color="text.secondary">{item.sku || 'No SKU'}</Typography>
                       </TableCell>
@@ -745,7 +793,7 @@ export function SalesMerchandisingTab() {
                 })
               )}
             </TableBody>
-            {filteredItems.length > 0 && (
+            {paginatedItems.length > 0 && (
               <TableFooter sx={{ position: 'sticky', bottom: 0, zIndex: 2 }}>
                 <TableRow
                   sx={{
@@ -759,7 +807,7 @@ export function SalesMerchandisingTab() {
                   }}
                 >
                   <TableCell>—</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Total ({filteredItems.length} Products)</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>Page total ({paginatedItems.length} of {itemsTotal})</TableCell>
                   <TableCell>—</TableCell>
                   <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
                     {productTotals.units.toLocaleString()}
@@ -804,7 +852,7 @@ export function SalesMerchandisingTab() {
 
         <TablePagination
           component="div"
-          count={filteredItems.length}
+          count={itemsTotal}
           page={page}
           onPageChange={(_, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}

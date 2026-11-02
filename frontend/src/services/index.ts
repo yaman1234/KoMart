@@ -1632,26 +1632,49 @@ export const reportsService = {
 
   },
 
-  getItemsSold: async (range?: DateRange): Promise<SoldProductWithMargin[]> => {
-
+  getItemsSold: async (
+    range?: DateRange,
+    query?: {
+      search?: string;
+      category?: string;
+      marginBand?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    },
+  ): Promise<import('@/types').PaginatedResponse<SoldProductWithMargin>> => {
     const { data } = await apiClient.get('/reports/items-sold', {
-
-      params: { ...withRange(range), page_size: 1000 },
-
+      params: {
+        ...withRange(range),
+        search: query?.search || undefined,
+        category: query?.category && query.category !== 'ALL' ? query.category : undefined,
+        margin_band: query?.marginBand && query.marginBand !== 'ALL' ? query.marginBand.toLowerCase() : undefined,
+        sort_by: query?.sortBy || 'net_revenue',
+        sort_order: query?.sortOrder || 'desc',
+        page: query?.page ?? 1,
+        page_size: query?.pageSize ?? 25,
+      },
     });
 
-    const items = Array.isArray(data)
+    if (Array.isArray(data)) {
+      return {
+        data: data as SoldProductWithMargin[],
+        total: data.length,
+        page: 1,
+        pageSize: data.length,
+        totalPages: 1,
+      };
+    }
 
-      ? data
-
-      : data && Array.isArray((data as any).data)
-
-        ? (data as any).data
-
-        : ensureArray(data);
-
-    return items as SoldProductWithMargin[];
-
+    const rows = data && Array.isArray((data as any).data) ? (data as any).data : ensureArray(data);
+    return {
+      data: rows as SoldProductWithMargin[],
+      total: Number((data as any)?.total ?? rows.length),
+      page: Number((data as any)?.page ?? 1),
+      pageSize: Number((data as any)?.page_size ?? (data as any)?.pageSize ?? rows.length),
+      totalPages: Number((data as any)?.total_pages ?? (data as any)?.totalPages ?? 1),
+    };
   },
 
   getPurchasingPayables: async (range?: DateRange): Promise<PurchasingPayablesReport> => {

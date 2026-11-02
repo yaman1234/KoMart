@@ -18,6 +18,8 @@ import {
   LinearProgress,
   Button,
   Tooltip,
+  Alert,
+  Stack,
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -28,6 +30,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@/utils';
 import { useInventoryHealth } from '@/hooks/useReports';
+import { AsOfChip, ReportErrorState } from '@/pages/reports/components';
 
 export function InventoryHealthTab() {
   const navigate = useNavigate();
@@ -39,7 +42,7 @@ export function InventoryHealthTab() {
   const [reorderPage, setReorderPage] = useState(0);
   const [reorderRowsPerPage, setReorderRowsPerPage] = useState(10);
 
-  const { data, isLoading } = useInventoryHealth(true, stockFilter, expiryDays, deadDays);
+  const { data, isLoading, isError, refetch } = useInventoryHealth(true, stockFilter, expiryDays, deadDays);
 
   const reorderCandidates = useMemo(() => {
     return data?.reorderCandidates || data?.reorder_candidates || [];
@@ -56,6 +59,17 @@ export function InventoryHealthTab() {
   const deadStockItems = useMemo(() => {
     return data?.deadStockItems || data?.dead_stock_items || [];
   }, [data]);
+
+  if (isError && !data) {
+    return (
+      <ReportErrorState
+        title="Could not load Inventory & Health"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return (
@@ -105,6 +119,19 @@ export function InventoryHealthTab() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Alert
+        severity="info"
+        icon={false}
+        sx={{ borderRadius: 2.5, py: 0.75 }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          <AsOfChip kind="live" />
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Live snapshot — stock, reorder, expiry, and dead capital ignore the report date range.
+          </Typography>
+        </Stack>
+      </Alert>
+
       {/* 1. INVENTORY HEALTH KPI STRIP */}
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>

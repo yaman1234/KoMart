@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Box,
   Grid,
@@ -11,26 +11,56 @@ import {
   TableHead,
   TableRow,
   TableFooter,
+  TablePagination,
   Skeleton,
   Stack,
   Divider,
   Button,
+  TextField,
+  MenuItem,
+  Chip,
 } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import TodayIcon from '@mui/icons-material/Today';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { useNavigate } from 'react-router-dom';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+} from 'recharts';
 import { formatCurrency } from '@/utils';
 import { useCashFlowStatement } from '@/hooks/useReports';
+import { AsOfChip, ReportEmptyState, ReportErrorState } from '@/pages/reports/components';
+
+const WALLET_LABELS: Record<string, string> = {
+  cash: 'Cash in Till',
+  bank: 'Bank Operating Account',
+  esewa: 'eSewa Merchant Wallet',
+};
+
+function walletLabel(wallet: string) {
+  return WALLET_LABELS[wallet] || wallet;
+}
 
 export function CashFlowLiquidityTab() {
   const navigate = useNavigate();
-  const { data, isLoading } = useCashFlowStatement();
+  const { data, isLoading, isError, refetch } = useCashFlowStatement();
 
-  const walletsList = useMemo(() => {
-    return data?.wallets || [];
-  }, [data]);
+  const [dayFilter, setDayFilter] = useState<'ACTIVITY' | 'ALL' | 'SURPLUS' | 'DEFICIT'>('ACTIVITY');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
+  const walletsList = useMemo(() => data?.wallets || [], [data]);
 
   const walletTotals = useMemo(() => {
     let open = 0;
@@ -48,6 +78,100 @@ export function CashFlowLiquidityTab() {
     return { open, inf, outf, net, close };
   }, [walletsList]);
 
+  const movements = useMemo(() => data?.movements ?? [], [data]);
+
+  const movementCountsByDate = useMemo(() => {
+    const counts: Record<string, number> = {};
+    movements.forEach((row) => {
+      const day = row.date;
+      counts[day] = (counts[day] || 0) + 1;
+    });
+    return counts;
+  }, [movements]);
+
+  const walletSplitByDate = useMemo(() => {
+    const map: Record<string, { cashIn: number; cashOut: number; bankIn: number; bankOut: number; esewaIn: number; esewaOut: number }> = {};
+    movements.forEach((row) => {
+      const day = row.date;
+      if (!map[day]) {
+        map[day] = { cashIn: 0, cashOut: 0, bankIn: 0, bankOut: 0, esewaIn: 0, esewaOut: 0 };
+      }
+      const bucket = map[day];
+      const amt = row.amount || 0;
+      const isIn = row.direction === 'in';
+      if (row.wallet === 'cash') {
+        if (isIn) bucket.cashIn += amt;
+        else bucket.cashOut += amt;
+      } else if (row.wallet === 'bank') {
+        if (isIn) bucket.bankIn += amt;
+        else bucket.bankOut += amt;
+      } else if (row.wallet === 'esewa') {
+        if (isIn) bucket.esewaIn += amt;
+        else bucket.esewaOut += amt;
+      }
+    });
+    return map;
+  }, [movements]);
+
+  const dailyTrend = useMemo(() => {
+    const raw = data?.dailyTrend ?? data?.daily_trend ?? [];
+    return raw.map((d) => {
+      const split = walletSplitByDate[d.date];
+      return {
+        date: d.date,
+        inflows: d.inflows ?? 0,
+        outflows: d.outflows ?? 0,
+        net: d.net ?? (d.inflows ?? 0) - (d.outflows ?? 0),
+        label: d.date.slice(5), // MM-DD
+        movements: movementCountsByDate[d.date] || 0,
+        cashIn: split?.cashIn ?? 0,
+        cashOut: split?.cashOut ?? 0,
+        bankIn: split?.bankIn ?? 0,
+        bankOut: split?.bankOut ?? 0,
+        esewaIn: split?.esewaIn ?? 0,
+        esewaOut: split?.esewaOut ?? 0,
+      };
+    });
+  }, [data, movementCountsByDate, walletSplitByDate]);
+
+  const dailyRows = useMemo(() => {
+    return dailyTrend.filter((row) => {
+      const hasActivity = row.inflows > 0 || row.outflows > 0 || row.movements > 0;
+      if (dayFilter === 'ACTIVITY') return hasActivity;
+      if (dayFilter === 'SURPLUS') return hasActivity && row.net >= 0;
+      if (dayFilter === 'DEFICIT') return hasActivity && row.net < 0;
+      return true;
+    });
+  }, [dailyTrend, dayFilter]);
+
+  const pagedDailyRows = useMemo(() => {
+    const start = page * rowsPerPage;
+    return dailyRows.slice(start, start + rowsPerPage);
+  }, [dailyRows, page, rowsPerPage]);
+
+  const dailyTotals = useMemo(() => {
+    let inflow = 0;
+    let outflow = 0;
+    let movementsCount = 0;
+    dailyRows.forEach((row) => {
+      inflow += row.inflows;
+      outflow += row.outflows;
+      movementsCount += row.movements;
+    });
+    return { inflow, outflow, net: inflow - outflow, days: dailyRows.length, movementsCount };
+  }, [dailyRows]);
+
+  if (isError && !data) {
+    return (
+      <ReportErrorState
+        title="Could not load Cash Flow & Wallets"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
+
   if (isLoading || !data) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -58,6 +182,7 @@ export function CashFlowLiquidityTab() {
             </Grid>
           ))}
         </Grid>
+        <Skeleton variant="rounded" height={280} sx={{ borderRadius: 3 }} />
         <Skeleton variant="rounded" height={400} sx={{ borderRadius: 3 }} />
       </Box>
     );
@@ -82,8 +207,9 @@ export function CashFlowLiquidityTab() {
   const otherOutflows = outf.otherOutflows ?? outf.other_outflows ?? 0;
   const totalOutflows = outf.totalOutflows ?? outf.total_outflows ?? 0;
 
-  const netCashFlow = data.netCashFlow ?? data.net_cash_flow ?? (totalInflows - totalOutflows);
+  const netCashFlow = data.netCashFlow ?? data.net_cash_flow ?? totalInflows - totalOutflows;
   const isSurplus = netCashFlow >= 0;
+  const showDailyChart = dailyTrend.length > 1;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -175,9 +301,69 @@ export function CashFlowLiquidityTab() {
         </Grid>
       </Grid>
 
-      {/* 2. DUAL-COLUMN CASH INFLOWS VS OUTFLOWS STATEMENT */}
+      {/* 2. DAILY INFLOW VS OUTFLOW CHART */}
+      {showDailyChart ? (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ShowChartIcon sx={{ color: '#0284C7' }} />
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    Daily Cash Inflows vs Outflows
+                  </Typography>
+                  <AsOfChip kind="period" />
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                  Wallet ledger movements by business day across the selected date filter
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+          <Box sx={{ width: '100%', minWidth: 0, height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
+              <ComposedChart data={dailyTrend} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickFormatter={(v) => `Rs. ${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                />
+                <RechartsTooltip
+                  formatter={(val: any, name: any) => [formatCurrency(Number(val) || 0), String(name)]}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.date || ''}
+                />
+                <Legend />
+                <Bar dataKey="inflows" name="Inflows" fill="#10B981" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="outflows" name="Outflows" fill="#F43F5E" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Line
+                  type="monotone"
+                  dataKey="net"
+                  name="Net"
+                  stroke="#0284C7"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </Box>
+        </Paper>
+      ) : (
+        <ReportEmptyState message="Daily inflow/outflow chart needs a multi-day range. Widen the dates above to compare day-by-day cash movement." />
+      )}
+
+      {/* 3. DUAL-COLUMN CASH INFLOWS VS OUTFLOWS STATEMENT */}
       <Grid container spacing={3}>
-        {/* Inflows Column */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper
             elevation={0}
@@ -257,7 +443,6 @@ export function CashFlowLiquidityTab() {
           </Paper>
         </Grid>
 
-        {/* Outflows Column */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper
             elevation={0}
@@ -333,7 +518,198 @@ export function CashFlowLiquidityTab() {
         </Grid>
       </Grid>
 
-      {/* 3. MULTI-WALLET LIQUIDITY & MOVEMENT LEDGER */}
+      {/* 4. PER-DAY CASH INFLOWS & OUTFLOWS */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            mb: 2,
+            flexWrap: 'wrap',
+            gap: 2,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ReceiptLongIcon sx={{ color: '#0284C7' }} />
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Cash Inflows & Outflows Detail
+                </Typography>
+                <AsOfChip kind="period" />
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Daily totals for the selected date filter, with wallet split where ledger lines exist
+              </Typography>
+            </Box>
+          </Box>
+
+          <TextField
+            select
+            size="small"
+            label="Days"
+            value={dayFilter}
+            onChange={(e) => {
+              setDayFilter(e.target.value as typeof dayFilter);
+              setPage(0);
+            }}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="ACTIVITY">Days with activity</MenuItem>
+            <MenuItem value="ALL">All days in range</MenuItem>
+            <MenuItem value="SURPLUS">Surplus days only</MenuItem>
+            <MenuItem value="DEFICIT">Deficit days only</MenuItem>
+          </TextField>
+        </Box>
+
+        {dailyRows.length === 0 ? (
+          <ReportEmptyState message="No daily cash activity in the selected date filter." />
+        ) : (
+          <>
+            <TableContainer sx={{ maxHeight: 480 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      Movements
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      Inflows
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      Outflows
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      Net
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      Cash Net
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      Bank Net
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      eSewa Net
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Result</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {pagedDailyRows.map((row, idx) => {
+                    const cashNet = row.cashIn - row.cashOut;
+                    const bankNet = row.bankIn - row.bankOut;
+                    const esewaNet = row.esewaIn - row.esewaOut;
+                    const hasWalletSplit = row.movements > 0;
+                    return (
+                      <TableRow key={row.date} hover>
+                        <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+                          {page * rowsPerPage + idx + 1}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {row.date}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {row.movements || '—'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#047857', fontWeight: 700 }}>
+                          {row.inflows > 0 ? `+${formatCurrency(row.inflows)}` : formatCurrency(0)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#BE123C', fontWeight: 700 }}>
+                          {row.outflows > 0 ? `-${formatCurrency(row.outflows)}` : formatCurrency(0)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{
+                            fontVariantNumeric: 'tabular-nums',
+                            fontWeight: 800,
+                            color: row.net >= 0 ? '#047857' : '#BE123C',
+                          }}
+                        >
+                          {row.net >= 0 ? `+${formatCurrency(row.net)}` : formatCurrency(row.net)}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: cashNet >= 0 ? '#047857' : '#BE123C' }}>
+                          {hasWalletSplit ? (cashNet >= 0 ? `+${formatCurrency(cashNet)}` : formatCurrency(cashNet)) : '—'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: bankNet >= 0 ? '#047857' : '#BE123C' }}>
+                          {hasWalletSplit ? (bankNet >= 0 ? `+${formatCurrency(bankNet)}` : formatCurrency(bankNet)) : '—'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: esewaNet >= 0 ? '#047857' : '#BE123C' }}>
+                          {hasWalletSplit ? (esewaNet >= 0 ? `+${formatCurrency(esewaNet)}` : formatCurrency(esewaNet)) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {row.inflows === 0 && row.outflows === 0 ? (
+                            <Chip size="small" label="Quiet" variant="outlined" />
+                          ) : (
+                            <Chip
+                              size="small"
+                              label={row.net >= 0 ? 'Surplus' : 'Deficit'}
+                              color={row.net >= 0 ? 'success' : 'error'}
+                              variant="outlined"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+                <TableFooter sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', zIndex: 1 }}>
+                  <TableRow sx={{ '& td': { fontWeight: 800, borderTop: '2px solid', borderColor: 'divider' } }}>
+                    <TableCell />
+                    <TableCell>
+                      Period total ({dailyTotals.days} days)
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {dailyTotals.movementsCount || '—'}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#047857' }}>
+                      +{formatCurrency(dailyTotals.inflow)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: '#BE123C' }}>
+                      -{formatCurrency(dailyTotals.outflow)}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontVariantNumeric: 'tabular-nums',
+                        color: dailyTotals.net >= 0 ? '#047857' : '#BE123C',
+                      }}
+                    >
+                      {dailyTotals.net >= 0 ? `+${formatCurrency(dailyTotals.net)}` : formatCurrency(dailyTotals.net)}
+                    </TableCell>
+                    <TableCell colSpan={4} />
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              component="div"
+              count={dailyRows.length}
+              page={page}
+              onPageChange={(_, next) => setPage(next)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[25, 50, 100]}
+            />
+          </>
+        )}
+      </Paper>
+
+      {/* 5. MULTI-WALLET LIQUIDITY & MOVEMENT LEDGER */}
       <Paper
         elevation={0}
         sx={{
@@ -347,11 +723,15 @@ export function CashFlowLiquidityTab() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <AccountBalanceWalletIcon sx={{ color: '#0284C7' }} />
             <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Live Wallet Balances & Period Movements
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Period Wallet Movements
+                </Typography>
+                <AsOfChip kind="period" />
+              </Box>
               <Typography variant="caption" color="text.secondary">
-                Audit trail across physical cash registers, bank accounts, and merchant wallets
+                Opening → period in/out → closing for till, bank, and merchant wallets. Staff custody float lives on
+                Executive Working Capital / Day Book.
               </Typography>
             </Box>
           </Box>
@@ -372,11 +752,21 @@ export function CashFlowLiquidityTab() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700, width: 44 }}>#</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Wallet Account</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Opening Balance</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Period Inflows</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Period Outflows</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Net Movement</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Closing Balance</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  Opening Balance
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  Period Inflows
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  Period Outflows
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  Net Movement
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  Closing Balance
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -392,9 +782,7 @@ export function CashFlowLiquidityTab() {
                     <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
                       {idx + 1}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
-                      {w.wallet === 'cash' ? '💵 Cash in Till' : w.wallet === 'bank' ? '🏦 Bank Operating Account' : `📱 ${w.wallet} Merchant Wallet`}
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{walletLabel(w.wallet)}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                       {formatCurrency(openBal)}
                     </TableCell>
@@ -421,7 +809,9 @@ export function CashFlowLiquidityTab() {
                 );
               })}
             </TableBody>
-            <TableFooter sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', zIndex: 1, boxShadow: '0 -2px 6px rgba(0,0,0,0.06)' }}>
+            <TableFooter
+              sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', zIndex: 1, boxShadow: '0 -2px 6px rgba(0,0,0,0.06)' }}
+            >
               <TableRow sx={{ '& td': { fontWeight: 800, borderTop: '2px solid', borderColor: 'divider' } }}>
                 <TableCell />
                 <TableCell>Total Liquid Position</TableCell>
@@ -454,4 +844,3 @@ export function CashFlowLiquidityTab() {
     </Box>
   );
 }
-

@@ -5968,6 +5968,14 @@ export interface TradingPnLWaterfall {
 
 
 
+  inventoryShrinkage?: number;
+
+
+
+  zeroCostLineCount?: number;
+
+
+
   // Fallbacks
 
 
@@ -6021,6 +6029,14 @@ export interface TradingPnLWaterfall {
 
 
   net_profit?: number;
+
+
+
+  inventory_shrinkage?: number;
+
+
+
+  zero_cost_line_count?: number;
 
 
 
@@ -6105,11 +6121,15 @@ export interface WorkingCapitalSummary {
   esewaBalance?: number;
   bankAndDigitalTotal?: number;
   cashTillBalance?: number;
+  cashTillExpected?: number;
+  tillVariance?: number;
   cashWithStaff?: number;
   totalLiquidCash?: number;
   totalWorkingCapital?: number;
   netWorkingCapital?: number;
   cashCoverageRatio?: number;
+  asOfDate?: string;
+  snapshotMode?: 'live' | 'closing' | string;
 
   // Fallbacks
   inventory_value?: number;
@@ -6119,9 +6139,13 @@ export interface WorkingCapitalSummary {
   esewa_balance?: number;
   bank_and_digital_total?: number;
   cash_till_balance?: number;
+  cash_till_expected?: number;
+  till_variance?: number;
   cash_with_staff?: number;
   total_liquid_cash?: number;
   total_working_capital?: number;
+  as_of_date?: string;
+  snapshot_mode?: string;
   net_working_capital?: number;
   cash_coverage_ratio?: number;
 }
@@ -6263,6 +6287,14 @@ export interface ExecutiveFinancialSummary {
 
 
 
+  workingCapitalClosing?: WorkingCapitalSummary;
+
+
+
+  periodTillVariance?: number;
+
+
+
   taxVat: TaxVatSummary;
 
 
@@ -6288,6 +6320,14 @@ export interface ExecutiveFinancialSummary {
 
 
   working_capital?: WorkingCapitalSummary;
+  working_capital_closing?: WorkingCapitalSummary;
+  period_till_variance?: number;
+  opexByCategory?: Array<{ category: string; amount: number; count: number }>;
+  opex_by_category?: Array<{ category: string; amount: number; count: number }>;
+  topCategories?: CategoryContribution[];
+  top_categories?: CategoryContribution[];
+  tenderMix?: TenderMixItem[];
+  tender_mix?: TenderMixItem[];
 
 
 
@@ -7695,6 +7735,31 @@ export interface WalletMovementSummary {
 
 
 
+export interface CashFlowDailyPoint {
+  date: string;
+  inflows: number;
+  outflows: number;
+  net: number;
+}
+
+export interface CashFlowMovementRow {
+  id: string;
+  date: string;
+  wallet: string;
+  direction: string; // in | out
+  entryType: string;
+  amount: number;
+  remarks: string;
+  referenceType: string;
+  referenceId: string;
+  createdBy: string;
+  // Fallbacks
+  entry_type?: string;
+  reference_type?: string;
+  reference_id?: string;
+  created_by?: string;
+}
+
 export interface CashFlowStatement {
 
 
@@ -7725,6 +7790,12 @@ export interface CashFlowStatement {
 
   cashToProfitBridge: CashToProfitBridge;
 
+  dailyTrend?: CashFlowDailyPoint[];
+
+  movements?: CashFlowMovementRow[];
+
+  movementsTruncated?: boolean;
+
 
 
   // Fallbacks
@@ -7744,6 +7815,10 @@ export interface CashFlowStatement {
 
 
   cash_to_profit_bridge?: CashToProfitBridge;
+
+  daily_trend?: CashFlowDailyPoint[];
+
+  movements_truncated?: boolean;
 
 
 

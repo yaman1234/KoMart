@@ -4,6 +4,8 @@
 **Target Module:** Retail Reports & Executive Financial Intelligence  
 **Author / Architect:** Antigravity AI Engineering  
 **Status:** Under Review  
+**UX delivery plan:** [REPORTS_UX_IMPLEMENTATION_PLAN.md](./REPORTS_UX_IMPLEMENTATION_PLAN.md)  
+
 
 ---
 

@@ -180,8 +180,12 @@ async def test_executive_summary_waterfall_and_bridge(
         assert pnl["gross_profit"] == 400.0
         # OpEx MUST only be 150 (not 650!)
         assert pnl["operating_expenses"] == 150.0
-        # Operating Profit (EBIT) = 400 - 150 = 250
+        assert pnl.get("inventory_shrinkage", 0) == 0.0
+        # Operating Profit (EBIT) = 400 - 150 - 0 shrinkage = 250
         assert pnl["operating_profit"] == 250.0
+        assert pnl.get("setup_investment", 0) == 0.0
+        assert pnl.get("net_profit", 0) == 250.0
+        assert "zero_cost_line_count" in pnl
 
         # Cash-to-Profit Bridge validation:
         # Net Cash Flow = bridge.accrual_operating_profit + non_cash + cogs - po_payments + refunds + timing
@@ -208,6 +212,18 @@ async def test_executive_summary_waterfall_and_bridge(
         assert "cash_with_staff" in data["working_capital"]
         assert "total_liquid_cash" in data["working_capital"]
         assert "total_working_capital" in data["working_capital"]
+        assert "till_variance" in data["working_capital"]
+        assert data["working_capital"].get("snapshot_mode") == "live"
+        assert data.get("working_capital_closing") is not None
+        assert data["working_capital_closing"].get("snapshot_mode") == "closing"
+        assert data["working_capital_closing"].get("as_of_date") == test_day
+        assert "period_till_variance" in data
+        assert "opex_by_category" in data
+        assert "top_categories" in data
+        assert "tender_mix" in data
+        assert isinstance(data["opex_by_category"], list)
+        assert isinstance(data["top_categories"], list)
+        assert isinstance(data["tender_mix"], list)
 
         # Income vs Expenses structure
         assert "income_vs_expenses" in data

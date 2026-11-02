@@ -268,10 +268,12 @@ class TradingPnLWaterfall(BaseModel):
     gross_profit: float
     gross_margin_pct: float
     operating_expenses: float
+    inventory_shrinkage: float = 0.0  # damaged / write-off stock at cost (pre-EBIT)
     operating_profit: float  # EBIT
     operating_margin_pct: float
-    setup_investment: float = 0.0
-    net_profit: float = 0.0
+    setup_investment: float = 0.0  # CapEx
+    net_profit: float = 0.0  # Net Store Earnings after CapEx
+    zero_cost_line_count: int = 0  # sale lines still costing 0 after fallbacks
 
 
 class CashToProfitBridge(BaseModel):
@@ -302,11 +304,15 @@ class WorkingCapitalSummary(BaseModel):
     esewa_balance: float = 0.0
     bank_and_digital_total: float = 0.0
     cash_till_balance: float = 0.0
+    cash_till_expected: float = 0.0
+    till_variance: float = 0.0  # counted/statement close − expected (0 if unknown)
     cash_with_staff: float = 0.0
     total_liquid_cash: float = 0.0
     total_working_capital: float = 0.0  # liquid cash + inventory
     net_working_capital: float = 0.0  # (total_working_capital + accounts_receivable) - accounts_payable
     cash_coverage_ratio: float = 0.0  # total_liquid_cash / accounts_payable
+    as_of_date: str = ""  # YYYY-MM-DD snapshot date
+    snapshot_mode: str = "live"  # live | closing
 
 
 class IncomeVsExpensesSummary(BaseModel):
@@ -351,19 +357,6 @@ class TaxVatSummary(BaseModel):
     round_off: float
 
 
-class ExecutiveFinancialSummary(BaseModel):
-    period_start: str
-    period_end: str
-    pnl: TradingPnLWaterfall
-    cash_flow_summary: dict[str, float]
-    cash_bridge: CashToProfitBridge
-    working_capital: WorkingCapitalSummary
-    tax_vat: TaxVatSummary
-    income_vs_expenses: IncomeVsExpensesSummary = Field(default_factory=IncomeVsExpensesSummary)
-    receivables_vs_payables: ReceivablesVsPayablesSummary = Field(default_factory=ReceivablesVsPayablesSummary)
-    top_creditors: list[TopCreditorItem] = Field(default_factory=list)
-
-
 class CategoryContribution(BaseModel):
     category: str
     units_sold: int
@@ -382,6 +375,25 @@ class TenderMixItem(BaseModel):
     amount: float
     transaction_count: int
     share_pct: float
+
+
+class ExecutiveFinancialSummary(BaseModel):
+    period_start: str
+    period_end: str
+    pnl: TradingPnLWaterfall
+    cash_flow_summary: dict[str, float]
+    cash_bridge: CashToProfitBridge
+    working_capital: WorkingCapitalSummary  # live snapshot (backward compatible)
+    working_capital_closing: WorkingCapitalSummary | None = None  # balances as of period_end
+    period_till_variance: float = 0.0  # sum of cash till over/short across period day closes
+    tax_vat: TaxVatSummary
+    income_vs_expenses: IncomeVsExpensesSummary = Field(default_factory=IncomeVsExpensesSummary)
+    receivables_vs_payables: ReceivablesVsPayablesSummary = Field(default_factory=ReceivablesVsPayablesSummary)
+    top_creditors: list[TopCreditorItem] = Field(default_factory=list)
+    # Hub teasers — avoids extra FE queries for OpEx / sales drill-ins
+    opex_by_category: list[ExpenseByCategory] = Field(default_factory=list)
+    top_categories: list[CategoryContribution] = Field(default_factory=list)
+    tender_mix: list[TenderMixItem] = Field(default_factory=list)
 
 
 class DailySalesPerformance(BaseModel):
@@ -576,6 +588,26 @@ class WalletMovementSummary(BaseModel):
     closing_balance: float = 0.0
 
 
+class CashFlowDailyPoint(BaseModel):
+    date: str
+    inflows: float = 0.0
+    outflows: float = 0.0
+    net: float = 0.0
+
+
+class CashFlowMovementRow(BaseModel):
+    id: str = ""
+    date: str
+    wallet: str
+    direction: str  # in | out
+    entry_type: str
+    amount: float
+    remarks: str = ""
+    reference_type: str = ""
+    reference_id: str = ""
+    created_by: str = ""
+
+
 class CashFlowStatement(BaseModel):
     period_start: str
     period_end: str
@@ -584,6 +616,9 @@ class CashFlowStatement(BaseModel):
     net_cash_flow: float
     wallets: list[WalletMovementSummary]
     cash_to_profit_bridge: CashToProfitBridge
+    daily_trend: list[CashFlowDailyPoint] = Field(default_factory=list)
+    movements: list[CashFlowMovementRow] = Field(default_factory=list)
+    movements_truncated: bool = False
 
 
 # ---------------------------------------------------------------------------

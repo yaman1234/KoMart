@@ -19,6 +19,7 @@ import {
   Skeleton,
   Stack,
   Tooltip,
+  Button,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -26,11 +27,14 @@ import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@/utils';
 import { usePurchasingPayables } from '@/hooks/useReports';
+import { AsOfChip, ReportErrorState, stickyFirstColumnSx, stickyFirstHeaderSx } from '@/pages/reports/components';
 
 export function PurchasesPayablesTab() {
-  const { data, isLoading } = usePurchasingPayables();
+  const navigate = useNavigate();
+  const { data, isLoading, isError, refetch } = usePurchasingPayables();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [balanceFilter, setBalanceFilter] = useState<'ALL' | 'HAS_BALANCE' | 'CLEARED'>('ALL');
@@ -81,6 +85,17 @@ export function PurchasesPayablesTab() {
     });
     return { orders, gross, disc, charges, net, paid, bal };
   }, [filteredSuppliers]);
+
+  if (isError && !data) {
+    return (
+      <ReportErrorState
+        title="Could not load Purchases & Payables"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return (
@@ -165,6 +180,23 @@ export function PurchasesPayablesTab() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <AsOfChip kind="period" />
+          <AsOfChip kind="live" />
+          <Typography variant="caption" color="text.secondary">
+            Purchase activity is period-scoped; outstanding AP / open return receivables are live balances.
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          onClick={() => navigate('/reports?tab=cashflow')}
+          sx={{ textTransform: 'none', fontWeight: 700, fontSize: 12 }}
+        >
+          Cash paid to suppliers → Cash Flow
+        </Button>
+      </Box>
+
       {/* 1. PROCUREMENT & AP OVERVIEW KPIS */}
       <Grid container spacing={2}>
         {kpis.map((kpi, idx) => (
@@ -371,7 +403,7 @@ export function PurchasesPayablesTab() {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 700, width: 45 }}>#</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Supplier Name</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 160, ...stickyFirstHeaderSx }}>Supplier Name</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700 }}>Orders</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Gross PO</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Discounts</TableCell>
@@ -380,12 +412,13 @@ export function PurchasesPayablesTab() {
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Amount Paid</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Balance Due</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700 }}>Aging Status</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedSuppliers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                     No supplier records found matching the filter.
                   </TableCell>
                 </TableRow>
@@ -424,7 +457,7 @@ export function PurchasesPayablesTab() {
                       <TableCell sx={{ fontWeight: 600, color: 'text.secondary', width: 45 }}>
                         {page * rowsPerPage + idx + 1}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={stickyFirstColumnSx}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{sName}</Typography>
                         <Typography variant="caption" color="text.secondary">
                           {pan ? `PAN: ${pan}` : s.phone || 'No contact'}
@@ -459,6 +492,27 @@ export function PurchasesPayablesTab() {
                         {formatCurrency(bal)}
                       </TableCell>
                       <TableCell align="center">{agingBadge}</TableCell>
+                      <TableCell align="right">
+                        {bal > 0 && sId ? (
+                          <Button
+                            size="small"
+                            onClick={() => navigate(`/suppliers/${sId}`)}
+                            sx={{ textTransform: 'none', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}
+                          >
+                            Pay / settle
+                          </Button>
+                        ) : sId ? (
+                          <Button
+                            size="small"
+                            onClick={() => navigate(`/suppliers/${sId}`)}
+                            sx={{ textTransform: 'none', fontWeight: 600, fontSize: 12, color: 'text.secondary' }}
+                          >
+                            Open
+                          </Button>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -508,6 +562,7 @@ export function PurchasesPayablesTab() {
                     {formatCurrency(supplierTotals.bal)}
                   </TableCell>
                   <TableCell align="center">—</TableCell>
+                  <TableCell align="right">—</TableCell>
                 </TableRow>
               </TableFooter>
             )}

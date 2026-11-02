@@ -19,6 +19,9 @@ import {
   TableRow,
   LinearProgress,
   Collapse,
+  ToggleButton,
+  ToggleButtonGroup,
+  Alert,
 } from '@mui/material';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -37,29 +40,38 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import PaymentsIcon from '@mui/icons-material/Payments';
 
 import { formatCurrency } from '@/utils';
-import {
-  useExecutiveSummary,
-  useExpenseSummary,
-  useSalesPerformance,
-} from '@/hooks/useReports';
+import { useExecutiveSummary } from '@/hooks/useReports';
+import { AsOfChip, ReportErrorState, TeaserTable } from '@/pages/reports/components';
+
 
 export function ExecutiveSummaryTab() {
   const navigate = useNavigate();
-  const { data, isLoading } = useExecutiveSummary();
-  const { data: expenseSummary } = useExpenseSummary();
-  const { data: salesPerformance } = useSalesPerformance();
+  const { data, isLoading, isError, refetch } = useExecutiveSummary();
 
   const [showBridge, setShowBridge] = useState(false);
   const [showExpenseDetails, setShowExpenseDetails] = useState(false);
+  const [wcMode, setWcMode] = useState<'live' | 'closing'>('live');
 
   const expenseCategories = useMemo(() => {
-    const list = expenseSummary?.byCategory || (expenseSummary as any)?.by_category || [];
+    const list = (data as any)?.opexByCategory || (data as any)?.opex_by_category || [];
     return list.filter(
       (c: any) => c.category !== 'purchase_order' && c.category !== 'setup_investment'
     );
-  }, [expenseSummary]);
+  }, [data]);
+
+  if (isError && !data) {
+    return (
+      <ReportErrorState
+        title="Could not load Executive Financials"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return (
@@ -87,11 +99,17 @@ export function ExecutiveSummaryTab() {
   // Raw data fallbacks
   const pnl = (data.pnl || {}) as any;
   const bridge = (data.cashBridge || data.cash_bridge || {}) as any;
-  const wc = (data.workingCapital || data.working_capital || {}) as any;
+  const wcLive = (data.workingCapital || data.working_capital || {}) as any;
+  const wcClosing = (data.workingCapitalClosing || (data as any).working_capital_closing || wcLive) as any;
+  const wc = wcMode === 'closing' ? wcClosing : wcLive;
   const tax = (data.taxVat || data.tax_vat || {}) as any;
   const ive = (data.incomeVsExpenses || (data as any).income_vs_expenses || {}) as any;
   const rvp = (data.receivablesVsPayables || (data as any).receivables_vs_payables || {}) as any;
   const topCreditors = (data.topCreditors || (data as any).top_creditors || []) as any[];
+  const periodTillVariance = (data as any).periodTillVariance ?? (data as any).period_till_variance ?? 0;
+  const topCategories = ((data as any).topCategories || (data as any).top_categories || []) as any[];
+  const tenderMixList = ((data as any).tenderMix || (data as any).tender_mix || []) as any[];
+
 
   // P&L metrics
   const grossSales = pnl.grossSales ?? pnl.gross_sales ?? ive.gross_sales ?? 0;
@@ -103,17 +121,22 @@ export function ExecutiveSummaryTab() {
   const grossProfit = pnl.grossProfit ?? pnl.gross_profit ?? ive.gross_profit ?? 0;
   const grossMarginPct = pnl.grossMarginPct ?? pnl.gross_margin_pct ?? ive.gross_margin_pct ?? 0;
   const operatingExpenses = pnl.operatingExpenses ?? pnl.operating_expenses ?? ive.operating_expenses ?? 0;
+  const inventoryShrinkage = pnl.inventoryShrinkage ?? pnl.inventory_shrinkage ?? 0;
+  const setupInvestment = pnl.setupInvestment ?? pnl.setup_investment ?? 0;
+  const netStoreEarnings = pnl.netProfit ?? pnl.net_profit ?? 0;
+  const zeroCostLineCount = pnl.zeroCostLineCount ?? pnl.zero_cost_line_count ?? 0;
   const operatingProfit = pnl.operatingProfit ?? pnl.operating_profit ?? 0;
   const operatingMarginPct = pnl.operatingMarginPct ?? pnl.operating_margin_pct ?? 0;
-  const totalCosts = ive.total_costs ?? (totalCogs + operatingExpenses);
+  const totalCosts = ive.total_costs ?? (totalCogs + operatingExpenses + inventoryShrinkage);
   const operatingSurplus = ive.operating_surplus ?? (netSales - totalCosts);
   const costToIncomeRatio = ive.cost_to_income_ratio ?? (netSales > 0 ? (totalCosts / netSales) * 100 : 0);
 
-  // Working Capital metrics
+  // Working Capital metrics (selected snapshot)
   const bankBalance = wc.bankBalance ?? wc.bank_balance ?? 0;
   const esewaBalance = wc.esewaBalance ?? wc.esewa_balance ?? 0;
   const bankAndDigital = wc.bankAndDigitalTotal ?? wc.bank_and_digital_total ?? (bankBalance + esewaBalance);
   const cashTillBalance = wc.cashTillBalance ?? wc.cash_till_balance ?? 0;
+  const tillVariance = wc.tillVariance ?? wc.till_variance ?? 0;
   const cashWithStaff = wc.cashWithStaff ?? wc.cash_with_staff ?? 0;
   const inventoryValue = wc.inventoryValue ?? wc.inventory_value ?? 0;
   const accountsPayable = wc.accountsPayable ?? wc.accounts_payable ?? rvp.accounts_payable ?? 0;
@@ -122,13 +145,11 @@ export function ExecutiveSummaryTab() {
   const totalWorkingCapital = wc.totalWorkingCapital ?? wc.total_working_capital ?? (totalLiquidCash + inventoryValue);
   const netWorkingCapital = wc.netWorkingCapital ?? wc.net_working_capital ?? ((totalWorkingCapital + accountsReceivable) - accountsPayable);
   const cashCoverageRatio = wc.cashCoverageRatio ?? wc.cash_coverage_ratio ?? (accountsPayable > 0 ? totalLiquidCash / accountsPayable : 0);
+  const wcAsOf = wc.asOfDate ?? wc.as_of_date ?? '';
   const netFloat = rvp.net_float ?? (accountsReceivable - accountsPayable);
 
   // AP Aging
   const apAging = rvp.ap_aging || rvp.apAging || ({} as any);
-  const cur30 = apAging.current_0_30 ?? 0;
-  const age60 = apAging.aging_31_60 ?? 0;
-  const age90 = apAging.aging_61_90 ?? 0;
   const over90 = apAging.over_90 ?? 0;
 
   // Cash bridge & Tax
@@ -183,6 +204,12 @@ export function ExecutiveSummaryTab() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3.5 }}>
+      {zeroCostLineCount > 0 && (
+        <Alert severity="warning" sx={{ borderRadius: 2.5 }}>
+          {zeroCostLineCount} sale line{zeroCostLineCount === 1 ? '' : 's'} still have zero cost after batch / product / last-PO
+          fallbacks — margins may be overstated. Review Sales & Merchandising.
+        </Alert>
+      )}
       {/* 0. TOP EXECUTIVE KPI STRIP */}
       <Grid container spacing={2}>
         {kpis.map((kpi, idx) => (
@@ -247,24 +274,43 @@ export function ExecutiveSummaryTab() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
             <AccountBalanceWalletIcon sx={{ color: '#0D9488', fontSize: 26 }} />
             <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                   1. Working Capital & Operating Assets
                 </Typography>
-                <Chip
-                  label="Liquid & Operating Assets"
-                  size="small"
-                  variant="outlined"
-                  sx={{ borderColor: '#0D9488', color: '#0D9488', fontWeight: 600, fontSize: 11 }}
-                />
+                <AsOfChip kind={wcMode === 'closing' ? 'closing' : 'live'} />
               </Box>
               <Typography variant="caption" color="text.secondary">
-                Audited breakdown of bank balances, cash registers, staff custody float, and inventory valuation at cost
+                Bank, till, and staff custody
+                {wcAsOf ? ` as of ${wcAsOf}` : ''}. Inventory & AP/AR stay live stock/liability snapshots.
+                {periodTillVariance !== 0
+                  ? ` Period till variance: ${periodTillVariance > 0 ? '+' : ''}${formatCurrency(periodTillVariance)}.`
+                  : ''}
               </Typography>
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={wcMode}
+              onChange={(_, next) => {
+                if (next) setWcMode(next);
+              }}
+              sx={{
+                '& .MuiToggleButton-root': {
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  px: 1.25,
+                  py: 0.35,
+                },
+              }}
+            >
+              <ToggleButton value="closing">Period closing</ToggleButton>
+              <ToggleButton value="live">Live today</ToggleButton>
+            </ToggleButtonGroup>
             <Button
               size="small"
               variant="outlined"
@@ -337,8 +383,19 @@ export function ExecutiveSummaryTab() {
               <Typography variant="h6" sx={{ fontWeight: 800, color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
                 {formatCurrency(cashTillBalance)}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Physical cash held across active cashier drawers
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  mt: 0.5,
+                  fontWeight: 700,
+                  color: tillVariance === 0 ? 'text.secondary' : tillVariance > 0 ? '#047857' : '#BE123C',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {tillVariance === 0
+                  ? 'Variance not counted yet'
+                  : `Till variance ${tillVariance > 0 ? '+' : ''}${formatCurrency(tillVariance)}`}
               </Typography>
             </Paper>
           </Grid>
@@ -468,16 +525,11 @@ export function ExecutiveSummaryTab() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
             <TrendingUpIcon sx={{ color: '#0284C7', fontSize: 26 }} />
             <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                   2. Income vs Expenses Comparison
                 </Typography>
-                <Chip
-                  label="Operating Engine"
-                  size="small"
-                  variant="outlined"
-                  sx={{ borderColor: '#0284C7', color: '#0284C7', fontWeight: 600, fontSize: 11 }}
-                />
+                <AsOfChip kind="period" />
               </Box>
               <Typography variant="caption" color="text.secondary">
                 Period turnover vs direct product acquisition costs and categorized store overheads
@@ -765,13 +817,11 @@ export function ExecutiveSummaryTab() {
                 {formatCurrency(accountsPayable)}
               </Typography>
 
-              {/* Aging breakdown chips */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
-                <Chip label={`0-30d: ${formatCurrency(cur30)}`} size="small" sx={{ fontSize: 11, fontWeight: 600, bgcolor: 'rgba(2, 132, 199, 0.08)' }} />
-                <Chip label={`31-60d: ${formatCurrency(age60)}`} size="small" sx={{ fontSize: 11, fontWeight: 600, bgcolor: 'rgba(245, 158, 11, 0.08)' }} />
-                <Chip label={`61-90d: ${formatCurrency(age90)}`} size="small" sx={{ fontSize: 11, fontWeight: 600, bgcolor: 'rgba(244, 63, 94, 0.08)' }} />
-                <Chip label={`90d+: ${formatCurrency(over90)}`} size="small" sx={{ fontSize: 11, fontWeight: 700, bgcolor: 'rgba(244, 63, 94, 0.15)', color: '#BE123C' }} />
-              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
+                {over90 > 0
+                  ? `Critical 90d+ overdue: ${formatCurrency(over90)} — open Purchasing for full aging.`
+                  : 'No critical 90d+ balances. Full aging lives on Purchases & Payables.'}
+              </Typography>
             </Paper>
           </Grid>
         </Grid>
@@ -828,16 +878,11 @@ export function ExecutiveSummaryTab() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
             <TrendingUpIcon sx={{ color: '#6366F1', fontSize: 26 }} />
             <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                   4. Audited Retail Profit & Loss Statement (P&L)
                 </Typography>
-                <Chip
-                  label="Accrual Accounting"
-                  size="small"
-                  variant="outlined"
-                  sx={{ borderColor: '#6366F1', color: '#6366F1', fontWeight: 600, fontSize: 11 }}
-                />
+                <AsOfChip kind="period" />
               </Box>
               <Typography variant="caption" color="text.secondary">
                 Standard multi-step retail accounting waterfall showing value flow from shelf scans down to true operating earnings
@@ -973,6 +1018,19 @@ export function ExecutiveSummaryTab() {
                 </TableRow>
               ))}
 
+              {/* Shrinkage / write-offs (pre-EBIT) */}
+              <TableRow hover>
+                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>
+                  (-) Inventory Spoilage & Shrinkage Write-offs
+                </TableCell>
+                <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
+                  ({formatCurrency(inventoryShrinkage)})
+                </TableCell>
+                <TableCell align="right" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                  {netSales > 0 ? ((inventoryShrinkage / netSales) * 100).toFixed(1) : '0.0'}%
+                </TableCell>
+              </TableRow>
+
               {/* Operating Profit (EBIT) */}
               <TableRow sx={{ bgcolor: operatingProfit >= 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)' }}>
                 <TableCell sx={{ fontWeight: 800, color: operatingProfit >= 0 ? '#047857' : '#BE123C' }}>
@@ -1028,6 +1086,37 @@ export function ExecutiveSummaryTab() {
                   {roundOff >= 0 ? `+${formatCurrency(roundOff)}` : formatCurrency(roundOff)}
                 </TableCell>
                 <TableCell align="right" sx={{ color: 'text.secondary' }}>—</TableCell>
+              </TableRow>
+
+              <TableRow hover>
+                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>
+                  (-) Setup & Capital Investments (CapEx)
+                </TableCell>
+                <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
+                  ({formatCurrency(setupInvestment)})
+                </TableCell>
+                <TableCell align="right" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                  {netSales > 0 ? ((setupInvestment / netSales) * 100).toFixed(1) : '0.0'}%
+                </TableCell>
+              </TableRow>
+
+              <TableRow sx={{ bgcolor: 'rgba(15, 118, 110, 0.1)' }}>
+                <TableCell sx={{ fontWeight: 900, color: '#0F766E' }}>
+                  5. Net Store Earnings
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    fontWeight: 900,
+                    color: netStoreEarnings >= 0 ? '#0F766E' : '#BE123C',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {formatCurrency(netStoreEarnings)}
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                  {netSales > 0 ? ((netStoreEarnings / netSales) * 100).toFixed(1) : '0.0'}%
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -1108,11 +1197,10 @@ export function ExecutiveSummaryTab() {
       </Paper>
 
       {/* ========================================================================= */}
-      {/* 5. SUPPLEMENTARY HIGH-IMPACT ACTION TABLES                                */}
+      {/* 5. ACTION TEASERS (hub — full detail on pillar tabs)                       */}
       {/* ========================================================================= */}
       <Grid container spacing={3}>
-        {/* Table 1: Top 5 Outstanding Supplier Payables */}
-        <Grid size={{ xs: 12, lg: 6 }}>
+        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
           <Paper
             elevation={0}
             sx={{
@@ -1121,85 +1209,72 @@ export function ExecutiveSummaryTab() {
               border: '1px solid',
               borderColor: 'divider',
               height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <LocalShippingIcon sx={{ color: '#EA580C', fontSize: 20 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                  Top Creditors (Supplier Payables Due)
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                onClick={() => navigate('/suppliers')}
-                sx={{ textTransform: 'none', fontSize: 11, fontWeight: 600 }}
-              >
-                All Suppliers →
-              </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <LocalShippingIcon sx={{ color: '#EA580C', fontSize: 20 }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                Top Creditors
+              </Typography>
             </Box>
-
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5 }}>
-              Suppliers with the largest outstanding PO balances requiring cash disbursement
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              Largest unpaid supplier balances — settle from supplier account
             </Typography>
-
-            {topCreditors.length === 0 ? (
-              <Box sx={{ py: 3, textAlign: 'center' }}>
-                <Typography variant="caption" color="text.secondary">
-                  No outstanding supplier balances. All purchase orders are settled!
-                </Typography>
-              </Box>
-            ) : (
-              <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, flex: 1 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: 'background.default' }}>
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Supplier</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Outstanding</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.75rem', width: 80 }}>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {topCreditors.map((c) => {
-                      const name = c.supplierName || c.supplier_name || 'Supplier';
-                      const bal = c.outstandingBalance ?? c.outstanding_balance ?? 0;
-                      const stat = c.agingStatus || c.aging_status || 'current';
-                      return (
-                        <TableRow key={c.supplierId || c.supplier_id} hover>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                            {name}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700, color: '#BE123C', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatCurrency(bal)}
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip
-                              label={stat}
-                              size="small"
-                              sx={{
-                                height: 18,
-                                fontSize: '0.65rem',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                bgcolor: stat === 'critical' ? 'rgba(244, 63, 94, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                                color: stat === 'critical' ? '#BE123C' : '#0284C7',
-                              }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+            <TeaserTable
+              maxRows={3}
+              rows={topCreditors}
+              emptyMessage="No outstanding supplier balances. All purchase orders are settled."
+              viewAllLabel="Open payables"
+              onViewAll={() => navigate('/reports?tab=purchasing')}
+              getRowKey={(c) => c.supplierId || c.supplier_id || c.supplierName}
+              columns={[
+                {
+                  id: 'name',
+                  label: 'Supplier',
+                  render: (c) => (
+                    <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                      {c.supplierName || c.supplier_name || 'Supplier'}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'bal',
+                  label: 'Due',
+                  align: 'right',
+                  render: (c) => (
+                    <Typography
+                      component="span"
+                      sx={{ fontWeight: 700, color: '#BE123C', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {formatCurrency(c.outstandingBalance ?? c.outstanding_balance ?? 0)}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'pay',
+                  label: '',
+                  align: 'right',
+                  width: 72,
+                  render: (c) => {
+                    const sid = c.supplierId || c.supplier_id;
+                    if (!sid) return null;
+                    return (
+                      <Button
+                        size="small"
+                        onClick={() => navigate(`/suppliers/${sid}`)}
+                        sx={{ textTransform: 'none', fontWeight: 700, fontSize: 11, minWidth: 0, px: 0.75 }}
+                      >
+                        Pay
+                      </Button>
+                    );
+                  },
+                },
+              ]}
+            />
           </Paper>
         </Grid>
 
-        {/* Table 2: Top Category Margin Contributions */}
-        <Grid size={{ xs: 12, lg: 6 }}>
+        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
           <Paper
             elevation={0}
             sx={{
@@ -1208,68 +1283,144 @@ export function ExecutiveSummaryTab() {
               border: '1px solid',
               borderColor: 'divider',
               height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <StorefrontIcon sx={{ color: '#0284C7', fontSize: 20 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                  Category Margin Contributions
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                onClick={() => navigate('/reports?tab=sales')}
-                sx={{ textTransform: 'none', fontSize: 11, fontWeight: 600 }}
-              >
-                Full Merchandising →
-              </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <StorefrontIcon sx={{ color: '#0284C7', fontSize: 20 }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                Category Margins
+              </Typography>
             </Box>
-
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5 }}>
-              Top department performance driving revenue and gross trading margins
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              Top departments by contribution — full matrix on Sales
             </Typography>
+            <TeaserTable
+              maxRows={3}
+              rows={topCategories}
+              emptyMessage="No sales recorded for this period."
+              viewAllLabel="Open merchandising"
+              onViewAll={() => navigate('/reports?tab=sales')}
+              getRowKey={(cat) => cat.category}
+              columns={[
+                {
+                  id: 'category',
+                  label: 'Category',
+                  render: (cat) => (
+                    <Typography
+                      component="span"
+                      sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'capitalize' }}
+                    >
+                      {cat.category}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'net',
+                  label: 'Net',
+                  align: 'right',
+                  render: (cat) => (
+                    <Typography
+                      component="span"
+                      sx={{ fontWeight: 700, fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {formatCurrency(cat.netRevenue ?? (cat as any).net_revenue ?? 0)}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'margin',
+                  label: 'Margin',
+                  align: 'right',
+                  render: (cat) => {
+                    const margin = cat.grossMarginPct ?? (cat as any).gross_margin_pct ?? 0;
+                    return (
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontWeight: 700,
+                          color: margin >= 0 ? '#047857' : '#BE123C',
+                          fontSize: '0.75rem',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {Number(margin).toFixed(1)}%
+                      </Typography>
+                    );
+                  },
+                },
+              ]}
+            />
+          </Paper>
+        </Grid>
 
-            {(!salesPerformance?.categories || salesPerformance.categories.length === 0) ? (
-              <Box sx={{ py: 3, textAlign: 'center' }}>
-                <Typography variant="caption" color="text.secondary">
-                  No sales recorded for this period.
-                </Typography>
-              </Box>
-            ) : (
-              <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, flex: 1 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: 'background.default' }}>
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Category</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Net Revenue</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Margin %</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {salesPerformance.categories.slice(0, 5).map((cat) => {
-                      const net = cat.netRevenue ?? (cat as any).net_revenue ?? 0;
-                      const margin = cat.grossMarginPct ?? (cat as any).gross_margin_pct ?? 0;
-                      return (
-                        <TableRow key={cat.category} hover>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'capitalize' }}>
-                            {cat.category}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatCurrency(net)}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700, color: margin >= 0 ? '#047857' : '#BE123C', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
-                            {Number(margin).toFixed(1)}%
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+        <Grid size={{ xs: 12, md: 12, lg: 4 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              height: '100%',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <PaymentsIcon sx={{ color: '#0D9488', fontSize: 20 }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                Tender Mix
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              How customers settled — full mix on Sales & Merchandising
+            </Typography>
+            <TeaserTable
+              maxRows={3}
+              rows={tenderMixList}
+              emptyMessage="No tender collections in this period."
+              viewAllLabel="Full tender mix"
+              onViewAll={() => navigate('/reports?tab=sales')}
+              getRowKey={(t, idx) => t.method || t.payment_method || idx}
+              columns={[
+                {
+                  id: 'method',
+                  label: 'Method',
+                  render: (t) => (
+                    <Typography
+                      component="span"
+                      sx={{ fontWeight: 600, fontSize: '0.75rem', textTransform: 'capitalize' }}
+                    >
+                      {t.method || t.payment_method || 'Other'}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'amount',
+                  label: 'Collected',
+                  align: 'right',
+                  render: (t) => (
+                    <Typography
+                      component="span"
+                      sx={{ fontWeight: 700, fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {formatCurrency(t.amount ?? 0)}
+                    </Typography>
+                  ),
+                },
+                {
+                  id: 'share',
+                  label: 'Share',
+                  align: 'right',
+                  render: (t) => (
+                    <Typography
+                      component="span"
+                      sx={{ fontWeight: 700, fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {Number(t.sharePct ?? t.share_pct ?? 0).toFixed(1)}%
+                    </Typography>
+                  ),
+                },
+              ]}
+            />
           </Paper>
         </Grid>
       </Grid>

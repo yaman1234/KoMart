@@ -484,6 +484,67 @@ async def open_custody_total() -> float:
     return round(sum(_safe_amount(r.amount) for r in rows), 2)
 
 
+async def custody_total_as_of(as_of: str) -> float:
+    """Cash still with staff as of a calendar day (taken on/before, not yet resolved)."""
+    from app.models.cash_custody import CashCustody
+
+    _require_date(as_of)
+    rows = await CashCustody.find({"taken_date": {"$lte": as_of}}).to_list()
+    total = 0.0
+    for row in rows:
+        resolved = getattr(row, "resolved_date", None)
+        if resolved and str(resolved).strip() and str(resolved)[:10] <= as_of:
+            continue
+        total += _safe_amount(row.amount)
+    return round(total, 2)
+
+
+async def wallet_balance_as_of(wallet: Wallet | str, as_of: str) -> float:
+    """Settings opening baseline + ledger net through as_of (inclusive)."""
+    _require_date(as_of)
+    w = wallet if isinstance(wallet, Wallet) else _parse_wallet(str(wallet))
+    settings = await get_store_settings()
+    baseline = await opening_baseline(w, settings)
+    net = await ledger_net(w, date_lte=as_of)
+    return round(baseline + net, 2)
+
+
+async def cash_till_snapshot(as_of: str) -> tuple[float, float, float]:
+    """
+    Returns (displayed_till_balance, expected, variance).
+    Variance is counted closing − expected when a day close closing exists; else 0.
+    Displayed balance prefers counted closing when present, otherwise expected.
+    """
+    _require_date(as_of)
+    blocks = await build_day_book(as_of)
+    cash = next((b for b in blocks if b.get("wallet") == Wallet.cash.value), None)
+    if not cash:
+        expected = await till_expected_cash(today=date.fromisoformat(as_of))
+        return expected, expected, 0.0
+    expected = float(cash.get("expected") or 0.0)
+    closing = cash.get("closing")
+    variance = float(cash.get("variance") or 0.0) if closing is not None else 0.0
+    displayed = float(closing) if closing is not None else expected
+    return round(displayed, 2), round(expected, 2), round(variance, 2)
+
+
+async def sum_cash_till_variances(start_date: str, end_date: str) -> float:
+    """Sum cash over/short for day closes in [start_date, end_date] that have a closing count."""
+    from app.models.day_close import DayClose
+
+    _require_date(start_date)
+    _require_date(end_date)
+    closes = await DayClose.find(
+        {"date": {"$gte": start_date, "$lte": end_date}, "closing_cash": {"$ne": None}}
+    ).to_list()
+    total = 0.0
+    for dc in closes:
+        day = str(dc.date)
+        _, _, variance = await cash_till_snapshot(day)
+        total += variance
+    return round(total, 2)
+
+
 async def current_wallet_balance(wallet: Wallet | str, *, today: date | None = None) -> float:
     """
     Cash (Accounts Total Cash): settings opening_cash_balance + all-time cash ledger net

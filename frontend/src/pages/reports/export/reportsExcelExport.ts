@@ -6,6 +6,9 @@ import type {
   PurchasingPayablesReport,
   InventoryHealthReport,
   CashFlowStatement,
+  LossAuditReport,
+  TopCustomer,
+  LoyaltySummary,
 } from '@/types';
 
 interface ExportReportsData {
@@ -17,6 +20,9 @@ interface ExportReportsData {
   purchasing?: PurchasingPayablesReport | null;
   invHealth?: InventoryHealthReport | null;
   cashFlow?: CashFlowStatement | null;
+  lossAudit?: LossAuditReport | null;
+  topCustomers?: TopCustomer[] | null;
+  loyaltySummary?: LoyaltySummary | null;
 }
 
 function autoFitColumns(data: any[][]): { wch: number }[] {
@@ -42,6 +48,9 @@ export function exportReportsWorkbook({
   purchasing,
   invHealth,
   cashFlow,
+  lossAudit,
+  topCustomers,
+  loyaltySummary,
 }: ExportReportsData): void {
   const wb = XLSX.utils.book_new();
 
@@ -61,6 +70,9 @@ export function exportReportsWorkbook({
     const grossProfit = pnl.grossProfit ?? pnl.gross_profit ?? 0;
     const grossMarginPct = pnl.grossMarginPct ?? pnl.gross_margin_pct ?? 0;
     const operatingExpenses = pnl.operatingExpenses ?? pnl.operating_expenses ?? 0;
+    const inventoryShrinkage = pnl.inventoryShrinkage ?? pnl.inventory_shrinkage ?? 0;
+    const setupInvestment = pnl.setupInvestment ?? pnl.setup_investment ?? 0;
+    const netStoreEarnings = pnl.netProfit ?? pnl.net_profit ?? 0;
     const operatingProfit = pnl.operatingProfit ?? pnl.operating_profit ?? 0;
     const operatingMarginPct = pnl.operatingMarginPct ?? pnl.operating_margin_pct ?? 0;
     const itemMarkdowns = pnl.itemMarkdowns ?? pnl.item_markdowns ?? 0;
@@ -104,7 +116,10 @@ export function exportReportsWorkbook({
       ['Cost of Goods Sold (COGS)', -totalCogs, 'FEFO batch acquisition cost'],
       ['Gross Trading Profit', grossProfit, `Trading Margin: ${Number(grossMarginPct).toFixed(1)}%`],
       ['Operating Expenses (OpEx)', -operatingExpenses, 'Store overheads (excl. supplier bills)'],
+      ['Inventory Shrinkage / Write-offs', -inventoryShrinkage, 'Damaged stock at cost (pre-EBIT)'],
       ['Operating Profit (EBIT)', operatingProfit, `Operating Margin: ${Number(operatingMarginPct).toFixed(1)}%`],
+      ['Setup & CapEx', -setupInvestment, 'Capital investments'],
+      ['Net Store Earnings', netStoreEarnings, 'After CapEx'],
       ['Total Working Capital', totalWorkingCapital, 'Liquid Cash + Current Stock Valuation'],
       ['Total Liquid Cash', totalLiquidCash, 'Bank + Till + Staff Custody'],
       ['Net Working Capital (Assets - AP)', netWorkingCapital, 'Working capital buffer'],
@@ -131,7 +146,10 @@ export function exportReportsWorkbook({
       ['(-) Cost of Goods Sold (FEFO)', -totalCogs, 'Direct Cost (-)'],
       ['(=) Gross Trading Profit', grossProfit, 'Gross Profit'],
       ['(-) Operating Overheads', -operatingExpenses, 'Overhead (-)'],
+      ['(-) Inventory Shrinkage', -inventoryShrinkage, 'Write-off (-)'],
       ['(=) Operating Profit (EBIT)', operatingProfit, 'Operating Earnings'],
+      ['(-) Setup & CapEx', -setupInvestment, 'Capital (-)'],
+      ['(=) Net Store Earnings', netStoreEarnings, 'Bottom line'],
       [],
       ['=== 3. CASH-TO-PROFIT RECONCILIATION BRIDGE ==='],
       ['Bridge Component', 'Amount (NPR)', 'Explanation'],
@@ -590,6 +608,98 @@ export function exportReportsWorkbook({
     const ws5 = XLSX.utils.aoa_to_sheet(s5Data);
     ws5['!cols'] = autoFitColumns(s5Data);
     XLSX.utils.book_append_sheet(wb, ws5, 'Cash Flow & Wallets');
+  }
+
+  // -------------------------------------------------------------
+  // Sheet 6: Loss & Operational Audit
+  // -------------------------------------------------------------
+  if (lossAudit) {
+    const la = lossAudit as any;
+    const s6Data: any[][] = [
+      ['KoMart Supermarket — Loss & Operational Audit'],
+      [`Period: ${startDate} to ${endDate}`],
+      [],
+      ['=== SUMMARY ==='],
+      ['Metric', 'Count', 'Value (NPR)'],
+      [
+        'Voided / Cancelled Bills',
+        la.totalVoidCount ?? la.total_void_count ?? 0,
+        la.totalVoidAmount ?? la.total_void_amount ?? 0,
+      ],
+      [
+        'High Discount Bills',
+        la.largeDiscountCount ?? la.large_discount_count ?? 0,
+        la.totalLargeDiscountAmount ?? la.total_large_discount_amount ?? 0,
+      ],
+      [
+        'Sold Below Cost SKUs',
+        la.negativeMarginProductCount ?? la.negative_margin_product_count ?? 0,
+        la.totalLossOnNegMargin ?? la.total_loss_on_neg_margin ?? 0,
+      ],
+      [
+        'Expired On Shelf',
+        la.expiredStockCount ?? la.expired_stock_count ?? 0,
+        la.expiredStockWriteOffValue ?? la.expired_stock_write_off_value ?? 0,
+      ],
+      [
+        'Unreconciled Day Closes',
+        la.missingDayCloseCount ?? la.missing_day_close_count ?? 0,
+        '—',
+      ],
+    ];
+
+    const voids = la.voidedTransactions || la.voided_transactions || [];
+    if (voids.length) {
+      s6Data.push([], ['=== VOIDED BILLS ==='], ['Bill #', 'Date', 'Cashier', 'Amount', 'Reason']);
+      for (const v of voids.slice(0, 200)) {
+        s6Data.push([
+          v.transactionNumber ?? v.transaction_number ?? '',
+          v.date ?? v.created_at ?? '',
+          v.cashier ?? v.created_by ?? '',
+          v.amount ?? v.total ?? 0,
+          v.reason ?? '',
+        ]);
+      }
+    }
+
+    const ws6 = XLSX.utils.aoa_to_sheet(s6Data);
+    ws6['!cols'] = autoFitColumns(s6Data);
+    XLSX.utils.book_append_sheet(wb, ws6, 'Loss Audit');
+  }
+
+  // -------------------------------------------------------------
+  // Sheet 7: Customers & Loyalty
+  // -------------------------------------------------------------
+  if (loyaltySummary || (topCustomers && topCustomers.length)) {
+    const ls = (loyaltySummary || {}) as any;
+    const s7Data: any[][] = [
+      ['KoMart Supermarket — Customers & Loyalty (Period)'],
+      [`Period: ${startDate} to ${endDate}`],
+      [],
+      ['=== LOYALTY KPIs ==='],
+      ['Metric', 'Value'],
+      ['Total Members', ls.totalMembers ?? ls.total_members ?? '—'],
+      ['Active Members', ls.activeMembers ?? ls.active_members ?? '—'],
+      ['New Customers', ls.newCustomers ?? ls.new_customers ?? '—'],
+      ['Points Redeemed', ls.pointsRedeemed ?? ls.points_redeemed ?? '—'],
+      [],
+      ['=== TOP CUSTOMERS BY PERIOD SPEND ==='],
+      ['Customer', 'Transactions', 'Avg Basket', 'Total Spent'],
+    ];
+
+    for (const c of topCustomers || []) {
+      const row = c as any;
+      s7Data.push([
+        row.name ?? row.customerName ?? row.customer_name ?? 'Customer',
+        row.transactionCount ?? row.transaction_count ?? 0,
+        row.avgBasket ?? row.avg_basket ?? 0,
+        row.totalSpent ?? row.total_spent ?? 0,
+      ]);
+    }
+
+    const ws7 = XLSX.utils.aoa_to_sheet(s7Data);
+    ws7['!cols'] = autoFitColumns(s7Data);
+    XLSX.utils.book_append_sheet(wb, ws7, 'Customers');
   }
 
   // Write file
