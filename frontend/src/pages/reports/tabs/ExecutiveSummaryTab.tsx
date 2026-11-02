@@ -32,7 +32,6 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -46,6 +45,59 @@ import { formatCurrency } from '@/utils';
 import { useExecutiveSummary } from '@/hooks/useReports';
 import { AsOfChip, ReportErrorState, TeaserTable } from '@/pages/reports/components';
 
+type PnlLineKind = 'income' | 'deduction' | 'subtotal' | 'profit' | 'loss' | 'note' | 'capex';
+
+function PnlKindChip({ kind }: { kind: PnlLineKind }) {
+  const config: Record<PnlLineKind, { label: string; color: 'default' | 'success' | 'error' | 'info' | 'warning' | 'primary' }> = {
+    income: { label: 'Income', color: 'info' },
+    deduction: { label: 'Deduction', color: 'error' },
+    subtotal: { label: 'Subtotal', color: 'primary' },
+    profit: { label: 'Profit', color: 'success' },
+    loss: { label: 'Loss', color: 'error' },
+    note: { label: 'Note', color: 'default' },
+    capex: { label: 'CapEx', color: 'warning' },
+  };
+  const c = config[kind];
+  return (
+    <Chip
+      size="small"
+      label={c.label}
+      color={c.color}
+      variant="outlined"
+      sx={{ fontWeight: 700, fontSize: '0.65rem', height: 22, minWidth: 72 }}
+    />
+  );
+}
+
+function PnlLineLabel({
+  title,
+  hint,
+  kind,
+  indent = 0,
+}: {
+  title: string;
+  hint?: string;
+  kind: PnlLineKind;
+  indent?: number;
+}) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, pl: indent }}>
+      <Box sx={{ pt: 0.15 }}>
+        <PnlKindChip kind={kind} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: kind === 'income' || kind === 'subtotal' || kind === 'profit' || kind === 'loss' ? 700 : 500 }}>
+          {title}
+        </Typography>
+        {hint ? (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
+            {hint}
+          </Typography>
+        ) : null}
+      </Box>
+    </Box>
+  );
+}
 
 export function ExecutiveSummaryTab() {
   const navigate = useNavigate();
@@ -77,8 +129,8 @@ export function ExecutiveSummaryTab() {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <Grid container spacing={2}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={i}>
               <Skeleton variant="rounded" height={105} sx={{ borderRadius: 2.5 }} />
             </Grid>
           ))}
@@ -110,8 +162,7 @@ export function ExecutiveSummaryTab() {
   const topCategories = ((data as any).topCategories || (data as any).top_categories || []) as any[];
   const tenderMixList = ((data as any).tenderMix || (data as any).tender_mix || []) as any[];
 
-
-  // P&L metrics
+  // P&L metrics (selected date filter)
   const grossSales = pnl.grossSales ?? pnl.gross_sales ?? ive.gross_sales ?? 0;
   const totalDiscounts = pnl.totalDiscounts ?? pnl.total_discounts ?? ive.total_discounts ?? 0;
   const itemMarkdowns = pnl.itemMarkdowns ?? pnl.item_markdowns ?? ive.item_markdowns ?? 0;
@@ -128,6 +179,8 @@ export function ExecutiveSummaryTab() {
   const operatingProfit = pnl.operatingProfit ?? pnl.operating_profit ?? 0;
   const operatingMarginPct = pnl.operatingMarginPct ?? pnl.operating_margin_pct ?? 0;
   const totalCosts = ive.total_costs ?? (totalCogs + operatingExpenses + inventoryShrinkage);
+  // Store expenses after gross profit (OpEx + shrinkage). CapEx stays below the line.
+  const totalExpenses = operatingExpenses + inventoryShrinkage;
   const operatingSurplus = ive.operating_surplus ?? (netSales - totalCosts);
   const costToIncomeRatio = ive.cost_to_income_ratio ?? (netSales > 0 ? (totalCosts / netSales) * 100 : 0);
 
@@ -166,7 +219,7 @@ export function ExecutiveSummaryTab() {
   const outputVat13 = tax.outputVat13 ?? tax.output_vat_13 ?? 0;
   const roundOff = tax.roundOff ?? tax.round_off ?? 0;
 
-  // Top KPI summary strip
+  // Top KPI summary strip — results first, then cost drivers, then capital
   const kpis = [
     {
       label: 'Net Sales Turnover',
@@ -193,6 +246,26 @@ export function ExecutiveSummaryTab() {
       bg: operatingProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
     },
     {
+      label: 'Total Expenses',
+      value: totalExpenses,
+      subtitle: `OpEx ${formatCurrency(operatingExpenses)} · Shrink ${formatCurrency(inventoryShrinkage)}${
+        netSales > 0 ? ` · ${(totalExpenses / netSales * 100).toFixed(1)}% of net sales` : ''
+      }`,
+      tooltip:
+        'Store expenses for the selected period: operating overheads (staff, rent, utilities, etc.) plus inventory spoilage & shrinkage. Excludes COGS, CapEx, and supplier PO bill payments.',
+      color: '#BE123C',
+      bg: 'rgba(244, 63, 94, 0.08)',
+    },
+    {
+      label: 'Total PO Payments',
+      value: supplierPoPayments,
+      subtitle: 'Supplier purchase-order bill payments in this period (inventory cash out, not OpEx)',
+      tooltip:
+        'Cash paid against supplier purchase orders during the selected date range. Tracked separately from Total Expenses so inventory replenishment is not mixed with store overheads.',
+      color: '#C2410C',
+      bg: 'rgba(234, 88, 12, 0.08)',
+    },
+    {
       label: 'Total Working Capital',
       value: totalWorkingCapital,
       subtitle: `Liquid Cash: ${formatCurrency(totalLiquidCash)} · Stock: ${formatCurrency(inventoryValue)}`,
@@ -210,10 +283,11 @@ export function ExecutiveSummaryTab() {
           fallbacks — margins may be overstated. Review Sales & Merchandising.
         </Alert>
       )}
+
       {/* 0. TOP EXECUTIVE KPI STRIP */}
       <Grid container spacing={2}>
         {kpis.map((kpi, idx) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={idx}>
             <Paper
               elevation={0}
               sx={{
@@ -883,9 +957,15 @@ export function ExecutiveSummaryTab() {
                   4. Audited Retail Profit & Loss Statement (P&L)
                 </Typography>
                 <AsOfChip kind="period" />
+                <Chip
+                  size="small"
+                  label={netStoreEarnings >= 0 ? 'Period Profit' : 'Period Loss'}
+                  color={netStoreEarnings >= 0 ? 'success' : 'error'}
+                  sx={{ fontWeight: 800 }}
+                />
               </Box>
               <Typography variant="caption" color="text.secondary">
-                Standard multi-step retail accounting waterfall showing value flow from shelf scans down to true operating earnings
+                Selected date range. Each line is tagged Income, Deduction, Subtotal, CapEx, Profit/Loss, or Note.
               </Typography>
             </Box>
           </Box>
@@ -905,26 +985,37 @@ export function ExecutiveSummaryTab() {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'background.default' }}>
-                <TableCell sx={{ fontWeight: 700 }}>Line Item / Accounting Stage</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Line Item</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Amount (NPR)</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, width: 140 }}>% Turnover</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, width: 140 }}>% of Net Sales</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {/* Gross Sales */}
               <TableRow hover>
-                <TableCell sx={{ fontWeight: 600 }}>1. Gross Sales (Shelf Price)</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="income"
+                    title="1. Gross Sales"
+                    hint="Shelf / scanned selling price before any discounts"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(grossSales)}
                 </TableCell>
                 <TableCell align="right" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-                  {grossSales > 0 ? ((grossSales / netSales) * 100).toFixed(1) : '100.0'}%
+                  {netSales > 0 ? ((grossSales / netSales) * 100).toFixed(1) : '—'}%
                 </TableCell>
               </TableRow>
 
-              {/* Discounts */}
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>(-) Item Markdown Discounts</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="deduction"
+                    indent={2}
+                    title="(−) Item Markdown Discounts"
+                    hint="Per-line price reductions given at scan"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
                   ({formatCurrency(itemMarkdowns)})
                 </TableCell>
@@ -934,7 +1025,14 @@ export function ExecutiveSummaryTab() {
               </TableRow>
 
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>(-) Bill & Loyalty Promotional Discounts</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="deduction"
+                    indent={2}
+                    title="(−) Bill & Loyalty Promotional Discounts"
+                    hint="Whole-bill / loyalty / promo discounts after line totals"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
                   ({formatCurrency(billDiscounts)})
                 </TableCell>
@@ -943,9 +1041,14 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              {/* Net Sales */}
               <TableRow sx={{ bgcolor: 'rgba(2, 132, 199, 0.06)' }}>
-                <TableCell sx={{ fontWeight: 800, color: '#0284C7' }}>2. Net Sales Revenue (Realized Turnover)</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="subtotal"
+                    title="2. Net Sales Revenue"
+                    hint="Realized customer turnover after all discounts (base for % column)"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800, color: '#0284C7', fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(netSales)}
                 </TableCell>
@@ -954,9 +1057,15 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              {/* COGS */}
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>(-) Cost of Goods Sold (FEFO Batch Acquisition Cost)</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="deduction"
+                    indent={2}
+                    title="(−) Cost of Goods Sold (COGS)"
+                    hint="Purchase cost of items sold (FEFO batch → product → last PO fallback)"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
                   ({formatCurrency(totalCogs)})
                 </TableCell>
@@ -965,30 +1074,51 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              {/* Gross Profit */}
-              <TableRow sx={{ bgcolor: 'rgba(99, 102, 241, 0.08)' }}>
-                <TableCell sx={{ fontWeight: 800, color: '#4338CA' }}>3. Gross Trading Profit</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, color: '#4338CA', fontVariantNumeric: 'tabular-nums' }}>
+              <TableRow sx={{ bgcolor: grossProfit >= 0 ? 'rgba(99, 102, 241, 0.08)' : 'rgba(244, 63, 94, 0.08)' }}>
+                <TableCell>
+                  <PnlLineLabel
+                    kind={grossProfit >= 0 ? 'profit' : 'loss'}
+                    title="3. Gross Trading Profit"
+                    hint="Net Sales − COGS · merchandise margin before store overheads"
+                  />
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    fontWeight: 800,
+                    color: grossProfit >= 0 ? '#4338CA' : '#BE123C',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
                   {formatCurrency(grossProfit)}
                 </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, color: '#4338CA', fontVariantNumeric: 'tabular-nums' }}>
+                <TableCell
+                  align="right"
+                  sx={{
+                    fontWeight: 800,
+                    color: grossProfit >= 0 ? '#4338CA' : '#BE123C',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
                   {Number(grossMarginPct).toFixed(1)}%
                 </TableCell>
               </TableRow>
 
-              {/* Operating Expenses */}
               <TableRow hover>
-                <TableCell sx={{ pl: 4 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      (-) Store Operating Overheads (Staff, Rent, Utilities, Transport)
-                    </Typography>
+                <TableCell>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, flexWrap: 'wrap' }}>
+                    <PnlLineLabel
+                      kind="deduction"
+                      indent={2}
+                      title="(−) Store Operating Overheads (OpEx)"
+                      hint="Staff, rent, utilities, transport — excludes supplier PO payments & CapEx"
+                    />
                     {expenseCategories.length > 0 && (
                       <Button
                         size="small"
                         onClick={() => setShowExpenseDetails(!showExpenseDetails)}
                         endIcon={showExpenseDetails ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                        sx={{ textTransform: 'none', py: 0, px: 0.5, fontSize: 11 }}
+                        sx={{ textTransform: 'none', py: 0, px: 0.5, fontSize: 11, mt: 0.25 }}
                       >
                         {showExpenseDetails ? 'Hide' : `${expenseCategories.length} categories`}
                       </Button>
@@ -1003,10 +1133,9 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              {/* Collapsible Expense Categories */}
               {showExpenseDetails && expenseCategories.map((c: any) => (
                 <TableRow key={c.category} sx={{ bgcolor: 'background.default' }}>
-                  <TableCell sx={{ pl: 8, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'capitalize' }}>
+                  <TableCell sx={{ pl: 10, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'capitalize' }}>
                     • {String(c.category || '').replace(/_/g, ' ')} ({c.count ?? 1} txn)
                   </TableCell>
                   <TableCell align="right" sx={{ fontSize: '0.75rem', color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
@@ -1018,10 +1147,14 @@ export function ExecutiveSummaryTab() {
                 </TableRow>
               ))}
 
-              {/* Shrinkage / write-offs (pre-EBIT) */}
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>
-                  (-) Inventory Spoilage & Shrinkage Write-offs
+                <TableCell>
+                  <PnlLineLabel
+                    kind="deduction"
+                    indent={2}
+                    title="(−) Inventory Spoilage & Shrinkage"
+                    hint="Damaged / expired / write-off stock at cost (before operating profit)"
+                  />
                 </TableCell>
                 <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
                   ({formatCurrency(inventoryShrinkage)})
@@ -1031,10 +1164,13 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              {/* Operating Profit (EBIT) */}
               <TableRow sx={{ bgcolor: operatingProfit >= 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)' }}>
-                <TableCell sx={{ fontWeight: 800, color: operatingProfit >= 0 ? '#047857' : '#BE123C' }}>
-                  4. Operating Profit / EBIT (Earnings Before Interest & Taxes)
+                <TableCell>
+                  <PnlLineLabel
+                    kind={operatingProfit >= 0 ? 'profit' : 'loss'}
+                    title="4. Operating Profit (EBIT)"
+                    hint="Gross Profit − OpEx − Shrinkage · core store trading result"
+                  />
                 </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 900, color: operatingProfit >= 0 ? '#047857' : '#BE123C', fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(operatingProfit)}
@@ -1044,24 +1180,32 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              {/* Statutory & Non-Operating Adjustments */}
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <ReceiptLongIcon sx={{ fontSize: 16, color: '#7C3AED' }} />
-                    <span>IRD 13% Output VAT Collected (Government Liability)</span>
-                  </Box>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="note"
+                    indent={2}
+                    title="IRD 13% Output VAT Collected"
+                    hint="Government liability — shown for clarity; not deducted again from earnings above"
+                  />
                 </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600, color: '#7C3AED', fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(outputVat13)}
                 </TableCell>
                 <TableCell align="right" sx={{ color: 'text.secondary' }}>
-                  {outputVat13 > 0 ? 'Tax' : '—'}
+                  {outputVat13 > 0 ? 'Tax note' : '—'}
                 </TableCell>
               </TableRow>
 
               <TableRow hover>
-                <TableCell sx={{ pl: 6, color: 'text.secondary', fontSize: '0.8rem' }}>• Taxable Sales Base (13% VAT)</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="note"
+                    indent={4}
+                    title="Taxable Sales Base (13% VAT)"
+                    hint="Estimated taxable turnover implied by collected VAT"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(taxableSales)}
                 </TableCell>
@@ -1071,7 +1215,14 @@ export function ExecutiveSummaryTab() {
               </TableRow>
 
               <TableRow hover>
-                <TableCell sx={{ pl: 6, color: 'text.secondary', fontSize: '0.8rem' }}>• Tax-Exempt Sales (Basic Groceries & Fresh Produce)</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="note"
+                    indent={4}
+                    title="Tax-Exempt Sales"
+                    hint="Basic groceries & fresh produce estimated as non-VAT turnover"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums' }}>
                   {formatCurrency(exemptSales)}
                 </TableCell>
@@ -1081,7 +1232,14 @@ export function ExecutiveSummaryTab() {
               </TableRow>
 
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>Cash Currency Round-Off Adjustments</TableCell>
+                <TableCell>
+                  <PnlLineLabel
+                    kind="note"
+                    indent={2}
+                    title="Cash Currency Round-Off"
+                    hint="Paisa rounding on cash tenders — informational"
+                  />
+                </TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                   {roundOff >= 0 ? `+${formatCurrency(roundOff)}` : formatCurrency(roundOff)}
                 </TableCell>
@@ -1089,8 +1247,13 @@ export function ExecutiveSummaryTab() {
               </TableRow>
 
               <TableRow hover>
-                <TableCell sx={{ pl: 4, color: 'text.secondary' }}>
-                  (-) Setup & Capital Investments (CapEx)
+                <TableCell>
+                  <PnlLineLabel
+                    kind="capex"
+                    indent={2}
+                    title="(−) Setup & Capital Investments (CapEx)"
+                    hint="One-time store setup / asset spend — below operating profit"
+                  />
                 </TableCell>
                 <TableCell align="right" sx={{ color: '#F43F5E', fontVariantNumeric: 'tabular-nums' }}>
                   ({formatCurrency(setupInvestment)})
@@ -1100,9 +1263,13 @@ export function ExecutiveSummaryTab() {
                 </TableCell>
               </TableRow>
 
-              <TableRow sx={{ bgcolor: 'rgba(15, 118, 110, 0.1)' }}>
-                <TableCell sx={{ fontWeight: 900, color: '#0F766E' }}>
-                  5. Net Store Earnings
+              <TableRow sx={{ bgcolor: netStoreEarnings >= 0 ? 'rgba(15, 118, 110, 0.12)' : 'rgba(244, 63, 94, 0.12)' }}>
+                <TableCell>
+                  <PnlLineLabel
+                    kind={netStoreEarnings >= 0 ? 'profit' : 'loss'}
+                    title="5. Net Store Earnings"
+                    hint="Operating Profit − CapEx · final profit or loss for the selected period"
+                  />
                 </TableCell>
                 <TableCell
                   align="right"
@@ -1112,9 +1279,16 @@ export function ExecutiveSummaryTab() {
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  {formatCurrency(netStoreEarnings)}
+                  {netStoreEarnings >= 0 ? `+${formatCurrency(netStoreEarnings)}` : formatCurrency(netStoreEarnings)}
                 </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+                <TableCell
+                  align="right"
+                  sx={{
+                    fontWeight: 700,
+                    color: netStoreEarnings >= 0 ? '#0F766E' : '#BE123C',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
                   {netSales > 0 ? ((netStoreEarnings / netSales) * 100).toFixed(1) : '0.0'}%
                 </TableCell>
               </TableRow>

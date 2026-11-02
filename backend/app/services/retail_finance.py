@@ -18,7 +18,7 @@ from app.models.expense import Expense
 from app.models.product import Product
 from app.models.purchase_order import POStatus, PurchaseOrder
 from app.models.purchase_return import PurchaseReturn, PurchaseReturnStatus
-from app.models.transaction import PaymentMethod, Transaction, TransactionStatus
+from app.models.transaction import Transaction
 from app.models.wallet_ledger import (
     Wallet,
     WalletDirection,
