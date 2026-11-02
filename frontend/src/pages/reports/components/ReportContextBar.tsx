@@ -58,11 +58,11 @@ export function ReportContextBar({
           )}
         </Box>
 
-        <Stack spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}>
+        <Stack spacing={0.75} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
             How to read figures
           </Typography>
-          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <AsOfChip kind="period" />
             <AsOfChip kind="closing" />
             <AsOfChip kind="live" />
