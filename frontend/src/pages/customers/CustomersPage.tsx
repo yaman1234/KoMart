@@ -82,18 +82,20 @@ export function CustomersPage() {
 
   const columns: Column<Customer>[] = [
     { id: 'name', label: 'Name', minWidth: 160, accessor: 'name' },
-    { id: 'phone', label: 'Phone', render: (row) => (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <span>{row.phone}</span>
-        {row.phone && (
-          <Tooltip title={copiedId === row.id ? 'Copied!' : 'Copy'}>
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleCopy(row.id, row.phone!); }} sx={{ p: 0.25 }}>
-              {copiedId === row.id ? <CheckIcon sx={{ fontSize: 13, color: 'success.main' }} /> : <ContentCopyIcon sx={{ fontSize: 13 }} />}
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-    ) },
+    {
+      id: 'phone', label: 'Phone', render: (row) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <span>{row.phone}</span>
+          {row.phone && (
+            <Tooltip title={copiedId === row.id ? 'Copied!' : 'Copy'}>
+              <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleCopy(row.id, row.phone!); }} sx={{ p: 0.25 }}>
+                {copiedId === row.id ? <CheckIcon sx={{ fontSize: 13, color: 'success.main' }} /> : <ContentCopyIcon sx={{ fontSize: 13 }} />}
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+      )
+    },
     { id: 'email', label: 'Email', accessor: 'email' },
     {
       id: 'tier',

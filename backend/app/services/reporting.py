@@ -116,11 +116,17 @@ def allocate_txn_to_lines(txn: Transaction) -> list[dict[str, Any]]:
     return rows
 
 
-def line_cogs(item: TransactionItem, product: Product | None) -> float:
+def line_cogs(
+    item: TransactionItem,
+    product: Product | None,
+    last_purchase_unit_cost: float | None = None,
+) -> float:
     """
     Cost of goods sold for a sale line item.
-    unit_cost and product.cost_price are per base inventory unit.
+    unit_cost / product.cost_price / last purchase cost are per base inventory unit.
     When a pack or carton is sold (unit_factor > 1), quantity is multiplied by unit_factor.
+
+    Fallback chain: line unit_cost → product.cost_price → last PO/batch unit cost → 0.
     """
     factor = max(1, int(getattr(item, "unit_factor", 1) or 1))
     base_qty = float(item.quantity) * factor
@@ -129,8 +135,70 @@ def line_cogs(item: TransactionItem, product: Product | None) -> float:
         return round(unit_cost * base_qty, 2)
     if product:
         cost = float(getattr(product, "cost_price", 0.0) or 0.0)
-        return round(cost * base_qty, 2)
+        if cost > 0:
+            return round(cost * base_qty, 2)
+    if last_purchase_unit_cost is not None and float(last_purchase_unit_cost) > 0:
+        return round(float(last_purchase_unit_cost) * base_qty, 2)
     return 0.0
+
+
+async def build_last_purchase_cost_cache(product_ids: set[str]) -> dict[str, float]:
+    """Latest positive base unit cost per product from inventory batches, then purchase price history."""
+    if not product_ids:
+        return {}
+
+    from app.models.inventory import InventoryBatch
+    from app.models.purchase_price_history import PurchasePriceHistory
+
+    cache: dict[str, float] = {}
+    pid_list = list(product_ids)
+
+    # Prefer most recent inventory batch with a positive unit_cost (base unit).
+    batch_rows = await InventoryBatch.find(
+        {"product_id": {"$in": pid_list}, "unit_cost": {"$gt": 0}}
+    ).sort([("received_at", -1)]).to_list()
+    for batch in batch_rows:
+        pid = batch.product_id
+        if pid not in cache:
+            cache[pid] = round(float(batch.unit_cost or 0.0), 4)
+
+    missing = [pid for pid in pid_list if pid not in cache]
+    if missing:
+        hist_rows = await PurchasePriceHistory.find(
+            {"product_id": {"$in": missing}, "unit_cost": {"$gt": 0}}
+        ).sort([("purchased_at", -1)]).to_list()
+        for row in hist_rows:
+            pid = row.product_id
+            if pid in cache:
+                continue
+            units = max(1, int(getattr(row, "units_per_buy_uom", 1) or 1))
+            base_cost = float(row.unit_cost or 0.0) / units
+            if base_cost > 0:
+                cache[pid] = round(base_cost, 4)
+
+    return cache
+
+
+async def aggregate_inventory_shrinkage(start: datetime, end: datetime) -> float:
+    """Period damaged/write-off stock at cost from stock adjustments."""
+    from app.models.inventory import AdjustmentType, StockAdjustment
+
+    rows = await StockAdjustment.find(
+        {
+            "type": AdjustmentType.damaged.value,
+            "created_at": {"$gte": start, "$lte": end},
+        }
+    ).to_list()
+    total = 0.0
+    for row in rows:
+        ext = float(getattr(row, "extended_cost", 0.0) or 0.0)
+        if ext != 0:
+            total += abs(ext)
+            continue
+        qty = abs(int(getattr(row, "quantity", 0) or 0))
+        unit = float(getattr(row, "unit_cost", 0.0) or 0.0)
+        total += qty * unit
+    return round(total, 2)
 
 
 def _object_ids(product_ids: set[str]) -> list[PydanticObjectId]:

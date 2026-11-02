@@ -928,6 +928,10 @@ async def items_sold_report(
     page_size_alias: int | None = Query(None, alias="pageSize", ge=1, le=5000),
     search: str = Query(""),
     category: str = Query(""),
+    margin_band: str = Query(
+        "",
+        description="Optional margin band filter: high|healthy|low|negative",
+    ),
     sort_by: str = Query("net_revenue"),
     sort_order: str = Query("desc", pattern="^(|asc|desc)$"),
     _: User = Depends(require_manager_or_above),
@@ -947,14 +951,41 @@ async def items_sold_report(
     filtered = all_rows
     if search and search.strip():
         q = search.strip().lower()
-        filtered = [r for r in filtered if q in r.name.lower() or q in r.sku.lower()]
+        filtered = [r for r in filtered if q in r.name.lower() or q in (r.sku or "").lower()]
     if category and category.strip():
         cat_q = category.strip().lower()
-        filtered = [r for r in filtered if r.category.lower() == cat_q]
+        filtered = [r for r in filtered if (r.category or "").lower() == cat_q]
 
-    sort_key = sort_by if hasattr(SoldProductWithMargin, sort_by) else "net_revenue"
+    band = (margin_band or "").strip().lower()
+    if band == "high":
+        filtered = [r for r in filtered if float(r.gross_margin_pct or 0) >= 25]
+    elif band == "healthy":
+        filtered = [r for r in filtered if 15 <= float(r.gross_margin_pct or 0) < 25]
+    elif band == "low":
+        filtered = [r for r in filtered if 0 <= float(r.gross_margin_pct or 0) < 15]
+    elif band == "negative":
+        filtered = [r for r in filtered if float(r.gross_margin_pct or 0) < 0]
+
+    sort_aliases = {
+        "netRevenue": "net_revenue",
+        "quantitySold": "quantity_sold",
+        "avgSellingPrice": "avg_selling_price",
+        "unitCost": "unit_cost",
+        "grossSales": "gross_sales",
+        "totalDiscount": "total_discount",
+        "totalCogs": "total_cogs",
+        "grossProfit": "gross_profit",
+        "grossMarginPct": "gross_margin_pct",
+        "name": "name",
+    }
+    sort_key = sort_aliases.get(sort_by, sort_by)
+    if not hasattr(SoldProductWithMargin, sort_key):
+        sort_key = "net_revenue"
     reverse = (sort_order.lower() != "asc")
-    filtered.sort(key=lambda x: getattr(x, sort_key, 0.0), reverse=reverse)
+    if sort_key == "name":
+        filtered.sort(key=lambda x: (x.name or "").lower(), reverse=reverse)
+    else:
+        filtered.sort(key=lambda x: getattr(x, sort_key, 0.0) or 0.0, reverse=reverse)
 
     total = len(filtered)
     start_idx = (page - 1) * limit

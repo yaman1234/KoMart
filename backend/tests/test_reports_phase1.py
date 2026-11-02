@@ -201,6 +201,36 @@ def test_line_cogs_fallback_to_product_cost_with_unit_factor():
     assert cogs == 2700.0
 
 
+def test_line_cogs_fallback_to_last_purchase_unit_cost():
+    product = Product(
+        name="Zero Cost Snack",
+        sku="SNACK-0",
+        barcode="SNACK-0",
+        brand="Test",
+        country_of_origin="Nepal",
+        category="Snacks",
+        supplier_id="sup-1",
+        supplier_name="Supplier",
+        cost_price=0.0,
+        selling_price=100.0,
+        low_stock_threshold=2,
+        is_active=True,
+    )
+    item = TransactionItem(
+        product_id="snack-0",
+        name="Zero Cost Snack",
+        sku="SNACK-0",
+        price=100.0,
+        quantity=4,
+        unit_cost=0.0,
+        unit_factor=1,
+    )
+    # line + product cost missing → last PO/batch unit cost 40
+    assert line_cogs(item, product, last_purchase_unit_cost=40.0) == 160.0
+    assert line_cogs(item, product, last_purchase_unit_cost=None) == 0.0
+    assert line_cogs(item, None, last_purchase_unit_cost=25.0) == 100.0
+
+
 @pytest.mark.asyncio
 async def test_profit_summary_uses_multi_pack_cogs(
     client: AsyncClient,

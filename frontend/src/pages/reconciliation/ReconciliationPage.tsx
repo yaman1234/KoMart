@@ -61,21 +61,21 @@ function statementLabel(row: WalletLedgerEntry, transferPeer?: WalletLedgerEntry
 import type { CashCustody, WalletCode, WalletLedgerEntry } from '@/types';
 
 const WALLET_CHIP: Record<string, { bg: string; darkBg: string; color: string; darkColor: string }> = {
-  cash:  { bg: 'rgba(42,157,143,0.12)',  darkBg: 'rgba(42,157,143,0.22)',  color: '#1a7a6e', darkColor: '#4fd1c5' },
-  bank:  { bg: 'rgba(29,53,87,0.1)',     darkBg: 'rgba(69,123,157,0.25)',  color: '#1D3557', darkColor: '#90caf9' },
+  cash: { bg: 'rgba(42,157,143,0.12)', darkBg: 'rgba(42,157,143,0.22)', color: '#1a7a6e', darkColor: '#4fd1c5' },
+  bank: { bg: 'rgba(29,53,87,0.1)', darkBg: 'rgba(69,123,157,0.25)', color: '#1D3557', darkColor: '#90caf9' },
   esewa: { bg: 'rgba(233,196,106,0.18)', darkBg: 'rgba(233,196,106,0.22)', color: '#92400e', darkColor: '#fbbf24' },
 };
 
 const TYPE_CHIP: Record<string, { bg: string; darkBg: string; color: string; darkColor: string }> = {
-  sale:            { bg: 'rgba(42,157,143,0.1)',   darkBg: 'rgba(42,157,143,0.2)',   color: '#1a7a6e', darkColor: '#4fd1c5' },
-  expense:         { bg: 'rgba(230,57,70,0.1)',    darkBg: 'rgba(230,57,70,0.2)',    color: '#b91c1c', darkColor: '#f87171' },
-  po_payment:      { bg: 'rgba(29,53,87,0.1)',     darkBg: 'rgba(69,123,157,0.2)',   color: '#1D3557', darkColor: '#90caf9' },
-  purchase_return: { bg: 'rgba(233,196,106,0.15)', darkBg: 'rgba(233,196,106,0.2)',  color: '#92400e', darkColor: '#fbbf24' },
-  transfer:        { bg: 'rgba(139,92,246,0.1)',   darkBg: 'rgba(139,92,246,0.2)',   color: '#6d28d9', darkColor: '#c4b5fd' },
-  adjustment:      { bg: 'rgba(249,115,22,0.1)',   darkBg: 'rgba(249,115,22,0.2)',   color: '#c2410c', darkColor: '#fb923c' },
-  custody:         { bg: 'rgba(180,83,9,0.1)',     darkBg: 'rgba(180,83,9,0.2)',     color: '#92400e', darkColor: '#fbbf24' },
-  opening:         { bg: 'rgba(100,116,139,0.1)',  darkBg: 'rgba(100,116,139,0.2)',  color: '#475569', darkColor: '#94a3b8' },
-  void_reversal:   { bg: 'rgba(239,68,68,0.1)',    darkBg: 'rgba(239,68,68,0.2)',    color: '#dc2626', darkColor: '#fca5a5' },
+  sale: { bg: 'rgba(42,157,143,0.1)', darkBg: 'rgba(42,157,143,0.2)', color: '#1a7a6e', darkColor: '#4fd1c5' },
+  expense: { bg: 'rgba(230,57,70,0.1)', darkBg: 'rgba(230,57,70,0.2)', color: '#b91c1c', darkColor: '#f87171' },
+  po_payment: { bg: 'rgba(29,53,87,0.1)', darkBg: 'rgba(69,123,157,0.2)', color: '#1D3557', darkColor: '#90caf9' },
+  purchase_return: { bg: 'rgba(233,196,106,0.15)', darkBg: 'rgba(233,196,106,0.2)', color: '#92400e', darkColor: '#fbbf24' },
+  transfer: { bg: 'rgba(139,92,246,0.1)', darkBg: 'rgba(139,92,246,0.2)', color: '#6d28d9', darkColor: '#c4b5fd' },
+  adjustment: { bg: 'rgba(249,115,22,0.1)', darkBg: 'rgba(249,115,22,0.2)', color: '#c2410c', darkColor: '#fb923c' },
+  custody: { bg: 'rgba(180,83,9,0.1)', darkBg: 'rgba(180,83,9,0.2)', color: '#92400e', darkColor: '#fbbf24' },
+  opening: { bg: 'rgba(100,116,139,0.1)', darkBg: 'rgba(100,116,139,0.2)', color: '#475569', darkColor: '#94a3b8' },
+  void_reversal: { bg: 'rgba(239,68,68,0.1)', darkBg: 'rgba(239,68,68,0.2)', color: '#dc2626', darkColor: '#fca5a5' },
 };
 
 function todayIsoStr() {
@@ -160,14 +160,14 @@ export function ReconciliationPage() {
           const peer = transferPeers.get(row.id);
           if (peer) {
             const from = row.direction === 'out' ? row.wallet : peer.wallet;
-            const to   = row.direction === 'in'  ? row.wallet : peer.wallet;
+            const to = row.direction === 'in' ? row.wallet : peer.wallet;
             const fk = WALLET_CHIP[String(from)] ?? WALLET_CHIP.cash;
-            const tk = WALLET_CHIP[String(to)]   ?? WALLET_CHIP.bank;
+            const tk = WALLET_CHIP[String(to)] ?? WALLET_CHIP.bank;
             return (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <Chip size="small" label={walletLabel(String(from))} sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: isDark ? fk.darkBg : fk.bg, color: isDark ? fk.darkColor : fk.color, border: 'none' }} />
                 <Typography variant="caption" color="text.disabled">→</Typography>
-                <Chip size="small" label={walletLabel(String(to))}   sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: isDark ? tk.darkBg : tk.bg, color: isDark ? tk.darkColor : tk.color, border: 'none' }} />
+                <Chip size="small" label={walletLabel(String(to))} sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: isDark ? tk.darkBg : tk.bg, color: isDark ? tk.darkColor : tk.color, border: 'none' }} />
               </Box>
             );
           }
@@ -199,7 +199,7 @@ export function ReconciliationPage() {
               fontWeight: 700, fontSize: '0.68rem', minWidth: 40, border: 'none',
               bgcolor: isIn
                 ? isDark ? 'rgba(42,157,143,0.22)' : 'rgba(42,157,143,0.12)'
-                : isDark ? 'rgba(230,57,70,0.22)'  : 'rgba(230,57,70,0.1)',
+                : isDark ? 'rgba(230,57,70,0.22)' : 'rgba(230,57,70,0.1)',
               color: isIn ? (isDark ? '#4fd1c5' : '#1a7a6e') : (isDark ? '#f87171' : '#b91c1c'),
             }}
           />
@@ -220,7 +220,7 @@ export function ReconciliationPage() {
               ? isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'
               : isIn
                 ? isDark ? 'rgba(42,157,143,0.12)' : 'rgba(42,157,143,0.08)'
-                : isDark ? 'rgba(230,57,70,0.12)'  : 'rgba(230,57,70,0.07)',
+                : isDark ? 'rgba(230,57,70,0.12)' : 'rgba(230,57,70,0.07)',
           }}>
             <Typography component="span" sx={{ fontWeight: 700, fontSize: '0.82rem', color }}>
               {isTransfer ? formatCurrency(row.amount) : formatSignedCurrency(row.amount, row.direction)}
@@ -393,67 +393,67 @@ export function ReconciliationPage() {
             <Box sx={{ p: 2 }}>
               <Grid container spacing={1.5}>
                 {openCustodies.map((row) => (
-                <Grid key={row.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2, height: '100%',
-                      borderColor: isDark ? 'rgba(217,119,6,0.3)' : 'rgba(180,83,9,0.2)',
-                      background: isDark ? 'rgba(58,42,16,0.4)' : 'rgba(255,251,235,0.8)',
-                      display: 'flex', flexDirection: 'column', gap: 1.5,
-                    }}
-                  >
-                    {/* Person row */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <Avatar sx={{ width: 36, height: 36, bgcolor: isDark ? '#b45309' : '#d97706', fontSize: '0.85rem', fontWeight: 700 }}>
-                        {row.heldByName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </Avatar>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>{row.heldByName}</Typography>
-                        <Typography variant="caption" color="text.secondary">Taken {formatDate(row.takenDate)}</Typography>
+                  <Grid key={row.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 2, height: '100%',
+                        borderColor: isDark ? 'rgba(217,119,6,0.3)' : 'rgba(180,83,9,0.2)',
+                        background: isDark ? 'rgba(58,42,16,0.4)' : 'rgba(255,251,235,0.8)',
+                        display: 'flex', flexDirection: 'column', gap: 1.5,
+                      }}
+                    >
+                      {/* Person row */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Avatar sx={{ width: 36, height: 36, bgcolor: isDark ? '#b45309' : '#d97706', fontSize: '0.85rem', fontWeight: 700 }}>
+                          {row.heldByName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>{row.heldByName}</Typography>
+                          <Typography variant="caption" color="text.secondary">Taken {formatDate(row.takenDate)}</Typography>
+                        </Box>
+                        <Chip
+                          label={formatCurrency(row.amount)}
+                          size="small"
+                          sx={{ fontWeight: 700, bgcolor: isDark ? 'rgba(217,119,6,0.25)' : 'rgba(180,83,9,0.12)', color: isDark ? '#fbbf24' : '#92400e' }}
+                        />
                       </Box>
-                      <Chip
-                        label={formatCurrency(row.amount)}
-                        size="small"
-                        sx={{ fontWeight: 700, bgcolor: isDark ? 'rgba(217,119,6,0.25)' : 'rgba(180,83,9,0.12)', color: isDark ? '#fbbf24' : '#92400e' }}
-                      />
-                    </Box>
 
-                    {/* Remarks */}
-                    {row.remarks && (
-                      <Typography variant="caption" color="text.secondary" sx={{
-                        px: 1, py: 0.5, borderRadius: 0.75,
-                        bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                        display: 'block', fontStyle: 'italic',
-                      }}>
-                        {row.remarks}
-                      </Typography>
-                    )}
+                      {/* Remarks */}
+                      {row.remarks && (
+                        <Typography variant="caption" color="text.secondary" sx={{
+                          px: 1, py: 0.5, borderRadius: 0.75,
+                          bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                          display: 'block', fontStyle: 'italic',
+                        }}>
+                          {row.remarks}
+                        </Typography>
+                      )}
 
-                    <Divider />
+                      <Divider />
 
-                    {/* Actions */}
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button
-                        size="small" variant="outlined" fullWidth
-                        sx={{ borderColor: isDark ? 'rgba(217,119,6,0.5)' : 'rgba(180,83,9,0.4)', color: isDark ? '#fbbf24' : '#92400e' }}
-                        onClick={() => { setResolveOpen(row); setResolveMode('return'); setResolveDate(todayIsoStr()); setResolveRemarks(''); setResolveError(''); }}
-                      >
-                        Return
-                      </Button>
-                      <Button
-                        size="small" variant="contained" fullWidth
-                        sx={{ bgcolor: isDark ? '#b45309' : '#d97706', '&:hover': { bgcolor: isDark ? '#92400e' : '#b45309' } }}
-                        onClick={() => { setResolveOpen(row); setResolveMode('deposit'); setResolveDate(todayIsoStr()); setResolveRemarks(''); setDepositWallet('bank'); setResolveError(''); }}
-                      >
-                        Deposit
-                      </Button>
-                    </Box>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
+                      {/* Actions */}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small" variant="outlined" fullWidth
+                          sx={{ borderColor: isDark ? 'rgba(217,119,6,0.5)' : 'rgba(180,83,9,0.4)', color: isDark ? '#fbbf24' : '#92400e' }}
+                          onClick={() => { setResolveOpen(row); setResolveMode('return'); setResolveDate(todayIsoStr()); setResolveRemarks(''); setResolveError(''); }}
+                        >
+                          Return
+                        </Button>
+                        <Button
+                          size="small" variant="contained" fullWidth
+                          sx={{ bgcolor: isDark ? '#b45309' : '#d97706', '&:hover': { bgcolor: isDark ? '#92400e' : '#b45309' } }}
+                          onClick={() => { setResolveOpen(row); setResolveMode('deposit'); setResolveDate(todayIsoStr()); setResolveRemarks(''); setDepositWallet('bank'); setResolveError(''); }}
+                        >
+                          Deposit
+                        </Button>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
           </Collapse>
         </Paper>
       )}

@@ -498,12 +498,12 @@ export function SalesPage() {
 
             ...(status === "all" &&
               !paymentMethod && {
-                outline: "2px solid",
+              outline: "2px solid",
 
-                outlineColor: "primary.main",
+              outlineColor: "primary.main",
 
-                boxShadow: 2,
-              }),
+              boxShadow: 2,
+            }),
           }}
         />
 

@@ -150,41 +150,41 @@ export function StockCountDetailPage() {
     { id: 'uom', label: 'Unit', accessor: 'uom' },
     ...(showSystemQty
       ? [{
-          id: 'snapshotQty',
-          label: 'System Qty',
-          align: 'right' as const,
-          render: (row: StockCountItem) =>
-            row.snapshotQty === -1
-              ? <Typography variant="body2" sx={{ color: 'text.disabled' }}>Hidden</Typography>
-              : row.snapshotQty,
+        id: 'snapshotQty',
+        label: 'System Qty',
+        align: 'right' as const,
+        render: (row: StockCountItem) =>
+          row.snapshotQty === -1
+            ? <Typography variant="body2" sx={{ color: 'text.disabled' }}>Hidden</Typography>
+            : row.snapshotQty,
+      },
+      {
+        id: 'unitsSoldInWindow',
+        label: 'Sold During Count',
+        align: 'right' as const,
+        render: (row: StockCountItem) =>
+          row.unitsSoldInWindow > 0 ? (
+            <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+              -{row.unitsSoldInWindow}
+            </Typography>
+          ) : (
+            <Typography variant="body2" color="text.secondary">0</Typography>
+          ),
+      },
+      {
+        id: 'adjustedSnapshotQty',
+        label: 'Adj. Snapshot',
+        align: 'right' as const,
+        render: (row: StockCountItem) => {
+          if (row.snapshotQty === -1) return <Typography variant="body2" sx={{ color: 'text.disabled' }}>Hidden</Typography>;
+          const adj = row.adjustedSnapshotQty ?? row.snapshotQty;
+          return (
+            <Typography variant="body2" sx={{ fontWeight: row.unitsSoldInWindow > 0 ? 700 : 400 }}>
+              {adj}
+            </Typography>
+          );
         },
-        {
-          id: 'unitsSoldInWindow',
-          label: 'Sold During Count',
-          align: 'right' as const,
-          render: (row: StockCountItem) =>
-            row.unitsSoldInWindow > 0 ? (
-              <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
-                -{row.unitsSoldInWindow}
-              </Typography>
-            ) : (
-              <Typography variant="body2" color="text.secondary">0</Typography>
-            ),
-        },
-        {
-          id: 'adjustedSnapshotQty',
-          label: 'Adj. Snapshot',
-          align: 'right' as const,
-          render: (row: StockCountItem) => {
-            if (row.snapshotQty === -1) return <Typography variant="body2" sx={{ color: 'text.disabled' }}>Hidden</Typography>;
-            const adj = row.adjustedSnapshotQty ?? row.snapshotQty;
-            return (
-              <Typography variant="body2" sx={{ fontWeight: row.unitsSoldInWindow > 0 ? 700 : 400 }}>
-                {adj}
-              </Typography>
-            );
-          },
-        }]
+      }]
       : []),
     {
       id: 'physicalQty',
@@ -199,37 +199,37 @@ export function StockCountDetailPage() {
     },
     ...(showVariance
       ? [
-          {
-            id: 'varianceQty',
-            label: 'Variance',
-            align: 'right' as const,
-            render: (row: StockCountItem) => {
-              if (row.varianceQty === null) return '—';
-              const v = row.varianceQty;
-              const color = v < 0 ? 'error.main' : v > 0 ? 'warning.main' : 'success.main';
-              return (
-                <Typography variant="body2" sx={{ fontWeight: 600, color }}>
-                  {v > 0 ? `+${v}` : v}
-                </Typography>
-              );
-            },
+        {
+          id: 'varianceQty',
+          label: 'Variance',
+          align: 'right' as const,
+          render: (row: StockCountItem) => {
+            if (row.varianceQty === null) return '—';
+            const v = row.varianceQty;
+            const color = v < 0 ? 'error.main' : v > 0 ? 'warning.main' : 'success.main';
+            return (
+              <Typography variant="body2" sx={{ fontWeight: 600, color }}>
+                {v > 0 ? `+${v}` : v}
+              </Typography>
+            );
           },
-          {
-            id: 'varianceValue',
-            label: 'Variance Value',
-            align: 'right' as const,
-            render: (row: StockCountItem) => {
-              if (row.varianceValue === null) return '—';
-              const v = row.varianceValue;
-              const color = v < 0 ? 'error.main' : v > 0 ? 'warning.main' : 'text.secondary';
-              return (
-                <Typography variant="body2" sx={{ color }}>
-                  {v > 0 ? '+' : ''}{formatCurrency(v)}
-                </Typography>
-              );
-            },
+        },
+        {
+          id: 'varianceValue',
+          label: 'Variance Value',
+          align: 'right' as const,
+          render: (row: StockCountItem) => {
+            if (row.varianceValue === null) return '—';
+            const v = row.varianceValue;
+            const color = v < 0 ? 'error.main' : v > 0 ? 'warning.main' : 'text.secondary';
+            return (
+              <Typography variant="body2" sx={{ color }}>
+                {v > 0 ? '+' : ''}{formatCurrency(v)}
+              </Typography>
+            );
           },
-        ]
+        },
+      ]
       : []),
     {
       id: 'varianceStatus',
@@ -244,30 +244,30 @@ export function StockCountDetailPage() {
     },
     ...(isManager && (sc?.status === 'submitted' || sc?.status === 'under_review' || sc?.status === 'recount_required')
       ? [{
-          id: 'reason',
-          label: 'Reason',
-          render: (row: StockCountItem) => (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="body2">{row.reason || '—'}</Typography>
-              {row.varianceQty !== 0 && row.varianceQty !== null && (
-                <Tooltip title="Set reason">
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setReasonDialog(row);
-                      setReason(row.reason || '');
-                      setReasonNote(row.reasonNote || '');
-                      setFinalQty(row.finalQty !== null ? String(row.finalQty) : '');
-                    }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Box>
-          ),
-        }]
+        id: 'reason',
+        label: 'Reason',
+        render: (row: StockCountItem) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="body2">{row.reason || '—'}</Typography>
+            {row.varianceQty !== 0 && row.varianceQty !== null && (
+              <Tooltip title="Set reason">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReasonDialog(row);
+                    setReason(row.reason || '');
+                    setReasonNote(row.reasonNote || '');
+                    setFinalQty(row.finalQty !== null ? String(row.finalQty) : '');
+                  }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        ),
+      }]
       : []),
   ];
 
@@ -330,15 +330,15 @@ export function StockCountDetailPage() {
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {([
-          { title: 'Total Products', value: sc.totalProducts, gradient: ['#f0f9ff', '#bae6fd'] as [string,string], color: '#0369a1', filter: 'all' as VarianceFilter },
-          { title: 'Counted', value: sc.countedProducts, gradient: ['#dbeafe', '#93c5fd'] as [string,string], color: '#1d4ed8', filter: 'counted' as VarianceFilter },
-          { title: 'Matched', value: sc.matchedCount, gradient: ['#d4f5e9', '#a8e6cf'] as [string,string], color: '#1b7a4e', filter: 'matched' as VarianceFilter },
-          { title: 'Short', value: sc.shortCount, gradient: ['#fff1f2', '#fecdd3'] as [string,string], color: '#be123c', filter: 'short' as VarianceFilter },
-          { title: 'Excess', value: sc.excessCount, gradient: ['#fff7ed', '#fed7aa'] as [string,string], color: '#c2410c', filter: 'excess' as VarianceFilter },
-          { title: 'Shortage Value', value: formatCurrency(sc.shortageValue), gradient: ['#fff1f2', '#fecdd3'] as [string,string], color: '#be123c' },
-          { title: 'Excess Value', value: formatCurrency(sc.excessValue), gradient: ['#fff7ed', '#fed7aa'] as [string,string], color: '#c2410c' },
-          { title: 'Net Variance', value: formatCurrency(sc.netVarianceValue), gradient: (sc.netVarianceValue < 0 ? ['#fff1f2', '#fecdd3'] : ['#fff7ed', '#fed7aa']) as [string,string], color: sc.netVarianceValue < 0 ? '#be123c' : '#c2410c' },
-          { title: 'Stock Accuracy', value: `${sc.stockAccuracyPct.toFixed(1)}%`, gradient: (sc.stockAccuracyPct >= 98 ? ['#d4f5e9', '#a8e6cf'] : sc.stockAccuracyPct >= 95 ? ['#fff7ed', '#fed7aa'] : ['#fff1f2', '#fecdd3']) as [string,string], color: sc.stockAccuracyPct >= 98 ? '#1b7a4e' : sc.stockAccuracyPct >= 95 ? '#c2410c' : '#be123c' },
+          { title: 'Total Products', value: sc.totalProducts, gradient: ['#f0f9ff', '#bae6fd'] as [string, string], color: '#0369a1', filter: 'all' as VarianceFilter },
+          { title: 'Counted', value: sc.countedProducts, gradient: ['#dbeafe', '#93c5fd'] as [string, string], color: '#1d4ed8', filter: 'counted' as VarianceFilter },
+          { title: 'Matched', value: sc.matchedCount, gradient: ['#d4f5e9', '#a8e6cf'] as [string, string], color: '#1b7a4e', filter: 'matched' as VarianceFilter },
+          { title: 'Short', value: sc.shortCount, gradient: ['#fff1f2', '#fecdd3'] as [string, string], color: '#be123c', filter: 'short' as VarianceFilter },
+          { title: 'Excess', value: sc.excessCount, gradient: ['#fff7ed', '#fed7aa'] as [string, string], color: '#c2410c', filter: 'excess' as VarianceFilter },
+          { title: 'Shortage Value', value: formatCurrency(sc.shortageValue), gradient: ['#fff1f2', '#fecdd3'] as [string, string], color: '#be123c' },
+          { title: 'Excess Value', value: formatCurrency(sc.excessValue), gradient: ['#fff7ed', '#fed7aa'] as [string, string], color: '#c2410c' },
+          { title: 'Net Variance', value: formatCurrency(sc.netVarianceValue), gradient: (sc.netVarianceValue < 0 ? ['#fff1f2', '#fecdd3'] : ['#fff7ed', '#fed7aa']) as [string, string], color: sc.netVarianceValue < 0 ? '#be123c' : '#c2410c' },
+          { title: 'Stock Accuracy', value: `${sc.stockAccuracyPct.toFixed(1)}%`, gradient: (sc.stockAccuracyPct >= 98 ? ['#d4f5e9', '#a8e6cf'] : sc.stockAccuracyPct >= 95 ? ['#fff7ed', '#fed7aa'] : ['#fff1f2', '#fecdd3']) as [string, string], color: sc.stockAccuracyPct >= 98 ? '#1b7a4e' : sc.stockAccuracyPct >= 95 ? '#c2410c' : '#be123c' },
         ] as const).map((card) => (
           <Grid key={card.title} size={{ xs: 6, sm: 4, md: 3, lg: 'auto' }} sx={{ flex: '1 1 140px' }}>
             <StatCard

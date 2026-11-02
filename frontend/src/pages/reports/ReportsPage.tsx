@@ -6,7 +6,6 @@ import {
   Tabs,
   Tab,
   Button,
-  Chip,
   CircularProgress,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -18,16 +17,14 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import SecurityIcon from '@mui/icons-material/Security';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { useDashboardStore } from '@/store';
 import { adToBs, BS_MONTHS } from '@/utils/nepaliDate';
-import { showSuccess, showApiError } from '@/utils/toast';
+import { showSuccess, showWarning, showApiError, showError } from '@/utils/toast';
 import { reportsService } from '@/services';
+import { ReportContextBar } from '@/pages/reports/components';
 
-// 5 Pillar Tabs + Customers + Loss Audit
 import { ExecutiveSummaryTab } from '@/pages/reports/tabs/ExecutiveSummaryTab';
 import { SalesMerchandisingTab } from '@/pages/reports/tabs/SalesMerchandisingTab';
 import { PurchasesPayablesTab } from '@/pages/reports/tabs/PurchasesPayablesTab';
@@ -38,6 +35,17 @@ import { LossAuditTab } from '@/pages/reports/tabs/LossAuditTab';
 import { exportReportsWorkbook } from '@/pages/reports/export/reportsExcelExport';
 
 type ReportTab = 'executive' | 'sales' | 'purchasing' | 'inventory' | 'cashflow' | 'audit' | 'customers';
+
+const EXPORT_SHEETS = [
+  'Executive P&L',
+  'Sales performance',
+  'Items sold',
+  'Purchasing & payables',
+  'Inventory & health',
+  'Cash flow & wallets',
+  'Loss audit',
+  'Customers',
+] as const;
 
 function formatBsRange(adStart: string, adEnd: string): string {
   const bsStart = adToBs(adStart);
@@ -56,6 +64,15 @@ function formatBsRange(adStart: string, adEnd: string): string {
     return `${startMonthName} ${sd} – ${endMonthName} ${ed}, ${sy} BS`;
   }
   return `${startMonthName} ${sd}, ${sy} – ${endMonthName} ${ed}, ${ey} BS`;
+}
+
+async function fetchSheet<T>(label: string, fn: () => Promise<T>): Promise<{ label: string; data: T | null; ok: boolean }> {
+  try {
+    const data = await fn();
+    return { label, data, ok: true };
+  } catch {
+    return { label, data: null, ok: false };
+  }
 }
 
 export function ReportsPage() {
@@ -81,27 +98,58 @@ export function ReportsPage() {
   const handleFullExport = async () => {
     setIsExporting(true);
     try {
-      const [execSummary, salesPerf, itemsSold, purchasing, invHealth, cashFlow] = await Promise.all([
-        reportsService.getExecutiveSummary(dateRange).catch(() => null),
-        reportsService.getSalesPerformance(dateRange).catch(() => null),
-        reportsService.getItemsSold(dateRange).catch(() => null),
-        reportsService.getPurchasingPayables(dateRange).catch(() => null),
-        reportsService.getInventoryHealth('both', 30, 30).catch(() => null),
-        reportsService.getCashFlow(dateRange).catch(() => null),
+      const results = await Promise.all([
+        fetchSheet(EXPORT_SHEETS[0], () => reportsService.getExecutiveSummary(dateRange)),
+        fetchSheet(EXPORT_SHEETS[1], () => reportsService.getSalesPerformance(dateRange)),
+        fetchSheet(EXPORT_SHEETS[2], async () => {
+          const page = await reportsService.getItemsSold(dateRange, { page: 1, pageSize: 1000 });
+          return page.data;
+        }),
+        fetchSheet(EXPORT_SHEETS[3], () => reportsService.getPurchasingPayables(dateRange)),
+        fetchSheet(EXPORT_SHEETS[4], () => reportsService.getInventoryHealth('both', 30, 30)),
+        fetchSheet(EXPORT_SHEETS[5], () => reportsService.getCashFlow(dateRange)),
+        fetchSheet(EXPORT_SHEETS[6], () => reportsService.getLossAudit(dateRange, 20)),
+        fetchSheet(EXPORT_SHEETS[7], async () => {
+          const [topCustomers, loyaltySummary] = await Promise.all([
+            reportsService.getTopCustomers(dateRange, 50),
+            reportsService.getLoyaltySummary(dateRange),
+          ]);
+          return { topCustomers, loyaltySummary };
+        }),
       ]);
+
+      const [execSummary, salesPerf, itemsSold, purchasing, invHealth, cashFlow, lossAudit, customersBundle] = results;
+      const succeeded = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+
+      if (succeeded.length === 0) {
+        showError('Export failed — no report sheets could be loaded.');
+        return;
+      }
 
       exportReportsWorkbook({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        execSummary,
-        salesPerf,
-        itemsSold,
-        purchasing,
-        invHealth,
-        cashFlow,
+        execSummary: execSummary.data,
+        salesPerf: salesPerf.data,
+        itemsSold: itemsSold.data,
+        purchasing: purchasing.data,
+        invHealth: invHealth.data,
+        cashFlow: cashFlow.data,
+        lossAudit: lossAudit.data,
+        topCustomers: customersBundle.data?.topCustomers ?? null,
+        loyaltySummary: customersBundle.data?.loyaltySummary ?? null,
       });
 
-      showSuccess('Full executive workbook exported successfully!');
+      if (failed.length === 0) {
+        showSuccess(`Workbook exported (${succeeded.length}/${EXPORT_SHEETS.length} sheets).`);
+      } else {
+        showWarning(
+          `Workbook exported with ${succeeded.length}/${EXPORT_SHEETS.length} sheets. Failed: ${failed
+            .map((f) => f.label)
+            .join(', ')}.`,
+        );
+      }
     } catch (err) {
       showApiError(err, 'Failed to export reports workbook');
     } finally {
@@ -111,7 +159,6 @@ export function ReportsPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pb: 4 }}>
-      {/* 1. GLOBAL HEADER & TOOLBAR */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
@@ -122,7 +169,6 @@ export function ReportsPage() {
           </Typography>
         </Box>
 
-        {/* Action Buttons */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Button
             variant="outlined"
@@ -146,48 +192,13 @@ export function ReportsPage() {
         </Box>
       </Box>
 
-      {/* 2. DATE FILTER & DUAL CALENDAR STRIP */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          borderRadius: 2.5,
-          border: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 2,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <DateRangePicker
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            onChange={setDateRange}
-          />
-        </Box>
+      <ReportContextBar
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+        onDateRangeChange={setDateRange}
+        bsDateString={bsDateString || undefined}
+      />
 
-        {/* Bikram Sambat (BS) Dual Calendar Pill */}
-        {bsDateString && (
-          <Chip
-            icon={<CalendarMonthIcon sx={{ color: '#0284C7' }} />}
-            label={`Nepal BS: ${bsDateString}`}
-            variant="outlined"
-            sx={{
-              borderColor: 'rgba(2, 132, 199, 0.3)',
-              bgcolor: 'rgba(2, 132, 199, 0.05)',
-              fontWeight: 700,
-              color: '#0284C7',
-              fontSize: '0.8rem',
-              py: 0.5,
-            }}
-          />
-        )}
-      </Paper>
-
-      {/* 3. FIVE PILLAR TAB NAVIGATION */}
       <Paper
         elevation={0}
         sx={{
@@ -258,7 +269,6 @@ export function ReportsPage() {
         </Tabs>
       </Paper>
 
-      {/* 4. ACTIVE TAB CONTENT PANES */}
       <Box sx={{ mt: 1 }}>
         {activeTab === 'executive' && <ExecutiveSummaryTab />}
         {activeTab === 'sales' && <SalesMerchandisingTab />}
