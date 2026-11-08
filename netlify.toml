@@ -6,20 +6,32 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Proxy /api/* to the backend (handles production, UAT, and deploy previews)
-[[redirects]]
-  from   = "/api/*"
-  to     = "https://ko-mart.vercel.app/api/:splat"
-  status = 200
-  force  = true
-
-# SPA fallback — all routes served by index.html
+# SPA fallback — all routes served by index.html (fallback if _redirects is not present)
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
   status = 200
 
+# ── Production (main branch -> Vercel Backend) ──
 [context.production.environment]
   VITE_APP_ENV = "production"
-  # Set in Netlify UI (required): VITE_API_BASE_URL = https://ko-mart.vercel.app/api/v1
-  # Optional: enable Netlify /api proxy instead of baking the URL into the build (see redirects above).
+  VITE_API_BASE_URL = "https://ko-mart.vercel.app/api/v1"
+  BACKEND_PROXY_URL = "https://ko-mart.vercel.app"
+
+# ── UAT branch deploy (Render Backend) ──
+[context.uat.environment]
+  VITE_APP_ENV = "uat"
+  VITE_API_BASE_URL = "https://komart.onrender.com/api/v1"
+  BACKEND_PROXY_URL = "https://komart.onrender.com"
+
+# ── Other branch deploys (Render Backend) ──
+[context.branch-deploy.environment]
+  VITE_APP_ENV = "uat"
+  VITE_API_BASE_URL = "https://komart.onrender.com/api/v1"
+  BACKEND_PROXY_URL = "https://komart.onrender.com"
+
+# ── Pull request / deploy previews (Render Backend) ──
+[context.deploy-preview.environment]
+  VITE_APP_ENV = "preview"
+  VITE_API_BASE_URL = "https://komart.onrender.com/api/v1"
+  BACKEND_PROXY_URL = "https://komart.onrender.com"
