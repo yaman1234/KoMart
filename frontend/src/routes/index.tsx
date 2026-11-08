@@ -38,11 +38,13 @@ import { StockCountFormPage } from '@/pages/stock-count/StockCountFormPage';
 import { StockCountDetailPage } from '@/pages/stock-count/StockCountDetailPage';
 import { StockCountCountPage } from '@/pages/stock-count/StockCountCountPage';
 import { ReconciliationPage } from '@/pages/reconciliation/ReconciliationPage';
+import { RouteErrorBoundary } from '@/components/common/RouteErrorBoundary';
 
 export const router = createBrowserRouter([
   // Public catalog routes (no auth)
   {
     element: <CatalogLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: '/', element: <CatalogPage /> },
       { path: '/catalog/:id', element: <CatalogDetailPage /> },
@@ -50,6 +52,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <GuestRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <AuthLayout />,
@@ -61,6 +64,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <MainLayout />,

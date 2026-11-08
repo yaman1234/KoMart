@@ -44,7 +44,7 @@ export function PosAddProductAutocomplete({
   });
 
   const options = useMemo(
-    () => (data?.data ?? []).filter(isPosSellableProduct),
+    () => (Array.isArray(data?.data) ? data.data : []).filter(isPosSellableProduct),
     [data?.data],
   );
 

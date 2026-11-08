@@ -89,7 +89,7 @@ export function StaffProductExpenseDialog({
   );
 
   const productOptions = useMemo(() => {
-    return (searchResults?.data ?? []).filter((p) => p.status !== 'discontinued');
+    return (Array.isArray(searchResults?.data) ? searchResults.data : []).filter((p) => p.status !== 'discontinued');
   }, [searchResults]);
 
   const handleAddProduct = (product: Product | null) => {

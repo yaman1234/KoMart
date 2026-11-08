@@ -6,19 +6,18 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Proxy /api/* to the backend (handles production, UAT, and deploy previews)
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://ko-mart.vercel.app/api/:splat"
+  status = 200
+  force  = true
+
 # SPA fallback — all routes served by index.html
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
   status = 200
-
-# Proxy /api/* to the backend (set VITE_API_BASE_URL env var instead for production)
-# Uncomment and replace <YOUR_BACKEND_URL> if you want Netlify to proxy API calls
-# [[redirects]]
-#   from   = "/api/*"
-#   to     = "https://<YOUR_BACKEND_URL>/api/:splat"
-#   status = 200
-#   force  = true
 
 [context.production.environment]
   VITE_APP_ENV = "production"

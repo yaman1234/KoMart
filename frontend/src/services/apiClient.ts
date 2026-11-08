@@ -48,6 +48,21 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
+/** Verify that an API response is not an HTML fallback page from an SPA router */
+function assertJsonPayload(response: { data: unknown; headers: Record<string, unknown>; config: { url?: string } }): void {
+  const contentType = String(response.headers?.['content-type'] || '');
+  if (
+    typeof response.data === 'string' &&
+    (contentType.includes('text/html') ||
+      response.data.trim().startsWith('<!doctype') ||
+      response.data.trim().startsWith('<html'))
+  ) {
+    throw new Error(
+      `Received HTML response instead of JSON from "${response.config.url ?? 'API'}". Check API proxy / backend configuration.`,
+    );
+  }
+}
+
 /** Public client for unauthenticated endpoints (catalog) — allow extra time for serverless cold starts */
 export const publicClient = axios.create({
   baseURL: API_BASE_URL,
@@ -61,6 +76,7 @@ publicClient.interceptors.request.use((config) => {
 });
 
 publicClient.interceptors.response.use((response) => {
+  assertJsonPayload(response);
   response.data = camelizeKeys(response.data);
   return response;
 });
@@ -165,6 +181,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     useLoadingStore.getState().stop();
+    assertJsonPayload(response);
     response.data = camelizeKeys(response.data);
     return response;
   },

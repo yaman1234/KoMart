@@ -277,7 +277,7 @@ export function PurchaseOrderDetailPage() {
 
   /** Lines that can still receive stock (excludes fully received). */
   const receivableItems = useMemo(
-    () => (po?.items ?? []).filter((item) => !isLineFullyReceived(item)),
+    () => (Array.isArray(po?.items) ? po.items : []).filter((item) => !isLineFullyReceived(item)),
     [po],
   );
 
