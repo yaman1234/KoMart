@@ -124,7 +124,7 @@ export function InventoryHealthTab() {
         icon={false}
         sx={{ borderRadius: 2.5, py: 0.75 }}
       >
-        <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           <AsOfChip kind="live" />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Live snapshot — stock, reorder, expiry, and dead capital ignore the report date range.
