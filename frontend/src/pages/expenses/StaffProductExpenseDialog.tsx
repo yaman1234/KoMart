@@ -350,8 +350,8 @@ export function StaffProductExpenseDialog({
               searchLoading
                 ? 'Searching products…'
                 : debouncedSearch.trim()
-                ? `No products matching "${debouncedSearch.trim()}"`
-                : 'No products available'
+                  ? `No products matching "${debouncedSearch.trim()}"`
+                  : 'No products available'
             }
             renderOption={(props, option) => {
               const { key, ...rest } = props;
