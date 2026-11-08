@@ -377,7 +377,7 @@ async def calculate_cash_flow_statement(
                 supplier_refunds += amt
             elif et == WalletEntryType.transfer.value:
                 transfers_in += amt
-            elif et == WalletEntryType.adjustment.value:
+            elif et in (WalletEntryType.adjustment.value, WalletEntryType.opening.value):
                 adjustments_in += amt
             else:
                 other_in += amt
@@ -389,7 +389,7 @@ async def calculate_cash_flow_statement(
                 supplier_po_payments += amt
             elif et == WalletEntryType.transfer.value:
                 transfers_out += amt
-            elif et == WalletEntryType.adjustment.value:
+            elif et in (WalletEntryType.adjustment.value, WalletEntryType.opening.value):
                 adjustments_out += amt
             else:
                 other_out += amt

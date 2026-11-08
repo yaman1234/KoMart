@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS, STALE_TIME } from '@/constants';
 import { walletService } from '@/services';
-import type { WalletAdjustmentPayload, WalletTransferPayload } from '@/types';
+import type { WalletAdjustmentPayload, WalletCutoverPayload, WalletTransferPayload } from '@/types';
 
 function ledgerFilterKey(params?: {
   wallet?: string;
@@ -47,6 +47,7 @@ function invalidateWalletQueries(queryClient: ReturnType<typeof useQueryClient>)
   void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.walletBalances });
   void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
   void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports('dailySummary') });
+  void queryClient.invalidateQueries({ queryKey: ['reports'] });
 }
 
 export function useWalletTransfer() {
@@ -61,6 +62,14 @@ export function useWalletAdjustment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: WalletAdjustmentPayload) => walletService.adjust(payload),
+    onSuccess: () => invalidateWalletQueries(queryClient),
+  });
+}
+
+export function useWalletCutover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: WalletCutoverPayload) => walletService.cutover(payload),
     onSuccess: () => invalidateWalletQueries(queryClient),
   });
 }

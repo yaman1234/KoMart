@@ -4,17 +4,19 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.auth.dependencies import get_current_user, require_manager_or_above
+from app.auth.dependencies import get_current_user, require_admin_only, require_manager_or_above
 from app.models.user import User
 from app.models.audit_log import AuditModule
 from app.schemas.wallet import (
     WalletAdjustmentCreate,
     WalletBalancesResponse,
+    WalletCutoverCreate,
+    WalletCutoverResponse,
     WalletLedgerEntryResponse,
     WalletTransferCreate,
 )
 from app.services import wallet_ledger as wl
-from app.services.audit import log_audit, wallet_transfer_snapshot, wallet_adjustment_snapshot
+from app.services.audit import log_audit, wallet_cutover_snapshot, wallet_transfer_snapshot, wallet_adjustment_snapshot
 from app.models.wallet_ledger import WalletLedgerEntry
 
 router = APIRouter(prefix="/wallets", tags=["Wallets"])
@@ -130,6 +132,33 @@ async def adjust_wallet(
         ),
     )
     return _to_entry(entry)
+
+
+@router.post("/cutover", response_model=WalletCutoverResponse)
+async def cutover_wallets(
+    body: WalletCutoverCreate,
+    request: Request,
+    current_user: User = Depends(require_admin_only),
+):
+    await wl.ensure_backfill()
+    result = await wl.create_balance_cutover(
+        cash=body.cash,
+        bank=body.bank,
+        esewa=body.esewa,
+        replace=body.replace,
+        created_by=current_user.name,
+    )
+    if any(not line["skipped"] for line in result["lines"]):
+        await log_audit(
+            module=AuditModule.accounts,
+            action="balance_cutover",
+            user=current_user,
+            request=request,
+            entity_type="wallet_cutover",
+            entity_id=result["date"],
+            new=wallet_cutover_snapshot(date=result["date"], lines=result["lines"]),
+        )
+    return WalletCutoverResponse(**result)
 
 
 @router.post("/backfill", status_code=status.HTTP_200_OK)

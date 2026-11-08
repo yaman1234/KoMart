@@ -215,6 +215,8 @@ class WalletDayBookBlock(BaseModel):
     adjustments_out: float = 0.0
     custody_in: float = 0.0
     custody_out: float = 0.0
+    cutover_in: float = 0.0
+    cutover_out: float = 0.0
     expected: float
     closing: float | None = None
     variance: float | None = None

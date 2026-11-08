@@ -95,6 +95,7 @@ export function formatAuditAction(action: string): string {
     day_close_post_variance: 'Variance posted to ledger',
     wallet_transfer: 'Wallet transfer',
     wallet_adjustment: 'Wallet adjustment',
+    balance_cutover: 'Balances set',
     cash_custody_take: 'Cash taken — staff custody',
     cash_custody_return: 'Cash returned to till',
     cash_custody_deposit: 'Cash deposited from custody',

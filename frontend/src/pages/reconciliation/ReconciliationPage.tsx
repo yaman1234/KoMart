@@ -50,6 +50,7 @@ function referencePath(row: WalletLedgerEntry): string | null {
 }
 
 function statementLabel(row: WalletLedgerEntry, transferPeer?: WalletLedgerEntry): string {
+  if (row.referenceType === 'balance_cutover') return 'Balance cutover';
   if (row.entryType === 'transfer' && transferPeer) {
     const from = row.direction === 'out' ? row.wallet : transferPeer.wallet;
     const to = row.direction === 'in' ? row.wallet : transferPeer.wallet;

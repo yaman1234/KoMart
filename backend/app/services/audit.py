@@ -278,6 +278,18 @@ def wallet_transfer_snapshot(
     }
 
 
+def wallet_cutover_snapshot(*, date: str, lines: list[dict[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {"date": date}
+    for line in lines:
+        wallet = str(line.get("wallet") or "")
+        if not wallet:
+            continue
+        out[f"{wallet}_previous"] = round(float(line.get("previous") or 0), 2)
+        out[f"{wallet}_target"] = round(float(line.get("target") or 0), 2)
+        out[f"{wallet}_delta"] = round(float(line.get("delta") or 0), 2)
+    return out
+
+
 def wallet_adjustment_snapshot(
     *,
     wallet: str,

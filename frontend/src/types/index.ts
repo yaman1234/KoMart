@@ -4400,6 +4400,14 @@ export interface WalletDayBookBlock {
 
 
 
+  cutoverIn?: number;
+
+
+
+  cutoverOut?: number;
+
+
+
   expected: number;
 
 
@@ -4844,6 +4852,30 @@ export interface WalletAdjustmentPayload {
 
 
 
+}
+
+
+
+export interface WalletCutoverPayload {
+  cash?: number;
+  bank?: number;
+  esewa?: number;
+  replace?: boolean;
+}
+
+export interface WalletCutoverLine {
+  wallet: string;
+  previous: number;
+  target: number;
+  delta: number;
+  skipped: boolean;
+  entryId?: string | null;
+}
+
+export interface WalletCutoverResult {
+  date: string;
+  lines: WalletCutoverLine[];
+  balances: WalletBalances;
 }
 
 

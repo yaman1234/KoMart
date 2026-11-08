@@ -362,7 +362,7 @@ export function StoreInfoTab() {
               onChange={change('openingCashBalance')}
               fullWidth
               disabled={!canEdit}
-              helperText="Baseline for Accounts Total Cash (all-time)"
+              helperText="Historical baseline added to every cash movement. Match the till from Accounts → Set balances."
               slotProps={{
                 htmlInput: { min: 0, step: 0.01 },
                 input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
@@ -377,7 +377,7 @@ export function StoreInfoTab() {
               onChange={change('openingBankBalance')}
               fullWidth
               disabled={!canEdit}
-              helperText="Baseline for Bank dashboard KPI"
+              helperText="Historical baseline added to every bank movement. Match the statement from Accounts → Set balances."
               slotProps={{
                 htmlInput: { min: 0, step: 0.01 },
                 input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
@@ -392,7 +392,7 @@ export function StoreInfoTab() {
               onChange={change('openingEsewaBalance')}
               fullWidth
               disabled={!canEdit}
-              helperText="Baseline for eSewa dashboard KPI"
+              helperText="Historical baseline added to every eSewa movement. Match the wallet from Accounts → Set balances."
               slotProps={{
                 htmlInput: { min: 0, step: 0.01 },
                 input: { startAdornment: <InputAdornment position="start">Rs.</InputAdornment> },
@@ -404,8 +404,8 @@ export function StoreInfoTab() {
             form.openingEsewaBalance === 0 && (
               <Grid size={12}>
                 <Alert severity="info">
-                  Opening wallet balances are all zero. Set baselines once so Accounts Total Cash and
-                  Bank/eSewa KPIs match real money on hand.
+                  These opening fields are a historical baseline, not today’s balance. To line Bank, eSewa,
+                  and the till up with the real amounts, an admin uses Accounts → Set balances.
                 </Alert>
               </Grid>
             )}

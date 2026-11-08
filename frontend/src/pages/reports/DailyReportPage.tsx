@@ -192,6 +192,8 @@ function WalletSection({
   const adjustmentsOut = block?.adjustmentsOut ?? 0;
   const custodyIn = block?.custodyIn ?? 0;
   const custodyOut = block?.custodyOut ?? 0;
+  const cutoverIn = block?.cutoverIn ?? 0;
+  const cutoverOut = block?.cutoverOut ?? 0;
   const expected = block?.expected ?? 0;
   const closing = block?.closing;
   const variance = block?.variance;
@@ -310,6 +312,12 @@ function WalletSection({
       <Line label="Transfers out" value={transfersOut} />
       <Line label="Adjustments in" value={adjustmentsIn} />
       <Line label="Adjustments out" value={adjustmentsOut} />
+      {(cutoverIn > 0 || cutoverOut > 0) && (
+        <>
+          <Line label="Cutover in" value={cutoverIn} />
+          <Line label="Cutover out" value={cutoverOut} />
+        </>
+      )}
       {(custodyIn > 0 || custodyOut > 0 || mode === 'cash') && (
         <>
           <Line label="Custody in (return)" value={custodyIn} />
@@ -368,7 +376,7 @@ function WalletSection({
       )}
       {mode === 'cash' && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          Expected = Opening + sales − expenses ± transfers ± adjustments ± custody
+          Expected = Opening + sales − expenses ± transfers ± adjustments ± custody ± cutover
         </Typography>
       )}
       {mode === 'statement' && (

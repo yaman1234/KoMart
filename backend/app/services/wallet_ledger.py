@@ -21,6 +21,7 @@ from app.models.wallet_ledger import (
 )
 from app.services.payment_methods import normalize_payment_method
 from app.services.store_settings import get_store_settings
+from app.services.time_nepal import today_npt
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 WALLETS = (Wallet.cash, Wallet.bank, Wallet.esewa)
@@ -292,6 +293,7 @@ async def create_adjustment(
 
 
 DAY_CLOSE_VARIANCE_REF = "day_close_variance"
+BALANCE_CUTOVER_REF = "balance_cutover"
 
 
 def day_close_variance_ref_id(day: str, wallet: str) -> str:
@@ -317,6 +319,12 @@ async def post_day_close_variance(
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="Variance already posted for this wallet/day. Reverse the adjustment in Accounts to re-post.",
+        )
+    cutover_rows = await find_by_reference(BALANCE_CUTOVER_REF, w.value)
+    if any(e.date == day for e in cutover_rows):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="A balance cutover is already posted for this wallet today. Do not also post day-close variance.",
         )
 
     blocks = await build_day_book(day)
@@ -413,6 +421,8 @@ async def day_totals(wallet: Wallet | str, day: str) -> dict[str, float]:
         "adjustments_out": 0.0,
         "custody_in": 0.0,
         "custody_out": 0.0,
+        "cutover_in": 0.0,
+        "cutover_out": 0.0,
         "other_in": 0.0,
         "other_out": 0.0,
         "net": 0.0,
@@ -444,6 +454,11 @@ async def day_totals(wallet: Wallet | str, day: str) -> dict[str, float]:
                 out["custody_in"] += amt
             else:
                 out["custody_out"] += amt
+        elif et == WalletEntryType.opening.value:
+            if direction == WalletDirection.inflow.value:
+                out["cutover_in"] += amt
+            else:
+                out["cutover_out"] += amt
         elif et == WalletEntryType.purchase_return.value and direction == WalletDirection.inflow.value:
             out["other_in"] += amt
         elif direction == WalletDirection.inflow.value:
@@ -650,12 +665,136 @@ async def build_day_book(day: str) -> list[dict[str, Any]]:
             "adjustments_out": totals["adjustments_out"],
             "custody_in": totals.get("custody_in", 0.0),
             "custody_out": totals.get("custody_out", 0.0),
+            "cutover_in": totals.get("cutover_in", 0.0),
+            "cutover_out": totals.get("cutover_out", 0.0),
             "expected": expected,
             "closing": closing,
             "variance": variance,
             "variance_posted": posted is not None,
         })
     return blocks
+
+
+def _stamp(dt: datetime | None) -> datetime:
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+async def _has_activity_after(wallet: Wallet, cutover: WalletLedgerEntry) -> bool:
+    moment = cutover.created_at
+    if moment is None:
+        return False
+    rows = await WalletLedgerEntry.find({
+        "wallet": wallet.value,
+        "created_at": {"$gt": moment},
+        "reference_type": {"$ne": BALANCE_CUTOVER_REF},
+    }).limit(1).to_list()
+    return bool(rows)
+
+
+async def create_balance_cutover(
+    *,
+    cash: float | None,
+    bank: float | None,
+    esewa: float | None,
+    replace: bool,
+    created_by: str = "",
+) -> dict[str, Any]:
+    """Align live wallet balances to counted/statement amounts as of today (NPT).
+
+    Posts one opening ledger line per wallet for the gap. Cash is the till ledger
+    and does not include cash held by staff.
+    """
+    today = today_npt().isoformat()
+    targets = {"cash": cash, "bank": bank, "esewa": esewa}
+    if all(value is None for value in targets.values()):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Enter at least one balance")
+
+    planned: list[dict[str, Any]] = []
+    for key, raw_target in targets.items():
+        if raw_target is None:
+            continue
+        w = Wallet(key)
+        target = round(float(raw_target), 2)
+        if target < 0:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"{key} balance cannot be negative",
+            )
+        previous = await current_wallet_balance(w)
+        delta = round(target - previous, 2)
+        item: dict[str, Any] = {
+            "wallet": w.value,
+            "previous": previous,
+            "target": target,
+            "delta": delta,
+            "skipped": abs(delta) < 0.01,
+            "entry_id": None,
+        }
+        if item["skipped"]:
+            planned.append(item)
+            continue
+
+        if await find_day_close_variance_entry(today, w.value):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=f"Day-close variance is already posted for {w.value} today. Use one alignment for the day.",
+            )
+        existing = await find_by_reference(BALANCE_CUTOVER_REF, w.value)
+        if existing and not replace:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=(
+                    f"A balance cutover already exists for {w.value}. "
+                    "Turn on replace to set a new balance before any later activity."
+                ),
+            )
+        if existing and replace:
+            latest = max(existing, key=lambda entry: _stamp(entry.created_at))
+            if await _has_activity_after(w, latest):
+                label = {"cash": "Cash", "bank": "Bank", "esewa": "eSewa"}.get(w.value, w.value)
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail=f"{label} has ledger activity after the cutover, so it cannot be replaced.",
+                )
+        item["direction"] = WalletDirection.inflow if delta > 0 else WalletDirection.outflow
+        planned.append(item)
+
+    for item in planned:
+        if item["skipped"]:
+            continue
+        entry = await post_entry(
+            wallet=item["wallet"],
+            direction=item["direction"],
+            amount=abs(item["delta"]),
+            entry_type=WalletEntryType.opening,
+            date=today,
+            remarks=f"Balance cutover as of {today}",
+            reference_type=BALANCE_CUTOVER_REF,
+            reference_id=item["wallet"],
+            created_by=created_by,
+        )
+        item["entry_id"] = str(entry.id)
+
+    lines = [
+        {
+            "wallet": item["wallet"],
+            "previous": item["previous"],
+            "target": item["target"],
+            "delta": item["delta"],
+            "skipped": item["skipped"],
+            "entry_id": item["entry_id"],
+        }
+        for item in planned
+    ]
+    return {
+        "date": today,
+        "lines": lines,
+        "balances": await all_balances(),
+    }
 
 
 async def _ledger_net_before(wallet: Wallet, day: str) -> float:

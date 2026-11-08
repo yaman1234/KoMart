@@ -52,6 +52,28 @@ class WalletAdjustmentCreate(BaseModel):
     remarks: str = Field(min_length=1, max_length=500)
 
 
+class WalletCutoverCreate(BaseModel):
+    cash: float | None = Field(default=None, ge=0)
+    bank: float | None = Field(default=None, ge=0)
+    esewa: float | None = Field(default=None, ge=0)
+    replace: bool = False
+
+
+class WalletCutoverLineResult(BaseModel):
+    wallet: str
+    previous: float
+    target: float
+    delta: float
+    skipped: bool = False
+    entry_id: str | None = None
+
+
+class WalletCutoverResponse(BaseModel):
+    date: str
+    lines: list[WalletCutoverLineResult]
+    balances: WalletBalancesResponse
+
+
 class WalletDayBookBlock(BaseModel):
     wallet: str
     opening: float
@@ -63,6 +85,8 @@ class WalletDayBookBlock(BaseModel):
     adjustments_out: float = 0.0
     custody_in: float = 0.0
     custody_out: float = 0.0
+    cutover_in: float = 0.0
+    cutover_out: float = 0.0
     expected: float
     closing: float | None = None
     variance: float | None = None
