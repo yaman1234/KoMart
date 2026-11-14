@@ -431,6 +431,7 @@ const BulkAddRowView = memo(function BulkAddRowView({
 async function loadExistingProductKeys(): Promise<BulkAddExistingLookup> {
   const names = new Set<string>();
   const skus = new Set<string>();
+  const barcodes = new Set<string>();
   let page = 1;
   let totalPages = 1;
   do {
@@ -438,11 +439,12 @@ async function loadExistingProductKeys(): Promise<BulkAddExistingLookup> {
     for (const p of res.data) {
       if (p.name?.trim()) names.add(p.name.trim().toLowerCase());
       if (p.sku?.trim()) skus.add(p.sku.trim().toLowerCase());
+      if (p.barcode?.trim()) barcodes.add(p.barcode.trim().toLowerCase());
     }
     totalPages = res.totalPages || 1;
     page += 1;
   } while (page <= totalPages && page <= 40);
-  return { names, skus };
+  return { names, skus, barcodes };
 }
 
 export function BulkProductFormPage() {
@@ -716,6 +718,24 @@ export function BulkProductFormPage() {
         }
       }
       if (result.errors.length) {
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          for (const item of result.errors) {
+            const binding = bindings.find((entry) => entry.rowNum === item.row);
+            if (!binding) continue;
+            const detail = item.detail || 'Could not create product';
+            const field = /barcode/i.test(detail)
+              ? 'barcode'
+              : /sku/i.test(detail)
+                ? 'sku'
+                : /name/i.test(detail)
+                  ? 'name'
+                  : null;
+            if (!field) continue;
+            next[binding.id] = { ...next[binding.id], [field]: detail };
+          }
+          return next;
+        });
         setPageError(
           result.errors
             .map((item) => `Row ${item.row} (${item.sku || 'no SKU'}): ${item.detail}`)

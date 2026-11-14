@@ -81,6 +81,9 @@ def billable_rejection_detail(product: "Product") -> str:
 class Product(Document):
     name: str
     sku: Indexed(str, unique=True)  # type: ignore[valid-type]
+    # Non-empty barcodes are unique among active products. The partial unique
+    # index is created in ensure_unique_barcode_index so existing duplicates
+    # do not stop startup.
     barcode: str = ""
     brand: str = ""
     country_of_origin: str = ""
