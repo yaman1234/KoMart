@@ -1,6 +1,7 @@
 export interface ParsedPasteRow {
   sku: string;
-  quantity: number;
+  /** Raw quantity cell. Invalid values are kept so the grid can show an error. */
+  quantityInput: string;
   buyUom: string;
   unitCost: number;
   unitsPerBuyUom: number;
@@ -55,7 +56,7 @@ function parseRowCells(cells: string[], layout: PasteLayout): ParsedPasteRow {
   if (layout === 'sheet') {
     return {
       sku: cells[0] ?? '',
-      quantity: parseIntSafe(cells[2] ?? '1', 1),
+      quantityInput: (cells[2] ?? '').trim(),
       buyUom: (cells[3] ?? '').trim(),
       unitsPerBuyUom: parseIntSafe(cells[4] ?? '1', 1),
       unitCost: parseFloatSafe(cells[5] ?? '0', 0),
@@ -63,7 +64,7 @@ function parseRowCells(cells: string[], layout: PasteLayout): ParsedPasteRow {
   }
   return {
     sku: cells[0] ?? '',
-    quantity: parseIntSafe(cells[1] ?? '1', 1),
+    quantityInput: (cells[1] ?? '').trim(),
     buyUom: (cells[2] ?? '').trim(),
     unitCost: parseFloatSafe(cells[3] ?? '0', 0),
     unitsPerBuyUom: parseIntSafe(cells[4] ?? '1', 1),
