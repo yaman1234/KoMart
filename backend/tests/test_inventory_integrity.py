@@ -128,6 +128,7 @@ async def _assert_book_matches_shelf(product_id: str) -> None:
     assert integrity["on_hand"] == await get_current_stock(product_id)
     assert integrity["variance"] == 0
     assert integrity["ledger_close"] == integrity["on_hand"]
+    assert integrity["last_after"] == integrity["on_hand"]
 
 
 @pytest.mark.asyncio
@@ -475,7 +476,27 @@ async def test_integrity_api_and_align_roles(client: AsyncClient, admin_user: Us
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert aligned.status_code == 200
-        assert await product_integrity(pid) == {"on_hand": 6, "ledger_close": 6, "variance": 0}
+        assert await product_integrity(pid) == {
+            "on_hand": 6,
+            "ledger_close": 6,
+            "last_after": 6,
+            "variance": 0,
+        }
+
+        from app.models.audit_log import AuditLog
+
+        audit = await AuditLog.find_one(
+            AuditLog.action == "align_ledger",
+            AuditLog.entity_id == pid,
+        )
+        assert audit is not None
+        assert audit.previous_value["on_hand"] == 6
+        assert audit.previous_value["ledger_close"] == 4
+        assert audit.previous_value["last_after"] == 4
+        assert audit.new_value["on_hand"] == 6
+        assert audit.new_value["ledger_close"] == 6
+        assert audit.new_value["last_after"] == 6
+        assert audit.new_value["reason"] == "admin align"
 
         summary = await client.get(
             "/api/v1/inventory/movements/summary",
@@ -484,5 +505,110 @@ async def test_integrity_api_and_align_roles(client: AsyncClient, admin_user: Us
         )
         assert summary.status_code == 200
         assert summary.json()["variance"] == 0
+        assert summary.json()["last_after"] == 6
+        assert summary.json()["closing_stock"] == summary.json()["last_after"]
+    finally:
+        await _cleanup(pid, product)
+
+
+@pytest.mark.asyncio
+async def test_closing_vs_last_after_is_listed_and_align_repairs_all_three():
+    """Quantity book 13, latest After 14, shelf 14 — the UAT closing-card gap."""
+    product = await _product(f"CLOSE-{uuid.uuid4().hex[:6]}")
+    pid = str(product.id)
+    try:
+        await receive_stock(pid, "C-A", 14, unit_cost=10.0, created_by="test")
+        row = (
+            await StockAdjustment.find(StockAdjustment.product_id == pid)
+            .sort("-created_at")
+            .first_or_none()
+        )
+        assert row is not None
+        await row.set({"quantity": 13, "stock_after": 14})
+
+        batch = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch is not None
+        shelf_before = batch.quantity
+
+        integrity = await product_integrity(pid)
+        assert integrity["on_hand"] == 14
+        assert integrity["ledger_close"] == 13
+        assert integrity["last_after"] == 14
+        assert integrity["variance"] == 1
+
+        listed = await list_integrity_rows(only_out_of_sync=True, product_id=pid)
+        assert len(listed) == 1
+        assert listed[0]["on_hand"] == 14
+        assert listed[0]["ledger_close"] == 13
+        assert listed[0]["last_after"] == 14
+
+        with pytest.raises(HTTPException) as missing_reason:
+            await align_ledger_to_on_hand(pid, "   ", "Admin")
+        assert missing_reason.value.status_code == 400
+
+        await align_ledger_to_on_hand(pid, "repair closing 13 vs After 14", "Admin")
+        await _assert_book_matches_shelf(pid)
+        batch_after = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch_after is not None
+        assert batch_after.quantity == shelf_before
+
+        correction = await StockAdjustment.find_one(
+            StockAdjustment.product_id == pid,
+            StockAdjustment.type == AdjustmentType.correction,
+            StockAdjustment.reason == "repair closing 13 vs After 14",
+        )
+        assert correction is not None
+        assert correction.quantity == 1
+        assert correction.stock_before == 13
+        assert correction.stock_after == 14
+        assert await get_current_stock(pid) == shelf_before
+    finally:
+        await _cleanup(pid, product)
+
+
+@pytest.mark.asyncio
+async def test_last_after_only_drift_aligns_without_changing_batches():
+    """Book already matches the shelf, but the latest After does not."""
+    product = await _product(f"AFTER-{uuid.uuid4().hex[:6]}")
+    pid = str(product.id)
+    try:
+        await receive_stock(pid, "A-A", 13, unit_cost=10.0, created_by="test")
+        row = (
+            await StockAdjustment.find(StockAdjustment.product_id == pid)
+            .sort("-created_at")
+            .first_or_none()
+        )
+        assert row is not None
+        await row.set({"stock_after": 14})
+
+        batch = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch is not None
+        shelf_before = batch.quantity
+
+        integrity = await product_integrity(pid)
+        assert integrity == {
+            "on_hand": 13,
+            "ledger_close": 13,
+            "last_after": 14,
+            "variance": 0,
+        }
+        listed = await list_integrity_rows(only_out_of_sync=True, product_id=pid)
+        assert listed[0]["last_after"] == 14
+        assert listed[0]["variance"] == 0
+
+        await align_ledger_to_on_hand(pid, "last After was 14", "Admin")
+        await _assert_book_matches_shelf(pid)
+        batch_after = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch_after is not None
+        assert batch_after.quantity == shelf_before
+
+        correction = await StockAdjustment.find_one(
+            StockAdjustment.product_id == pid,
+            StockAdjustment.reason == "last After was 14",
+        )
+        assert correction is not None
+        assert correction.quantity == 0
+        assert correction.stock_before == 13
+        assert correction.stock_after == 13
     finally:
         await _cleanup(pid, product)

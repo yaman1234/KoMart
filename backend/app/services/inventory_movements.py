@@ -321,6 +321,7 @@ async def product_stock_rollforward(
     ledger_close = opening + period_in - period_out
     on_hand = await get_current_stock(product_id)
     book = await product_book_stock(product_id)
+    last_after = await product_last_stock_after(product_id, period_filter)
     return {
         "opening_stock": opening,
         "closing_stock": ledger_close,
@@ -328,18 +329,19 @@ async def product_stock_rollforward(
         "period_out": period_out,
         "on_hand": on_hand,
         "variance": on_hand - book,
+        "last_after": last_after,
     }
 
 
 async def product_book_stock(product_id: str) -> int:
-    """All-time rollforward: first Before + In − Out.
+    """All-time quantity rollforward: first Before + In − Out.
 
-    Last After can still match Current Stock after an old clipped correction
-    (logged −20, moved 18). The quantity sum is the book the cards show.
+    A clipped line can log a quantity that is not After − Before, so this book
+    can disagree with the latest After even when that After matches the shelf.
     """
     first = (
         await StockAdjustment.find({"product_id": product_id})
-        .sort("+created_at")
+        .sort("+created_at", "+_id")
         .first_or_none()
     )
     if first is None:
@@ -348,12 +350,39 @@ async def product_book_stock(product_id: str) -> int:
     return int(first.stock_before) + int(totals["total_in"]) - int(totals["total_out"])
 
 
-async def product_integrity(product_id: str) -> dict[str, int]:
+async def product_last_stock_after(
+    product_id: str,
+    match: dict | None = None,
+) -> int | None:
+    """Latest movement After. None when the filter has no diary lines."""
+    query = dict(match or {"product_id": product_id})
+    last = (
+        await StockAdjustment.find(query)
+        .sort("-created_at", "-_id")
+        .first_or_none()
+    )
+    if last is None:
+        return None
+    return int(last.stock_after)
+
+
+def figures_disagree(on_hand: int, book: int, last_after: int | None) -> bool:
+    """Current stock, quantity book, and last After must be the same number."""
+    if on_hand != book:
+        return True
+    if last_after is None:
+        return False
+    return last_after != on_hand
+
+
+async def product_integrity(product_id: str) -> dict[str, int | None]:
     on_hand = await get_current_stock(product_id)
     book = await product_book_stock(product_id)
+    last_after = await product_last_stock_after(product_id)
     return {
         "on_hand": on_hand,
         "ledger_close": book,
+        "last_after": last_after,
         "variance": on_hand - book,
     }
 
@@ -377,10 +406,11 @@ async def list_integrity_rows(
         return []
 
     last_rows = await StockAdjustment.aggregate([
-        {"$sort": {"created_at": 1}},
+        {"$sort": {"created_at": 1, "_id": 1}},
         {"$group": {
             "_id": "$product_id",
             "opening": {"$first": "$stock_before"},
+            "last_after": {"$last": "$stock_after"},
             "total_in": {
                 "$sum": {"$cond": [{"$gt": ["$quantity", 0]}, "$quantity", 0]},
             },
@@ -389,15 +419,19 @@ async def list_integrity_rows(
             },
         }},
     ]).to_list()
-    book_by_pid = {
-        _as_pid(row["_id"]): (
+    book_by_pid: dict[str, int] = {}
+    last_after_by_pid: dict[str, int] = {}
+    for row in last_rows:
+        if not row.get("_id"):
+            continue
+        pid = _as_pid(row["_id"])
+        book_by_pid[pid] = (
             int(row.get("opening") or 0)
             + int(row.get("total_in") or 0)
             - int(row.get("total_out") or 0)
         )
-        for row in last_rows
-        if row.get("_id")
-    }
+        if row.get("last_after") is not None:
+            last_after_by_pid[pid] = int(row["last_after"])
 
     on_hand_rows = await InventoryBatch.aggregate([
         {"$match": {"quantity": {"$gt": 0}}},
@@ -413,8 +447,9 @@ async def list_integrity_rows(
     for pid, product in catalog.items():
         on_hand = on_hand_by_pid.get(pid, 0)
         book = int(book_by_pid.get(pid) or 0)
+        last_after = last_after_by_pid.get(pid)
         variance = on_hand - book
-        if only_out_of_sync and variance == 0:
+        if only_out_of_sync and not figures_disagree(on_hand, book, last_after):
             continue
         rows.append({
             "product_id": pid,
@@ -422,10 +457,21 @@ async def list_integrity_rows(
             "product_sku": product.sku,
             "on_hand": on_hand,
             "ledger_close": book,
+            "last_after": last_after,
             "variance": variance,
         })
-    rows.sort(key=lambda r: abs(int(r["variance"])), reverse=True)
+    rows.sort(
+        key=lambda r: _figure_spread(r["on_hand"], r["ledger_close"], r["last_after"]),
+        reverse=True,
+    )
     return rows
+
+
+def _figure_spread(on_hand: int, book: int, last_after: int | None) -> int:
+    values = [on_hand, book]
+    if last_after is not None:
+        values.append(last_after)
+    return max(values) - min(values)
 
 
 async def count_out_of_sync_skus() -> int:
@@ -436,8 +482,12 @@ async def align_ledger_to_on_hand(
     product_id: str,
     reason: str,
     created_by: str,
-) -> dict[str, int]:
-    """Write one correction so the diary matches Current Stock. Batches stay put."""
+) -> dict[str, int | None]:
+    """Write one correction so book and last After match Current Stock.
+
+    Batches are not touched. When the quantity book already matches the shelf
+    but the latest After does not, the line has quantity 0 so the book stays put.
+    """
     if not reason.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Reason is required")
 
@@ -445,18 +495,20 @@ async def align_ledger_to_on_hand(
     if not product:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
 
-    from app.services.stock import assert_stock_matches_ledger, record_inventory_change
+    from app.services.stock import assert_stock_matches_ledger
 
     on_hand = await get_current_stock(product_id)
     book = await product_book_stock(product_id)
+    last_after = await product_last_stock_after(product_id)
     qty = on_hand - book
-    if qty == 0:
+    if not figures_disagree(on_hand, book, last_after):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail="Ledger already matches Current Stock",
         )
 
-    await record_inventory_change(
+    await assert_stock_matches_ledger(product_id, book, qty, on_hand)
+    await _insert_ledger_line(
         product=product,
         quantity=qty,
         adjustment_type=AdjustmentType.correction,
@@ -467,12 +519,37 @@ async def align_ledger_to_on_hand(
         reference_type="correction",
         reference_id="",
     )
-    await assert_stock_matches_ledger(product_id, book, qty, on_hand)
     return {
         "on_hand": on_hand,
         "ledger_close": on_hand,
+        "last_after": on_hand,
         "variance": 0,
+        "previous_on_hand": on_hand,
+        "previous_ledger_close": book,
+        "previous_last_after": last_after,
     }
+
+
+async def _insert_ledger_line(**kwargs) -> None:
+    """Insert one diary line inside a MongoDB transaction when the server supports it."""
+    from pymongo.errors import OperationFailure
+
+    from app.database import get_motor_client
+    from app.services.stock import record_inventory_change
+
+    async def _write(session):
+        await record_inventory_change(session=session, **kwargs)
+
+    client = get_motor_client()
+    try:
+        async with await client.start_session() as session:
+            async with session.start_transaction():
+                await _write(session)
+    except OperationFailure as exc:
+        # Standalone MongoDB (code 20) cannot run transactions. Same fallback as PO receive.
+        if exc.code != 20:
+            raise
+        await _write(None)
 
 
 async def aggregate_movement_summary(match_filter: dict) -> dict[str, int | float]:
