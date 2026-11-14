@@ -134,12 +134,25 @@ async def current_bank_balance(settings: StoreSettings, fy_start: datetime) -> f
     return await current_wallet_balance(settings, fy_start, method="bank")
 
 
+# Same liability set as Reports Active PO Bills / total outstanding AP:
+# ordered, partially received, and received. Drafts are not liabilities yet.
+_PAYABLE_PO_STATUSES = (
+    POStatus.ordered.value,
+    POStatus.partial.value,
+    POStatus.received.value,
+)
+
+
 async def total_payables() -> float:
-    """Outstanding PO balance via aggregation — no Beanie document hydration."""
+    """Outstanding AP for ordered, partial, and received POs.
+
+    Drafts and cancelled orders are excluded so this matches Reports
+    `total_outstanding_ap` (Active PO Bills). Aggregation avoids Beanie hydration.
+    """
     col = PurchaseOrder.get_motor_collection()
     rows = await col.aggregate(
         [
-            {"$match": {"status": {"$ne": POStatus.cancelled.value}}},
+            {"$match": {"status": {"$in": list(_PAYABLE_PO_STATUSES)}}},
             {
                 "$group": {
                     "_id": None,
