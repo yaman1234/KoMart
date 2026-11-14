@@ -68,6 +68,12 @@ import { useListState, stringParam, booleanParam, enumParam } from '@/hooks/useL
 import { useStoreSettings } from '@/hooks/useSettings';
 import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { cartLineKey } from '@/utils/cartLine';
+import {
+  findOversellLines,
+  maxSellQuantity,
+  oversellPayMessage,
+  stockCapMessage,
+} from '@/utils/posStock';
 import { uomLabel } from '@/utils';
 import { buildProductDiscountMap, getProductDiscountAmount } from '@/utils/discountDisplay';
 import { canSellAsPack, canSellAsPiece, isPosSellableProduct, packSellOption, pieceSellOption, resolveSellOption } from '@/utils/uomSell';
@@ -104,6 +110,7 @@ interface CollapsedCartRailProps {
   totalUnits: number;
   total: number;
   hasItems: boolean;
+  payTitle: string;
   onExpand: () => void;
   onPay: () => void;
 }
@@ -450,12 +457,16 @@ interface CartQtyStepperProps {
   quantity: number;
   onDecrement: () => void;
   onIncrement: () => void;
+  atStockCap?: boolean;
+  incrementTitle?: string;
 }
 
 const CartQtyStepper = memo(function CartQtyStepper({
   quantity,
   onDecrement,
   onIncrement,
+  atStockCap = false,
+  incrementTitle = '',
 }: CartQtyStepperProps) {
   return (
     <Box
@@ -500,23 +511,33 @@ const CartQtyStepper = memo(function CartQtyStepper({
       >
         {quantity}
       </Typography>
-      <IconButton
-        type="button"
-        size="small"
-        aria-label="Increase quantity"
-        onClick={(e) => {
-          e.stopPropagation();
-          onIncrement();
-        }}
-        sx={{ p: 0.35, width: 24, height: 24 }}
-      >
-        <AddIcon sx={{ fontSize: 13, pointerEvents: 'none' }} />
-      </IconButton>
+      <Tooltip title={incrementTitle}>
+        <IconButton
+          type="button"
+          size="small"
+          aria-label="Increase quantity"
+          color={atStockCap ? 'warning' : 'default'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onIncrement();
+          }}
+          sx={{ p: 0.35, width: 24, height: 24 }}
+        >
+          <AddIcon sx={{ fontSize: 13, pointerEvents: 'none' }} />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 });
 
-function CollapsedCartRail({ totalUnits, total, hasItems, onExpand, onPay }: CollapsedCartRailProps) {
+function CollapsedCartRail({
+  totalUnits,
+  total,
+  hasItems,
+  payTitle,
+  onExpand,
+  onPay,
+}: CollapsedCartRailProps) {
   return (
     <Box
       sx={{
@@ -558,7 +579,7 @@ function CollapsedCartRail({ totalUnits, total, hasItems, onExpand, onPay }: Col
         {formatCurrency(total)}
       </Typography>
 
-      <Tooltip title={hasItems ? 'Pay' : 'Cart is empty'} placement="left">
+      <Tooltip title={payTitle} placement="left">
         <span>
           <IconButton color="primary" disabled={!hasItems} onClick={onPay}>
             <PaymentIcon />
@@ -664,7 +685,35 @@ export function POSPage() {
   const { data: suppliersData } = useSuppliers({ pageSize: DROPDOWN_PAGE_SIZE });
   const suppliers = suppliersData?.data ?? [];
 
-  const products = infiniteProductsData?.pages.flatMap((p) => p.data) ?? [];
+  const products = useMemo(
+    () => infiniteProductsData?.pages.flatMap((p) => p.data) ?? [],
+    [infiniteProductsData],
+  );
+  const [seenStock, setSeenStock] = useState<Record<string, number>>({});
+  const rememberProductStock = useCallback((product: Product) => {
+    setSeenStock((prev) => (
+      prev[product.id] === product.stock ? prev : { ...prev, [product.id]: product.stock }
+    ));
+  }, []);
+  const stockByProductId = useMemo(() => {
+    const map: Record<string, number> = { ...seenStock };
+    for (const product of products) map[product.id] = product.stock;
+    return map;
+  }, [products, seenStock]);
+
+  useEffect(() => {
+    setSeenStock((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const product of products) {
+        if (next[product.id] !== product.stock) {
+          next[product.id] = product.stock;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [products]);
   const { data: discountRules = [] } = useDiscountRules(true);
 
   const discountMap = useMemo(
@@ -737,6 +786,12 @@ export function POSPage() {
     return map;
   }, [items]);
 
+  const oversellLines = useMemo(
+    () => findOversellLines(items, stockByProductId),
+    [items, stockByProductId],
+  );
+  const oversellMessage = oversellPayMessage(oversellLines);
+
   // ── Cart totals (prices are tax-inclusive — no separate tax line) ──────────
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const promotionLineDiscount = discountEval?.lineDiscountTotal ?? 0;
@@ -761,6 +816,10 @@ export function POSPage() {
 
   const openPaymentModal = useCallback(() => {
     if (items.length === 0) return;
+    if (oversellLines.length > 0) {
+      showWarning(oversellPayMessage(oversellLines));
+      return;
+    }
     cartSnapshotRef.current = {
       items: items.map((i) => ({ ...i })),
       customerId,
@@ -768,17 +827,37 @@ export function POSPage() {
     };
     setPaymentError('');
     setPaymentOpen(true);
-  }, [items, customerId, saleDate]);
+  }, [items, customerId, saleDate, oversellLines]);
 
   const handleCollapsedPay = () => {
     if (items.length === 0) return;
     setCartCollapsed(false);
+    if (oversellLines.length > 0) {
+      showWarning(oversellMessage);
+      return;
+    }
     openPaymentModal();
   };
 
   const handleAddProduct = useCallback((product: Product, asPack = false) => {
+    rememberProductStock(product);
     const opt = resolveSellOption(product, asPack);
     if (opt.price <= 0) return;
+    const existing = items.find(
+      (item) => cartLineKey(item.productId, item.sellUom) === cartLineKey(product.id, opt.sellUom),
+    );
+    const probe = existing ?? {
+      productId: product.id,
+      name: product.name,
+      quantity: 0,
+      sellUom: opt.sellUom,
+      unitFactor: opt.unitFactor,
+    };
+    const maxQty = maxSellQuantity(items, probe, product.stock);
+    if ((existing?.quantity ?? 0) + 1 > maxQty) {
+      showWarning(stockCapMessage(product.name, product.stock, maxQty, opt.sellUom));
+      return;
+    }
     addItem({
       productId: product.id,
       name: product.name,
@@ -792,7 +871,7 @@ export function POSPage() {
       uom: product.uom || product.buyUom || '',
       category: product.category,
     });
-  }, [addItem]);
+  }, [addItem, items, rememberProductStock]);
 
   const handleBarcodeScan = useCallback(async () => {
     const code = search.trim();
@@ -844,12 +923,28 @@ export function POSPage() {
       updateQuantity(productId, 0, sellUom);
       return;
     }
+    const current = items.find(
+      (item) => cartLineKey(item.productId, item.sellUom) === cartLineKey(productId, sellUom),
+    );
+    const onHand = stockByProductId[productId];
+    if (current && onHand != null && newQty > current.quantity) {
+      const maxQty = maxSellQuantity(items, current, onHand);
+      if (newQty > maxQty) {
+        showWarning(stockCapMessage(current.name, onHand, maxQty, current.sellUom));
+        return;
+      }
+    }
     updateQuantity(productId, newQty, sellUom);
-  }, [updateQuantity]);
+  }, [items, stockByProductId, updateQuantity]);
 
   // ── Payment ────────────────────────────────────────────────────────────────
   const handlePayment = async (payload: PaymentConfirmPayload) => {
     if (payload.items.length === 0) return;
+    const over = findOversellLines(payload.items, stockByProductId);
+    if (over.length > 0) {
+      setPaymentError(oversellPayMessage(over));
+      return;
+    }
     setPaymentError('');
     setTenderedAmount(payload.tendered);
     setProcessing(true);
@@ -1126,6 +1221,11 @@ export function POSPage() {
             totalUnits={totalUnits}
             total={total}
             hasItems={items.length > 0}
+            payTitle={
+              items.length === 0
+                ? 'Cart is empty'
+                : oversellMessage || 'Pay'
+            }
             onExpand={() => setCartCollapsed(false)}
             onPay={handleCollapsedPay}
           />
@@ -1231,6 +1331,9 @@ export function POSPage() {
                 </TableHead>
                 <TableBody>
                   {items.map((item, index) => {
+                    const onHand = stockByProductId[item.productId];
+                    const maxQty = onHand == null ? null : maxSellQuantity(items, item, onHand);
+                    const atCap = maxQty != null && item.quantity >= maxQty;
                     return (
                       <TableRow key={cartLineKey(item.productId, item.sellUom)} sx={{ '&:last-child td': { borderBottom: 0 } }}>
                         <TableCell align="center" sx={{ px: 0.25 }}>
@@ -1256,6 +1359,12 @@ export function POSPage() {
                         <TableCell align="center" sx={{ px: 0.25 }}>
                           <CartQtyStepper
                             quantity={item.quantity}
+                            atStockCap={atCap}
+                            incrementTitle={
+                              atCap && onHand != null && maxQty != null
+                                ? stockCapMessage(item.name, onHand, maxQty, item.sellUom)
+                                : ''
+                            }
                             onDecrement={() => handleQtyChange(item.productId, item.quantity - 1, item.sellUom)}
                             onIncrement={() => handleQtyChange(item.productId, item.quantity + 1, item.sellUom)}
                           />
@@ -1356,6 +1465,12 @@ export function POSPage() {
             </Box>
           )}
 
+          {oversellMessage && (
+            <Alert severity="warning" sx={{ mb: 1 }}>
+              {oversellMessage}
+            </Alert>
+          )}
+
           <Divider sx={{ mb: 0.75 }} />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>Total</Typography>
@@ -1369,7 +1484,7 @@ export function POSPage() {
           fullWidth
           variant="contained"
           size="large"
-          disabled={items.length === 0}
+          disabled={items.length === 0 || oversellLines.length > 0}
           onClick={openPaymentModal}
           sx={{ py: 1.5, fontSize: '1rem', fontWeight: 700 }}
         >
@@ -1385,6 +1500,8 @@ export function POSPage() {
         open={paymentOpen}
         items={items}
         cartMutators={cartMutators}
+        stockByProductId={stockByProductId}
+        onObserveProduct={rememberProductStock}
         productCategoryMap={productCategoryMap}
         customerId={customerId}
         onCustomerChange={setCustomer}
