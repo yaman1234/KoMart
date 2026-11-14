@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { promotionKey, useEvaluateDiscounts } from '@/hooks/useDiscounts';
 import { cartLineKey } from '@/utils/cartLine';
+import { maxSellQuantity, stockCapMessage } from '@/utils/posStock';
+import { showWarning } from '@/utils/toast';
 import { resolveSellOption } from '@/utils/uomSell';
 import type { AppliedPromotion, CartItem, ExcludedPromotion, Product } from '@/types';
 
@@ -29,10 +31,17 @@ export interface CartMutators {
   addItem: (item: CartItem) => void;
 }
 
+export interface CheckoutStockGuard {
+  /** On-hand base units keyed by product id. Missing ids are not capped here. */
+  stockByProductId?: Record<string, number>;
+  onObserveProduct?: (product: Product) => void;
+}
+
 export function useCheckoutDraft(
   items: CartItem[],
   productCategoryMap: Record<string, string>,
   cartMutators: CartMutators,
+  stockGuard?: CheckoutStockGuard,
 ) {
   const [discountType, setDiscountType] = useState<CheckoutDiscountType>(null);
   const [discountInput, setDiscountInput] = useState(0);
@@ -124,17 +133,47 @@ export function useCheckoutDraft(
 
   const updateQty = useCallback((productId: string, quantity: number, sellUom?: string) => {
     if (quantity < 1) return;
+    const onHand = stockGuard?.stockByProductId?.[productId];
+    const current = items.find(
+      (item) => cartLineKey(item.productId, item.sellUom) === cartLineKey(productId, sellUom),
+    );
+    if (current && onHand != null && quantity > current.quantity) {
+      const maxQty = maxSellQuantity(items, current, onHand);
+      if (quantity > maxQty) {
+        showWarning(stockCapMessage(current.name, onHand, maxQty, current.sellUom));
+        return;
+      }
+    }
     cartMutators.updateQuantity(productId, quantity, sellUom);
-  }, [cartMutators]);
+  }, [cartMutators, items, stockGuard]);
 
   const removeLine = useCallback((productId: string, sellUom?: string) => {
     cartMutators.removeItem(productId, sellUom);
   }, [cartMutators]);
 
   const addProduct = useCallback((product: Product, asPack = false) => {
-    if (product.stock === 0) return;
+    stockGuard?.onObserveProduct?.(product);
+    if (product.stock === 0) {
+      showWarning(`“${product.name}” is out of stock.`);
+      return;
+    }
     const opt = resolveSellOption(product, asPack);
     if (opt.price <= 0) return;
+    const existing = items.find(
+      (item) => cartLineKey(item.productId, item.sellUom) === cartLineKey(product.id, opt.sellUom),
+    );
+    const probe = existing ?? {
+      productId: product.id,
+      name: product.name,
+      quantity: 0,
+      sellUom: opt.sellUom,
+      unitFactor: opt.unitFactor,
+    };
+    const maxQty = maxSellQuantity(items, probe, product.stock);
+    if ((existing?.quantity ?? 0) + 1 > maxQty) {
+      showWarning(stockCapMessage(product.name, product.stock, maxQty, opt.sellUom));
+      return;
+    }
     cartMutators.addItem({
       productId: product.id,
       name: product.name,
@@ -147,7 +186,7 @@ export function useCheckoutDraft(
       uom: product.uom || product.buyUom || '',
       category: product.category,
     });
-  }, [cartMutators]);
+  }, [cartMutators, items, stockGuard]);
 
   const setDiscount = useCallback((type: CheckoutDiscountType, input: number) => {
     setDiscountType(type);
