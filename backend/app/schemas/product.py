@@ -31,6 +31,12 @@ def normalize_product_uoms(
     return buy, secondary, units, sell_mode
 
 
+def _strip_barcode(value: object) -> object:
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
 class ProductCreate(BaseModel):
     name: str
     sku: str = ""
@@ -62,6 +68,11 @@ class ProductCreate(BaseModel):
     is_trending: bool = False
     cost_price_effective_from: Optional[str] = None
     selling_price_effective_from: Optional[str] = None
+
+    @field_validator("barcode", mode="before")
+    @classmethod
+    def strip_barcode(cls, value: object) -> object:
+        return _strip_barcode(value)
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -149,6 +160,11 @@ class ProductUpdate(BaseModel):
     is_trending: Optional[bool] = None
     cost_price_effective_from: Optional[str] = None
     selling_price_effective_from: Optional[str] = None
+
+    @field_validator("barcode", mode="before")
+    @classmethod
+    def strip_barcode(cls, value: object) -> object:
+        return _strip_barcode(value)
 
     @field_validator("tags", mode="before")
     @classmethod

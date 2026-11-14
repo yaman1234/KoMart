@@ -1,87 +1,92 @@
 import { productService } from '@/services';
 import type { Product } from '@/types';
-import { showWarning } from '@/utils/toast';
 
-/** Exact barcode match first, then SKU (case-insensitive). Warns on duplicates. */
-export function findExactBarcodeOrSku(list: Product[], code: string): Product | undefined {
-  const key = code.trim().toLowerCase();
-  if (!key) return undefined;
+export type PosScanResolution =
+  | { type: 'none' }
+  | { type: 'single'; product: Product }
+  | { type: 'choose'; products: Product[] };
 
-  const byBarcode = list.filter((p) => (p.barcode ?? '').trim().toLowerCase() === key);
-  if (byBarcode.length > 0) {
-    if (byBarcode.length > 1) {
-      showWarning(`Multiple products share barcode ${code}; added first match.`);
-    }
-    return byBarcode[0];
-  }
-
-  const bySku = list.filter((p) => (p.sku ?? '').trim().toLowerCase() === key);
-  if (bySku.length > 0) {
-    if (bySku.length > 1) {
-      showWarning(`Multiple products share SKU ${code}; added first match.`);
-    }
-    return bySku[0];
-  }
-
-  return undefined;
+function norm(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
 }
 
-/** Match barcode, SKU, or product name from candidates list */
-export function findProductByCodeOrName(list: Product[], query: string): Product | undefined {
-  const key = query.trim().toLowerCase();
+/** Exact barcode matches, de-duplicated by product id. Empty codes match nothing. */
+export function productsSharingBarcode(list: Product[], code: string): Product[] {
+  const key = norm(code);
+  if (!key) return [];
+  const seen = new Set<string>();
+  const matches: Product[] = [];
+  for (const product of list) {
+    if (norm(product.barcode) !== key || seen.has(product.id)) continue;
+    seen.add(product.id);
+    matches.push(product);
+  }
+  return matches;
+}
+
+function mergeProducts(primary: Product[], extra: Product[]): Product[] {
+  const seen = new Set(primary.map((product) => product.id));
+  const merged = [...primary];
+  for (const product of extra) {
+    if (seen.has(product.id)) continue;
+    seen.add(product.id);
+    merged.push(product);
+  }
+  return merged;
+}
+
+function singleSkuMatch(list: Product[], code: string): Product | undefined {
+  const key = norm(code);
   if (!key) return undefined;
+  return list.find((product) => norm(product.sku) === key);
+}
 
-  // 1. Exact barcode or SKU
-  const exactCode = findExactBarcodeOrSku(list, key);
-  if (exactCode) return exactCode;
-
-  // 2. Exact product name
-  const byExactName = list.find((p) => (p.name ?? '').trim().toLowerCase() === key);
-  if (byExactName) return byExactName;
-
-  // 3. Name starts with query
-  const byPrefix = list.find((p) => (p.name ?? '').trim().toLowerCase().startsWith(key));
-  if (byPrefix) return byPrefix;
-
-  // 4. Name contains query
-  const bySubstring = list.find((p) => (p.name ?? '').trim().toLowerCase().includes(key));
-  if (bySubstring) return bySubstring;
-
-  return undefined;
+function nameMatch(list: Product[], query: string): Product | undefined {
+  const key = norm(query);
+  if (!key) return undefined;
+  return (
+    list.find((product) => norm(product.name) === key)
+    || list.find((product) => norm(product.name).startsWith(key))
+    || list.find((product) => norm(product.name).includes(key))
+  );
 }
 
 /**
- * Resolve a scanned/typed barcode, SKU, or product name:
- * 1. Checks in-memory candidates (barcode -> SKU -> exact name -> substring name).
- * 2. If not found in memory, queries server for exact barcode/SKU.
- * 3. If still not found, queries server by product name / keyword.
+ * Resolve a scanned/typed barcode, SKU, or product name.
+ * A barcode shared by more than one product is returned as `choose` so the
+ * cashier can pick a SKU. A unique barcode is returned as `single`.
  */
 export async function resolvePosProductByScan(
   code: string,
   candidates: Product[] = [],
-): Promise<Product | undefined> {
+): Promise<PosScanResolution> {
   const trimmed = code.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) return { type: 'none' };
 
-  // 1. In-memory check first (fastest)
-  const candidateMatch = findProductByCodeOrName(candidates, trimmed);
-  if (candidateMatch) return candidateMatch;
-
-  // 2. Exact barcode/SKU server lookup
+  let serverProducts: Product[] | null = null;
   try {
     const exactRes = await productService.getAll({
       exactCode: trimmed,
       sellableOnly: true,
-      pageSize: 10,
+      pageSize: 20,
       includeImages: false,
     });
-    const exactMatch = findExactBarcodeOrSku(exactRes.data, trimmed);
-    if (exactMatch) return exactMatch;
+    serverProducts = exactRes.data;
   } catch {
-    // continue to name/general search
+    serverProducts = null;
   }
 
-  // 3. General search by product name / keyword
+  const pool = serverProducts ? mergeProducts(candidates, serverProducts) : candidates;
+  const barcodes = productsSharingBarcode(pool, trimmed);
+  if (barcodes.length > 1) return { type: 'choose', products: barcodes };
+  if (barcodes.length === 1) return { type: 'single', product: barcodes[0] };
+
+  const sku = singleSkuMatch(pool, trimmed);
+  if (sku) return { type: 'single', product: sku };
+
+  const localNamed = nameMatch(candidates, trimmed);
+  if (localNamed) return { type: 'single', product: localNamed };
+
   try {
     const searchRes = await productService.getAll({
       search: trimmed,
@@ -89,9 +94,14 @@ export async function resolvePosProductByScan(
       pageSize: 10,
       includeImages: false,
     });
-    return findProductByCodeOrName(searchRes.data, trimmed) || searchRes.data[0];
+    const searchBarcodes = productsSharingBarcode(searchRes.data, trimmed);
+    if (searchBarcodes.length > 1) return { type: 'choose', products: searchBarcodes };
+    if (searchBarcodes.length === 1) return { type: 'single', product: searchBarcodes[0] };
+    const named = nameMatch(searchRes.data, trimmed) ?? searchRes.data[0];
+    if (named) return { type: 'single', product: named };
   } catch {
-    return undefined;
+    return { type: 'none' };
   }
-}
 
+  return { type: 'none' };
+}

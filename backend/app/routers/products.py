@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from math import ceil
 import re
 
+from pymongo.errors import DuplicateKeyError
+
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
@@ -62,6 +64,53 @@ async def _assert_unique_product_name(
             status.HTTP_409_CONFLICT,
             detail=f"Product name '{key}' already exists",
         )
+
+
+def _normalize_barcode(value: str | None) -> str:
+    return (value or "").strip()
+
+
+async def _assert_unique_barcode(
+    barcode: str | None,
+    *,
+    exclude_id: str | None = None,
+) -> None:
+    """Case-insensitive unique barcode among active products. Empty stays allowed."""
+    key = _normalize_barcode(barcode)
+    if not key:
+        return
+    escaped = re.escape(key)
+    existing = await Product.find_one(
+        Product.is_active == True,  # noqa: E712
+        {"barcode": {"$regex": f"^{escaped}$", "$options": "i"}},
+    )
+    if existing and (not exclude_id or str(existing.id) != str(exclude_id)):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Barcode already exists",
+        )
+
+
+def _is_barcode_duplicate_key(exc: DuplicateKeyError) -> bool:
+    return "barcode" in str(exc).lower()
+
+
+async def _insert_product(product: Product) -> None:
+    try:
+        await product.insert()
+    except DuplicateKeyError as exc:
+        if _is_barcode_duplicate_key(exc):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Barcode already exists") from exc
+        raise
+
+
+async def _set_product(product: Product, update_data: dict) -> None:
+    try:
+        await product.set(update_data)
+    except DuplicateKeyError as exc:
+        if _is_barcode_duplicate_key(exc):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Barcode already exists") from exc
+        raise
 
 
 async def _resolve_product_sku(
@@ -139,6 +188,12 @@ async def _apply_product_update(
     if "name" in update_data:
         await _assert_unique_product_name(
             update_data["name"],
+            exclude_id=str(product.id),
+        )
+
+    if "barcode" in update_data:
+        await _assert_unique_barcode(
+            str(update_data.get("barcode") or ""),
             exclude_id=str(product.id),
         )
 
@@ -345,6 +400,7 @@ async def create_product(
     if await Product.find_one(Product.sku == sku):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="SKU already exists")
     await _assert_unique_product_name(body.name)
+    await _assert_unique_barcode(body.barcode)
     supplier_name = ""
     if body.supplier_id:
         supplier = await _resolve_supplier(body.supplier_id)
@@ -365,7 +421,7 @@ async def create_product(
     pricing = compute_product_pricing(product)
     for key, value in pricing.items():
         setattr(product, key, value)
-    await product.insert()
+    await _insert_product(product)
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     cost_eff = (body.cost_price_effective_from or "").strip() or today
@@ -415,6 +471,7 @@ async def bulk_create_products(
     errors: list[ProductBulkCreateError] = []
     seen_skus: set[str] = set()
     seen_names: set[str] = set()
+    seen_barcodes: set[str] = set()
 
     for item in body.products:
         try:
@@ -441,14 +498,21 @@ async def bulk_create_products(
         if name_key and name_key in seen_names:
             errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="Duplicate name in this import"))
             continue
+        barcode_key = _normalize_barcode(item.barcode).lower()
+        if barcode_key and barcode_key in seen_barcodes:
+            errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="Barcode already exists"))
+            continue
 
         try:
             if await Product.find_one(Product.sku == sku):
                 errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="SKU already exists"))
                 continue
             await _assert_unique_product_name(item.name)
+            await _assert_unique_barcode(item.barcode)
             if name_key:
                 seen_names.add(name_key)
+            if barcode_key:
+                seen_barcodes.add(barcode_key)
 
             supplier_name = ""
             if item.supplier_id:
@@ -469,7 +533,7 @@ async def bulk_create_products(
             )
             for key, value in compute_product_pricing(product).items():
                 setattr(product, key, value)
-            await product.insert()
+            await _insert_product(product)
             await log_audit(
                 module=AuditModule.products,
                 action="create",
@@ -511,7 +575,7 @@ async def bulk_update_products(
                 update_body,
                 body_field_names=item_fields,
             )
-            await product.set(update_data)
+            await _set_product(product, update_data)
             refreshed = await Product.get(item.id)
             after = product_snapshot(refreshed)  # type: ignore[arg-type]
             await log_audit(
@@ -646,7 +710,7 @@ async def update_product(
     old_cost = product.cost_price
     old_sell = product.selling_price
     update_data = await _apply_product_update(product, body, body_field_names=body_fields)
-    await product.set(update_data)
+    await _set_product(product, update_data)
     refreshed = await Product.get(product_id)
     after = product_snapshot(refreshed)  # type: ignore[arg-type]
 

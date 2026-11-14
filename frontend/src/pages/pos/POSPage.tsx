@@ -73,6 +73,7 @@ import { buildProductDiscountMap, getProductDiscountAmount } from '@/utils/disco
 import { canSellAsPack, canSellAsPiece, isPosSellableProduct, packSellOption, pieceSellOption, resolveSellOption } from '@/utils/uomSell';
 import { PaymentModal, type PaymentConfirmPayload } from '@/components/pos/PaymentModal';
 import { PosAddProductAutocomplete } from '@/components/pos/PosAddProductAutocomplete';
+import { PosBarcodeChoiceDialog } from '@/components/pos/PosBarcodeChoiceDialog';
 import { resolvePosProductByScan } from '@/components/pos/posProductLookup';
 import { PriceWithUom } from '@/components/products/PriceWithUom';
 import { ProductQuickViewDialog } from '@/components/products/ProductQuickViewDialog';
@@ -612,6 +613,7 @@ export function POSPage() {
   const [paymentError, setPaymentError] = useState('');
   const [tenderedAmount, setTenderedAmount] = useState<number | undefined>(undefined);
   const [barcodeLookupBusy, setBarcodeLookupBusy] = useState(false);
+  const [barcodeChoices, setBarcodeChoices] = useState<Product[] | null>(null);
 
   // Quick-create customer dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -794,38 +796,48 @@ export function POSPage() {
     });
   }, [addItem]);
 
+  const commitScannedProduct = useCallback((product: Product) => {
+    if (!isPosSellableProduct(product)) {
+      showWarning(`“${product.name}” cannot be sold.`);
+      return;
+    }
+
+    const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
+    const opt = resolveSellOption(product, packOnly);
+    if (product.stock === 0) {
+      showWarning(`“${product.name}” is out of stock.`);
+      return;
+    }
+    if (opt.price <= 0) {
+      showWarning(`“${product.name}” has no selling price.`);
+      return;
+    }
+
+    handleAddProduct(product, packOnly);
+    setSearch('');
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  }, [handleAddProduct]);
+
   const handleBarcodeScan = useCallback(async () => {
     const code = search.trim();
     if (!code || barcodeLookupBusy || paymentOpen) return;
 
     setBarcodeLookupBusy(true);
     try {
-      const product = await resolvePosProductByScan(code, products);
+      const resolution = await resolvePosProductByScan(code, products);
 
-      if (!product) {
+      if (resolution.type === 'none') {
         showWarning(`No product found for “${code}”.`);
         return;
       }
 
-      if (!isPosSellableProduct(product)) {
-        showWarning(`“${product.name}” cannot be sold.`);
+      if (resolution.type === 'choose') {
+        setBarcodeChoices(resolution.products);
+        setSearch('');
         return;
       }
 
-      const packOnly = canSellAsPack(product) && !canSellAsPiece(product);
-      const opt = resolveSellOption(product, packOnly);
-      if (product.stock === 0) {
-        showWarning(`“${product.name}” is out of stock.`);
-        return;
-      }
-      if (opt.price <= 0) {
-        showWarning(`“${product.name}” has no selling price.`);
-        return;
-      }
-
-      handleAddProduct(product, packOnly);
-      setSearch('');
-      requestAnimationFrame(() => searchInputRef.current?.focus());
+      commitScannedProduct(resolution.product);
     } catch (err) {
       showApiError(err, 'Could not look up barcode.');
     } finally {
@@ -836,7 +848,7 @@ export function POSPage() {
     barcodeLookupBusy,
     paymentOpen,
     products,
-    handleAddProduct,
+    commitScannedProduct,
   ]);
 
   const handleQtyChange = useCallback((productId: string, newQty: number, sellUom?: string) => {
@@ -1414,6 +1426,16 @@ export function POSPage() {
       />
 
       {/* ── Quick-create customer dialog ───────────────────────────────────── */}
+      <PosBarcodeChoiceDialog
+        open={Boolean(barcodeChoices?.length)}
+        products={barcodeChoices ?? []}
+        onClose={() => setBarcodeChoices(null)}
+        onSelect={(product) => {
+          setBarcodeChoices(null);
+          commitScannedProduct(product);
+        }}
+      />
+
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>New Customer</DialogTitle>
         <DialogContent>
