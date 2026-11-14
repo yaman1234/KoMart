@@ -76,7 +76,7 @@ export function useMovementSummary(
 export function useInventoryIntegrity(enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.inventoryIntegrity,
-    queryFn: () => inventoryService.getIntegrity({ onlyOutOfSync: true, pageSize: 50 }),
+    queryFn: () => inventoryService.getIntegrity({ onlyOutOfSync: true, pageSize: 100 }),
     enabled,
   });
 }

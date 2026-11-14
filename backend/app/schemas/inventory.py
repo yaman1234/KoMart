@@ -127,6 +127,7 @@ class MovementSummaryResponse(BaseModel):
     period_out: int | None = None
     on_hand: int | None = None
     variance: int | None = None
+    last_after: int | None = None
     out_of_sync_count: int | None = None
 
 
@@ -136,6 +137,7 @@ class InventoryIntegrityItem(BaseModel):
     product_sku: str
     on_hand: int
     ledger_close: int
+    last_after: int | None = None
     variance: int
 
 

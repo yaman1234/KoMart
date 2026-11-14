@@ -48,6 +48,7 @@ from app.services.inventory_movements import (
     align_ledger_to_on_hand,
     build_movement_row,
     count_out_of_sync_skus,
+    figures_disagree,
     list_integrity_rows,
     load_batch_lookups,
     load_expense_numbers,
@@ -529,7 +530,10 @@ async def inventory_integrity(
     )
     out_of_sync_count = (
         len(rows) if only_out_of_sync
-        else sum(1 for row in rows if int(row["variance"]) != 0)
+        else sum(
+            1 for row in rows
+            if figures_disagree(int(row["on_hand"]), int(row["ledger_close"]), row.get("last_after"))
+        )
     )
     total = len(rows)
     start = (page - 1) * page_size
@@ -562,10 +566,15 @@ async def align_ledger_endpoint(
         request=request,
         entity_type="product",
         entity_id=body.product_id,
-        previous={"on_hand": result["on_hand"], "ledger_close": result["ledger_close"]},
+        previous={
+            "on_hand": result["previous_on_hand"],
+            "ledger_close": result["previous_ledger_close"],
+            "last_after": result["previous_last_after"],
+        },
         new={
-            "stock": result["on_hand"],
+            "on_hand": result["on_hand"],
             "ledger_close": result["ledger_close"],
+            "last_after": result["last_after"],
             "reason": body.reason,
         },
     )
