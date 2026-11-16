@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useListState, stringParam, pageParam, enumParam } from '@/hooks/useListState';
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from '@/hooks/useListState';
 import {
   Box,
   Button,
@@ -69,13 +69,14 @@ export function PurchaseReturnsPage() {
     schema: {
       search: stringParam(''),
       page: pageParam(0),
+      pageSize: pageSizeParam(10),
       returnMode: enumParam(['', 'po_linked', 'supplier'] as const, ''),
       settlementType: enumParam(['', 'refund', 'reduce_payable', 'stock_only'] as const, ''),
       status: enumParam(['', 'requested', 'closed'] as const, ''),
     },
   });
 
-  const { search, page, returnMode, settlementType, status: statusFilter } = filters;
+  const { search, page, pageSize, returnMode, settlementType, status: statusFilter } = filters;
   const [createOpen, setCreateOpen] = useState(false);
   const [detail, setDetail] = useState<PurchaseReturn | null>(null);
   const [closeTarget, setCloseTarget] = useState<PurchaseReturn | null>(null);
@@ -129,7 +130,7 @@ export function PurchaseReturnsPage() {
     settlementType: settlementType || undefined,
     status: statusFilter || undefined,
     page: page + 1,
-    pageSize: 10,
+    pageSize,
   });
   const { data: summary, isLoading: summaryLoading } = usePurchaseReturnSummary();
 
@@ -409,8 +410,9 @@ export function PurchaseReturnsPage() {
         getRowId={(r) => r.id}
         page={page}
         onPageChange={(p) => setFilter('page', p)}
+        onPageSizeChange={(size) => setFilters({ pageSize: size, page: 0 })}
         total={total}
-        pageSize={10}
+        pageSize={pageSize}
         onRowClick={(row) => void openDetail(row)}
         emptyMessage="No purchase returns yet"
       />
