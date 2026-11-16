@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from app.models.purchase_order import (
+    MAX_PO_LINE_QUANTITY,
     POStatus,
     PaymentStatus,
     PurchaseOrderItem,
@@ -77,7 +78,7 @@ class PurchaseOrderBillUpdate(BaseModel):
 
 class PurchaseOrderReceiveItem(BaseModel):
     product_id: str
-    receive_quantity: int = Field(ge=1)
+    receive_quantity: int = Field(ge=1, le=MAX_PO_LINE_QUANTITY)
     expiry_date: Optional[str] = None
     units_per_buy_uom: int | None = Field(default=None, ge=1)
     sell_mode: Optional[str] = None

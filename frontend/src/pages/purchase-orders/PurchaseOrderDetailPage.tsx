@@ -85,6 +85,8 @@ import {
 } from '@/pages/purchase-orders/poTerminology';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
+import { MAX_PO_LINE_QUANTITY } from '@/constants';
+import { parsePoQuantity, receiveQuantityError } from '@/pages/purchase-orders/poQuantity';
 
 type LastBuyInfo = {
   unitCost: number | null;
@@ -131,6 +133,9 @@ type SellModeValue = 'unit' | 'piece' | 'both';
 interface ReceiveSelection {
   selected: boolean;
   receiveQuantity: number;
+  /** Raw receive field text. Absent until the operator edits the field. */
+  receiveQuantityInput?: string;
+  receiveQuantityError?: string;
   expiryDate: string;
   unitsPerBuyUom?: number;
   sellMode?: SellModeValue;
@@ -299,7 +304,13 @@ export function PurchaseOrderDetailPage() {
       for (const item of receivableItems) {
         const rem = item.quantity - item.receivedQuantity;
         const base = next[item.productId] ?? seedReceiveSelection(item.productId, rem);
-        next[item.productId] = { ...base, selected: checked, receiveQuantity: rem > 0 ? rem : 1 };
+        next[item.productId] = {
+          ...base,
+          selected: checked,
+          receiveQuantity: rem > 0 ? rem : 1,
+          receiveQuantityInput: undefined,
+          receiveQuantityError: undefined,
+        };
       }
       return next;
     });
@@ -312,7 +323,7 @@ export function PurchaseOrderDetailPage() {
         if (isLineFullyReceived(item)) return false;
         const rem = item.quantity - item.receivedQuantity;
         const sel = getReceiveSelection(item.productId, rem);
-        return sel.selected && sel.receiveQuantity > 0;
+        return sel.selected && !sel.receiveQuantityError && sel.receiveQuantity > 0;
       })
       .map((item) => {
         const rem = item.quantity - item.receivedQuantity;
@@ -368,8 +379,23 @@ export function PurchaseOrderDetailPage() {
     }
   };
 
+  const selectedReceiveError = (): string | null => {
+    for (const item of po?.items ?? []) {
+      if (isLineFullyReceived(item)) continue;
+      const rem = item.quantity - item.receivedQuantity;
+      const sel = getReceiveSelection(item.productId, rem);
+      if (sel.selected && sel.receiveQuantityError) return sel.receiveQuantityError;
+    }
+    return null;
+  };
+
   const requestReceive = () => {
     if (!po) return;
+    const qtyErr = selectedReceiveError();
+    if (qtyErr) {
+      setReceiveError(qtyErr);
+      return;
+    }
     if (itemsToReceive.length === 0) {
       setReceiveError('Select at least one item with a receive qty');
       return;
@@ -385,6 +411,12 @@ export function PurchaseOrderDetailPage() {
 
   const handleReceive = async () => {
     if (!po) return;
+    const qtyErr = selectedReceiveError();
+    if (qtyErr) {
+      setReceiveError(qtyErr);
+      setReceiveConfirmOpen(false);
+      return;
+    }
     if (itemsToReceive.length === 0) {
       setReceiveError('Select at least one item with a receive qty');
       setReceiveConfirmOpen(false);
@@ -925,7 +957,7 @@ export function PurchaseOrderDetailPage() {
                 const baseUnit = item.baseUom ?? 'pcs';
                 const unitsPerBuy = receiveSel.unitsPerBuyUom ?? item.unitsPerBuyUom ?? 1;
                 const orderedTotalUnits = item.quantity * (item.unitsPerBuyUom ?? 1);
-                const receiveTotalUnits = receiveSel.selected
+                const receiveTotalUnits = receiveSel.selected && !receiveSel.receiveQuantityError
                   ? receiveSel.receiveQuantity * unitsPerBuy
                   : 0;
                 const costPack = item.unitCost;
@@ -1011,15 +1043,33 @@ export function PurchaseOrderDetailPage() {
                         <TextField
                           size="small"
                           type="number"
-                          value={receiveSel.receiveQuantity}
+                          value={receiveSel.receiveQuantityInput ?? String(receiveSel.receiveQuantity)}
                           disabled={!inputsEnabled}
+                          error={!!receiveSel.receiveQuantityError}
+                          helperText={receiveSel.receiveQuantityError}
                           onChange={(e) => {
-                            const raw = Math.max(1, parseInt(e.target.value, 10) || 1);
-                            const capped = rem > 0 ? Math.min(raw, rem) : raw;
-                            updateReceiveSelection(item.productId, rem, { receiveQuantity: capped });
+                            const text = e.target.value;
+                            const err = receiveQuantityError(text, rem);
+                            const parsed = err ? null : parsePoQuantity(text);
+                            updateReceiveSelection(item.productId, rem, {
+                              receiveQuantityInput: text,
+                              receiveQuantityError: err ?? undefined,
+                              ...(parsed != null ? { receiveQuantity: parsed } : {}),
+                            });
                           }}
-                          sx={{ width: '100%', minWidth: 72, ...noNumberSpinnerSx }}
-                          slotProps={{ htmlInput: { min: 1, max: Math.max(rem, 1) } }}
+                          sx={{
+                            width: '100%',
+                            minWidth: 72,
+                            ...noNumberSpinnerSx,
+                            '& .MuiFormHelperText-root': { mx: 0, mt: 0.25, lineHeight: 1.2, whiteSpace: 'normal' },
+                          }}
+                          slotProps={{
+                            htmlInput: {
+                              min: 1,
+                              max: Math.min(Math.max(rem, 1), MAX_PO_LINE_QUANTITY),
+                              step: 1,
+                            },
+                          }}
                         />
                       </TableCell>
                     )}
