@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import {
   Box,
+  Button,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -14,6 +16,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import ImageIcon from '@mui/icons-material/Image';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import { useNavigate } from 'react-router-dom';
 import { ProductCommerceSummary } from '@/components/products/ProductCommerceSummary';
 import { PO_LABELS, sellAsLabel } from '@/pages/purchase-orders/poTerminology';
 import { useAuthStore } from '@/store';
@@ -23,6 +26,7 @@ import {
   productStatusLabel,
   productStatusOf,
   uomLabel,
+  withFromPos,
 } from '@/utils';
 import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import type { Product } from '@/types';
@@ -32,6 +36,11 @@ interface ProductQuickViewDialogProps {
   open: boolean;
   onClose: () => void;
   discountLabel?: string | null;
+  /**
+   * POS-only. When true, admin and manager get a footer action that opens
+   * the product page and keeps a "came from POS" marker. Other callers omit it.
+   */
+  showGoToProduct?: boolean;
 }
 
 function displayValue(value: string | number | null | undefined): string {
@@ -72,9 +81,12 @@ export function ProductQuickViewDialog({
   open,
   onClose,
   discountLabel,
+  showGoToProduct = false,
 }: ProductQuickViewDialogProps) {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const canSeeCostPrice = isAdminOrManager(user?.role);
+  const canGoToProduct = showGoToProduct && canSeeCostPrice;
 
   if (!product) return null;
 
@@ -325,6 +337,19 @@ export function ProductQuickViewDialog({
           </Grid>
         </Grid>
       </DialogContent>
+      {canGoToProduct && (
+        <DialogActions sx={{ px: 2, py: 1.5 }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              navigate(withFromPos(`/products/${product.id}`, true));
+              onClose();
+            }}
+          >
+            Go to Product
+          </Button>
+        </DialogActions>
+      )}
     </Dialog>
   );
 }

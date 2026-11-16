@@ -35,6 +35,39 @@ export function clearLastListUrl(routePrefix: string): void {
   }
 }
 
+/** Query marker set when a product page was opened from the POS quick view. */
+export const FROM_POS_PARAM = 'from';
+export const FROM_POS_VALUE = 'pos';
+
+export function isFromPosSearch(search: string): boolean {
+  const raw = search.startsWith('?') ? search.slice(1) : search;
+  return new URLSearchParams(raw).get(FROM_POS_PARAM) === FROM_POS_VALUE;
+}
+
+/** Appends the POS marker. Paths without the marker are returned unchanged. */
+export function withFromPos(path: string, fromPos: boolean): string {
+  if (!fromPos) return path;
+  const queryIndex = path.indexOf('?');
+  const pathname = queryIndex === -1 ? path : path.slice(0, queryIndex);
+  const params = new URLSearchParams(queryIndex === -1 ? '' : path.slice(queryIndex + 1));
+  params.set(FROM_POS_PARAM, FROM_POS_VALUE);
+  const search = params.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
+
+function isPosListUrl(url: string): boolean {
+  return url === '/pos' || url.startsWith('/pos?');
+}
+
+/**
+ * POS list URL saved by useListState (filters included), or /pos.
+ */
+export function posReturnPath(): string {
+  const saved = getLastListUrl('/pos');
+  if (saved && isPosListUrl(saved)) return saved;
+  return '/pos';
+}
+
 /**
  * Navigates back in browser history if history exists in this session,
  * otherwise navigates to the fallback path.

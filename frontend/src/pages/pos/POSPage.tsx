@@ -1601,6 +1601,7 @@ export function POSPage() {
         discountLabel={detailProduct ? discountMap.get(detailProduct.id) : null}
         open={!!detailProduct}
         onClose={() => setDetailProduct(null)}
+        showGoToProduct
       />
     </Box>
   );
