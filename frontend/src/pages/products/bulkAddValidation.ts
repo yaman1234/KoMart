@@ -43,7 +43,6 @@ export const DEFAULT_LOW_STOCK = '10';
 export type BulkAddExistingLookup = {
   names: Set<string>;
   skus: Set<string>;
-  barcodes: Set<string>;
 };
 
 /** Intentional content: name or SKU only (ignore UOM/price defaults). */
@@ -160,10 +159,9 @@ export function validateBulkAddRows(
     }
   }
 
-  // Duplicate names / SKUs / barcodes within the grid. Empty barcodes stay allowed.
+  // Duplicate names / SKUs within the grid
   const nameCounts = new Map<string, number[]>();
   const skuCounts = new Map<string, number[]>();
-  const barcodeCounts = new Map<string, number[]>();
   for (const row of populated) {
     const nameKey = normKey(row.name);
     if (nameKey) {
@@ -176,12 +174,6 @@ export function validateBulkAddRows(
       const list = skuCounts.get(skuKey) ?? [];
       list.push(row.id);
       skuCounts.set(skuKey, list);
-    }
-    const barcodeKey = normKey(row.barcode);
-    if (barcodeKey) {
-      const list = barcodeCounts.get(barcodeKey) ?? [];
-      list.push(row.id);
-      barcodeCounts.set(barcodeKey, list);
     }
   }
   for (const ids of nameCounts.values()) {
@@ -196,12 +188,6 @@ export function validateBulkAddRows(
       mergeError(result, id, 'sku', 'Duplicate SKU in this grid');
     }
   }
-  for (const ids of barcodeCounts.values()) {
-    if (ids.length < 2) continue;
-    for (const id of ids) {
-      mergeError(result, id, 'barcode', 'Duplicate barcode in this grid');
-    }
-  }
 
   // Existing catalog name / SKU
   if (existing) {
@@ -213,10 +199,6 @@ export function validateBulkAddRows(
       const skuKey = normKey(row.sku);
       if (skuKey && existing.skus.has(skuKey)) {
         mergeError(result, row.id, 'sku', 'SKU already exists');
-      }
-      const barcodeKey = normKey(row.barcode);
-      if (barcodeKey && existing.barcodes.has(barcodeKey)) {
-        mergeError(result, row.id, 'barcode', 'Barcode already exists');
       }
     }
   }

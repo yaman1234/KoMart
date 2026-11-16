@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useListState, stringParam, pageParam, pageSizeParam } from '@/hooks/useListState';
+import { useListState, stringParam, pageParam } from '@/hooks/useListState';
 import {
   Box,
   Button,
@@ -52,15 +52,11 @@ type FormValues = z.infer<typeof schema>;
 export function CustomersPage() {
   const navigate = useNavigate();
   const formatDate = useFormatDate();
-  const { filters, setFilter, setFilters, clampPage } = useListState({
+  const { filters, setFilter, clampPage } = useListState({
     routePrefix: '/customers',
-    schema: {
-      search: stringParam(''),
-      page: pageParam(0),
-      pageSize: pageSizeParam(10),
-    },
+    schema: { search: stringParam(''), page: pageParam(0) },
   });
-  const { search, page, pageSize } = filters;
+  const { search, page } = filters;
 
   const [addOpen, setAddOpen] = useState(false);
   const [formError, setFormError] = useState('');
@@ -72,7 +68,7 @@ export function CustomersPage() {
     });
   }, []);
 
-  const { data, isLoading } = useCustomers({ search, page: page + 1, pageSize });
+  const { data, isLoading } = useCustomers({ search, page: page + 1, pageSize: 10 });
   const createMutation = useCreateCustomer();
 
   useEffect(() => {
@@ -173,10 +169,9 @@ export function CustomersPage() {
         rows={data?.data ?? []}
         loading={isLoading}
         page={page}
-        pageSize={pageSize}
+        pageSize={10}
         total={data?.total}
         onPageChange={(p) => setFilter('page', p)}
-        onPageSizeChange={(size) => setFilters({ pageSize: size, page: 0 })}
         getRowId={(r) => r.id}
         onRowClick={(r) => navigate(`/customers/${r.id}`)}
       />

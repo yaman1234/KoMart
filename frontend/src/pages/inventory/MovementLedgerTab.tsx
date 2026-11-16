@@ -11,12 +11,6 @@ import {
   Grid,
   MenuItem,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
@@ -29,17 +23,6 @@ import { formatAmount, formatDateTime, isAdmin } from '@/utils';
 import { useAuthStore } from '@/store';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryMovement, InventoryMovementQueryParams } from '@/types';
-
-interface AlignPreview {
-  productId: string;
-  onHand: number | null;
-  book: number | null;
-  lastAfter: number | null;
-}
-
-function formatFigure(value: number | null | undefined): string {
-  return value == null ? '—' : String(value);
-}
 import dayjs from 'dayjs';
 
 const MOVEMENT_TYPES: { value: InventoryMovementQueryParams['movementType']; label: string }[] = [
@@ -68,7 +51,7 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
   const alignMutation = useAlignLedger();
   const { data: integrity } = useInventoryIntegrity(!productId);
   const [alignReason, setAlignReason] = useState('');
-  const [alignPreview, setAlignPreview] = useState<AlignPreview | null>(null);
+  const [alignProductId, setAlignProductId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -103,20 +86,11 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
   const { data: summary } = useMovementSummary(summaryParams);
   const onHand = onHandStock ?? summary?.onHand ?? null;
   const ledgerClose = summary?.closingStock ?? null;
-  const lastAfter = summary?.lastAfter ?? null;
-  const book =
-    summary?.variance != null && onHand != null ? onHand - summary.variance : ledgerClose;
-  const figuresDisagree =
-    (onHand != null && book != null && onHand !== book)
-    || (lastAfter != null && book != null && lastAfter !== book)
-    || (lastAfter != null && onHand != null && lastAfter !== onHand)
-    || (ledgerClose != null && lastAfter != null && ledgerClose !== lastAfter);
+  const cardVariance =
+    onHand != null && ledgerClose != null ? onHand - ledgerClose : 0;
+  const integrityVariance = summary?.variance ?? cardVariance;
+  const displayVariance = integrityVariance !== 0 ? integrityVariance : cardVariance;
   const outOfSyncCount = summary?.outOfSyncCount ?? integrity?.outOfSyncCount ?? 0;
-
-  const openAlign = (preview: AlignPreview) => {
-    setAlignPreview(preview);
-    setAlignReason('');
-  };
 
   const columns: Column<InventoryMovement>[] = [
     {
@@ -150,9 +124,9 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
       label: 'Dir',
       render: (row) => (
         <Chip
-          label={row.quantity > 0 ? 'IN' : row.quantity < 0 ? 'OUT' : 'ADJ'}
+          label={row.direction === 'in' ? 'IN' : 'OUT'}
           size="small"
-          color={row.quantity > 0 ? 'success' : row.quantity < 0 ? 'error' : 'default'}
+          color={row.direction === 'in' ? 'success' : 'error'}
         />
       ),
     },
@@ -293,11 +267,7 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
                 value={ledgerClose ?? '—'}
                 gradient={['#fef9c3', '#fde68a']}
                 color="#92400e"
-                subtitle={
-                  lastAfter != null && ledgerClose != null && lastAfter !== ledgerClose
-                    ? `Opening + In − Out · last After ${lastAfter}`
-                    : 'Opening + In − Out'
-                }
+                subtitle="Opening + In − Out"
               />
             </Grid>
           </>
@@ -318,7 +288,7 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
                 value={outOfSyncCount}
                 gradient={outOfSyncCount > 0 ? ['#fff1f2', '#fecdd3'] : ['#d4f5e9', '#a8e6cf']}
                 color={outOfSyncCount > 0 ? '#be123c' : '#1b7a4e'}
-                subtitle="Current, book, or last After disagree"
+                subtitle="Current Stock ≠ Ledger close (Opening + In − Out)"
               />
             </Grid>
           </>
@@ -329,7 +299,7 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
           Ledger close = Opening + In − Out for the selected dates. Current Stock is the batch total.
         </Typography>
       )}
-      {productId && figuresDisagree && (
+      {productId && displayVariance !== 0 && onHand != null && (
         <Alert
           severity="error"
           sx={{ mb: 2 }}
@@ -339,87 +309,60 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
                 color="inherit"
                 size="small"
                 variant="outlined"
-                onClick={() => openAlign({ productId, onHand, book, lastAfter })}
+                onClick={() => {
+                  setAlignProductId(productId);
+                  setAlignReason('');
+                }}
               >
-                Align ledger to {onHand ?? 'stock'}
+                Align ledger to {onHand}
               </Button>
             ) : undefined
           }
         >
-          Current stock {formatFigure(onHand)}, ledger book {formatFigure(book)}, last After {formatFigure(lastAfter)}.
-          {ledgerClose != null && book != null && ledgerClose !== book
-            ? ` This date range closes at ${ledgerClose}.`
-            : ''}
-          {' '}
-          Align writes one diary line and does not change Current stock.
+          Current Stock is {onHand}; Ledger close is {onHand - displayVariance} (diff {displayVariance > 0 ? '+' : ''}
+          {displayVariance}). Use Align ledger — it writes a diary line only and does not change Current Stock.
+          Correct stock would move the shelf and keep the same gap.
         </Alert>
       )}
       {!productId && outOfSyncCount > 0 && (
-        <Box sx={{ mb: 2 }}>
-          <Alert severity="error" sx={{ mb: 1 }}>
-            {outOfSyncCount} SKU{outOfSyncCount === 1 ? '' : 's'} where Current stock, ledger book,
-            or last After do not agree. Align writes one diary line and does not change shelf quantity.
-            {!canAlign && ' An admin has to apply it.'}
-          </Alert>
-          <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Product</TableCell>
-                  <TableCell align="right">Current</TableCell>
-                  <TableCell align="right">Book</TableCell>
-                  <TableCell align="right">Last After</TableCell>
-                  {canAlign && <TableCell align="right" />}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(integrity?.data ?? []).map((row) => {
-                  const label = [row.productName, row.productSku].filter(Boolean).join(' · ')
-                    || row.productId
-                    || 'Unknown product';
-                  return (
-                    <TableRow key={row.productId} hover>
-                      <TableCell>
-                        <Button
-                          size="small"
-                          variant="text"
-                          sx={{ textTransform: 'none', minWidth: 0, p: 0, fontWeight: 600 }}
-                          onClick={() => navigate(`/inventory/${row.productId}?tab=ledger`)}
-                        >
-                          {label}
-                        </Button>
-                      </TableCell>
-                      <TableCell align="right">{row.onHand}</TableCell>
-                      <TableCell align="right">{row.ledgerClose}</TableCell>
-                      <TableCell align="right">{formatFigure(row.lastAfter)}</TableCell>
-                      {canAlign && (
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => openAlign({
-                              productId: row.productId,
-                              onHand: row.onHand,
-                              book: row.ledgerClose,
-                              lastAfter: row.lastAfter ?? null,
-                            })}
-                          >
-                            Align
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          {outOfSyncCount > (integrity?.data?.length ?? 0) && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-              Showing {integrity?.data?.length ?? 0} of {outOfSyncCount}.
-            </Typography>
-          )}
-        </Box>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {outOfSyncCount} SKU{outOfSyncCount === 1 ? '' : 's'} have Current Stock that does not match
+          Ledger close (Opening + In − Out).
+          {integrity?.data?.length ? (
+            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+              {integrity.data.slice(0, 20).map((row) => {
+                const label = [row.productName, row.productSku].filter(Boolean).join(' · ')
+                  || row.productId
+                  || 'Unknown product';
+                return (
+                  <li key={row.productId}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      sx={{ textTransform: 'none', minWidth: 0, p: 0 }}
+                      onClick={() => navigate(`/inventory/${row.productId}?tab=ledger`)}
+                    >
+                      {label}
+                    </Button>
+                    {': Current '}
+                    {row.onHand}
+                    {', ledger '}
+                    {row.ledgerClose}
+                    {' ('}
+                    {row.variance > 0 ? '+' : ''}
+                    {row.variance}
+                    {')'}
+                  </li>
+                );
+              })}
+              {outOfSyncCount > 20 && (
+                <li>
+                  and {outOfSyncCount - 20} more
+                </li>
+              )}
+            </Box>
+          ) : null}
+        </Alert>
       )}
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -507,52 +450,40 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
       />
 
       <Dialog
-        open={alignPreview != null}
-        onClose={() => setAlignPreview(null)}
+        open={!!alignProductId}
+        onClose={() => setAlignProductId(null)}
         maxWidth="xs"
         fullWidth
       >
         <DialogTitle>Align ledger to Current Stock</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" sx={{ mb: 1 }}>
-            Current stock {formatFigure(alignPreview?.onHand)}
-            {' · '}
-            ledger book {formatFigure(alignPreview?.book)}
-            {' · '}
-            last After {formatFigure(alignPreview?.lastAfter)}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            After align, all three read {formatFigure(alignPreview?.onHand)}. Shelf quantity stays{' '}
-            {formatFigure(alignPreview?.onHand)}. A reason is stored on the diary line and in the audit log.
-          </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Fixes ledger history only. Stock and batches are not changed. Use Adjust Stock if the shelf count is wrong.
+            Writes one correction so the diary matches the batch total. Shelf quantity does not change.
           </Typography>
           <TextField
             label="Reason"
             value={alignReason}
             onChange={(e) => setAlignReason(e.target.value)}
             fullWidth
-            required
             multiline
             rows={2}
             autoFocus
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setAlignPreview(null)}>Cancel</Button>
+          <Button onClick={() => setAlignProductId(null)}>Cancel</Button>
           <Button
             variant="contained"
-            disabled={!alignReason.trim() || !alignPreview}
+            disabled={!alignReason.trim()}
             loading={alignMutation.isPending}
             onClick={() => {
-              if (!alignPreview || !alignReason.trim()) return;
+              if (!alignProductId || !alignReason.trim()) return;
               alignMutation.mutate(
-                { productId: alignPreview.productId, reason: alignReason.trim() },
+                { productId: alignProductId, reason: alignReason.trim() },
                 {
                   onSuccess: () => {
                     showSuccess('Ledger aligned to Current Stock.');
-                    setAlignPreview(null);
+                    setAlignProductId(null);
                     setAlignReason('');
                   },
                   onError: (err) => showApiError(err, 'Could not align ledger.'),

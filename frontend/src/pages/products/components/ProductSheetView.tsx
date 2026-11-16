@@ -538,10 +538,7 @@ const SheetRow = memo(function SheetRow({
           ? col.field as keyof Product
           : undefined;
         const fieldError = fieldKey ? fieldErrors?.[fieldKey] : undefined;
-        const serverOnBarcode = Boolean(serverError && /barcode/i.test(serverError));
-        const showServerError = Boolean(serverError) && (
-          serverOnBarcode ? col.key === 'barcode' : col.key === 'sku'
-        );
+        const showServerError = col.key === 'sku' && serverError;
         const isName = col.key === 'name';
         const isSku = col.key === 'sku';
         const colWidth = PRODUCT_SHEET_COLUMNS[index].width;
@@ -573,7 +570,7 @@ const SheetRow = memo(function SheetRow({
                   }),
               color: !hasSku && col.key === 'sku' ? 'error.main' : 'inherit',
             }}
-            title={fieldError ?? (showServerError ? serverError : undefined)}
+            title={fieldError ?? (showServerError || undefined)}
           >
             <SheetCell
               product={product}

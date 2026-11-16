@@ -43,7 +43,6 @@ import { formatCurrency, navigateBack } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
-import { getErrorMessage } from '@/services/apiClient';
 import { productService } from '@/services';
 import type { Product } from '@/types';
 
@@ -183,8 +182,6 @@ export function ProductFormPage({
     control,
     watch,
     setValue,
-    setError,
-    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -430,10 +427,6 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
         }
       }
     } catch (err) {
-      const message = getErrorMessage(err);
-      if (/barcode already exists/i.test(message)) {
-        setError('barcode', { type: 'server', message });
-      }
       showApiError(err, isEditing ? 'Product could not be saved.' : 'Product could not be created.');
     }
   };
@@ -554,10 +547,6 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   {...barcodeField}
-                  onChange={(event) => {
-                    barcodeField.onChange(event);
-                    if (errors.barcode) clearErrors('barcode');
-                  }}
                   inputRef={(el: HTMLInputElement | null) => {
                     barcodeRegRef(el);
                     barcodeInputRef.current = el;
