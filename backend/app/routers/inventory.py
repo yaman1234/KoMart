@@ -104,6 +104,27 @@ def _batch_response(batch: InventoryBatch) -> BatchResponse:
     )
 
 
+def _sum_stock_value(products: list[Product], stock_map: dict[str, int]) -> float:
+    """Stock × catalog cost. Matches the inventory table Value column."""
+    total = 0.0
+    for product in products:
+        total += stock_map.get(str(product.id), 0) * product.cost_price
+    return round(total, 2)
+
+
+async def _match_stock_value(match: dict) -> float:
+    """Stock × catalog cost for every product in `match`, ignoring pagination."""
+    rows = await Product.get_motor_collection().find(match, {"cost_price": 1}).to_list(None)
+    if not rows:
+        return 0.0
+    product_ids = [str(row["_id"]) for row in rows]
+    stock_map = await get_current_stock_batch(product_ids)
+    total = 0.0
+    for row in rows:
+        total += stock_map.get(str(row["_id"]), 0) * float(row.get("cost_price") or 0)
+    return round(total, 2)
+
+
 async def _item_response(product: Product, batches: list[InventoryBatch]) -> InventoryItemResponse:
     active_batches = [batch for batch in batches if batch.quantity > 0]
     stock = sum(b.quantity for b in batches)
@@ -194,10 +215,12 @@ async def list_inventory(
             ) == stock_filter
         ]
         total = len(products)
+        total_stock_value = _sum_stock_value(products, stock_map)
         products = products[(page - 1) * page_size: page * page_size]
     else:
         col = Product.get_motor_collection()
         total = await col.count_documents(match)
+        total_stock_value = await _match_stock_value(match)
         products = (
             await Product.find(match)
             .sort("name")
@@ -208,14 +231,6 @@ async def list_inventory(
 
     product_ids = [str(product.id) for product in products]
     batches_by_product = await get_batches_for_products(product_ids)
-    stock_map = await get_current_stock_batch(product_ids)
-
-    total_stock_value = 0.0
-    for pid in product_ids:
-        product = next((p for p in products if str(p.id) == pid), None)
-        if product:
-            total_stock_value += stock_map.get(pid, 0) * product.cost_price
-    total_stock_value = round(total_stock_value, 2)
 
     items = []
     for product in products:
