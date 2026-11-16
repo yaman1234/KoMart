@@ -201,9 +201,14 @@ export function useListState<T extends Record<string, any>>({
     }
   }, [routePrefix, location.pathname, location.search]);
 
-  // Serialize and commit updates to searchParams
+  // Serialize and commit updates to searchParams.
+  // Publish the snapshot onto filtersRef before navigating. DataTable and the
+  // product sheet change page size and then reset the page in the same turn.
+  // Each call builds its snapshot from this ref, and react-router keeps only
+  // the last navigate, so the page reset must still see the new page size.
   const commitFilters = useCallback(
     (nextFilters: T) => {
+      filtersRef.current = nextFilters;
       setSearchParams(
         (prevParams) => {
           const nextParams = new URLSearchParams(prevParams);

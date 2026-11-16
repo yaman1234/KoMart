@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, date
 from math import ceil
 
+from beanie import PydanticObjectId
+from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
 from app.models.inventory import AdjustmentType, StockAdjustment
@@ -72,6 +74,34 @@ def _audit(sc: StockCount, action: str, user: User, note: str = "") -> None:
     ))
 
 
+def _selected_product_object_ids(product_ids: list[str] | None) -> list[PydanticObjectId]:
+    """Unique ids for a Selected Products count.
+
+    An empty selection is rejected so the caller cannot fall through to every
+    active product.
+    """
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for raw in product_ids or []:
+        pid = raw.strip() if isinstance(raw, str) else ""
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+        cleaned.append(pid)
+    if not cleaned:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Select at least one product for a Selected Products count.",
+        )
+    try:
+        return [PydanticObjectId(pid) for pid in cleaned]
+    except (InvalidId, ValueError, TypeError):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="One or more selected product ids are invalid.",
+        ) from None
+
+
 def _recompute_summary(sc: StockCount) -> None:
     counted = [i for i in sc.items if i.physical_qty is not None]
     matched = short = excess = 0
@@ -111,15 +141,22 @@ async def create_stock_count(
     count_date: str,
     user: User,
 ) -> StockCount:
-    # Resolve products
+    # Resolve products. Full and category scopes are unchanged.
+    # Selected Products never falls through to every active product.
     match: dict = {"is_active": True}
+    selected_oids: list[PydanticObjectId] = []
     if count_type == CountType.category and category_filter:
         match["category"] = category_filter
-    elif count_type == CountType.selected and product_ids:
-        from beanie import PydanticObjectId
-        match["_id"] = {"$in": [PydanticObjectId(pid) for pid in product_ids]}
+    elif count_type == CountType.selected:
+        selected_oids = _selected_product_object_ids(product_ids)
+        match["_id"] = {"$in": selected_oids}
 
     products = await Product.find(match).sort("name").to_list()
+    if count_type == CountType.selected and len(products) != len(selected_oids):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="One or more selected products were not found or are inactive.",
+        )
     if not products:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No products found for this count.")
 
