@@ -137,7 +137,7 @@ describe('ProductQuickViewDialog Go to Product', () => {
       buttonByText('Go to Product')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(document.querySelector('[data-testid="loc"]')?.textContent).toBe('/products/prod-1?from=pos');
+    expect(document.querySelector('[data-testid="loc"]')?.textContent).toBe('/products/prod-1');
     expect(useCartStore.getState().items).toEqual([line]);
   });
 });

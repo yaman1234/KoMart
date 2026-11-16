@@ -26,7 +26,6 @@ import {
   productStatusLabel,
   productStatusOf,
   uomLabel,
-  withFromPos,
 } from '@/utils';
 import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import type { Product } from '@/types';
@@ -38,7 +37,7 @@ interface ProductQuickViewDialogProps {
   discountLabel?: string | null;
   /**
    * POS-only. When true, admin and manager get a footer action that opens
-   * the product page and keeps a "came from POS" marker. Other callers omit it.
+   * the product page. Other callers omit it.
    */
   showGoToProduct?: boolean;
 }
@@ -113,7 +112,7 @@ export function ProductQuickViewDialog({
     },
     {
       label: PO_LABELS.sellAs,
-      value: displayValue(sellAsLabel(product.sellMode)),
+      value: displayValue(sellAsLabel(product.sellMode, product.unitsPerBuyUom ?? 1)),
     },
     {
       label: PO_LABELS.pcsInPack,
@@ -342,7 +341,7 @@ export function ProductQuickViewDialog({
           <Button
             variant="contained"
             onClick={() => {
-              navigate(withFromPos(`/products/${product.id}`, true));
+              navigate(`/products/${product.id}`);
               onClose();
             }}
           >
