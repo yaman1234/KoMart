@@ -270,6 +270,22 @@ function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> 
 
   }
 
+  const exactCode = typeof params.exactCode === 'string' ? params.exactCode.trim().toLowerCase() : '';
+
+  if (exactCode) {
+
+    filtered = filtered.filter((item) => {
+
+      const row = item as { sku?: string; barcode?: string };
+
+      return (row.barcode ?? '').trim().toLowerCase() === exactCode
+
+        || (row.sku ?? '').trim().toLowerCase() === exactCode;
+
+    });
+
+  }
+
   if (params.category) {
 
     filtered = filtered.filter(
@@ -708,6 +724,18 @@ export const mockApi = {
 
     }
 
+    const barcode = (data.barcode ?? '').trim();
+
+    if (barcode) {
+
+      const barcodeKey = barcode.toLowerCase();
+
+      const clash = products.find((p) => (p.barcode ?? '').trim().toLowerCase() === barcodeKey);
+
+      if (clash) throw new Error('Barcode already exists');
+
+    }
+
     const supplier = data.supplierId
 
       ? suppliers.find((s) => s.id === data.supplierId)
@@ -719,6 +747,8 @@ export const mockApi = {
       ...data,
 
       sku,
+
+      barcode,
 
       status: data.status ?? 'active',
 
@@ -784,7 +814,31 @@ export const mockApi = {
 
     if (idx === -1) throw new Error('Product not found');
 
-    const supplier = data.supplierId
+    let next = data;
+
+    if (data.barcode !== undefined) {
+
+      const barcode = data.barcode.trim();
+
+      next = { ...data, barcode };
+
+      if (barcode) {
+
+        const barcodeKey = barcode.toLowerCase();
+
+        const clash = products.find(
+
+          (p) => p.id !== id && (p.barcode ?? '').trim().toLowerCase() === barcodeKey,
+
+        );
+
+        if (clash) throw new Error('Barcode already exists');
+
+      }
+
+    }
+
+    const supplier = next.supplierId
 
       ? suppliers.find((s) => s.id === data.supplierId)
 
@@ -794,7 +848,7 @@ export const mockApi = {
 
       ...products[idx],
 
-      ...data,
+      ...next,
 
       ...(supplier ? { supplierName: supplier.name } : {}),
 
