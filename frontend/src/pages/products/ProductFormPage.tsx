@@ -28,7 +28,7 @@ import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
 import { useProduct, useCreateProduct, useUpdateProduct } from '@/hooks/useProducts';
@@ -40,7 +40,7 @@ import { DROPDOWN_PAGE_SIZE, COUNTRIES, PRODUCT_STATUS_OPTIONS } from '@/constan
 import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
 import { PO_LABELS, PO_SELL_AS_OPTIONS } from '@/pages/purchase-orders/poTerminology';
 import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
-import { formatCurrency, isFromPosSearch, navigateBack, withFromPos } from '@/utils';
+import { formatCurrency, navigateBack } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
@@ -186,8 +186,6 @@ export function ProductFormPage({
 }: ProductFormPageProps = {}) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const fromPos = isFromPosSearch(searchParams.toString());
   const isEditing = !embedded && !!id;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -449,7 +447,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       if (isEditing && id) {
         await updateMutation.mutateAsync({ id, data: payload });
         showSuccess('Product updated.');
-        navigate(withFromPos(`/products/${id}`, fromPos), fromPos ? { replace: true } : undefined);
+        navigate(`/products/${id}`);
       } else {
         const created = await createMutation.mutateAsync(payload);
         showSuccess('Product created.');
@@ -502,17 +500,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               startIcon={embedded ? undefined : <ArrowBackIcon />}
-              onClick={() => {
-                if (onCancel) {
-                  onCancel();
-                  return;
-                }
-                if (isEditing && id && fromPos) {
-                  navigate(withFromPos(`/products/${id}`, true), { replace: true });
-                  return;
-                }
-                navigateBack(navigate, '/products');
-              }}
+              onClick={() => (onCancel ? onCancel() : navigateBack(navigate, '/products'))}
             >
               Cancel
             </Button>
@@ -534,7 +522,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
           {isEditing && product && (
             <>
               {' '}Current stock: <strong>{product.stock}</strong>.
-              <Button size="small" sx={{ ml: 1 }} onClick={() => navigate(withFromPos(`/inventory/${product.id}`, fromPos))}>
+              <Button size="small" sx={{ ml: 1 }} onClick={() => navigate(`/inventory/${product.id}`)}>
                 Manage in Inventory
               </Button>
             </>

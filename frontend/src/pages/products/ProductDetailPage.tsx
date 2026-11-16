@@ -19,8 +19,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import ImageIcon from '@mui/icons-material/Image';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
-import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ProductCommerceSummary } from '@/components/products/ProductCommerceSummary';
@@ -31,13 +30,10 @@ import { useFormatDate } from '@/hooks/useFormatDate';
 import { useProduct, useDeleteProduct } from '@/hooks/useProducts';
 import {
   isAdminOrManager,
-  isFromPosSearch,
   navigateBack,
-  posReturnPath,
   productStatusColor,
   productStatusLabel,
   uomLabel,
-  withFromPos,
 } from '@/utils';
 import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
@@ -88,8 +84,6 @@ function LabeledBlock({ label, children }: { label: string; children: ReactNode 
 export function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const fromPos = isFromPosSearch(searchParams.toString());
   const formatDate = useFormatDate();
   const { data: product, isLoading, isError } = useProduct(id ?? '');
   const user = useAuthStore((s) => s.user);
@@ -172,7 +166,7 @@ export function ProductDetailPage() {
     },
     {
       label: PO_LABELS.sellAs,
-      value: displayValue(sellAsLabel(product.sellMode)),
+      value: displayValue(sellAsLabel(product.sellMode, product.unitsPerBuyUom ?? 1)),
     },
     {
       label: PO_LABELS.pcsInPack,
@@ -223,17 +217,12 @@ export function ProductDetailPage() {
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/products')}>
               Back
             </Button>
-            {fromPos && (
-              <Button startIcon={<PointOfSaleIcon />} onClick={() => navigate(posReturnPath())}>
-                Back to POS
-              </Button>
-            )}
             {canEdit && (
               <>
                 <Button
                   variant="contained"
                   startIcon={<EditIcon />}
-                  onClick={() => navigate(withFromPos(`/products/${product.id}/edit`, fromPos))}
+                  onClick={() => navigate(`/products/${product.id}/edit`)}
                 >
                   Edit
                 </Button>
@@ -465,7 +454,7 @@ export function ProductDetailPage() {
               <Button
                 variant="outlined"
                 startIcon={<Inventory2OutlinedIcon />}
-                onClick={() => navigate(withFromPos(`/inventory/${product.id}`, fromPos))}
+                onClick={() => navigate(`/inventory/${product.id}`)}
                 fullWidth
                 sx={{ mt: 0.5 }}
               >
