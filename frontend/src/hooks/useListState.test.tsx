@@ -318,6 +318,83 @@ describe('useListState and Navigation State Preservation', () => {
     cleanup();
   });
 
+  it('Scenario 10: date defaults apply only when the URL has no date filter', () => {
+    const today = '2026-11-16';
+    let captured: any;
+
+    function TestComponent() {
+      const listState = useListState({
+        routePrefix: '/sales',
+        schema: {
+          search: stringParam(''),
+          startDate: stringParam(today),
+          endDate: stringParam(today),
+          page: pageParam(0),
+        },
+      });
+      const location = useLocation();
+      captured = { ...listState, location };
+      return <div>{listState.filters.startDate}:{listState.filters.endDate}</div>;
+    }
+
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={['/sales']}>
+          <TestComponent />
+        </MemoryRouter>
+      );
+    });
+
+    expect(captured.filters.startDate).toBe(today);
+    expect(captured.filters.endDate).toBe(today);
+    expect(new URLSearchParams(captured.location.search).has('startDate')).toBe(false);
+    expect(new URLSearchParams(captured.location.search).has('endDate')).toBe(false);
+
+    act(() => {
+      captured.setFilters({ startDate: '2026-08-01', endDate: '2026-08-15' });
+    });
+    act(() => {
+      captured.setFilter('search', 'bill-12');
+    });
+
+    expect(captured.filters.startDate).toBe('2026-08-01');
+    expect(captured.filters.endDate).toBe('2026-08-15');
+    expect(captured.filters.search).toBe('bill-12');
+    const custom = new URLSearchParams(captured.location.search);
+    expect(custom.get('startDate')).toBe('2026-08-01');
+    expect(custom.get('endDate')).toBe('2026-08-15');
+    expect(custom.get('search')).toBe('bill-12');
+
+    act(() => {
+      captured.setFilters({ startDate: today, endDate: today });
+    });
+
+    expect(captured.filters.startDate).toBe(today);
+    expect(captured.filters.endDate).toBe(today);
+    expect(captured.filters.search).toBe('bill-12');
+    const backToToday = new URLSearchParams(captured.location.search);
+    expect(backToToday.has('startDate')).toBe(false);
+    expect(backToToday.has('endDate')).toBe(false);
+    expect(backToToday.get('search')).toBe('bill-12');
+
+    cleanup();
+
+    act(() => {
+      root = createRoot(container);
+      root.render(
+        <MemoryRouter initialEntries={['/sales?startDate=2026-05-01&endDate=2026-05-02&search=deep']}>
+          <TestComponent />
+        </MemoryRouter>
+      );
+    });
+
+    expect(captured.filters.startDate).toBe('2026-05-01');
+    expect(captured.filters.endDate).toBe('2026-05-02');
+    expect(captured.filters.search).toBe('deep');
+
+    cleanup();
+  });
+
   it('Scenario 8: navigateBack navigation and last list URL tracking', () => {
     const mockNavigate = vi.fn();
 
