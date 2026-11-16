@@ -521,9 +521,12 @@ export function MovementLedgerTab({ productId, hideProductColumn, onHandStock }:
             {' · '}
             last After {formatFigure(alignPreview?.lastAfter)}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             After align, all three read {formatFigure(alignPreview?.onHand)}. Shelf quantity stays{' '}
             {formatFigure(alignPreview?.onHand)}. A reason is stored on the diary line and in the audit log.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Fixes ledger history only. Stock and batches are not changed. Use Adjust Stock if the shelf count is wrong.
           </Typography>
           <TextField
             label="Reason"

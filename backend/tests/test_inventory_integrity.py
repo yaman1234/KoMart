@@ -54,6 +54,21 @@ async def admin_user():
 
 
 @pytest.fixture
+async def cashier_user():
+    email = f"integrity-cash-{uuid.uuid4().hex[:8]}@komart.com"
+    user = User(
+        email=email,
+        name="Integrity Cashier",
+        hashed_password=hash_password("cashierpass123"),
+        role=UserRole.cashier,
+        is_active=True,
+    )
+    await user.insert()
+    yield user
+    await user.delete()
+
+
+@pytest.fixture
 async def manager_user():
     email = f"integrity-mgr-{uuid.uuid4().hex[:8]}@komart.com"
     user = User(
@@ -610,5 +625,80 @@ async def test_last_after_only_drift_aligns_without_changing_batches():
         assert correction.quantity == 0
         assert correction.stock_before == 13
         assert correction.stock_after == 13
+    finally:
+        await _cleanup(pid, product)
+
+
+@pytest.mark.asyncio
+async def test_align_api_forbids_non_admin_and_rejects_in_sync(
+    client: AsyncClient,
+    admin_user: User,
+    manager_user: User,
+    cashier_user: User,
+):
+    """Non-admins get 403. An in-sync SKU is a 400 and writes nothing. Admin can fix a flagged SKU."""
+    product = await _product(f"SYNC-{uuid.uuid4().hex[:6]}")
+    pid = str(product.id)
+    try:
+        await receive_stock(pid, "SYNC-A", 8, unit_cost=10.0, created_by="test")
+        await _assert_book_matches_shelf(pid)
+        before_ids = {
+            str(row.id)
+            for row in await StockAdjustment.find(StockAdjustment.product_id == pid).to_list()
+        }
+        batch = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch is not None
+        shelf_before = batch.quantity
+
+        manager_token = await _login(client, manager_user.email, "managerpass123")
+        cashier_token = await _login(client, cashier_user.email, "cashierpass123")
+        admin_token = await _login(client, admin_user.email, "adminpass123")
+
+        for token in (manager_token, cashier_token):
+            denied = await client.post(
+                "/api/v1/inventory/integrity/align",
+                json={"product_id": pid, "reason": "non-admin align"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert denied.status_code == 403
+
+        rejected = await client.post(
+            "/api/v1/inventory/integrity/align",
+            json={"product_id": pid, "reason": "already in sync"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert rejected.status_code == 400
+        assert "already match" in rejected.json()["detail"].lower()
+        after_ids = {
+            str(row.id)
+            for row in await StockAdjustment.find(StockAdjustment.product_id == pid).to_list()
+        }
+        assert after_ids == before_ids
+        batch_after = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch_after is not None
+        assert batch_after.quantity == shelf_before
+
+        clipped = (
+            await StockAdjustment.find(StockAdjustment.product_id == pid)
+            .sort("-created_at")
+            .first_or_none()
+        )
+        assert clipped is not None
+        await clipped.set({"quantity": 7, "stock_after": 8})
+        flagged = await product_integrity(pid)
+        assert flagged["on_hand"] == 8
+        assert flagged["ledger_close"] == 7
+        assert flagged["last_after"] == 8
+
+        aligned = await client.post(
+            "/api/v1/inventory/integrity/align",
+            json={"product_id": pid, "reason": "admin repairs flagged sku"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert aligned.status_code == 200
+        await _assert_book_matches_shelf(pid)
+        batch_final = await InventoryBatch.find_one(InventoryBatch.product_id == pid)
+        assert batch_final is not None
+        assert batch_final.quantity == shelf_before
     finally:
         await _cleanup(pid, product)

@@ -504,7 +504,7 @@ async def align_ledger_to_on_hand(
     if not figures_disagree(on_hand, book, last_after):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Ledger already matches Current Stock",
+            detail="Current stock, ledger book, and last After already match",
         )
 
     await assert_stock_matches_ledger(product_id, book, qty, on_hand)
