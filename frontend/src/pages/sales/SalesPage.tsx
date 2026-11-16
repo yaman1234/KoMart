@@ -41,7 +41,7 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 
 import { useTransactions } from "@/hooks/useTransactions";
 
-import { formatCurrency, formatDateTime, isAdmin } from "@/utils";
+import { formatCurrency, formatDateTime, isAdmin, storeTodayIso } from "@/utils";
 
 import { PAYMENT_METHODS } from "@/constants";
 
@@ -51,15 +51,13 @@ import type { PaymentMethod, Transaction } from "@/types";
 
 import { SaleDetailView } from "./SaleDetailView";
 
-import dayjs from "dayjs";
-
 export function SalesPage() {
   const navigate = useNavigate();
 
   const user = useAuthStore((s) => s.user);
 
-  const defaultStartDate = dayjs().subtract(30, "day").format("YYYY-MM-DD");
-  const defaultEndDate = dayjs().format("YYYY-MM-DD");
+  // No date params → today (Asia/Kathmandu). Params already in the URL win.
+  const today = storeTodayIso();
 
   const { filters, setFilter, setFilters, clampPage } = useListState({
     routePrefix: "/sales",
@@ -69,8 +67,8 @@ export function SalesPage() {
       pageSize: pageSizeParam(25),
       paymentMethod: enumParam(["", "cash", "bank", "card", "esewa"] as const, ""),
       status: enumParam(["all", "completed", "voided"] as const, "all"),
-      startDate: stringParam(defaultStartDate),
-      endDate: stringParam(defaultEndDate),
+      startDate: stringParam(today),
+      endDate: stringParam(today),
       sortBy: stringParam("createdAt"),
       sortOrder: enumParam(["asc", "desc"] as const, "desc"),
     },
