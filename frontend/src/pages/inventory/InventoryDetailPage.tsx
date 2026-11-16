@@ -13,6 +13,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import TuneIcon from '@mui/icons-material/Tune';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
@@ -22,7 +23,7 @@ import { useInventoryItem, useAdjustStock } from '@/hooks/useInventory';
 import { MovementLedgerTab } from './MovementLedgerTab';
 import { PurchasePriceHistoryTab } from './PurchasePriceHistoryTab';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatExpiryDate, isAdmin, navigateBack } from '@/utils';
+import { formatCurrency, formatExpiryDate, isAdmin, isFromPosSearch, navigateBack, posReturnPath, withFromPos } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
 import type { InventoryBatch } from '@/types';
@@ -45,6 +46,7 @@ export function InventoryDetailPage() {
   const formatDate = useFormatDate();
 
   const tab = parseDetailTab(searchParams.get('tab'));
+  const fromPos = isFromPosSearch(searchParams.toString());
   const setTab = useCallback((next: DetailTab) => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
@@ -69,7 +71,21 @@ export function InventoryDetailPage() {
   }
 
   if (isError || !item) {
-    return <Alert severity="error">Inventory item not found.</Alert>;
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/inventory')}>
+            Back
+          </Button>
+          {fromPos && (
+            <Button size="small" startIcon={<PointOfSaleIcon />} onClick={() => navigate(posReturnPath())}>
+              Back to POS
+            </Button>
+          )}
+        </Box>
+        <Alert severity="error">Inventory item not found.</Alert>
+      </Box>
+    );
   }
 
   const activeBatches = item.batches.filter((b) => b.quantity > 0);
@@ -122,7 +138,7 @@ export function InventoryDetailPage() {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               component={RouterLink}
-              to={`/products/${item.id}`}
+              to={withFromPos(`/products/${item.id}`, fromPos)}
               variant="outlined"
               startIcon={<OpenInNewIcon />}
             >
@@ -144,6 +160,11 @@ export function InventoryDetailPage() {
             <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/inventory')}>
               Back
             </Button>
+            {fromPos && (
+              <Button size="small" startIcon={<PointOfSaleIcon />} onClick={() => navigate(posReturnPath())}>
+                Back to POS
+              </Button>
+            )}
           </Box>
         }
       />
