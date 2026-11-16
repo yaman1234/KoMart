@@ -1,6 +1,9 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
+import logging
 import os
+
+from pymongo import ASCENDING
 
 from app.config import settings
 from app.models.product import ProductStatus
@@ -35,6 +38,11 @@ from app.models.bank_reconciliation import BankReconciliation
 from app.models.cash_reconciliation import CashReconciliation
 
 _motor_client: AsyncIOMotorClient | None = None
+logger = logging.getLogger(__name__)
+
+# Active products only, and only when barcode is non-empty, so blank barcodes
+# stay reusable and soft-deleted rows do not block a later product.
+BARCODE_UNIQUE_INDEX = "barcode_active_nonempty_unique"
 
 
 def get_motor_client() -> AsyncIOMotorClient:
@@ -158,6 +166,35 @@ async def init_db() -> None:
 
     if run_migrations:
         await _run_startup_migrations()
+
+    # Always attempt this. Duplicate historical barcodes must not abort startup;
+    # API checks still reject new conflicts when the index cannot be built.
+    await ensure_unique_barcode_index()
+
+
+async def ensure_unique_barcode_index() -> None:
+    """Partial unique index on active, non-empty barcodes.
+
+    If the collection already has duplicate barcodes, MongoDB refuses the
+    index. Log and continue so the process still starts.
+    """
+    try:
+        collection = Product.get_motor_collection()
+        await collection.create_index(
+            [("barcode", ASCENDING)],
+            name=BARCODE_UNIQUE_INDEX,
+            unique=True,
+            partialFilterExpression={
+                "is_active": True,
+                "barcode": {"$gt": ""},
+            },
+        )
+    except Exception as exc:
+        logger.warning(
+            "Skipped unique barcode index %s (startup continues): %s",
+            BARCODE_UNIQUE_INDEX,
+            exc,
+        )
 
 
 DEFAULT_UOMS: list[tuple[str, str]] = [

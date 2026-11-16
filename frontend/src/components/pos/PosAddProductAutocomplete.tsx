@@ -11,6 +11,7 @@ import {
   resolveSellOption,
 } from '@/utils/uomSell';
 import { showApiError, showWarning } from '@/utils/toast';
+import { PosBarcodeChoiceDialog } from '@/components/pos/PosBarcodeChoiceDialog';
 import { resolvePosProductByScan } from '@/components/pos/posProductLookup';
 
 export interface PosAddProductAutocompleteProps {
@@ -34,6 +35,7 @@ export function PosAddProductAutocomplete({
   const [scanBusy, setScanBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState<Product | null>(null);
+  const [barcodeChoices, setBarcodeChoices] = useState<Product[] | null>(null);
   const debouncedSearch = useDebouncedValue(inputValue, 300);
 
   const { data, isFetching } = useProducts({
@@ -83,12 +85,18 @@ export function PosAddProductAutocomplete({
 
     setScanBusy(true);
     try {
-      const product = await resolvePosProductByScan(code, options);
-      if (!product) {
+      const resolution = await resolvePosProductByScan(code, options);
+      if (resolution.type === 'none') {
         showWarning(`No product found for “${code}”.`);
         return;
       }
-      addWithGuards(product);
+      if (resolution.type === 'choose') {
+        setBarcodeChoices(resolution.products);
+        setInputValue('');
+        setOpen(false);
+        return;
+      }
+      addWithGuards(resolution.product);
     } catch (err) {
       showApiError(err, 'Could not look up barcode.');
     } finally {
@@ -107,6 +115,7 @@ export function PosAddProductAutocomplete({
   };
 
   return (
+    <>
     <Autocomplete
       size={size}
       disabled={disabled || scanBusy}
@@ -156,5 +165,15 @@ export function PosAddProductAutocomplete({
         />
       )}
     />
+    <PosBarcodeChoiceDialog
+      open={Boolean(barcodeChoices?.length)}
+      products={barcodeChoices ?? []}
+      onClose={() => setBarcodeChoices(null)}
+      onSelect={(product) => {
+        setBarcodeChoices(null);
+        addWithGuards(product);
+      }}
+    />
+    </>
   );
 }
