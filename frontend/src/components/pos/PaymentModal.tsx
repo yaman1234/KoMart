@@ -19,6 +19,7 @@ import {
   FormControlLabel,
   Checkbox,
   MenuItem,
+  Tooltip,
 } from '@mui/material';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -29,13 +30,14 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { formatAmount, formatCurrency, uomLabel } from '@/utils';
 import { cartLineKey } from '@/utils/cartLine';
+import { findOversellLines, maxSellQuantity, oversellPayMessage, stockCapMessage } from '@/utils/posStock';
 import { cashTenderSuggestions } from '@/utils/cashTenderSuggestions';
 import { useCheckoutDraft, type CartMutators, type CheckoutDiscountType } from '@/hooks/useCheckoutDraft';
 import { promotionKey } from '@/hooks/useDiscounts';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { ReceiptView } from '@/components/pos/ReceiptView';
 import { ReceiptActions } from '@/components/pos/ReceiptActions';
-import type { AppliedPromotion, CartItem, ExcludedPromotion, OrderSource, PaymentMethod, ReceiptBranding, Transaction } from '@/types';
+import type { AppliedPromotion, CartItem, ExcludedPromotion, OrderSource, PaymentMethod, Product, ReceiptBranding, Transaction } from '@/types';
 import { printTransactionReceipt } from '@/utils/receiptPrint';
 import { noNumberSpinnerSx } from '@/styles/inputStyles';
 
@@ -72,6 +74,8 @@ interface PaymentModalProps {
   open: boolean;
   items: CartItem[];
   cartMutators: CartMutators;
+  stockByProductId?: Record<string, number>;
+  onObserveProduct?: (product: Product) => void;
   initialDiscountType?: CheckoutDiscountType;
   initialDiscountInput?: number;
   initialLoyaltyPointsRedeemed?: number;
@@ -121,6 +125,8 @@ export function PaymentModal({
   open,
   items,
   cartMutators,
+  stockByProductId,
+  onObserveProduct,
   initialDiscountType = null,
   initialDiscountInput = 0,
   initialLoyaltyPointsRedeemed = 0,
@@ -157,7 +163,15 @@ export function PaymentModal({
         ? 'esewa'
         : defaultPaymentMethod;
 
-  const draft = useCheckoutDraft(items, productCategoryMap, cartMutators);
+  const draft = useCheckoutDraft(items, productCategoryMap, cartMutators, {
+    stockByProductId,
+    onObserveProduct,
+  });
+  const oversellLines = useMemo(
+    () => findOversellLines(draft.items, stockByProductId ?? {}),
+    [draft.items, stockByProductId],
+  );
+  const oversellMessage = oversellPayMessage(oversellLines);
   const formatDate = useFormatDate();
 
   useEffect(() => {
@@ -221,6 +235,7 @@ export function PaymentModal({
   const breakdown = draft.discountBreakdown;
 
   const handleConfirm = () => {
+    if (oversellLines.length > 0) return;
     onConfirm({
       method,
       tendered: method === 'cash' ? tenderedNum : undefined,
@@ -317,6 +332,11 @@ export function PaymentModal({
             {error}
           </Alert>
         )}
+        {oversellMessage && (
+          <Alert severity="warning" sx={{ mb: 1.5, flexShrink: 0 }}>
+            {oversellMessage}
+          </Alert>
+        )}
 
         <Box
           sx={{
@@ -402,6 +422,12 @@ export function PaymentModal({
                     const lineDiscount = perUnitDiscount * item.quantity;
                     const lineGross = item.price * item.quantity;
                     const lineNet = lineGross - lineDiscount;
+                    const onHand = stockByProductId?.[item.productId];
+                    const maxQty = onHand == null ? null : maxSellQuantity(draft.items, item, onHand);
+                    const atCap = maxQty != null && item.quantity >= maxQty;
+                    const capTitle = atCap && onHand != null && maxQty != null
+                      ? stockCapMessage(item.name, onHand, maxQty, item.sellUom)
+                      : '';
 
                     return (
                       <Box
@@ -437,14 +463,17 @@ export function PaymentModal({
                           <Typography variant="body2" sx={{ minWidth: 20, textAlign: 'center', fontWeight: 700, fontSize: '0.75rem' }}>
                             {item.quantity}
                           </Typography>
-                          <IconButton
-                            size="small"
-                            aria-label="Increase quantity"
-                            onClick={() => draft.updateQty(item.productId, item.quantity + 1, item.sellUom)}
-                            sx={{ p: 0.25, width: 22, height: 22 }}
-                          >
-                            <AddIcon sx={{ fontSize: 14 }} />
-                          </IconButton>
+                          <Tooltip title={capTitle}>
+                            <IconButton
+                              size="small"
+                              aria-label="Increase quantity"
+                              color={atCap ? 'warning' : 'default'}
+                              onClick={() => draft.updateQty(item.productId, item.quantity + 1, item.sellUom)}
+                              sx={{ p: 0.25, width: 22, height: 22 }}
+                            >
+                              <AddIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                         <Typography variant="caption" sx={{ textAlign: 'center', fontWeight: 600, fontSize: '0.7rem' }}>
                           {uomLabel(item.sellUom || item.uom || '')}
@@ -974,6 +1003,7 @@ export function PaymentModal({
           loading={loading}
           disabled={
             draft.items.length === 0
+            || oversellLines.length > 0
             || (method === 'cash' && (tenderedNum <= 0 || tenderedNum < payableTotal))
           }
           onClick={handleConfirm}
