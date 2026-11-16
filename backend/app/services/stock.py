@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from collections import defaultdict
+from typing import Any
 
 from bson import ObjectId as BsonObjectId
 from fastapi import HTTPException, status
@@ -235,6 +236,7 @@ async def _insert_adjustment(
     unit_selling_price: float = 0.0,
     line_discount: float = 0.0,
     category: str = "",
+    session: Any | None = None,
 ) -> StockAdjustment:
     qty_abs = abs(quantity)
     cost = unit_cost if unit_cost > 0 else product.cost_price
@@ -262,7 +264,7 @@ async def _insert_adjustment(
         reason=reason,
         created_by=created_by,
     )
-    await adjustment.insert()
+    await adjustment.insert(session=session)
     return adjustment
 
 
@@ -348,6 +350,7 @@ async def record_inventory_change(
     unit_selling_price: float = 0.0,
     line_discount: float = 0.0,
     category: str = "",
+    session: Any | None = None,
 ) -> StockAdjustment:
     """Public helper for logging inventory changes from sales and other services."""
     if reference_type:
@@ -375,6 +378,7 @@ async def record_inventory_change(
         unit_selling_price=unit_selling_price,
         line_discount=line_discount,
         category=category,
+        session=session,
     )
 
 
