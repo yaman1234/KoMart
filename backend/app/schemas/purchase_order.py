@@ -45,6 +45,7 @@ class PurchaseOrderCreate(BaseModel):
     discount: float = Field(default=0, ge=0)
     additional_charges: float = Field(default=0, ge=0)
     subtotal: Optional[float] = Field(default=None, ge=0)
+    vat_bill: bool = False
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
@@ -60,6 +61,7 @@ class PurchaseOrderUpdate(BaseModel):
     discount: float = Field(default=0, ge=0)
     additional_charges: float = Field(default=0, ge=0)
     subtotal: Optional[float] = Field(default=None, ge=0)
+    vat_bill: bool = False
     expected_delivery: Optional[str] = None
     status: POStatus = POStatus.draft
     ordered_by: Optional[str] = None
@@ -136,6 +138,9 @@ class PurchaseOrderResponse(BaseModel):
     subtotal: float = 0.0
     discount: float = 0.0
     additional_charges: float = 0.0
+    vat_bill: bool = False
+    vat_rate: float = 0.0
+    vat_amount: float = 0.0
     total_amount: float
     amount_paid: float = 0.0
     payment_status: PaymentStatus = PaymentStatus.unpaid
