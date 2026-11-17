@@ -1698,6 +1698,19 @@ export interface PurchaseOrder {
 
 
 
+  /** True only for VAT-bill purchase orders. Missing means non-VAT. */
+  vatBill?: boolean;
+
+
+
+  vatRate?: number;
+
+
+
+  vatAmount?: number;
+
+
+
   totalAmount: number;
 
 
