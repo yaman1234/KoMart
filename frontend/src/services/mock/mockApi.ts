@@ -2,6 +2,10 @@ import { delay, generateId } from '@/utils';
 
 import { computeProductPricing } from '@/utils/productPricing';
 
+import { computePoTotals } from '@/utils/poTotals';
+
+import { stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
+
 import type {
 
   LoginCredentials,
@@ -211,6 +215,56 @@ let dayCloseVariancePosted = new Set<string>();
 function isSetupInvestmentExpense(e: Expense): boolean {
 
   return e.isSetupCost || e.category === 'setup_investment';
+
+}
+
+
+
+/** Same payable math as the API. Non-VAT orders ignore the tax rate. */
+
+function mockPurchaseOrderTotals(data: PurchaseOrderWritePayload) {
+
+  const vatBill = Boolean(data.vatBill);
+
+  const taxRate = vatBill ? Number(data.vatRate) || 0 : 0;
+
+  const extensions = data.items.map((item) => {
+
+    const unit = vatBill ? stripVatFromUnitCost(item.unitCost, taxRate) : item.unitCost;
+
+    return item.quantity * unit;
+
+  });
+
+  const totals = computePoTotals(
+
+    extensions,
+
+    data.discount ?? 0,
+
+    data.additionalCharges ?? 0,
+
+    { vatBill, taxRate },
+
+  );
+
+  return {
+
+    vatBill,
+
+    vatRate: taxRate,
+
+    subtotal: totals.subtotal,
+
+    discount: totals.discount,
+
+    additionalCharges: totals.additionalCharges,
+
+    vatAmount: totals.vatAmount,
+
+    totalAmount: totals.totalAmount,
+
+  };
 
 }
 
@@ -1289,6 +1343,8 @@ export const mockApi = {
 
       ...data,
 
+      ...mockPurchaseOrderTotals(data),
+
       items: data.items.map((item) => ({ ...item, lineStatus: 'pending' as const })),
 
       id: `po-${generateId().slice(0, 8)}`,
@@ -1364,6 +1420,8 @@ export const mockApi = {
       ...po,
 
       ...data,
+
+      ...mockPurchaseOrderTotals(data),
 
       items: mergedItems,
 

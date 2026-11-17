@@ -206,6 +206,9 @@ def po_snapshot(po: Any) -> dict[str, Any]:
         "subtotal": float(getattr(po, "subtotal", 0) or 0),
         "discount": float(getattr(po, "discount", 0) or 0),
         "additional_charges": float(getattr(po, "additional_charges", 0) or 0),
+        "vat_bill": bool(getattr(po, "vat_bill", False)),
+        "vat_rate": float(getattr(po, "vat_rate", 0) or 0),
+        "vat_amount": float(getattr(po, "vat_amount", 0) or 0),
         "total_amount": po.total_amount,
         "amount_paid": float(getattr(po, "amount_paid", 0) or 0),
         "payment_status": (
