@@ -82,6 +82,7 @@ import {
   PO_RECEIVE_HINT,
   PO_RECORD_PAYMENT_HINT,
   PO_SELL_AS_OPTIONS,
+  sellAsLabel,
 } from '@/pages/purchase-orders/poTerminology';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
@@ -1120,16 +1121,21 @@ export function PurchaseOrderDetailPage() {
                             })
                           }
                           sx={{ ...excelCellSx, minWidth: 110 }}
+                          slotProps={{
+                            select: {
+                              renderValue: (selected) => sellAsLabel(String(selected ?? ''), unitsPerBuy),
+                            },
+                          }}
                         >
                           {(unitsPerBuy > 1
                             ? PO_SELL_AS_OPTIONS
-                            : PO_SELL_AS_OPTIONS.filter((o) => o.value === 'piece')
+                            : [{ value: sellMode, label: sellAsLabel(sellMode, unitsPerBuy) }]
                           ).map((o) => (
                             <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                           ))}
                         </TextField>
                       ) : (
-                        PO_SELL_AS_OPTIONS.find((o) => o.value === sellMode)?.label ?? sellMode
+                        sellAsLabel(sellMode, unitsPerBuy)
                       )}
                     </TableCell>
                     <TableCell align="right">

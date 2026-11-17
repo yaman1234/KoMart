@@ -726,6 +726,8 @@ export const inventoryService = {
 
   getItem: async (productId: string): Promise<InventoryItem> => {
 
+    if (useMock()) return mockApi.getInventoryItem(productId);
+
     const { data } = await apiClient.get(`/inventory/items/${productId}`);
 
     return data as InventoryItem;

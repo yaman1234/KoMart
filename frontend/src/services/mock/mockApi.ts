@@ -1032,6 +1032,18 @@ export const mockApi = {
 
   },
 
+  async getInventoryItem(productId: string): Promise<InventoryItem> {
+
+    await delay(200);
+
+    const item = inventory.find((row) => row.id === productId);
+
+    if (!item) throw new Error('Inventory item not found');
+
+    return item;
+
+  },
+
   async adjustStock(adjustment: Omit<StockAdjustment, 'id' | 'createdAt'>): Promise<void> {
 
     await delay(500);
