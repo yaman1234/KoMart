@@ -1,3 +1,3 @@
-// Minimal service worker required for Chrome PWA installability.
-// No caching — all requests pass through to the network.
-self.addEventListener('fetch', () => {});
+// Registered so the app can be installed.
+// Do not add an empty fetch listener: Chrome treats it as a no-op and warns on
+// every document. With no listener, requests go straight to the network.

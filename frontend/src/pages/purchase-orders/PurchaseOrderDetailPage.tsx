@@ -1129,7 +1129,7 @@ export function PurchaseOrderDetailPage() {
                         >
                           {(unitsPerBuy > 1
                             ? PO_SELL_AS_OPTIONS
-                            : PO_SELL_AS_OPTIONS.filter((o) => o.value === 'piece')
+                            : [{ value: sellMode, label: sellAsLabel(sellMode, unitsPerBuy) }]
                           ).map((o) => (
                             <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                           ))}
