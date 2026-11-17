@@ -11,8 +11,12 @@ export interface ToastItem {
 
 interface ToastState {
   toasts: ToastItem[];
+  /** One app-wide notice while any API request has timed out. */
+  timeoutNoticeOpen: boolean;
   enqueue: (item: Omit<ToastItem, 'id'>) => void;
   dismiss: (id: string) => void;
+  showTimeoutNotice: () => void;
+  dismissTimeoutNotice: () => void;
 }
 
 const DEDUPE_MS = 2500;
@@ -30,6 +34,7 @@ let toastCounter = 0;
 
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
+  timeoutNoticeOpen: false,
   enqueue: (item) =>
     set((state) => ({
       toasts: [...state.toasts, { ...item, id: `toast-${++toastCounter}` }].slice(-4),
@@ -38,4 +43,7 @@ export const useToastStore = create<ToastState>((set) => ({
     set((state) => ({
       toasts: state.toasts.filter((t) => t.id !== id),
     })),
+  showTimeoutNotice: () =>
+    set((state) => (state.timeoutNoticeOpen ? state : { timeoutNoticeOpen: true })),
+  dismissTimeoutNotice: () => set({ timeoutNoticeOpen: false }),
 }));

@@ -9,6 +9,7 @@ import {
 } from '@/config/mock';
 import { mockApi } from '@/services/mock/mockApi';
 import { accessTokenNeedsRefresh } from '@/utils/accessToken';
+import { isRequestTimeout, reportApiTimeout } from '@/utils/apiTimeout';
 import { showError } from '@/utils/toast';
 
 // ── Key-case converters ───────────────────────────────────────────────────────
@@ -61,10 +62,16 @@ publicClient.interceptors.request.use((config) => {
   return config;
 });
 
-publicClient.interceptors.response.use((response) => {
-  response.data = camelizeKeys(response.data);
-  return response;
-});
+publicClient.interceptors.response.use(
+  (response) => {
+    response.data = camelizeKeys(response.data);
+    return response;
+  },
+  (error: unknown) => {
+    reportApiTimeout(error);
+    return Promise.reject(error);
+  },
+);
 
 /** Bare client for token refresh — avoids interceptor recursion */
 const refreshClient = axios.create({
@@ -72,6 +79,14 @@ const refreshClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 });
+
+refreshClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    reportApiTimeout(error);
+    return Promise.reject(error);
+  },
+);
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
@@ -193,6 +208,7 @@ apiClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     useLoadingStore.getState().stop();
+    reportApiTimeout(error);
 
     const original = error.config as RetryConfig | undefined;
     const status = error.response?.status;
@@ -218,6 +234,7 @@ apiClient.interceptors.response.use(
       original.headers.Authorization = `Bearer ${newToken}`;
       return apiClient(original);
     } catch (refreshError) {
+      reportApiTimeout(refreshError);
       notifySessionExpired();
       useAuthStore.getState().logout();
       return Promise.reject(refreshError);
@@ -230,7 +247,7 @@ apiClient.interceptors.response.use(
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      if (error.code === 'ECONNABORTED') return 'Request timed out. Please try again.';
+      if (isRequestTimeout(error)) return 'Request timed out. Please try again.';
       return 'Network error. Check your connection and try again.';
     }
 
