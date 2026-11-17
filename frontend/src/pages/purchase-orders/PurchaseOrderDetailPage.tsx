@@ -1240,9 +1240,19 @@ export function PurchaseOrderDetailPage() {
                 mb: 1,
               }}
             >
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Supplier bill
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Supplier bill
+                </Typography>
+                {po.vatBill && (
+                  <Chip
+                    label="VAT bill"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, height: 22 }}
+                  />
+                )}
+              </Box>
               {canManage && (
                 <Button
                   size="small"
@@ -1308,6 +1318,12 @@ export function PurchaseOrderDetailPage() {
               <Typography variant="body2" color="text.secondary">Subtotal</Typography>
               <Typography variant="body2">{formatCurrency(po.subtotal ?? po.totalAmount)}</Typography>
             </Box>
+            {po.vatBill && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+                <Typography variant="body2" color="text.secondary">VAT</Typography>
+                <Typography variant="body2">{formatCurrency(po.vatAmount ?? 0)}</Typography>
+              </Box>
+            )}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
               <Typography variant="body2" color="text.secondary">Discount</Typography>
               <Typography variant="body2">{formatCurrency(po.discount ?? 0)}</Typography>

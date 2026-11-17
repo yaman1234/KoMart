@@ -212,6 +212,10 @@ class PurchaseOrder(Document):
     subtotal: float = Field(default=0.0, ge=0)
     discount: float = Field(default=0.0, ge=0)
     additional_charges: float = Field(default=0.0, ge=0)
+    # Missing on legacy documents → non-VAT. vat_rate is the percent used for this bill.
+    vat_bill: bool = False
+    vat_rate: float = Field(default=0.0, ge=0)
+    vat_amount: float = Field(default=0.0, ge=0)
     total_amount: float = Field(ge=0)
     amount_paid: float = Field(default=0.0, ge=0)
     payment_status: PaymentStatus = PaymentStatus.unpaid
@@ -253,7 +257,15 @@ class PurchaseOrder(Document):
             return 0.0
         return n if n >= 0 else 0.0
 
-    @field_validator("subtotal", "discount", "additional_charges", "total_amount", mode="before")
+    @field_validator(
+        "subtotal",
+        "discount",
+        "additional_charges",
+        "vat_rate",
+        "vat_amount",
+        "total_amount",
+        mode="before",
+    )
     @classmethod
     def _coerce_money_fields(cls, v: Any) -> Any:
         if v is None:
@@ -263,6 +275,19 @@ class PurchaseOrder(Document):
         except (TypeError, ValueError):
             return 0.0
         return n if n >= 0 else 0.0
+
+    @field_validator("vat_bill", mode="before")
+    @classmethod
+    def _coerce_vat_bill(cls, v: Any) -> bool:
+        if v is None or v == "":
+            return False
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return v != 0
+        if isinstance(v, str):
+            return v.strip().lower() in {"1", "true", "yes", "y"}
+        return False
 
     @field_validator("bill_number", mode="before")
     @classmethod

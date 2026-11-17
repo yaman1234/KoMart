@@ -95,7 +95,20 @@ def _normalized_totals(po: PurchaseOrder) -> dict[str, float]:
     items = getattr(po, "items", None) or []
     discount = float(getattr(po, "discount", 0) or 0)
     charges = float(getattr(po, "additional_charges", 0) or 0)
-    computed = compute_po_totals(items, discount, charges)
+    vat_bill = bool(getattr(po, "vat_bill", False))
+    # Rate persisted with the bill so a later settings change does not rewrite history.
+    stored_rate = getattr(po, "vat_rate", None)
+    try:
+        tax_rate = float(stored_rate) if vat_bill and stored_rate is not None else (None if vat_bill else 0.0)
+    except (TypeError, ValueError):
+        tax_rate = None if vat_bill else 0.0
+    computed = compute_po_totals(
+        items,
+        discount,
+        charges,
+        vat_bill=vat_bill,
+        tax_rate=tax_rate,
+    )
     # Legacy docs with no items parse: fall back to stored total as subtotal/total
     if not items and computed["total_amount"] == 0:
         stored = round(float(getattr(po, "total_amount", 0) or 0), 2)
@@ -103,9 +116,20 @@ def _normalized_totals(po: PurchaseOrder) -> dict[str, float]:
             "subtotal": stored,
             "discount": round(max(0.0, discount), 2),
             "additional_charges": round(max(0.0, charges), 2),
+            "vat_amount": 0.0,
+            "vat_rate": 0.0,
             "total_amount": stored,
         }
     return computed
+
+
+async def _current_tax_rate() -> float:
+    settings_doc = await get_store_settings()
+    try:
+        rate = float(settings_doc.tax_rate)
+    except (TypeError, ValueError):
+        rate = 13.0
+    return rate if rate >= 0 else 0.0
 
 
 def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
@@ -138,6 +162,9 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         subtotal=totals["subtotal"],
         discount=totals["discount"],
         additional_charges=totals["additional_charges"],
+        vat_bill=bool(getattr(po, "vat_bill", False)),
+        vat_rate=float(totals.get("vat_rate") or 0),
+        vat_amount=float(totals.get("vat_amount") or 0),
         total_amount=total_amount,
         amount_paid=amount_paid,
         payment_status=payment_status,
@@ -202,6 +229,9 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
         subtotal=round(float(doc.get("subtotal") or total_amount or 0), 2),
         discount=round(float(doc.get("discount") or 0), 2),
         additional_charges=round(float(doc.get("additional_charges") or 0), 2),
+        vat_bill=bool(doc.get("vat_bill")),
+        vat_rate=round(float(doc.get("vat_rate") or 0), 2),
+        vat_amount=round(float(doc.get("vat_amount") or 0), 2),
         total_amount=total_amount if total_amount >= 0 else 0.0,
         amount_paid=amount_paid if amount_paid >= 0 else 0.0,
         payment_status=payment_status,
@@ -556,7 +586,14 @@ async def create_purchase_order(
     current_user: User = Depends(require_manager_or_above),
 ):
     po_data = body.model_dump()
-    totals = compute_po_totals(body.items, body.discount, body.additional_charges)
+    vat_bill = bool(body.vat_bill)
+    totals = compute_po_totals(
+        body.items,
+        body.discount,
+        body.additional_charges,
+        vat_bill=vat_bill,
+        tax_rate=await _current_tax_rate() if vat_bill else 0.0,
+    )
     po_data.update(totals)
     placing_order = body.status == POStatus.ordered
     ordered_by = _resolve_ordered_by(body.ordered_by, current_user, placing_order)
@@ -622,7 +659,14 @@ async def update_purchase_order(
         raise
 
     amount_paid = float(getattr(po, "amount_paid", 0) or 0)
-    totals = compute_po_totals(merged_items, body.discount, body.additional_charges)
+    vat_bill = bool(body.vat_bill)
+    totals = compute_po_totals(
+        merged_items,
+        body.discount,
+        body.additional_charges,
+        vat_bill=vat_bill,
+        tax_rate=await _current_tax_rate() if vat_bill else 0.0,
+    )
     if totals["total_amount"] + 0.001 < amount_paid:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
