@@ -49,7 +49,7 @@ import {
   applyDraftPricing,
   type ProductSheetColumnDef,
 } from '@/pages/products/productSheetColumnDefs';
-import { PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
+import { PO_PASTE_HINT, sellAsLabel } from '@/pages/purchase-orders/poTerminology';
 import { useBulkUpdateProducts } from '@/hooks/useProducts';
 import {
   COUNTRIES,
@@ -260,7 +260,12 @@ const SheetCell = memo(function SheetCell({
     ? { ...nativeInputSx, borderColor: 'error.main', bgcolor: 'error.50' }
     : nativeInputSx;
 
-  if (!bulkEditMode || !col.editable || !col.field) {
+  const sellAsText = col.key === 'sellMode'
+    ? sellAsLabel(merged.sellMode, merged.unitsPerBuyUom ?? 1)
+    : '';
+
+  if (!bulkEditMode || !col.editable || !col.field || (col.key === 'sellMode' && (merged.unitsPerBuyUom ?? 1) <= 1)) {
+    const shown = col.key === 'sellMode' ? sellAsText : display;
     return (
       <Typography
         variant="body2"
@@ -271,9 +276,9 @@ const SheetCell = memo(function SheetCell({
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}
-        title={fieldError ?? display}
+        title={fieldError ?? shown}
       >
-        {display || '—'}
+        {shown || '—'}
       </Typography>
     );
   }

@@ -166,7 +166,7 @@ export function ProductDetailPage() {
     },
     {
       label: PO_LABELS.sellAs,
-      value: displayValue(sellAsLabel(product.sellMode)),
+      value: displayValue(sellAsLabel(product.sellMode, product.unitsPerBuyUom ?? 1)),
     },
     {
       label: PO_LABELS.pcsInPack,
