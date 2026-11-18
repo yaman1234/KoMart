@@ -45,6 +45,7 @@ import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
 import { getErrorMessage } from '@/services/apiClient';
+import { productCodeConflictField } from '@/pages/products/productCodeConflict';
 import { productService } from '@/services';
 import type { Product } from '@/types';
 
@@ -459,8 +460,9 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       }
     } catch (err) {
       const message = getErrorMessage(err);
-      if (/barcode already exists/i.test(message)) {
-        setError('barcode', { type: 'server', message });
+      const conflictField = productCodeConflictField(message);
+      if (conflictField) {
+        setError(conflictField, { type: 'server', message });
       }
       showApiError(err, isEditing ? 'Product could not be saved.' : 'Product could not be created.');
     }

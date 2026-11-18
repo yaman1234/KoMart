@@ -352,3 +352,169 @@ async def test_existing_duplicate_barcodes_do_not_block_startup():
         if inserted:
             await collection.delete_many({"_id": {"$in": inserted}})
         await ensure_unique_barcode_index()
+
+
+@pytest.mark.asyncio
+async def test_barcode_cannot_match_another_active_sku(client: AsyncClient, manager_headers: dict):
+    created_ids: list[str] = []
+    try:
+        sku = f"04{uuid.uuid4().hex[:4]}"
+        owner = await client.post(
+            "/api/v1/products",
+            json=_payload(sku=sku, barcode=""),
+            headers=manager_headers,
+        )
+        assert owner.status_code == 201, owner.text
+        created_ids.append(owner.json()["id"])
+
+        clash = await client.post(
+            "/api/v1/products",
+            json=_payload(barcode=sku.lower()),
+            headers=manager_headers,
+        )
+        assert clash.status_code == 409
+        assert clash.json()["detail"] == "Barcode matches another product's SKU"
+
+        other = await client.post(
+            "/api/v1/products",
+            json=_payload(barcode="8800000000001"),
+            headers=manager_headers,
+        )
+        assert other.status_code == 201, other.text
+        other_id = other.json()["id"]
+        created_ids.append(other_id)
+
+        updated = await client.patch(
+            f"/api/v1/products/{other_id}",
+            json={"barcode": f"  {sku}  "},
+            headers=manager_headers,
+        )
+        assert updated.status_code == 409
+        assert updated.json()["detail"] == "Barcode matches another product's SKU"
+        refreshed = await Product.get(other_id)
+        assert refreshed is not None
+        assert refreshed.barcode == "8800000000001"
+
+        own = await client.patch(
+            f"/api/v1/products/{created_ids[0]}",
+            json={"barcode": sku},
+            headers=manager_headers,
+        )
+        assert own.status_code == 200, own.text
+        assert own.json()["barcode"] == sku
+        assert own.json()["sku"] == sku
+    finally:
+        await _delete_ids(created_ids)
+
+
+@pytest.mark.asyncio
+async def test_sku_cannot_match_another_active_barcode(client: AsyncClient, manager_headers: dict):
+    created_ids: list[str] = []
+    try:
+        barcode = f"BC{uuid.uuid4().hex[:8]}"
+        owner = await client.post(
+            "/api/v1/products",
+            json=_payload(barcode=barcode),
+            headers=manager_headers,
+        )
+        assert owner.status_code == 201, owner.text
+        created_ids.append(owner.json()["id"])
+
+        clash = await client.post(
+            "/api/v1/products",
+            json=_payload(sku=barcode.lower(), barcode=""),
+            headers=manager_headers,
+        )
+        assert clash.status_code == 409
+        assert clash.json()["detail"] == "SKU matches another product's barcode"
+
+        # A product may use its own SKU as its barcode.
+        own_sku = f"04{uuid.uuid4().hex[:4]}"
+        same = await client.post(
+            "/api/v1/products",
+            json=_payload(sku=own_sku, barcode=own_sku),
+            headers=manager_headers,
+        )
+        assert same.status_code == 201, same.text
+        created_ids.append(same.json()["id"])
+        assert same.json()["sku"] == own_sku
+        assert same.json()["barcode"] == own_sku
+    finally:
+        await _delete_ids(created_ids)
+
+
+@pytest.mark.asyncio
+async def test_inactive_sku_can_be_reused_as_barcode(client: AsyncClient, manager_headers: dict):
+    created_ids: list[str] = []
+    try:
+        sku = f"04{uuid.uuid4().hex[:4]}"
+        first = await client.post(
+            "/api/v1/products",
+            json=_payload(sku=sku, barcode=""),
+            headers=manager_headers,
+        )
+        assert first.status_code == 201, first.text
+        first_id = first.json()["id"]
+        created_ids.append(first_id)
+
+        deleted = await client.delete(f"/api/v1/products/{first_id}", headers=manager_headers)
+        assert deleted.status_code == 204, deleted.text
+
+        reused = await client.post(
+            "/api/v1/products",
+            json=_payload(barcode=sku),
+            headers=manager_headers,
+        )
+        assert reused.status_code == 201, reused.text
+        created_ids.append(reused.json()["id"])
+    finally:
+        await _delete_ids(created_ids)
+
+
+@pytest.mark.asyncio
+async def test_bulk_create_rejects_barcode_sku_cross_collision(client: AsyncClient, manager_headers: dict):
+    created_ids: list[str] = []
+    try:
+        sku = f"04{uuid.uuid4().hex[:4]}"
+        barcode = f"BC{uuid.uuid4().hex[:8]}"
+        existing_sku = await client.post(
+            "/api/v1/products",
+            json=_payload(sku=sku, barcode=""),
+            headers=manager_headers,
+        )
+        assert existing_sku.status_code == 201, existing_sku.text
+        created_ids.append(existing_sku.json()["id"])
+        existing_barcode = await client.post(
+            "/api/v1/products",
+            json=_payload(barcode=barcode),
+            headers=manager_headers,
+        )
+        assert existing_barcode.status_code == 201, existing_barcode.text
+        created_ids.append(existing_barcode.json()["id"])
+
+        row_barcode = _payload(barcode=sku)
+        row_sku = _payload(sku=barcode.lower(), barcode="")
+        row_ok = _payload(barcode="")
+        bulk = await client.post(
+            "/api/v1/products/bulk-create",
+            json={
+                "products": [
+                    {**row_barcode, "row": 1},
+                    {**row_sku, "row": 2},
+                    {**row_ok, "row": 3},
+                ],
+            },
+            headers=manager_headers,
+        )
+        assert bulk.status_code == 200, bulk.text
+        body = bulk.json()
+        assert body["created"] == 1
+        assert {err["row"]: err["detail"] for err in body["errors"]} == {
+            1: "Barcode matches another product's SKU",
+            2: "SKU matches another product's barcode",
+        }
+        saved = await Product.find_one(Product.sku == row_ok["sku"])
+        assert saved is not None
+        created_ids.append(str(saved.id))
+    finally:
+        await _delete_ids(created_ids)
