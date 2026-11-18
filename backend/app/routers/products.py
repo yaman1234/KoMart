@@ -70,6 +70,25 @@ def _normalize_barcode(value: str | None) -> str:
     return (value or "").strip()
 
 
+async def _active_code_owner(
+    field: str,
+    value: str,
+    *,
+    exclude_id: str | None = None,
+) -> Product | None:
+    """Active product whose sku or barcode equals value, case-insensitively."""
+    key = (value or "").strip()
+    if not key or field not in {"sku", "barcode"}:
+        return None
+    existing = await Product.find_one(
+        Product.is_active == True,  # noqa: E712
+        {field: {"$regex": f"^{re.escape(key)}$", "$options": "i"}},
+    )
+    if existing and (not exclude_id or str(existing.id) != str(exclude_id)):
+        return existing
+    return None
+
+
 async def _assert_unique_barcode(
     barcode: str | None,
     *,
@@ -79,15 +98,31 @@ async def _assert_unique_barcode(
     key = _normalize_barcode(barcode)
     if not key:
         return
-    escaped = re.escape(key)
-    existing = await Product.find_one(
-        Product.is_active == True,  # noqa: E712
-        {"barcode": {"$regex": f"^{escaped}$", "$options": "i"}},
-    )
-    if existing and (not exclude_id or str(existing.id) != str(exclude_id)):
+    if await _active_code_owner("barcode", key, exclude_id=exclude_id):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="Barcode already exists",
+        )
+    if await _active_code_owner("sku", key, exclude_id=exclude_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Barcode matches another product's SKU",
+        )
+
+
+async def _assert_sku_not_other_barcode(
+    sku: str,
+    *,
+    exclude_id: str | None = None,
+) -> None:
+    """A saved SKU must not equal another active product's barcode."""
+    key = (sku or "").strip()
+    if not key:
+        return
+    if await _active_code_owner("barcode", key, exclude_id=exclude_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="SKU matches another product's barcode",
         )
 
 
@@ -399,6 +434,7 @@ async def create_product(
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     if await Product.find_one(Product.sku == sku):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="SKU already exists")
+    await _assert_sku_not_other_barcode(sku)
     await _assert_unique_product_name(body.name)
     await _assert_unique_barcode(body.barcode)
     supplier_name = ""
@@ -507,6 +543,7 @@ async def bulk_create_products(
             if await Product.find_one(Product.sku == sku):
                 errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="SKU already exists"))
                 continue
+            await _assert_sku_not_other_barcode(sku)
             await _assert_unique_product_name(item.name)
             await _assert_unique_barcode(item.barcode)
             if name_key:
