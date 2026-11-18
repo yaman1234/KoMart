@@ -578,7 +578,12 @@ async def create_purchase_return(
                 detail="Supplier returns support refund or stock_only only",
             )
 
-        supplier = await Supplier.get(supplier_id)
+        from pydantic import ValidationError
+
+        try:
+            supplier = await Supplier.get(supplier_id)
+        except (ValidationError, ValueError):
+            supplier = None
         supplier_name = supplier.name if supplier else ""
         if not supplier_name:
             # Fallback: any PO for this supplier

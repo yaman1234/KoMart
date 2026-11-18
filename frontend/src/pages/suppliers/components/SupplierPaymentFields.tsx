@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -21,11 +21,16 @@ const MAX_PAYMENT_DETAILS = 10;
 interface SupplierPaymentFieldsProps {
   value: SupplierPaymentDetail[];
   onChange: (next: SupplierPaymentDetail[]) => void;
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
-export function SupplierPaymentFields({ value, onChange }: SupplierPaymentFieldsProps) {
+export function SupplierPaymentFields({ value, onChange, onUploadingChange }: SupplierPaymentFieldsProps) {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState('');
+
+  useEffect(() => {
+    onUploadingChange?.(uploadingIndex !== null);
+  }, [uploadingIndex, onUploadingChange]);
 
   const updateRow = (index: number, patch: Partial<SupplierPaymentDetail>) => {
     onChange(value.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));

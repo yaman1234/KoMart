@@ -105,6 +105,13 @@ export function supplierReturnKpis(returns: SupplierReturnKpiInput[]): SupplierR
   };
 }
 
+export function qrImageUrlError(url?: string): string | undefined {
+  const text = url?.trim();
+  if (!text) return undefined;
+  if (!text.toLowerCase().startsWith('https://')) return 'QR image must use https://';
+  return undefined;
+}
+
 export function cleanSupplierPaymentDetail(row: SupplierPaymentDetail): SupplierPaymentDetail {
   const trim = (value?: string) => {
     const text = value?.trim();
