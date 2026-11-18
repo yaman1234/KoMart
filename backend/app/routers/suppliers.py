@@ -20,6 +20,7 @@ def _to_response(s: Supplier) -> SupplierResponse:
         phone=s.phone,
         email=s.email,
         address=s.address,
+        payment_details=list(s.payment_details or []),
         created_at=s.created_at.isoformat(),
     )
 

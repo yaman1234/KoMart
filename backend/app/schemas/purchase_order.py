@@ -165,6 +165,15 @@ class PurchaseOrderSummary(BaseModel):
     pending_delivery_amount: float = 0.0
     cancelled_count: int = 0
     cancelled_amount: float = 0.0
+    # Committed = ordered + partial + received. Draft and cancelled are excluded.
+    committed_count: int = 0
+    committed_amount: float = 0.0
+    received_count: int = 0
+    received_amount: float = 0.0
+    pending_count: int = 0
+    pending_amount: float = 0.0
+    paid_amount: float = 0.0
+    payable_outstanding: float = 0.0
 
 
 class PurchaseOrderListResponse(BaseModel):

@@ -9,10 +9,19 @@ import {
   Alert,
   Button,
   Avatar,
+  Dialog,
+  DialogContent,
+  DialogTitle,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
+import TagIcon from '@mui/icons-material/Tag';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -27,7 +36,8 @@ import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierRetur
 import { useAuthStore } from '@/store';
 import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { PO_STATUS_LABELS } from '@/constants';
+import { PO_STATUS_LABELS, supplierPaymentMethodLabel } from '@/constants';
+import { StatCard } from '@/components/common/StatCard';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
@@ -107,10 +117,11 @@ export function SupplierDetailPage() {
   const canManage = canManageSuppliers(user?.role);
   const canReturn = canManagePurchaseOrders(user?.role);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [qrPreview, setQrPreview] = useState<{ url: string; title: string } | null>(null);
 
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
   const { data: poData, isLoading: poLoading } = usePurchaseOrders(
-    { supplierId: id, pageSize: 10, lean: true, includeSummary: false },
+    { supplierId: id, pageSize: 10, lean: true, includeSummary: true },
     { enabled: !!id },
   );
   const { data: productsData, isLoading: productsLoading } = useProducts(
@@ -134,6 +145,8 @@ export function SupplierDetailPage() {
 
   const purchaseOrders = poData?.data ?? [];
   const catalogProducts = productsData?.data ?? [];
+  const summary = poData?.summary;
+  const paymentDetails = supplier.paymentDetails ?? [];
   const poColumns = withSnColumn(purchaseOrders, [
     ...basePoColumns,
     {
@@ -207,9 +220,127 @@ export function SupplierDetailPage() {
               </Box>
             ))}
           </Paper>
+
+          <Paper sx={{ p: 3, mt: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Payment details</Typography>
+            <Divider sx={{ mb: 2 }} />
+            {paymentDetails.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No payment details on file.
+              </Typography>
+            ) : (
+              paymentDetails.map((detail, index) => {
+                const methodLabel = supplierPaymentMethodLabel(detail.method);
+                const title = detail.label?.trim() || methodLabel;
+                return (
+                  <Box
+                    key={`${detail.method}-${index}`}
+                    sx={{
+                      py: 1.5,
+                      borderBottom: index < paymentDetails.length - 1 ? 1 : 0,
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{title}</Typography>
+                      <Chip label={methodLabel} size="small" variant="outlined" />
+                    </Box>
+                    {[
+                      { label: 'Account name', value: detail.accountName },
+                      { label: 'Account number', value: detail.accountNumber },
+                      { label: 'Bank', value: detail.bankName },
+                    ].filter((row) => row.value).map((row) => (
+                      <Box key={row.label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">{row.label}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'right' }}>{row.value}</Typography>
+                      </Box>
+                    ))}
+                    {detail.qrImageUrl && (
+                      <Box
+                        component="img"
+                        src={detail.qrImageUrl}
+                        alt={`${title} QR code`}
+                        onClick={() => setQrPreview({ url: detail.qrImageUrl!, title })}
+                        sx={{
+                          mt: 1,
+                          width: 72,
+                          height: 72,
+                          objectFit: 'cover',
+                          borderRadius: 1,
+                          border: 1,
+                          borderColor: 'divider',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    )}
+                  </Box>
+                );
+              })
+            )}
+          </Paper>
         </Grid>
 
         <Grid size={{ xs: 12, md: 8 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+              gap: 1.5,
+              mb: 2.5,
+            }}
+          >
+            <StatCard
+              title="Total PO amount"
+              value={formatCurrency(summary?.committedAmount ?? 0)}
+              subtitle="Committed orders"
+              icon={<ShoppingCartIcon />}
+              color="primary.main"
+              loading={poLoading}
+            />
+            <StatCard
+              title="No. of POs"
+              value={summary?.committedCount ?? 0}
+              subtitle="Excludes draft & cancelled"
+              icon={<TagIcon />}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Received"
+              value={formatCurrency(summary?.receivedAmount ?? 0)}
+              subtitle={`${summary?.receivedCount ?? 0} received`}
+              icon={<Inventory2Icon />}
+              color="#1b5e20"
+              gradient={['rgba(46, 125, 50, 0.12)', 'rgba(46, 125, 50, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Pending"
+              value={formatCurrency(summary?.pendingAmount ?? 0)}
+              subtitle={`${summary?.pendingCount ?? 0} ordered or partial`}
+              icon={<LocalShippingIcon />}
+              color="#0288d1"
+              gradient={['rgba(2, 136, 209, 0.12)', 'rgba(2, 136, 209, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Paid"
+              value={formatCurrency(summary?.paidAmount ?? 0)}
+              subtitle="Paid to supplier"
+              icon={<PaymentsIcon />}
+              color="#1b5e20"
+              gradient={['rgba(46, 125, 50, 0.12)', 'rgba(46, 125, 50, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Remaining to pay"
+              value={formatCurrency(summary?.payableOutstanding ?? 0)}
+              subtitle="Outstanding payable"
+              icon={<AccountBalanceWalletIcon />}
+              color="#b26a00"
+              gradient={['rgba(245, 124, 0, 0.14)', 'rgba(245, 124, 0, 0.02)']}
+              loading={poLoading}
+            />
+          </Box>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Purchase Orders</Typography>
           <DataTable
             columns={poColumns}
@@ -278,6 +409,20 @@ export function SupplierDetailPage() {
         supplierId={supplier.id}
         onClose={() => setReturnOpen(false)}
       />
+
+      <Dialog open={Boolean(qrPreview)} onClose={() => setQrPreview(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{qrPreview?.title ?? 'Payment QR'}</DialogTitle>
+        <DialogContent>
+          {qrPreview && (
+            <Box
+              component="img"
+              src={qrPreview.url}
+              alt={`${qrPreview.title} QR code`}
+              sx={{ width: '100%', height: 'auto', borderRadius: 1 }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
