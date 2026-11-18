@@ -52,8 +52,8 @@ class SupplierPaymentDetail(BaseModel):
         if value is None:
             return None
         lowered = value.lower()
-        if not (lowered.startswith("https://") or lowered.startswith("http://")):
-            raise ValueError("qr_image_url must be an http(s) URL")
+        if not lowered.startswith("https://"):
+            raise ValueError("qr_image_url must be an https URL")
         return value
 
 

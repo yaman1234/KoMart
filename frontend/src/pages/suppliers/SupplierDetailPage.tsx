@@ -10,9 +10,14 @@ import {
   Button,
   Avatar,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  Skeleton,
+  TablePagination,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
@@ -96,6 +101,7 @@ const baseProductColumns: Column<Product>[] = [
 function withSnColumn<T extends { id: string }>(
   rows: T[],
   columns: Column<T>[],
+  startIndex = 0,
 ): Column<T>[] {
   return [
     {
@@ -103,7 +109,7 @@ function withSnColumn<T extends { id: string }>(
       label: 'SN',
       align: 'center',
       minWidth: 48,
-      render: (row) => rows.findIndex((r) => r.id === row.id) + 1,
+      render: (row) => startIndex + rows.findIndex((r) => r.id === row.id) + 1,
     },
     ...columns,
   ];
@@ -118,23 +124,41 @@ export function SupplierDetailPage() {
   const canReturn = canManagePurchaseOrders(user?.role);
   const [returnOpen, setReturnOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<{ url: string; title: string } | null>(null);
+  const [poPage, setPoPage] = useState(0);
+  const [poPageSize, setPoPageSize] = useState(10);
+  const [productPage, setProductPage] = useState(0);
+  const [productPageSize, setProductPageSize] = useState(10);
+  const [returnPage, setReturnPage] = useState(0);
+  const [returnPageSize, setReturnPageSize] = useState(10);
 
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
-  const { data: poData, isLoading: poLoading } = usePurchaseOrders(
-    { supplierId: id, pageSize: 10, lean: true, includeSummary: true },
+  const { data: poData, isLoading: poLoading, isFetching: poFetching } = usePurchaseOrders(
+    { supplierId: id, page: poPage + 1, pageSize: poPageSize, lean: true, includeSummary: true },
     { enabled: !!id },
   );
-  const { data: productsData, isLoading: productsLoading } = useProducts(
-    { supplierId: id, pageSize: 10 },
+  const { data: productsData, isLoading: productsLoading, isFetching: productsFetching } = useProducts(
+    { supplierId: id, page: productPage + 1, pageSize: productPageSize },
     { enabled: !!id },
   );
-  const { data: returnsData } = useSupplierPurchaseReturns(id ?? '', Boolean(id && canReturn));
+  const { data: returnsData, isLoading: returnsLoading, isFetching: returnsFetching } = useSupplierPurchaseReturns(
+    id ?? '',
+    Boolean(id && canReturn),
+    { page: returnPage + 1, pageSize: returnPageSize },
+  );
   const returns = returnsData?.data ?? [];
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
+      <Box>
+        <Skeleton variant="text" width={280} height={40} />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 3, mt: 2 }}>
+          <Skeleton variant="rounded" height={220} />
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <Skeleton key={index} variant="rounded" height={96} />
+            ))}
+          </Box>
+        </Box>
       </Box>
     );
   }
@@ -154,8 +178,8 @@ export function SupplierDetailPage() {
       label: 'Expected Delivery',
       render: (row) => (row.expectedDelivery ? formatDate(row.expectedDelivery) : '—'),
     },
-  ]);
-  const productColumns = withSnColumn(catalogProducts, baseProductColumns);
+  ], poPage * poPageSize);
+  const productColumns = withSnColumn(catalogProducts, baseProductColumns, productPage * productPageSize);
 
   return (
     <Box>
@@ -257,21 +281,33 @@ export function SupplierDetailPage() {
                     ))}
                     {detail.qrImageUrl && (
                       <Box
-                        component="img"
-                        src={detail.qrImageUrl}
-                        alt={`${title} QR code`}
+                        component="button"
+                        type="button"
+                        aria-label={`View ${title} QR code`}
                         onClick={() => setQrPreview({ url: detail.qrImageUrl!, title })}
                         sx={{
                           mt: 1,
-                          width: 72,
-                          height: 72,
-                          objectFit: 'cover',
-                          borderRadius: 1,
-                          border: 1,
-                          borderColor: 'divider',
+                          p: 0,
+                          border: 0,
+                          bgcolor: 'transparent',
                           cursor: 'pointer',
+                          display: 'inline-flex',
                         }}
-                      />
+                      >
+                        <Box
+                          component="img"
+                          src={detail.qrImageUrl}
+                          alt=""
+                          sx={{
+                            width: 72,
+                            height: 72,
+                            objectFit: 'cover',
+                            borderRadius: 1,
+                            border: 1,
+                            borderColor: 'divider',
+                          }}
+                        />
+                      </Box>
                     )}
                   </Box>
                 );
@@ -363,20 +399,30 @@ export function SupplierDetailPage() {
           <DataTable
             columns={poColumns}
             rows={purchaseOrders}
-            loading={poLoading}
+            loading={poLoading && !poData}
+            page={poPage}
+            pageSize={poPageSize}
+            total={poData?.total}
+            onPageChange={setPoPage}
+            onPageSizeChange={(size) => { setPoPageSize(size); setPoPage(0); }}
             getRowId={(r) => r.id}
             onRowClick={(row) => navigate(`/purchase-orders/${row.id}`)}
-            emptyMessage="No purchase orders for this supplier"
+            emptyMessage={poFetching ? 'Loading purchase orders…' : 'No purchase orders for this supplier'}
           />
 
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, mt: 4 }}>Products</Typography>
           <DataTable
             columns={productColumns}
             rows={catalogProducts}
-            loading={productsLoading}
+            loading={productsLoading && !productsData}
+            page={productPage}
+            pageSize={productPageSize}
+            total={productsData?.total}
+            onPageChange={setProductPage}
+            onPageSizeChange={(size) => { setProductPageSize(size); setProductPage(0); }}
             getRowId={(r) => r.id}
             onRowClick={(row) => navigate(`/products/${row.id}`)}
-            emptyMessage="No products linked to this supplier"
+            emptyMessage={productsFetching ? 'Loading products…' : 'No products linked to this supplier'}
           />
 
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, mt: 4 }}>
@@ -385,8 +431,12 @@ export function SupplierDetailPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Aged / expired take-backs (not linked to a PO bill). Use Return goods above when leftover stock exists.
           </Typography>
-          {returns.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">No supplier returns yet.</Typography>
+          {returnsLoading && !returnsData ? (
+            <CircularProgress size={24} />
+          ) : returns.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              {returnsFetching ? 'Loading purchase returns…' : 'No supplier returns yet.'}
+            </Typography>
           ) : (
             <Paper sx={{ p: 2 }}>
               {returns.map((ret, index) => (
@@ -419,6 +469,20 @@ export function SupplierDetailPage() {
               ))}
             </Paper>
           )}
+          {canReturn && (
+            <TablePagination
+              component="div"
+              count={returnsData?.total ?? 0}
+              page={returnPage}
+              onPageChange={(_, nextPage) => setReturnPage(nextPage)}
+              rowsPerPage={returnPageSize}
+              onRowsPerPageChange={(event) => {
+                setReturnPageSize(Number(event.target.value));
+                setReturnPage(0);
+              }}
+              rowsPerPageOptions={[10, 25, 50]}
+            />
+          )}
         </Grid>
       </Grid>
 
@@ -429,7 +493,12 @@ export function SupplierDetailPage() {
       />
 
       <Dialog open={Boolean(qrPreview)} onClose={() => setQrPreview(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{qrPreview?.title ?? 'Payment QR'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {qrPreview?.title ?? 'Payment QR'}
+          <IconButton aria-label="Close QR preview" onClick={() => setQrPreview(null)} size="small">
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           {qrPreview && (
             <Box
@@ -440,6 +509,9 @@ export function SupplierDetailPage() {
             />
           )}
         </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQrPreview(null)}>Close</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

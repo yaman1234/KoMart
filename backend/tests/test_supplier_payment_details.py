@@ -110,7 +110,7 @@ async def test_payment_details_roundtrip_and_legacy_doc(client: AsyncClient, man
                 {
                     "method": "khalti",
                     "label": "Khalti",
-                    "qr_image_url": "http://cdn.example.com/khalti.png",
+                    "qr_image_url": "https://cdn.example.com/khalti.png",
                 }
             ]
         },
@@ -119,7 +119,7 @@ async def test_payment_details_roundtrip_and_legacy_doc(client: AsyncClient, man
     updated_details = updated.json()["payment_details"]
     assert len(updated_details) == 1
     assert updated_details[0]["method"] == "khalti"
-    assert updated_details[0]["qr_image_url"] == "http://cdn.example.com/khalti.png"
+    assert updated_details[0]["qr_image_url"] == "https://cdn.example.com/khalti.png"
 
     again = await client.get(f"/api/v1/suppliers/{supplier_id}", headers=headers)
     assert again.json()["payment_details"] == updated_details
@@ -179,6 +179,15 @@ async def test_payment_details_validation(client: AsyncClient, manager_user: Use
         ),
     )
     assert bad_url.status_code == 422, bad_url.text
+
+    http_url = await client.post(
+        "/api/v1/suppliers",
+        headers=headers,
+        json=_supplier_body(
+            payment_details=[{"method": "esewa", "qr_image_url": "http://cdn.example.com/qr.png"}]
+        ),
+    )
+    assert http_url.status_code == 422, http_url.text
 
     long_label = await client.post(
         "/api/v1/suppliers",

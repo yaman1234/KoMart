@@ -269,7 +269,7 @@ async def reverse_supplier_batches(
     if not product:
         raise _missing_catalog_product(product_name, product_id)
 
-    po_ids = await _po_ids_for_supplier(supplier_id)
+    po_ids = await _returnable_po_ids_for_supplier(supplier_id)
     if not po_ids:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,

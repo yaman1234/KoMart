@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanSupplierPaymentDetail, supplierPoKpis, supplierReturnKpis } from './supplierPoKpis';
+import { cleanSupplierPaymentDetail, qrImageUrlError, supplierPoKpis, supplierReturnKpis } from './supplierPoKpis';
 
 describe('supplierPoKpis', () => {
   it('excludes draft and cancelled and matches payable outstanding', () => {
@@ -56,6 +56,14 @@ describe('supplierReturnKpis', () => {
       receivableCount: 1,
       receivableAmount: 7000,
     });
+  });
+});
+
+describe('qrImageUrlError', () => {
+  it('allows https and rejects other schemes', () => {
+    expect(qrImageUrlError('https://cdn.example.com/qr.png')).toBeUndefined();
+    expect(qrImageUrlError('  ')).toBeUndefined();
+    expect(qrImageUrlError('http://cdn.example.com/qr.png')).toMatch(/https/);
   });
 });
 

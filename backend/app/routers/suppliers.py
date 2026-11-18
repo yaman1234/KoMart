@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from math import ceil
 import re
 
+from pydantic import ValidationError
+from pymongo import ASCENDING, DESCENDING
+
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.supplier import Supplier
@@ -9,6 +12,23 @@ from app.schemas.supplier import SupplierCreate, SupplierUpdate, SupplierRespons
 from app.schemas.common import PaginatedResponse
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
+
+_SORT_FIELDS = {
+    "name": "name",
+    "created_at": "created_at",
+    "createdat": "created_at",
+    "added": "created_at",
+}
+
+
+async def _load_supplier(supplier_id: str) -> Supplier:
+    try:
+        supplier = await Supplier.get(supplier_id)
+    except (ValidationError, ValueError):
+        supplier = None
+    if not supplier:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    return supplier
 
 
 def _to_response(s: Supplier) -> SupplierResponse:
@@ -30,15 +50,27 @@ async def list_suppliers(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=500),
     search: str = Query(""),
+    sort_by: str = Query("name"),
+    sort_order: str = Query("asc"),
     _: User = Depends(get_current_user),
 ):
     query = Supplier.find()
     if search:
         escaped = re.escape(search.strip())
-        query = query.find({"name": {"$regex": escaped, "$options": "i"}})
+        pattern = {"$regex": escaped, "$options": "i"}
+        query = query.find({
+            "$or": [
+                {"name": pattern},
+                {"contact_person": pattern},
+                {"phone": pattern},
+                {"country": pattern},
+            ]
+        })
 
+    sort_field = _SORT_FIELDS.get((sort_by or "").strip().lower().replace("-", "_"), "name")
+    direction = ASCENDING if (sort_order or "").strip().lower() == "asc" else DESCENDING
     total = await query.count()
-    suppliers = await query.skip((page - 1) * page_size).limit(page_size).to_list()
+    suppliers = await query.sort([(sort_field, direction)]).skip((page - 1) * page_size).limit(page_size).to_list()
     return PaginatedResponse(
         data=[_to_response(s) for s in suppliers],
         total=total,
@@ -57,9 +89,7 @@ async def create_supplier(body: SupplierCreate, _: User = Depends(require_manage
 
 @router.get("/{supplier_id}", response_model=SupplierResponse)
 async def get_supplier(supplier_id: str, _: User = Depends(get_current_user)):
-    supplier = await Supplier.get(supplier_id)
-    if not supplier:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    supplier = await _load_supplier(supplier_id)
     return _to_response(supplier)
 
 
@@ -67,9 +97,7 @@ async def get_supplier(supplier_id: str, _: User = Depends(get_current_user)):
 async def update_supplier(
     supplier_id: str, body: SupplierUpdate, _: User = Depends(require_manager_or_above)
 ):
-    supplier = await Supplier.get(supplier_id)
-    if not supplier:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    supplier = await _load_supplier(supplier_id)
     update_data = {k: v for k, v in body.model_dump().items() if v is not None}
     if update_data:
         await supplier.set(update_data)

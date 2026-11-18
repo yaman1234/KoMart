@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Checkbox,
   CircularProgress,
   MenuItem,
@@ -44,7 +45,7 @@ interface LineDraft {
 }
 
 export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierReturnDialogProps) {
-  const { data, isLoading, isFetching, isSuccess } = useSupplierReturnableLines(supplierId, open);
+  const { data, isLoading, isError, isSuccess, refetch } = useSupplierReturnableLines(supplierId, open);
   const lines = isSuccess ? (data ?? []) : [];
   const createMutation = useCreatePurchaseReturn();
   const [drafts, setDrafts] = useState<Record<string, LineDraft>>({});
@@ -67,7 +68,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
     if (!open || !isSuccess) return;
     const next: Record<string, LineDraft> = {};
     for (const line of lines) {
-      next[line.productId] = { selected: false, qty: line.availableQty };
+      next[line.productId] = { selected: false, qty: 1 };
     }
     setDrafts(next);
   }, [open, isSuccess, lines]);
@@ -129,7 +130,10 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
     }
   };
 
-  const busy = createMutation.isPending || isLoading || isFetching;
+  const selectedCount = lines.filter(
+    (line) => line.productId?.trim() && line.sku?.trim() && drafts[line.productId]?.selected && (drafts[line.productId]?.qty ?? 0) > 0,
+  ).length;
+  const busy = createMutation.isPending || isLoading;
 
   return (
     <FormModal
@@ -151,7 +155,17 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
         stock from this supplier&apos;s POs can be returned.
       </Typography>
 
-      {(isLoading || isFetching) && !isSuccess && (
+      {isError && (
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={<Button type="button" color="inherit" size="small" onClick={() => void refetch()}>Retry</Button>}
+        >
+          Could not load returnable stock.
+        </Alert>
+      )}
+
+      {isLoading && !isSuccess && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress size={28} />
         </Box>
@@ -214,7 +228,10 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                           onChange={(e) =>
                             setDrafts((prev) => ({
                               ...prev,
-                              [line.productId]: { ...d, selected: e.target.checked },
+                              [line.productId]: {
+                                selected: e.target.checked,
+                                qty: e.target.checked ? (d.qty > 0 ? d.qty : 1) : d.qty,
+                              },
                             }))
                           }
                         />
@@ -223,15 +240,14 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {line.productName}
                         </Typography>
-                        {line.sku ? (
-                          <Typography variant="caption" color="text.secondary">
-                            {line.sku}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          SKU: {line.sku?.trim() || 'No SKU'}
+                        </Typography>
+                        {line.orderNumber ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            PO: {line.orderNumber}
                           </Typography>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            Not in the catalog
-                          </Typography>
-                        )}
+                        ) : null}
                       </TableCell>
                       <TableCell align="right">{line.availableQty}</TableCell>
                       <TableCell align="right" sx={{ width: 110 }}>
@@ -310,6 +326,10 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
           <MenuItem value="refund">Refund (collect later)</MenuItem>
         </TextField>
       </Box>
+
+      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+        {selectedCount} selected · total {formatCurrency(selectedTotal)}
+      </Typography>
 
       <TextField
         fullWidth

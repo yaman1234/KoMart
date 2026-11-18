@@ -39,7 +39,12 @@ router = APIRouter(prefix="/products", tags=["Products"])
 
 
 async def _resolve_supplier(supplier_id: str) -> Supplier:
-    supplier = await Supplier.get(supplier_id)
+    from pydantic import ValidationError
+
+    try:
+        supplier = await Supplier.get(supplier_id)
+    except (ValidationError, ValueError):
+        supplier = None
     if not supplier:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
     return supplier

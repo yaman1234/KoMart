@@ -24,16 +24,21 @@ import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
 import { navigateBack } from '@/utils';
 import type { SupplierPaymentDetail } from '@/types';
-import { cleanSupplierPaymentDetail } from '@/pages/suppliers/supplierPoKpis';
+import { cleanSupplierPaymentDetail, qrImageUrlError } from '@/pages/suppliers/supplierPoKpis';
 import { SupplierPaymentFields } from '@/pages/suppliers/components/SupplierPaymentFields';
 
 const schema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().trim().min(1, 'Name is required'),
   country: z.string().min(1, 'Country is required'),
-  contactPerson: z.string().min(1, 'Contact person is required'),
-  phone: z.string().min(1, 'Phone is required'),
+  contactPerson: z.string().trim().min(1, 'Contact person is required'),
+  phone: z.string().trim().min(1, 'Phone is required')
+    .regex(/^[0-9+\s-]+$/, 'Use digits, spaces, + or dashes only')
+    .refine((value) => {
+      const digits = value.replace(/\D/g, '').length;
+      return digits >= 7 && digits <= 15;
+    }, 'Enter 7 to 15 digits'),
   email: z.union([z.literal(''), z.string().email('Enter a valid email')]),
-  address: z.string().min(1, 'Address is required'),
+  address: z.string().trim().min(1, 'Address is required'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -44,8 +49,9 @@ export function SupplierFormPage() {
   const isEditing = !!id;
   const [formError, setFormError] = useState('');
   const [paymentDetails, setPaymentDetails] = useState<SupplierPaymentDetail[]>([]);
+  const [qrUploading, setQrUploading] = useState(false);
 
-  const { data: supplier, isLoading: supplierLoading } = useSupplier(id ?? '');
+  const { data: supplier, isLoading: supplierLoading, isError: supplierError } = useSupplier(id ?? '');
   const createMutation = useCreateSupplier();
   const updateMutation = useUpdateSupplier();
 
@@ -56,6 +62,7 @@ export function SupplierFormPage() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
+    mode: 'onTouched',
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
@@ -83,6 +90,15 @@ export function SupplierFormPage() {
 
   const onSubmit = async (values: FormValues) => {
     setFormError('');
+    if (qrUploading) {
+      setFormError('Wait for the QR upload to finish.');
+      return;
+    }
+    const qrError = paymentDetails.map((row) => qrImageUrlError(row.qrImageUrl)).find(Boolean);
+    if (qrError) {
+      setFormError(qrError);
+      return;
+    }
     const payload = {
       ...values,
       email: values.email || undefined,
@@ -114,6 +130,10 @@ export function SupplierFormPage() {
     );
   }
 
+  if (isEditing && (supplierError || !supplier)) {
+    return <Alert severity="error">Supplier not found.</Alert>;
+  }
+
   const pending = isSubmitting || createMutation.isPending || updateMutation.isPending;
 
   return (
@@ -132,14 +152,22 @@ export function SupplierFormPage() {
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<SaveIcon />}
-              loading={pending}
-            >
-              {isEditing ? 'Update' : 'Create'} Supplier
-            </Button>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveIcon />}
+                loading={pending}
+                disabled={pending || qrUploading}
+              >
+                {isEditing ? 'Update' : 'Create'} Supplier
+              </Button>
+              {qrUploading && (
+                <Typography variant="caption" color="text.secondary">
+                  Wait for the QR upload to finish.
+                </Typography>
+              )}
+            </Box>
           </Box>
         }
       />
@@ -227,7 +255,11 @@ export function SupplierFormPage() {
         </Grid>
       </Paper>
 
-      <SupplierPaymentFields value={paymentDetails} onChange={setPaymentDetails} />
+      <SupplierPaymentFields
+        value={paymentDetails}
+        onChange={setPaymentDetails}
+        onUploadingChange={setQrUploading}
+      />
     </Box>
   );
 }

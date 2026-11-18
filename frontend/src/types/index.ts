@@ -2133,6 +2133,10 @@ export interface PurchaseReturnableLine {
 
 
 
+  orderNumber?: string;
+
+
+
 }
 
 
