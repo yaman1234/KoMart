@@ -780,13 +780,27 @@ export const mockApi = {
 
     const barcode = (data.barcode ?? '').trim();
 
-    if (barcode) {
+    const skuKey = sku.trim().toLowerCase();
 
-      const barcodeKey = barcode.toLowerCase();
+    const barcodeKey = barcode.toLowerCase();
 
-      const clash = products.find((p) => (p.barcode ?? '').trim().toLowerCase() === barcodeKey);
+    if (barcodeKey) {
 
-      if (clash) throw new Error('Barcode already exists');
+      const barcodeClash = products.find((p) => (p.barcode ?? '').trim().toLowerCase() === barcodeKey);
+
+      if (barcodeClash) throw new Error('Barcode already exists');
+
+      const skuClash = products.find((p) => (p.sku ?? '').trim().toLowerCase() === barcodeKey);
+
+      if (skuClash) throw new Error("Barcode matches another product's SKU");
+
+    }
+
+    if (skuKey) {
+
+      const skuAsBarcode = products.find((p) => (p.barcode ?? '').trim().toLowerCase() === skuKey);
+
+      if (skuAsBarcode) throw new Error("SKU matches another product's barcode");
 
     }
 
@@ -880,13 +894,39 @@ export const mockApi = {
 
         const barcodeKey = barcode.toLowerCase();
 
-        const clash = products.find(
+        const barcodeClash = products.find(
 
           (p) => p.id !== id && (p.barcode ?? '').trim().toLowerCase() === barcodeKey,
 
         );
 
-        if (clash) throw new Error('Barcode already exists');
+        if (barcodeClash) throw new Error('Barcode already exists');
+
+        const skuClash = products.find(
+
+          (p) => p.id !== id && (p.sku ?? '').trim().toLowerCase() === barcodeKey,
+
+        );
+
+        if (skuClash) throw new Error("Barcode matches another product's SKU");
+
+      }
+
+    }
+
+    if (data.sku !== undefined) {
+
+      const skuKey = data.sku.trim().toLowerCase();
+
+      if (skuKey) {
+
+        const skuAsBarcode = products.find(
+
+          (p) => p.id !== id && (p.barcode ?? '').trim().toLowerCase() === skuKey,
+
+        );
+
+        if (skuAsBarcode) throw new Error("SKU matches another product's barcode");
 
       }
 

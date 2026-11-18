@@ -129,6 +129,21 @@ describe('ProductDetailPage', () => {
     expect(document.querySelector('[data-testid="loc"]')?.textContent).toBe('/inventory/prod-1');
   });
 
+  it('opens a barcode label preview from the header', () => {
+    setRole('cashier');
+    renderAt('/products/prod-1');
+    expect(buttonByText('Print barcode')).toBeTruthy();
+
+    act(() => {
+      buttonByText('Print barcode')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain('Preview enlarged');
+    expect(document.body.textContent).toContain('38mm × 25mm');
+    expect(document.body.innerHTML).toContain('shape-rendering="crispEdges"');
+    expect(document.body.innerHTML).toContain('>123<');
+  });
+
   it('shows Piece only when the product has no pack conversion', () => {
     setRole('cashier');
     vi.mocked(useProduct).mockReturnValue({
