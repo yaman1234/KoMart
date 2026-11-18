@@ -7,7 +7,12 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from app.models.expense import Expense, ExpenseCategory
-from app.models.purchase_order import POStatus, PurchaseOrder
+from app.models.purchase_order import (
+    COMMITTED_PO_STATUSES,
+    PurchaseOrder,
+    normalized_po_status_expr,
+    payable_outstanding_expr,
+)
 from app.models.purchase_return import PurchaseReturnStatus, ReturnSettlementType
 from app.models.settings import StoreSettings
 from app.models.transaction import Transaction, TransactionStatus
@@ -134,41 +139,23 @@ async def current_bank_balance(settings: StoreSettings, fy_start: datetime) -> f
     return await current_wallet_balance(settings, fy_start, method="bank")
 
 
-# Same liability set as Reports Active PO Bills / total outstanding AP:
-# ordered, partially received, and received. Drafts are not liabilities yet.
-_PAYABLE_PO_STATUSES = (
-    POStatus.ordered.value,
-    POStatus.partial.value,
-    POStatus.received.value,
-)
-
-
 async def total_payables() -> float:
     """Outstanding AP for ordered, partial, and received POs.
 
     Drafts and cancelled orders are excluded so this matches Reports
-    `total_outstanding_ap` (Active PO Bills). Aggregation avoids Beanie hydration.
+    `total_outstanding_ap` (Active PO Bills). Status is normalized the same
+    way as PO list/GET so legacy values such as ``Received`` are included.
+    Aggregation avoids Beanie hydration.
     """
     col = PurchaseOrder.get_motor_collection()
     rows = await col.aggregate(
         [
-            {"$match": {"status": {"$in": list(_PAYABLE_PO_STATUSES)}}},
+            {"$addFields": {"_status_norm": normalized_po_status_expr()}},
+            {"$match": {"_status_norm": {"$in": list(COMMITTED_PO_STATUSES)}}},
             {
                 "$group": {
                     "_id": None,
-                    "outstanding": {
-                        "$sum": {
-                            "$max": [
-                                0,
-                                {
-                                    "$subtract": [
-                                        {"$ifNull": ["$total_amount", 0]},
-                                        {"$ifNull": ["$amount_paid", 0]},
-                                    ]
-                                },
-                            ]
-                        }
-                    },
+                    "outstanding": {"$sum": payable_outstanding_expr()},
                 }
             },
         ]

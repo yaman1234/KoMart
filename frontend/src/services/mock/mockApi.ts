@@ -4,6 +4,8 @@ import { computeProductPricing } from '@/utils/productPricing';
 
 import { computePoTotals } from '@/utils/poTotals';
 
+import { supplierPoKpis } from '@/pages/suppliers/supplierPoKpis';
+
 import { stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 
 import type {
@@ -1230,6 +1232,14 @@ export const mockApi = {
 
     let filtered = [...purchaseOrders];
 
+    if (params.supplierId) {
+
+      filtered = filtered.filter((po) => po.supplierId === params.supplierId);
+
+    }
+
+    const kpiOrders = filtered;
+
     const status = typeof params.status === 'string' ? params.status : undefined;
 
     const paymentStatus = typeof params.paymentStatus === 'string' ? params.paymentStatus : undefined;
@@ -1328,6 +1338,46 @@ export const mockApi = {
 
     const page = paginate(filtered, pageParams);
 
+    const kpis = params.includeSummary === false ? supplierPoKpis([]) : supplierPoKpis(kpiOrders);
+
+    if (params.includeSummary === false) {
+
+      return {
+
+        ...page,
+
+        receivedTotalAmount: 0,
+
+        outstandingAmount: 0,
+
+        summary: {
+
+          totalPurchasesAmount: 0,
+
+          totalPurchasesCount: 0,
+
+          totalPaidAmount: 0,
+
+          amountDue: 0,
+
+          amountDueCount: 0,
+
+          pendingDeliveryCount: 0,
+
+          pendingDeliveryAmount: 0,
+
+          cancelledCount: 0,
+
+          cancelledAmount: 0,
+
+          ...kpis,
+
+        },
+
+      };
+
+    }
+
     const nonCancelled = filtered.filter((po) => po.status !== 'cancelled');
     const receivedOrders = filtered.filter((po) => po.status === 'received');
     const pendingOrders = filtered.filter((po) => po.status === 'ordered' || po.status === 'partial');
@@ -1356,6 +1406,7 @@ export const mockApi = {
         pendingDeliveryAmount,
         cancelledCount: cancelledOrders.length,
         cancelledAmount,
+        ...kpis,
       },
     };
 
