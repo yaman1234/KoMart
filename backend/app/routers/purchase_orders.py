@@ -386,6 +386,7 @@ async def list_purchase_orders(
 
     received_total_amount = 0.0
     outstanding_amount = 0.0
+    summary = PurchaseOrderSummary()
     if include_summary:
         # KPI match ignores status/payment filters so list cards stay store-wide.
         kpi_clauses: list[dict] = []
