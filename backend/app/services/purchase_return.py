@@ -169,28 +169,6 @@ async def _load_products_by_id(product_ids: list[str]) -> dict:
     return {str(p.id): p for p in products}
 
 
-async def _po_line_names_for_supplier(supplier_id: str, product_ids: list[str]) -> dict[str, str]:
-    if not product_ids:
-        return {}
-    wanted = set(product_ids)
-    col = PurchaseOrder.get_motor_collection()
-    docs = await col.find(
-        {"supplier_id": supplier_id},
-        {"items.product_id": 1, "items.product_name": 1},
-    ).to_list(None)
-    names: dict[str, str] = {}
-    for po in docs:
-        for item in po.get("items") or []:
-            pid = str(item.get("product_id") or "")
-            if pid in wanted and pid not in names:
-                name = (item.get("product_name") or "").strip()
-                if name:
-                    names[pid] = name
-        if len(names) >= len(wanted):
-            break
-    return names
-
-
 async def list_returnable_lines_for_po(po: PurchaseOrder) -> list[ReturnableLineResponse]:
     if po.status not in RETURNABLE_PO_STATUSES:
         return []
@@ -235,24 +213,18 @@ async def list_returnable_lines_for_supplier(supplier_id: str) -> list[Returnabl
 
     product_ids = list(by_product.keys())
     products_by_id = await _load_products_by_id(product_ids)
-    missing = [pid for pid in product_ids if pid not in products_by_id]
-    po_names = await _po_line_names_for_supplier(supplier_id, missing) if missing else {}
 
     lines: list[ReturnableLineResponse] = []
     for pid, meta in by_product.items():
         if meta["qty"] <= 0:
             continue
         product = products_by_id.get(pid)
-        if product:
-            name = product.name
-            sku = product.sku or ""
-            base_uom = getattr(product, "uom", None) or "pcs"
-            fallback_cost = float(product.cost_price or 0)
-        else:
-            name = po_names.get(pid) or "Unknown product"
-            sku = ""
-            base_uom = "pcs"
-            fallback_cost = 0.0
+        if not product:
+            continue
+        name = product.name
+        sku = product.sku or ""
+        base_uom = getattr(product, "uom", None) or "pcs"
+        fallback_cost = float(product.cost_price or 0)
         avg_cost = (
             round(meta["cost_sum"] / meta["cost_qty"], 4)
             if meta["cost_qty"] > 0
@@ -330,9 +302,17 @@ async def _build_supplier_items(
         line.product_id: line
         for line in await list_returnable_lines_for_supplier(supplier_id)
     }
+    products_by_id = await _load_products_by_id(list(qty_by_product.keys()))
     built: list[PurchaseReturnItem] = []
     total_amount = 0.0
     for product_id, return_qty in qty_by_product.items():
+        if product_id not in products_by_id:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Product {product_id} is no longer in the catalog and cannot be returned"
+                ),
+            )
         line = available.get(product_id)
         if not line:
             raise HTTPException(

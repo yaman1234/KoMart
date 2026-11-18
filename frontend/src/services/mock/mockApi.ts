@@ -4,7 +4,7 @@ import { computeProductPricing } from '@/utils/productPricing';
 
 import { computePoTotals } from '@/utils/poTotals';
 
-import { supplierPoKpis } from '@/pages/suppliers/supplierPoKpis';
+import { supplierPoKpis, supplierReturnKpis } from '@/pages/suppliers/supplierPoKpis';
 
 import { stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 
@@ -147,6 +147,10 @@ import {
   mockSuppliers,
 
   mockPurchaseOrders,
+
+  mockSupplierReturns,
+
+  mockReturnableBySupplier,
 
   mockCustomers,
 
@@ -573,6 +577,14 @@ export const mockApi = {
     await delay(300);
 
     return mockDashboardKpi;
+
+  },
+
+  async getReturnableLinesBySupplier(supplierId: string): Promise<import('@/types').PurchaseReturnableLine[]> {
+
+    await delay(200);
+
+    return mockReturnableBySupplier[supplierId] ?? [];
 
   },
 
@@ -1340,6 +1352,10 @@ export const mockApi = {
 
     const kpis = params.includeSummary === false ? supplierPoKpis([]) : supplierPoKpis(kpiOrders);
 
+    const returnKpis = params.supplierId && params.includeSummary !== false
+      ? supplierReturnKpis(mockSupplierReturns.filter((row) => row.supplierId === params.supplierId))
+      : supplierReturnKpis([]);
+
     if (params.includeSummary === false) {
 
       return {
@@ -1371,6 +1387,8 @@ export const mockApi = {
           cancelledAmount: 0,
 
           ...kpis,
+
+          ...returnKpis,
 
         },
 
@@ -1407,6 +1425,7 @@ export const mockApi = {
         cancelledCount: cancelledOrders.length,
         cancelledAmount,
         ...kpis,
+        ...returnKpis,
       },
     };
 

@@ -174,6 +174,11 @@ class PurchaseOrderSummary(BaseModel):
     pending_amount: float = 0.0
     paid_amount: float = 0.0
     payable_outstanding: float = 0.0
+    # Supplier return KPIs. Zero unless include_summary and supplier_id are set.
+    returned_count: int = 0
+    returned_amount: float = 0.0
+    receivable_count: int = 0
+    receivable_amount: float = 0.0
 
 
 class PurchaseOrderListResponse(BaseModel):

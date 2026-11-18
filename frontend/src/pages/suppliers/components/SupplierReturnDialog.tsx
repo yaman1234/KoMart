@@ -85,6 +85,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
   const selectedTotal = useMemo(() => {
     let total = 0;
     for (const line of lines) {
+      if (!line.productId?.trim() || !line.sku?.trim()) continue;
       const d = drafts[line.productId];
       if (!d?.selected) continue;
       total += line.unitCost * Math.min(d.qty, line.availableQty);
@@ -94,7 +95,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
 
   const handleSubmit = async () => {
     const items = lines
-      .filter((l) => drafts[l.productId]?.selected)
+      .filter((l) => l.productId?.trim() && l.sku?.trim() && drafts[l.productId]?.selected)
       .map((l) => ({
         productId: l.productId,
         returnQty: Math.min(drafts[l.productId]?.qty ?? 0, l.availableQty),
@@ -200,14 +201,16 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                   </TableRow>
                 )}
                 {filteredLines.map((line) => {
+                  const selectable = Boolean(line.productId?.trim() && line.sku?.trim());
                   const d = drafts[line.productId] ?? { selected: false, qty: line.availableQty };
-                  const qty = d.selected ? Math.min(d.qty, line.availableQty) : 0;
+                  const qty = selectable && d.selected ? Math.min(d.qty, line.availableQty) : 0;
                   const lineTotal = Math.round(line.unitCost * qty * 100) / 100;
                   return (
                     <TableRow key={line.productId}>
                       <TableCell padding="checkbox">
                         <Checkbox
-                          checked={d.selected}
+                          checked={selectable && d.selected}
+                          disabled={!selectable}
                           onChange={(e) =>
                             setDrafts((prev) => ({
                               ...prev,
@@ -224,7 +227,11 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                           <Typography variant="caption" color="text.secondary">
                             {line.sku}
                           </Typography>
-                        ) : null}
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            Not in the catalog
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell align="right">{line.availableQty}</TableCell>
                       <TableCell align="right" sx={{ width: 110 }}>
@@ -232,7 +239,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                           size="small"
                           type="number"
                           value={d.qty}
-                          disabled={!d.selected}
+                          disabled={!selectable || !d.selected}
                           onChange={(e) => {
                             const nextQty = Math.max(
                               1,

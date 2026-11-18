@@ -1006,6 +1006,8 @@ export const purchaseReturnService = {
 
   getAvailableBySupplier: async (supplierId: string): Promise<import('@/types').PurchaseReturnableLine[]> => {
 
+    if (useMock()) return mockApi.getReturnableLinesBySupplier(supplierId);
+
     const { data } = await apiClient.get('/purchase-returns/available-by-supplier', {
 
       params: { supplierId },

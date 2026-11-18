@@ -1815,6 +1815,14 @@ export interface PurchaseOrderSummary {
 
   payableOutstanding: number;
 
+  returnedCount: number;
+
+  returnedAmount: number;
+
+  receivableCount: number;
+
+  receivableAmount: number;
+
 }
 
 

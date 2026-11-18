@@ -17,6 +17,7 @@ import type {
   SalesCollectionPoint,
   StoreSettings,
   Expense,
+  PurchaseReturnableLine,
 } from '@/types';
 
 function supplierForCountry(country: string): { supplierId: string; supplierName: string } {
@@ -996,3 +997,68 @@ export const mockExpenses: Expense[] = [
     updatedAt: new Date().toISOString(),
   },
 ];
+
+/** Supplier return rows used by the mock PO summary KPIs. */
+export const mockSupplierReturns = [
+  {
+    supplierId: 'sup-1',
+    status: 'closed',
+    settlementType: 'stock_only',
+    totalAmount: 4000,
+    amountReceived: 0,
+    writeOffAmount: 0,
+  },
+  {
+    supplierId: 'sup-1',
+    status: 'requested',
+    settlementType: 'refund',
+    totalAmount: 10000,
+    amountReceived: 2000,
+    writeOffAmount: 1000,
+  },
+  {
+    supplierId: 'sup-1',
+    status: 'closed',
+    settlementType: 'refund',
+    totalAmount: 3000,
+    amountReceived: 3000,
+    writeOffAmount: 0,
+  },
+  {
+    supplierId: 'sup-1',
+    status: 'cancelled',
+    settlementType: 'refund',
+    totalAmount: 999,
+    amountReceived: 0,
+    writeOffAmount: 0,
+  },
+  {
+    supplierId: 'sup-2',
+    status: 'requested',
+    settlementType: 'refund',
+    totalAmount: 5000,
+    amountReceived: 0,
+    writeOffAmount: 0,
+  },
+];
+
+export const mockReturnableBySupplier: Record<string, PurchaseReturnableLine[]> = {
+  'sup-1': [
+    {
+      productId: 'prod-1',
+      productName: 'Shin Ramyun Black',
+      availableQty: 12,
+      unitCost: 180,
+      baseUom: 'pcs',
+      sku: 'KM-NOODLE-001',
+    },
+    {
+      productId: 'prod-2',
+      productName: 'Honey Butter Chips',
+      availableQty: 4,
+      unitCost: 220,
+      baseUom: 'pcs',
+      sku: 'KM-SNACK-002',
+    },
+  ],
+};
