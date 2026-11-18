@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanSupplierPaymentDetail, supplierPoKpis } from './supplierPoKpis';
+import { cleanSupplierPaymentDetail, supplierPoKpis, supplierReturnKpis } from './supplierPoKpis';
 
 describe('supplierPoKpis', () => {
   it('excludes draft and cancelled and matches payable outstanding', () => {
@@ -31,6 +31,31 @@ describe('supplierPoKpis', () => {
     ]);
     expect(kpis.paidAmount).toBe(150);
     expect(kpis.payableOutstanding).toBe(0);
+  });
+});
+
+describe('supplierReturnKpis', () => {
+  it('counts every mode in returned goods and only open refunds as receivable', () => {
+    const kpis = supplierReturnKpis([
+      { status: 'closed', settlementType: 'stock_only', totalAmount: 4000 },
+      {
+        status: 'requested',
+        settlementType: 'refund',
+        totalAmount: 10000,
+        amountReceived: 2000,
+        writeOffAmount: 1000,
+      },
+      { status: 'closed', settlementType: 'refund', totalAmount: 3000, amountReceived: 3000 },
+      { status: 'cancelled', settlementType: 'refund', totalAmount: 999 },
+      { status: 'requested', settlementType: 'reduce_payable', totalAmount: 800 },
+    ]);
+
+    expect(kpis).toEqual({
+      returnedCount: 4,
+      returnedAmount: 17800,
+      receivableCount: 1,
+      receivableAmount: 7000,
+    });
   });
 });
 

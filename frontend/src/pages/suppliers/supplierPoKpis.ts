@@ -60,6 +60,51 @@ export function supplierPoKpis(
   };
 }
 
+export interface SupplierReturnKpiInput {
+  status?: string;
+  settlementType?: string;
+  totalAmount?: number;
+  amountReceived?: number;
+  writeOffAmount?: number;
+}
+
+export interface SupplierReturnKpis {
+  returnedCount: number;
+  returnedAmount: number;
+  receivableCount: number;
+  receivableAmount: number;
+}
+
+/** Same returned/receivable rules as the supplier purchase-order summary. */
+export function supplierReturnKpis(returns: SupplierReturnKpiInput[]): SupplierReturnKpis {
+  let returnedCount = 0;
+  let returnedAmount = 0;
+  let receivableCount = 0;
+  let receivableAmount = 0;
+
+  for (const row of returns) {
+    const status = (row.status ?? '').trim().toLowerCase();
+    if (status === 'cancelled') continue;
+    const total = Number(row.totalAmount) || 0;
+    returnedCount += 1;
+    returnedAmount += total;
+    const settlement = (row.settlementType ?? '').trim().toLowerCase();
+    if (status === 'requested' && settlement === 'refund') {
+      receivableCount += 1;
+      const received = Number(row.amountReceived) || 0;
+      const writeOff = Number(row.writeOffAmount) || 0;
+      receivableAmount += Math.max(0, total - received - writeOff);
+    }
+  }
+
+  return {
+    returnedCount,
+    returnedAmount: roundMoney(returnedAmount),
+    receivableCount,
+    receivableAmount: roundMoney(receivableAmount),
+  };
+}
+
 export function cleanSupplierPaymentDetail(row: SupplierPaymentDetail): SupplierPaymentDetail {
   const trim = (value?: string) => {
     const text = value?.trim();

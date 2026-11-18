@@ -284,7 +284,7 @@ export function SupplierDetailPage() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
               gap: 1.5,
               mb: 2.5,
             }}
@@ -338,6 +338,24 @@ export function SupplierDetailPage() {
               icon={<AccountBalanceWalletIcon />}
               color="#b26a00"
               gradient={['rgba(245, 124, 0, 0.14)', 'rgba(245, 124, 0, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Returned goods"
+              value={formatCurrency(summary?.returnedAmount ?? 0)}
+              subtitle={`${summary?.returnedCount ?? 0} returns`}
+              icon={<AssignmentReturnIcon />}
+              color="#6d28d9"
+              gradient={['rgba(109, 40, 217, 0.12)', 'rgba(109, 40, 217, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Amount receivable"
+              value={formatCurrency(summary?.receivableAmount ?? 0)}
+              subtitle={`${summary?.receivableCount ?? 0} open refund${(summary?.receivableCount ?? 0) === 1 ? '' : 's'}`}
+              icon={<PaymentsIcon />}
+              color="#0369a1"
+              gradient={['rgba(3, 105, 161, 0.12)', 'rgba(3, 105, 161, 0.02)']}
               loading={poLoading}
             />
           </Box>

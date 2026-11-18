@@ -55,6 +55,30 @@ async def _po_ids_for_supplier(supplier_id: str) -> list[str]:
     return [str(doc["_id"]) for doc in await cursor.to_list(None)]
 
 
+async def _returnable_po_ids_for_supplier(supplier_id: str) -> list[str]:
+    """Committed POs only. Draft and cancelled are ignored, including legacy case."""
+    from app.models.purchase_order import COMMITTED_PO_STATUSES, normalized_po_status_expr
+
+    col = PurchaseOrder.get_motor_collection()
+    docs = await col.aggregate(
+        [
+            {"$match": {"supplier_id": supplier_id}},
+            {"$addFields": {"_status_norm": normalized_po_status_expr()}},
+            {"$match": {"_status_norm": {"$in": list(COMMITTED_PO_STATUSES)}}},
+            {"$project": {"_id": 1}},
+        ]
+    ).to_list(None)
+    return [str(doc["_id"]) for doc in docs]
+
+
+def _missing_catalog_product(product_name: str, product_id: str) -> HTTPException:
+    label = (product_name or "").strip() or product_id
+    return HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        detail=f"Product {label} is no longer in the catalog and cannot be returned",
+    )
+
+
 async def leftover_for_supplier(product_id: str, supplier_id: str) -> int:
     po_ids = await _po_ids_for_supplier(supplier_id)
     if not po_ids:
@@ -78,7 +102,7 @@ async def list_supplier_returnable_batches(supplier_id: str) -> list[InventoryBa
 
 async def aggregate_supplier_returnable_by_product(supplier_id: str) -> dict[str, dict]:
     """qty / cost aggregates per product without loading full batch docs into Beanie."""
-    po_ids = await _po_ids_for_supplier(supplier_id)
+    po_ids = await _returnable_po_ids_for_supplier(supplier_id)
     if not po_ids:
         return {}
     col = InventoryBatch.get_motor_collection()
@@ -151,7 +175,7 @@ async def _deduct_from_batches(
 
     product = await Product.get(product_id)
     if not product:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Product {product_name} not found")
+        raise _missing_catalog_product(product_name, product_id)
 
     deductions: list[BatchDeduction] = []
     remaining = quantity
@@ -200,7 +224,7 @@ async def reverse_po_batches(
 ) -> list[BatchDeduction]:
     product = await Product.get(product_id)
     if not product:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Product {product_name} not found")
+        raise _missing_catalog_product(product_name, product_id)
 
     batches = await InventoryBatch.find(
         InventoryBatch.product_id == product_id,
@@ -243,7 +267,7 @@ async def reverse_supplier_batches(
 ) -> list[BatchDeduction]:
     product = await Product.get(product_id)
     if not product:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Product {product_name} not found")
+        raise _missing_catalog_product(product_name, product_id)
 
     po_ids = await _po_ids_for_supplier(supplier_id)
     if not po_ids:

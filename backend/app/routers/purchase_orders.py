@@ -6,6 +6,7 @@ import re
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
+from app.services.dashboard_kpi import supplier_return_kpis
 from app.services.po_receive import receive_purchase_order_items
 from app.services.po_payment import record_payment
 from app.models.purchase_order import (
@@ -626,6 +627,9 @@ async def list_purchase_orders(
             paid_amount=round(float(row.get("paid_amount") or 0), 2),
             payable_outstanding=round(float(row.get("payable_outstanding") or 0), 2),
         )
+        if supplier_id:
+            return_kpis = await supplier_return_kpis(supplier_id)
+            summary = summary.model_copy(update=return_kpis)
 
     sort_field, sort_dir = _resolve_po_list_sort(sort_by, sort_order)
     # Always compute item count so Items column sorting works on both lean/full list.
