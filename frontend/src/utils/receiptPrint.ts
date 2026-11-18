@@ -220,9 +220,9 @@ function schedulePrint(targetWindow: Window, onDone?: () => void): void {
   }
 }
 
-function printViaIframe(docHtml: string): PrintResult {
+function printViaIframe(docHtml: string, iframeTitle = 'Receipt print'): PrintResult {
   const iframe = document.createElement('iframe');
-  iframe.setAttribute('title', 'Receipt print');
+  iframe.setAttribute('title', iframeTitle);
   iframe.style.cssText =
     'position:fixed;top:0;left:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
@@ -251,15 +251,20 @@ function printViaIframe(docHtml: string): PrintResult {
 }
 
 /**
- * Open browser print dialog for a thermal receipt.
- * Uses blob URL (fixes blank/white print window) with iframe fallback.
+ * Open the browser print dialog for a full HTML document.
+ * Uses a blob URL (avoids a blank print window) with an iframe fallback.
  */
-export function printReceipt(htmlBody: string): PrintResult {
-  const docHtml = buildPrintDocument(htmlBody);
+export function printHtmlDocument(
+  docHtml: string,
+  options?: { width?: number; height?: number; iframeTitle?: string },
+): PrintResult {
+  const width = options?.width ?? 420;
+  const height = options?.height ?? 720;
+  const iframeTitle = options?.iframeTitle ?? 'Receipt print';
   const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
 
-  const popup = window.open(url, '_blank', 'width=420,height=720,scrollbars=yes');
+  const popup = window.open(url, '_blank', `width=${width},height=${height},scrollbars=yes`);
 
   if (popup) {
     const cleanup = () => {
@@ -276,7 +281,15 @@ export function printReceipt(htmlBody: string): PrintResult {
   }
 
   URL.revokeObjectURL(url);
-  return printViaIframe(docHtml);
+  return printViaIframe(docHtml, iframeTitle);
+}
+
+/**
+ * Open browser print dialog for a thermal receipt.
+ * Uses blob URL (fixes blank/white print window) with iframe fallback.
+ */
+export function printReceipt(htmlBody: string): PrintResult {
+  return printHtmlDocument(buildPrintDocument(htmlBody));
 }
 
 type PdfLine =
