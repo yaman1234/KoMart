@@ -88,6 +88,7 @@ import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowH
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
 import { MAX_PO_LINE_QUANTITY } from '@/constants';
 import { parsePoQuantity, receiveQuantityError } from '@/pages/purchase-orders/poQuantity';
+import { EntityAuditLog } from '@/components/common/EntityAuditLog';
 
 type LastBuyInfo = {
   unitCost: number | null;
@@ -1567,6 +1568,8 @@ export function PurchaseOrderDetailPage() {
         onConfirm={() => void handleReceive()}
         onCancel={() => setReceiveConfirmOpen(false)}
       />
+
+      <EntityAuditLog entityId={po.id} module="purchase_orders" />
     </Box>
   );
 }
