@@ -25,6 +25,7 @@ import { useAuthStore } from '@/store';
 import { formatCurrency, formatExpiryDate, isAdmin, navigateBack } from '@/utils';
 import { formatStockQty } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
+import { EntityAuditLog } from '@/components/common/EntityAuditLog';
 import type { InventoryBatch } from '@/types';
 import { useFormatDate } from '@/hooks/useFormatDate';
 
@@ -240,6 +241,8 @@ export function InventoryDetailPage() {
           });
         }}
       />
+
+      <EntityAuditLog entityId={item.id} module="inventory" />
     </Box>
   );
 }

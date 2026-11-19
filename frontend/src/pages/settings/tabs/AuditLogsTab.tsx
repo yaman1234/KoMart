@@ -3,9 +3,6 @@ import { useListState, stringParam, pageParam, pageSizeParam } from '@/hooks/use
 import {
   Box,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   FormControl,
   Grid,
   InputLabel,
@@ -17,9 +14,10 @@ import {
 } from '@mui/material';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
+import { AuditLogDetailDialog } from '@/components/common/AuditLogDetailDialog';
 import { useAuditLogs } from '@/hooks/useAuditLogs';
 import { AUDIT_ACTION_LABELS, AUDIT_MODULE_LABELS } from '@/constants';
-import { formatAuditAction, formatAuditField, formatDateTime, summarizeAuditValues } from '@/utils';
+import { formatAuditAction, formatDateTime, summarizeAuditValues } from '@/utils';
 import type { AuditLog, AuditModule } from '@/types';
 
 const MODULES: AuditModule[] = [
@@ -122,7 +120,7 @@ export function AuditLogsTab() {
       minWidth: 220,
       render: (row) => (
         <Typography variant="body2" color="text.secondary" noWrap title={summarizeAuditValues(row.newValue)}>
-          {summarizeAuditValues(row.newValue)}
+          {summarizeAuditValues(row.newValue) || '—'}
         </Typography>
       ),
     },
@@ -199,65 +197,7 @@ export function AuditLogsTab() {
         emptyMessage="No audit logs found"
       />
 
-      <Dialog open={!!selected} onClose={() => setSelected(null)} maxWidth="md" fullWidth>
-        <DialogTitle>Audit Log Detail</DialogTitle>
-        <DialogContent dividers>
-          {selected && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Typography variant="body2">
-                <strong>When:</strong> {formatDateTime(selected.createdAt)}
-              </Typography>
-              <Typography variant="body2">
-                <strong>User:</strong> {selected.userName} ({selected.userEmail})
-              </Typography>
-              <Typography variant="body2">
-                <strong>Action:</strong>{' '}
-                {AUDIT_MODULE_LABELS[selected.module] ?? selected.module} —{' '}
-                {AUDIT_ACTION_LABELS[selected.action] ?? formatAuditAction(selected.action)}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Entity:</strong> {entityLabel(selected)}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Request ID:</strong> {selected.requestId || '—'}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Client:</strong> {selected.browser} on {selected.device} — {selected.ipAddress || '—'}
-              </Typography>
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>Previous</Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {summarizeAuditValues(selected.previousValue)}
-                </Typography>
-                {Object.keys(selected.previousValue).length > 0 && (
-                  <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                    {Object.entries(selected.previousValue).map(([k, v]) => (
-                      <Typography key={k} component="li" variant="body2">
-                        {formatAuditField(k, v)}
-                      </Typography>
-                    ))}
-                  </Box>
-                )}
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>New</Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {summarizeAuditValues(selected.newValue)}
-                </Typography>
-                {Object.keys(selected.newValue).length > 0 && (
-                  <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                    {Object.entries(selected.newValue).map(([k, v]) => (
-                      <Typography key={k} component="li" variant="body2">
-                        {formatAuditField(k, v)}
-                      </Typography>
-                    ))}
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+      <AuditLogDetailDialog log={selected} onClose={() => setSelected(null)} showEntity />
     </Box>
   );
 }

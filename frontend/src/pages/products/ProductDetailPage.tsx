@@ -39,6 +39,7 @@ import {
 } from '@/utils';
 import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
+import { EntityAuditLog } from '@/components/common/EntityAuditLog';
 
 function displayValue(value: string | number | null | undefined): string {
   if (value == null) return '—';
@@ -585,6 +586,8 @@ export function ProductDetailPage() {
           </Grid>
         </Grid>
       </Paper>
+
+      <EntityAuditLog entityId={product.id} module="products" />
     </Box>
   );
 }
