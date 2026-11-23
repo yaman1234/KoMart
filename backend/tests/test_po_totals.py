@@ -54,6 +54,8 @@ def test_compute_po_totals_formula():
         PurchaseOrderItem(product_id="a", product_name="A", quantity=2, unit_cost=100),
         PurchaseOrderItem(product_id="b", product_name="B", quantity=1, unit_cost=50),
     ]
+    assert items[0].line_total == 200.0
+    assert items[1].line_total == 50.0
     t = compute_po_totals(items, discount=25, additional_charges=10)
     assert t["subtotal"] == 250.0
     assert t["discount"] == 25.0
@@ -344,3 +346,39 @@ async def test_vat_bill_flag_persists_on_create_and_edit(client: AsyncClient, ma
             if row is not None:
                 await row.delete()
         await _set_tax_rate(previous_rate)
+
+
+@pytest.mark.asyncio
+async def test_po_response_includes_line_total(client: AsyncClient, manager_user: User):
+    token = await _login(client, manager_user.email, "managerpass123")
+    po = PurchaseOrder(
+        order_number=f"PO-LINE-{uuid.uuid4().hex[:6]}",
+        supplier_id="sup-1",
+        supplier_name="Supplier",
+        status=POStatus.ordered,
+        items=[
+            PurchaseOrderItem(
+                product_id="p1",
+                product_name="Snack",
+                quantity=4,
+                unit_cost=25.5,
+                received_quantity=0,
+            )
+        ],
+        total_amount=102.0,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    await po.insert()
+    try:
+        res = await client.get(
+            f"/api/v1/purchase-orders/{po.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res.status_code == 200, res.text
+        data = res.json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["line_total"] == 102.0
+    finally:
+        await po.delete()
+
