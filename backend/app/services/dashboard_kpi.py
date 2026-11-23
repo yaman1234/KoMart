@@ -7,7 +7,12 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from app.models.expense import Expense, ExpenseCategory
-from app.models.purchase_order import POStatus, PurchaseOrder
+from app.models.purchase_order import (
+    COMMITTED_PO_STATUSES,
+    PurchaseOrder,
+    normalized_po_status_expr,
+    payable_outstanding_expr,
+)
 from app.models.purchase_return import PurchaseReturnStatus, ReturnSettlementType
 from app.models.settings import StoreSettings
 from app.models.transaction import Transaction, TransactionStatus
@@ -134,41 +139,23 @@ async def current_bank_balance(settings: StoreSettings, fy_start: datetime) -> f
     return await current_wallet_balance(settings, fy_start, method="bank")
 
 
-# Same liability set as Reports Active PO Bills / total outstanding AP:
-# ordered, partially received, and received. Drafts are not liabilities yet.
-_PAYABLE_PO_STATUSES = (
-    POStatus.ordered.value,
-    POStatus.partial.value,
-    POStatus.received.value,
-)
-
-
 async def total_payables() -> float:
     """Outstanding AP for ordered, partial, and received POs.
 
     Drafts and cancelled orders are excluded so this matches Reports
-    `total_outstanding_ap` (Active PO Bills). Aggregation avoids Beanie hydration.
+    `total_outstanding_ap` (Active PO Bills). Status is normalized the same
+    way as PO list/GET so legacy values such as ``Received`` are included.
+    Aggregation avoids Beanie hydration.
     """
     col = PurchaseOrder.get_motor_collection()
     rows = await col.aggregate(
         [
-            {"$match": {"status": {"$in": list(_PAYABLE_PO_STATUSES)}}},
+            {"$addFields": {"_status_norm": normalized_po_status_expr()}},
+            {"$match": {"_status_norm": {"$in": list(COMMITTED_PO_STATUSES)}}},
             {
                 "$group": {
                     "_id": None,
-                    "outstanding": {
-                        "$sum": {
-                            "$max": [
-                                0,
-                                {
-                                    "$subtract": [
-                                        {"$ifNull": ["$total_amount", 0]},
-                                        {"$ifNull": ["$amount_paid", 0]},
-                                    ]
-                                },
-                            ]
-                        }
-                    },
+                    "outstanding": {"$sum": payable_outstanding_expr()},
                 }
             },
         ]
@@ -176,6 +163,26 @@ async def total_payables() -> float:
     if not rows:
         return 0.0
     return round(float(rows[0].get("outstanding") or 0), 2)
+
+
+def refund_outstanding_expr() -> dict:
+    """max(0, total_amount - amount_received - write_off_amount)."""
+    return {
+        "$max": [
+            0,
+            {
+                "$subtract": [
+                    {"$ifNull": ["$total_amount", 0]},
+                    {
+                        "$add": [
+                            {"$ifNull": ["$amount_received", 0]},
+                            {"$ifNull": ["$write_off_amount", 0]},
+                        ]
+                    },
+                ]
+            },
+        ]
+    }
 
 
 async def total_return_receivables() -> float:
@@ -194,24 +201,7 @@ async def total_return_receivables() -> float:
             {
                 "$group": {
                     "_id": None,
-                    "outstanding": {
-                        "$sum": {
-                            "$max": [
-                                0,
-                                {
-                                    "$subtract": [
-                                        {"$ifNull": ["$total_amount", 0]},
-                                        {
-                                            "$add": [
-                                                {"$ifNull": ["$amount_received", 0]},
-                                                {"$ifNull": ["$write_off_amount", 0]},
-                                            ]
-                                        },
-                                    ]
-                                },
-                            ]
-                        }
-                    },
+                    "outstanding": {"$sum": refund_outstanding_expr()},
                 }
             },
         ]
@@ -219,6 +209,51 @@ async def total_return_receivables() -> float:
     if not rows:
         return 0.0
     return round(float(rows[0].get("outstanding") or 0), 2)
+
+
+async def supplier_return_kpis(supplier_id: str) -> dict[str, float | int]:
+    """Returned goods and open-refund receivable for one supplier.
+
+    Returned totals include every non-cancelled return (all settlement modes).
+    Receivable uses the same open-refund outstanding rule as total_return_receivables.
+    """
+    from app.models.purchase_return import PurchaseReturn
+
+    open_refund = {
+        "$and": [
+            {"$eq": ["$status", PurchaseReturnStatus.requested.value]},
+            {"$eq": ["$settlement_type", ReturnSettlementType.refund.value]},
+        ]
+    }
+    col = PurchaseReturn.get_motor_collection()
+    rows = await col.aggregate(
+        [
+            {
+                "$match": {
+                    "supplier_id": supplier_id,
+                    "status": {"$ne": "cancelled"},
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "returned_count": {"$sum": 1},
+                    "returned_amount": {"$sum": {"$ifNull": ["$total_amount", 0]}},
+                    "receivable_count": {"$sum": {"$cond": [open_refund, 1, 0]}},
+                    "receivable_amount": {
+                        "$sum": {"$cond": [open_refund, refund_outstanding_expr(), 0]}
+                    },
+                }
+            },
+        ]
+    ).to_list(1)
+    row = rows[0] if rows else {}
+    return {
+        "returned_count": int(row.get("returned_count") or 0),
+        "returned_amount": round(float(row.get("returned_amount") or 0), 2),
+        "receivable_count": int(row.get("receivable_count") or 0),
+        "receivable_amount": round(float(row.get("receivable_amount") or 0), 2),
+    }
 
 
 async def _purchase_return_received_sum(date_gte: str, date_lte: str | None = None) -> float:

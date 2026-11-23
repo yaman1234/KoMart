@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { supplierService } from '@/services';
 import type { ListQueryParams, Supplier } from '@/types';
@@ -11,6 +11,7 @@ export function useSuppliers(
     queryKey: [...QUERY_KEYS.suppliers, params],
     queryFn: () => supplierService.getAll(params),
     enabled: options?.enabled ?? true,
+    placeholderData: keepPreviousData,
   });
 }
 
