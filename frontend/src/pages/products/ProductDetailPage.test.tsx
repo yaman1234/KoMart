@@ -138,10 +138,10 @@ describe('ProductDetailPage', () => {
       buttonByText('Print barcode')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(document.body.textContent).toContain('Preview enlarged');
-    expect(document.body.textContent).toContain('38mm × 25mm');
+    expect(document.body.textContent).toContain('Physical roll preview');
+    expect(document.body.textContent).toContain('20mm');
     expect(document.body.innerHTML).toContain('shape-rendering="crispEdges"');
-    expect(document.body.innerHTML).toContain('>123<');
+    expect(document.body.textContent).toContain('Shin Ramyun');
   });
 
   it('shows Piece only when the product has no pack conversion', () => {

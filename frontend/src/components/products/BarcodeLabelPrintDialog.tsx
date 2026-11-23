@@ -17,6 +17,7 @@ import {
   LABEL_COPIES_MAX,
   LABEL_COPIES_MIN,
   LABEL_HEIGHT_MM,
+  LABEL_SHEET_WIDTH_MM,
   LABEL_WIDTH_MM,
 } from '@/utils/labelPrint';
 import type { LabelProduct } from '@/utils/labelCode';
@@ -28,16 +29,18 @@ interface BarcodeLabelPrintDialogProps {
   onClose: () => void;
 }
 
+const PREVIEW_SCALE = 1.5;
+
 export function BarcodeLabelPrintDialog({ open, product, onClose }: BarcodeLabelPrintDialogProps) {
-  const [copies, setCopies] = useState(1);
+  const [copies, setCopies] = useState(2);
   const valid = labelCopiesValid(copies);
   const previewHtml = useMemo(
-    () => (product ? buildLabelPreviewHtml(product) : ''),
-    [product],
+    () => (product ? buildLabelPreviewHtml(product, copies) : ''),
+    [product, copies],
   );
 
   useEffect(() => {
-    if (open) setCopies(1);
+    if (open) setCopies(2);
   }, [open]);
 
   const handlePrint = () => {
@@ -56,8 +59,8 @@ export function BarcodeLabelPrintDialog({ open, product, onClose }: BarcodeLabel
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Print barcode</DialogTitle>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Print barcode label</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {product?.name}
@@ -77,27 +80,36 @@ export function BarcodeLabelPrintDialog({ open, product, onClose }: BarcodeLabel
           sx={{ mb: 2, width: 160 }}
         />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-          Preview enlarged ×2. Printed label is {LABEL_WIDTH_MM}mm × {LABEL_HEIGHT_MM}mm.
+          Physical roll preview ({LABEL_SHEET_WIDTH_MM}mm roll: two {LABEL_WIDTH_MM}mm × {LABEL_HEIGHT_MM}mm stickers).
         </Typography>
         <Box
           sx={{
-            width: `${LABEL_WIDTH_MM * 2}mm`,
-            height: `${LABEL_HEIGHT_MM * 2}mm`,
-            overflow: 'hidden',
+            display: 'flex',
+            justifyContent: 'center',
+            p: 1.5,
+            bgcolor: 'grey.100',
+            borderRadius: 1,
             border: '1px solid',
             borderColor: 'divider',
-            bgcolor: '#fff',
           }}
         >
           <Box
             sx={{
-              width: `${LABEL_WIDTH_MM}mm`,
-              height: `${LABEL_HEIGHT_MM}mm`,
-              transform: 'scale(2)',
-              transformOrigin: 'top left',
+              width: `${LABEL_SHEET_WIDTH_MM * PREVIEW_SCALE}mm`,
+              height: `${LABEL_HEIGHT_MM * PREVIEW_SCALE}mm`,
+              overflow: 'hidden',
             }}
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-          />
+          >
+            <Box
+              sx={{
+                width: `${LABEL_SHEET_WIDTH_MM}mm`,
+                height: `${LABEL_HEIGHT_MM}mm`,
+                transform: `scale(${PREVIEW_SCALE})`,
+                transformOrigin: 'top left',
+              }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          </Box>
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
