@@ -49,6 +49,7 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useUomOptions } from '@/hooks/useUoms';
 import { productService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
+import { productCodeConflictField } from '@/pages/products/productCodeConflict';
 import type { ProductBulkCreateItem, ProductStatus, Supplier } from '@/types';
 import { defaultPrimaryUom, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showInfo, showSuccess } from '@/utils/toast';
@@ -724,13 +725,14 @@ export function BulkProductFormPage() {
             const binding = bindings.find((entry) => entry.rowNum === item.row);
             if (!binding) continue;
             const detail = item.detail || 'Could not create product';
-            const field = /barcode/i.test(detail)
-              ? 'barcode'
-              : /sku/i.test(detail)
-                ? 'sku'
-                : /name/i.test(detail)
-                  ? 'name'
-                  : null;
+            const field = productCodeConflictField(detail)
+              ?? (/barcode/i.test(detail)
+                ? 'barcode'
+                : /sku/i.test(detail)
+                  ? 'sku'
+                  : /name/i.test(detail)
+                    ? 'name'
+                    : null);
             if (!field) continue;
             next[binding.id] = { ...next[binding.id], [field]: detail };
           }

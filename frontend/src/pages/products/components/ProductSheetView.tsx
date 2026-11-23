@@ -15,6 +15,7 @@ import {
   TablePagination,
   TableRow,
   TableSortLabel,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -26,11 +27,14 @@ import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import PrintIcon from '@mui/icons-material/Print';
 import { useNavigate } from 'react-router-dom';
 import { getErrorMessage } from '@/services/apiClient';
 import { productService } from '@/services';
 import type { ListQueryParams, Product, ProductBulkUpdateItem, ProductStatus, Supplier } from '@/types';
 import { showSuccess, showWarning, showError, showInfo } from '@/utils/toast';
+import { labelCopiesValid, printProductLabels, LABEL_COPIES_MAX, LABEL_COPIES_MIN } from '@/utils/labelPrint';
+import { productCodeConflictField } from '@/pages/products/productCodeConflict';
 import { copyProductsToClipboard } from '@/pages/products/productPasteExport';
 import { exportProductsToExcel } from '@/pages/products/exportProductsExcel';
 import {
@@ -543,7 +547,10 @@ const SheetRow = memo(function SheetRow({
           ? col.field as keyof Product
           : undefined;
         const fieldError = fieldKey ? fieldErrors?.[fieldKey] : undefined;
-        const serverOnBarcode = Boolean(serverError && /barcode/i.test(serverError));
+        const conflictField = serverError ? productCodeConflictField(serverError) : null;
+        const serverOnBarcode = conflictField
+          ? conflictField === 'barcode'
+          : Boolean(serverError && /barcode/i.test(serverError));
         const showServerError = Boolean(serverError) && (
           serverOnBarcode ? col.key === 'barcode' : col.key === 'sku'
         );
@@ -614,6 +621,7 @@ export function ProductSheetView({
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copying, setCopying] = useState(false);
+  const [labelCopies, setLabelCopies] = useState(1);
   const [bulkEditMode, setBulkEditMode] = useState(false);
   const [bulkEditActivating, setBulkEditActivating] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Partial<Product>>>({});
@@ -743,6 +751,29 @@ export function ProductSheetView({
       return;
     }
     navigate('/purchase-orders/new', { state: { prefillProducts: selectedWithSku } });
+  };
+
+  const handlePrintLabels = () => {
+    const selected = displayProducts.filter((p) => selectedIds.has(p.id));
+    if (selected.length === 0) {
+      showWarning('Select at least one product');
+      return;
+    }
+    if (!labelCopiesValid(labelCopies)) {
+      showWarning(`Copies must be ${LABEL_COPIES_MIN}–${LABEL_COPIES_MAX}`);
+      return;
+    }
+    const result = printProductLabels(selected, labelCopies);
+    if (!result.ok) {
+      showError(result.message ?? 'Print blocked. Allow pop-ups for this site.');
+      return;
+    }
+    if (result.skipped > 0) {
+      showWarning(
+        `${result.skipped} product${result.skipped === 1 ? '' : 's'} skipped — no barcode or SKU.`,
+      );
+    }
+    showInfo('Print dialog opened.');
   };
 
   const handleCellChange = useCallback((productId: string, field: keyof Product, value: unknown) => {
@@ -932,6 +963,32 @@ export function ProductSheetView({
           >
             Copy selected
           </Button>
+        )}
+        {!bulkEditMode && (
+          <>
+            <TextField
+              size="small"
+              type="number"
+              label="Copies"
+              value={labelCopies}
+              onChange={(event) => {
+                const next = Number.parseInt(event.target.value, 10);
+                setLabelCopies(Number.isNaN(next) ? 0 : next);
+              }}
+              slotProps={{ htmlInput: { min: LABEL_COPIES_MIN, max: LABEL_COPIES_MAX, step: 1 } }}
+              error={!labelCopiesValid(labelCopies)}
+              sx={{ width: 88 }}
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              disabled={selectedIds.size === 0 || !labelCopiesValid(labelCopies)}
+              onClick={handlePrintLabels}
+            >
+              Print labels
+            </Button>
+          </>
         )}
         {canBulkEdit && !bulkEditMode && (
           <Tooltip title="Same columns as Bulk Add Import">
