@@ -51,6 +51,10 @@ vi.mock('@/hooks/useFormatDate', () => ({
   useFormatDate: () => (value: string) => value,
 }));
 
+vi.mock('@/components/common/EntityAuditLog', () => ({
+  EntityAuditLog: () => null,
+}));
+
 const mockPo: PurchaseOrder = {
   id: 'po-test-1',
   orderNumber: 'PO-2026-001',
