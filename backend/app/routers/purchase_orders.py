@@ -6,13 +6,18 @@ import re
 
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
+from app.services.dashboard_kpi import supplier_return_kpis
 from app.services.po_receive import receive_purchase_order_items
 from app.services.po_payment import record_payment
 from app.models.purchase_order import (
     PurchaseOrder,
     POStatus,
     PaymentStatus,
+    COMMITTED_PO_STATUSES,
     compute_payment_status,
+    normalize_po_status,
+    normalized_po_status_expr,
+    payable_outstanding_expr,
 )
 from app.schemas.purchase_order import (
     PurchaseOrderCreate,
@@ -208,11 +213,7 @@ def _soft_response_from_doc(doc: dict) -> PurchaseOrderResponse:
     except ValueError:
         payment_status = compute_payment_status(amount_paid, total_amount)
 
-    raw_po_status = doc.get("status") or "draft"
-    try:
-        po_status = POStatus(str(raw_po_status).strip().lower())
-    except ValueError:
-        po_status = POStatus.draft
+    po_status = normalize_po_status(doc.get("status"))
 
     items_count = int(doc.get("_items_count") or 0)
     if not items_count and doc.get("items") is not None:
@@ -409,13 +410,14 @@ async def list_purchase_orders(
 
         summary_rows = await col.aggregate([
             {"$match": kpi_match} if kpi_match else {"$match": {}},
+            {"$addFields": {"_status_norm": normalized_po_status_expr()}},
             {
                 "$group": {
                     "_id": None,
                     "received_total_amount": {
                         "$sum": {
                             "$cond": [
-                                {"$eq": ["$status", POStatus.received.value]},
+                                {"$eq": ["$_status_norm", POStatus.received.value]},
                                 {"$ifNull": ["$total_amount", 0]},
                                 0,
                             ]
@@ -424,7 +426,7 @@ async def list_purchase_orders(
                     "total_purchases_amount": {
                         "$sum": {
                             "$cond": [
-                                {"$ne": ["$status", POStatus.cancelled.value]},
+                                {"$ne": ["$_status_norm", POStatus.cancelled.value]},
                                 {"$ifNull": ["$total_amount", 0]},
                                 0,
                             ]
@@ -433,7 +435,7 @@ async def list_purchase_orders(
                     "total_purchases_count": {
                         "$sum": {
                             "$cond": [
-                                {"$ne": ["$status", POStatus.cancelled.value]},
+                                {"$ne": ["$_status_norm", POStatus.cancelled.value]},
                                 1,
                                 0,
                             ]
@@ -442,7 +444,7 @@ async def list_purchase_orders(
                     "total_paid_amount": {
                         "$sum": {
                             "$cond": [
-                                {"$ne": ["$status", POStatus.cancelled.value]},
+                                {"$ne": ["$_status_norm", POStatus.cancelled.value]},
                                 {"$ifNull": ["$amount_paid", 0]},
                                 0,
                             ]
@@ -451,7 +453,7 @@ async def list_purchase_orders(
                     "amount_due": {
                         "$sum": {
                             "$cond": [
-                                {"$eq": ["$status", POStatus.received.value]},
+                                {"$eq": ["$_status_norm", POStatus.received.value]},
                                 {
                                     "$max": [
                                         0,
@@ -472,7 +474,7 @@ async def list_purchase_orders(
                             "$cond": [
                                 {
                                     "$and": [
-                                        {"$eq": ["$status", POStatus.received.value]},
+                                        {"$eq": ["$_status_norm", POStatus.received.value]},
                                         {
                                             "$gt": [
                                                 {
@@ -494,7 +496,7 @@ async def list_purchase_orders(
                     "pending_delivery_count": {
                         "$sum": {
                             "$cond": [
-                                {"$in": ["$status", [POStatus.ordered.value, POStatus.partial.value]]},
+                                {"$in": ["$_status_norm", [POStatus.ordered.value, POStatus.partial.value]]},
                                 1,
                                 0,
                             ]
@@ -503,7 +505,7 @@ async def list_purchase_orders(
                     "pending_delivery_amount": {
                         "$sum": {
                             "$cond": [
-                                {"$in": ["$status", [POStatus.ordered.value, POStatus.partial.value]]},
+                                {"$in": ["$_status_norm", [POStatus.ordered.value, POStatus.partial.value]]},
                                 {"$ifNull": ["$total_amount", 0]},
                                 0,
                             ]
@@ -512,7 +514,7 @@ async def list_purchase_orders(
                     "cancelled_count": {
                         "$sum": {
                             "$cond": [
-                                {"$eq": ["$status", POStatus.cancelled.value]},
+                                {"$eq": ["$_status_norm", POStatus.cancelled.value]},
                                 1,
                                 0,
                             ]
@@ -521,8 +523,80 @@ async def list_purchase_orders(
                     "cancelled_amount": {
                         "$sum": {
                             "$cond": [
-                                {"$eq": ["$status", POStatus.cancelled.value]},
+                                {"$eq": ["$_status_norm", POStatus.cancelled.value]},
                                 {"$ifNull": ["$total_amount", 0]},
+                                0,
+                            ]
+                        }
+                    },
+                    "committed_count": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$_status_norm", list(COMMITTED_PO_STATUSES)]},
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                    "committed_amount": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$_status_norm", list(COMMITTED_PO_STATUSES)]},
+                                {"$ifNull": ["$total_amount", 0]},
+                                0,
+                            ]
+                        }
+                    },
+                    "received_count": {
+                        "$sum": {
+                            "$cond": [
+                                {"$eq": ["$_status_norm", POStatus.received.value]},
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                    "received_amount": {
+                        "$sum": {
+                            "$cond": [
+                                {"$eq": ["$_status_norm", POStatus.received.value]},
+                                {"$ifNull": ["$total_amount", 0]},
+                                0,
+                            ]
+                        }
+                    },
+                    "pending_count": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$_status_norm", [POStatus.ordered.value, POStatus.partial.value]]},
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                    "pending_amount": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$_status_norm", [POStatus.ordered.value, POStatus.partial.value]]},
+                                {"$ifNull": ["$total_amount", 0]},
+                                0,
+                            ]
+                        }
+                    },
+                    "paid_amount": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$_status_norm", list(COMMITTED_PO_STATUSES)]},
+                                {"$ifNull": ["$amount_paid", 0]},
+                                0,
+                            ]
+                        }
+                    },
+                    "payable_outstanding": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$_status_norm", list(COMMITTED_PO_STATUSES)]},
+                                payable_outstanding_expr(),
                                 0,
                             ]
                         }
@@ -544,7 +618,18 @@ async def list_purchase_orders(
             pending_delivery_amount=round(float(row.get("pending_delivery_amount") or 0), 2),
             cancelled_count=int(row.get("cancelled_count") or 0),
             cancelled_amount=round(float(row.get("cancelled_amount") or 0), 2),
+            committed_count=int(row.get("committed_count") or 0),
+            committed_amount=round(float(row.get("committed_amount") or 0), 2),
+            received_count=int(row.get("received_count") or 0),
+            received_amount=round(float(row.get("received_amount") or 0), 2),
+            pending_count=int(row.get("pending_count") or 0),
+            pending_amount=round(float(row.get("pending_amount") or 0), 2),
+            paid_amount=round(float(row.get("paid_amount") or 0), 2),
+            payable_outstanding=round(float(row.get("payable_outstanding") or 0), 2),
         )
+        if supplier_id:
+            return_kpis = await supplier_return_kpis(supplier_id)
+            summary = summary.model_copy(update=return_kpis)
 
     sort_field, sort_dir = _resolve_po_list_sort(sort_by, sort_order)
     # Always compute item count so Items column sorting works on both lean/full list.

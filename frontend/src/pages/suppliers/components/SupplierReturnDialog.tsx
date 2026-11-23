@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Checkbox,
   CircularProgress,
   MenuItem,
@@ -44,7 +45,7 @@ interface LineDraft {
 }
 
 export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierReturnDialogProps) {
-  const { data, isLoading, isFetching, isSuccess } = useSupplierReturnableLines(supplierId, open);
+  const { data, isLoading, isError, isSuccess, refetch } = useSupplierReturnableLines(supplierId, open);
   const lines = isSuccess ? (data ?? []) : [];
   const createMutation = useCreatePurchaseReturn();
   const [drafts, setDrafts] = useState<Record<string, LineDraft>>({});
@@ -67,7 +68,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
     if (!open || !isSuccess) return;
     const next: Record<string, LineDraft> = {};
     for (const line of lines) {
-      next[line.productId] = { selected: false, qty: line.availableQty };
+      next[line.productId] = { selected: false, qty: 1 };
     }
     setDrafts(next);
   }, [open, isSuccess, lines]);
@@ -85,6 +86,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
   const selectedTotal = useMemo(() => {
     let total = 0;
     for (const line of lines) {
+      if (!line.productId?.trim() || !line.sku?.trim()) continue;
       const d = drafts[line.productId];
       if (!d?.selected) continue;
       total += line.unitCost * Math.min(d.qty, line.availableQty);
@@ -94,7 +96,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
 
   const handleSubmit = async () => {
     const items = lines
-      .filter((l) => drafts[l.productId]?.selected)
+      .filter((l) => l.productId?.trim() && l.sku?.trim() && drafts[l.productId]?.selected)
       .map((l) => ({
         productId: l.productId,
         returnQty: Math.min(drafts[l.productId]?.qty ?? 0, l.availableQty),
@@ -128,7 +130,10 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
     }
   };
 
-  const busy = createMutation.isPending || isLoading || isFetching;
+  const selectedCount = lines.filter(
+    (line) => line.productId?.trim() && line.sku?.trim() && drafts[line.productId]?.selected && (drafts[line.productId]?.qty ?? 0) > 0,
+  ).length;
+  const busy = createMutation.isPending || isLoading;
 
   return (
     <FormModal
@@ -150,7 +155,17 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
         stock from this supplier&apos;s POs can be returned.
       </Typography>
 
-      {(isLoading || isFetching) && !isSuccess && (
+      {isError && (
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={<Button type="button" color="inherit" size="small" onClick={() => void refetch()}>Retry</Button>}
+        >
+          Could not load returnable stock.
+        </Alert>
+      )}
+
+      {isLoading && !isSuccess && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress size={28} />
         </Box>
@@ -200,18 +215,23 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                   </TableRow>
                 )}
                 {filteredLines.map((line) => {
+                  const selectable = Boolean(line.productId?.trim() && line.sku?.trim());
                   const d = drafts[line.productId] ?? { selected: false, qty: line.availableQty };
-                  const qty = d.selected ? Math.min(d.qty, line.availableQty) : 0;
+                  const qty = selectable && d.selected ? Math.min(d.qty, line.availableQty) : 0;
                   const lineTotal = Math.round(line.unitCost * qty * 100) / 100;
                   return (
                     <TableRow key={line.productId}>
                       <TableCell padding="checkbox">
                         <Checkbox
-                          checked={d.selected}
+                          checked={selectable && d.selected}
+                          disabled={!selectable}
                           onChange={(e) =>
                             setDrafts((prev) => ({
                               ...prev,
-                              [line.productId]: { ...d, selected: e.target.checked },
+                              [line.productId]: {
+                                selected: e.target.checked,
+                                qty: e.target.checked ? (d.qty > 0 ? d.qty : 1) : d.qty,
+                              },
                             }))
                           }
                         />
@@ -220,9 +240,12 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {line.productName}
                         </Typography>
-                        {line.sku ? (
-                          <Typography variant="caption" color="text.secondary">
-                            {line.sku}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          SKU: {line.sku?.trim() || 'No SKU'}
+                        </Typography>
+                        {line.orderNumber ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            PO: {line.orderNumber}
                           </Typography>
                         ) : null}
                       </TableCell>
@@ -232,7 +255,7 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
                           size="small"
                           type="number"
                           value={d.qty}
-                          disabled={!d.selected}
+                          disabled={!selectable || !d.selected}
                           onChange={(e) => {
                             const nextQty = Math.max(
                               1,
@@ -303,6 +326,10 @@ export function SupplierReturnDialog({ open, supplierId, onClose }: SupplierRetu
           <MenuItem value="refund">Refund (collect later)</MenuItem>
         </TextField>
       </Box>
+
+      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+        {selectedCount} selected · total {formatCurrency(selectedTotal)}
+      </Typography>
 
       <TextField
         fullWidth

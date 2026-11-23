@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { purchaseOrderService } from '@/services';
 import type {
@@ -20,6 +20,7 @@ export function usePurchaseOrders(
     queryKey: [...QUERY_KEYS.purchaseOrders, params],
     queryFn: () => purchaseOrderService.getAll(params),
     enabled: options?.enabled ?? true,
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -16,7 +16,7 @@ from typing import Any
 
 from app.models.expense import Expense
 from app.models.product import Product
-from app.models.purchase_order import POStatus, PurchaseOrder
+from app.models.purchase_order import PurchaseOrder, committed_po_status_match
 from app.models.purchase_return import PurchaseReturn, PurchaseReturnStatus
 from app.models.transaction import PaymentMethod, Transaction, TransactionStatus
 from app.models.wallet_ledger import (
@@ -206,9 +206,7 @@ async def calculate_tax_vat_summary(txns: list[Transaction]) -> TaxVatSummary:
 
 
 async def _ap_ar_live() -> tuple[float, float]:
-    active_pos = await PurchaseOrder.find(
-        {"status": {"$in": [POStatus.ordered.value, POStatus.partial.value, POStatus.received.value]}}
-    ).to_list()
+    active_pos = await PurchaseOrder.find(committed_po_status_match()).to_list()
     accounts_payable = sum(max(0.0, po.total_amount - po.amount_paid) for po in active_pos)
 
     open_returns = await PurchaseReturn.find(
@@ -694,9 +692,7 @@ async def generate_executive_financial_summary(
     )
 
     # Calculate AP aging & Top Creditors
-    all_active_pos = await PurchaseOrder.find({
-        "status": {"$in": [POStatus.ordered.value, POStatus.partial.value, POStatus.received.value]}
-    }).to_list()
+    all_active_pos = await PurchaseOrder.find(committed_po_status_match()).to_list()
     today_npt = datetime.now(NPT).date()
 
     ap_aging = APAgingBuckets()

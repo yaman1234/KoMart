@@ -4,6 +4,8 @@ import { computeProductPricing } from '@/utils/productPricing';
 
 import { computePoTotals } from '@/utils/poTotals';
 
+import { supplierPoKpis, supplierReturnKpis } from '@/pages/suppliers/supplierPoKpis';
+
 import { stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 
 import type {
@@ -146,6 +148,10 @@ import {
 
   mockPurchaseOrders,
 
+  mockSupplierReturns,
+
+  mockReturnableBySupplier,
+
   mockCustomers,
 
   mockTransactions,
@@ -195,6 +201,54 @@ let products = [...mockProducts];
 let inventory = [...mockInventory];
 
 let suppliers = [...mockSuppliers];
+
+let purchaseReturnRows: import('@/types').PurchaseReturn[] = mockSupplierReturns.map((row, index) => ({
+
+  id: `pret-${row.supplierId}-${index}`,
+
+  returnNumber: `PR-2026-${String(index + 1).padStart(3, '0')}`,
+
+  returnMode: 'supplier' as const,
+
+  supplierId: row.supplierId,
+
+  supplierName: row.supplierId === 'sup-1' ? 'Seoul Foods Import' : 'Tokyo Snacks Co.',
+
+  items: [{
+
+    productId: 'prod-1',
+
+    productName: 'Shin Ramyun Black',
+
+    returnQty: 2,
+
+    unitCost: row.totalAmount / 2,
+
+    lineTotal: row.totalAmount,
+
+  }],
+
+  totalAmount: row.totalAmount,
+
+  amountReceived: row.amountReceived,
+
+  writeOffAmount: row.writeOffAmount,
+
+  reason: 'expired' as const,
+
+  settlementType: row.settlementType as import('@/types').PurchaseReturnSettlement,
+
+  status: row.status,
+
+  returnDate: '2026-02-01',
+
+  createdBy: 'Admin User',
+
+  createdAt: '2026-02-01T00:00:00Z',
+
+  updatedAt: '2026-02-01T00:00:00Z',
+
+}));
 
 let purchaseOrders = [...mockPurchaseOrders];
 
@@ -571,6 +625,206 @@ export const mockApi = {
     await delay(300);
 
     return mockDashboardKpi;
+
+  },
+
+  async getPurchaseReturns(params: {
+
+    purchaseOrderId?: string;
+
+    supplierId?: string;
+
+    page?: number;
+
+    pageSize?: number;
+
+  } = {}): Promise<import('@/types').PurchaseReturnListResponse> {
+
+    await delay(200);
+
+    let filtered = [...purchaseReturnRows];
+
+    if (params.supplierId) filtered = filtered.filter((row) => row.supplierId === params.supplierId);
+
+    if (params.purchaseOrderId) {
+
+      filtered = filtered.filter((row) => row.purchaseOrderId === params.purchaseOrderId);
+
+    }
+
+    return paginate(filtered, { page: params.page, pageSize: params.pageSize });
+
+  },
+
+  async getReturnableLines(purchaseOrderId: string): Promise<import('@/types').PurchaseReturnableLine[]> {
+
+    await delay(200);
+
+    const po = purchaseOrders.find((row) => row.id === purchaseOrderId);
+
+    if (!po) return [];
+
+    return po.items.map((item) => ({
+
+      productId: item.productId,
+
+      productName: item.productName,
+
+      availableQty: Math.max(0, item.quantity - (item.receivedQuantity ?? 0)) || item.quantity,
+
+      unitCost: item.unitCost,
+
+      baseUom: item.baseUom ?? 'pcs',
+
+      sku: item.productId,
+
+    }));
+
+  },
+
+  async createPurchaseReturn(
+
+    payload: import('@/types').PurchaseReturnCreatePayload,
+
+  ): Promise<import('@/types').PurchaseReturn> {
+
+    await delay(300);
+
+    const created: import('@/types').PurchaseReturn = {
+
+      id: `pret-${generateId().slice(0, 8)}`,
+
+      returnNumber: `PR-${Date.now()}`,
+
+      returnMode: payload.returnMode,
+
+      purchaseOrderId: payload.purchaseOrderId,
+
+      supplierId: payload.supplierId ?? '',
+
+      supplierName: suppliers.find((row) => row.id === payload.supplierId)?.name ?? '',
+
+      items: payload.items.map((item) => ({
+
+        productId: item.productId,
+
+        productName: item.productId,
+
+        returnQty: item.returnQty,
+
+        unitCost: 0,
+
+        lineTotal: 0,
+
+      })),
+
+      totalAmount: 0,
+
+      amountReceived: 0,
+
+      writeOffAmount: 0,
+
+      reason: payload.reason ?? 'other',
+
+      settlementType: payload.settlementType,
+
+      status: payload.settlementType === 'refund' ? 'requested' : 'closed',
+
+      returnDate: payload.returnDate ?? new Date().toISOString().slice(0, 10),
+
+      createdBy: 'Admin User',
+
+      createdAt: new Date().toISOString(),
+
+      updatedAt: new Date().toISOString(),
+
+      remarks: payload.remarks,
+
+    };
+
+    purchaseReturnRows = [created, ...purchaseReturnRows];
+
+    return created;
+
+  },
+
+  async closePurchaseReturn(
+
+    id: string,
+
+    payload?: { paymentMethod?: string; amountReceived?: number; remarks?: string; receivedDate?: string },
+
+  ): Promise<import('@/types').PurchaseReturn> {
+
+    await delay(200);
+
+    const idx = purchaseReturnRows.findIndex((row) => row.id === id);
+
+    if (idx === -1) throw new Error('Purchase return not found');
+
+    const current = purchaseReturnRows[idx];
+
+    purchaseReturnRows[idx] = {
+
+      ...current,
+
+      status: 'closed',
+
+      amountReceived: payload?.amountReceived ?? current.totalAmount,
+
+      paymentMethod: payload?.paymentMethod ?? current.paymentMethod,
+
+      remarks: payload?.remarks ?? current.remarks,
+
+      updatedAt: new Date().toISOString(),
+
+    };
+
+    return purchaseReturnRows[idx];
+
+  },
+
+  async writeOffPurchaseReturn(
+
+    id: string,
+
+    payload: { reason: string },
+
+  ): Promise<import('@/types').PurchaseReturn> {
+
+    await delay(200);
+
+    const idx = purchaseReturnRows.findIndex((row) => row.id === id);
+
+    if (idx === -1) throw new Error('Purchase return not found');
+
+    const current = purchaseReturnRows[idx];
+
+    const outstanding = Math.max(0, current.totalAmount - (current.amountReceived ?? 0) - (current.writeOffAmount ?? 0));
+
+    purchaseReturnRows[idx] = {
+
+      ...current,
+
+      status: 'closed',
+
+      writeOffAmount: (current.writeOffAmount ?? 0) + outstanding,
+
+      writeOffReason: payload.reason,
+
+      updatedAt: new Date().toISOString(),
+
+    };
+
+    return purchaseReturnRows[idx];
+
+  },
+
+  async getReturnableLinesBySupplier(supplierId: string): Promise<import('@/types').PurchaseReturnableLine[]> {
+
+    await delay(200);
+
+    return mockReturnableBySupplier[supplierId] ?? [];
 
   },
 
@@ -1166,9 +1420,29 @@ export const mockApi = {
 
           s.country.toLowerCase().includes(q) ||
 
-          s.contactPerson.toLowerCase().includes(q),
+          s.contactPerson.toLowerCase().includes(q) ||
+
+          s.phone.toLowerCase().includes(q),
 
       );
+
+    }
+
+    const direction = params.sortOrder === 'desc' ? -1 : 1;
+
+    const sortKey = params.sortBy === 'created_at' || params.sortBy === 'added' ? 'createdAt' : 'name';
+
+    if (params.sortBy) {
+
+      filtered.sort((a, b) => {
+
+        const av = String(a[sortKey] ?? '');
+
+        const bv = String(b[sortKey] ?? '');
+
+        return av.localeCompare(bv) * direction;
+
+      });
 
     }
 
@@ -1229,6 +1503,14 @@ export const mockApi = {
     await delay(400);
 
     let filtered = [...purchaseOrders];
+
+    if (params.supplierId) {
+
+      filtered = filtered.filter((po) => po.supplierId === params.supplierId);
+
+    }
+
+    const kpiOrders = filtered;
 
     const status = typeof params.status === 'string' ? params.status : undefined;
 
@@ -1328,6 +1610,52 @@ export const mockApi = {
 
     const page = paginate(filtered, pageParams);
 
+    const kpis = params.includeSummary === false ? supplierPoKpis([]) : supplierPoKpis(kpiOrders);
+
+    const returnKpis = params.supplierId && params.includeSummary !== false
+      ? supplierReturnKpis(purchaseReturnRows.filter((row) => row.supplierId === params.supplierId))
+      : supplierReturnKpis([]);
+
+    if (params.includeSummary === false) {
+
+      return {
+
+        ...page,
+
+        receivedTotalAmount: 0,
+
+        outstandingAmount: 0,
+
+        summary: {
+
+          totalPurchasesAmount: 0,
+
+          totalPurchasesCount: 0,
+
+          totalPaidAmount: 0,
+
+          amountDue: 0,
+
+          amountDueCount: 0,
+
+          pendingDeliveryCount: 0,
+
+          pendingDeliveryAmount: 0,
+
+          cancelledCount: 0,
+
+          cancelledAmount: 0,
+
+          ...kpis,
+
+          ...returnKpis,
+
+        },
+
+      };
+
+    }
+
     const nonCancelled = filtered.filter((po) => po.status !== 'cancelled');
     const receivedOrders = filtered.filter((po) => po.status === 'received');
     const pendingOrders = filtered.filter((po) => po.status === 'ordered' || po.status === 'partial');
@@ -1356,6 +1684,8 @@ export const mockApi = {
         pendingDeliveryAmount,
         cancelledCount: cancelledOrders.length,
         cancelledAmount,
+        ...kpis,
+        ...returnKpis,
       },
     };
 

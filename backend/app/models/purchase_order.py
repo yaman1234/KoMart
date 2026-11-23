@@ -14,6 +14,93 @@ class POStatus(str, Enum):
     cancelled = "cancelled"
 
 
+# Ordered, partially received, and received. Drafts are not liabilities yet.
+# Same set as dashboard payables and Reports Active PO Bills.
+COMMITTED_PO_STATUSES: tuple[str, ...] = (
+    POStatus.ordered.value,
+    POStatus.partial.value,
+    POStatus.received.value,
+)
+
+
+def normalize_po_status(value: Any) -> POStatus:
+    """Trim and lowercase a stored status. Blank or unknown values become draft.
+
+    List and GET apply this through the document validator. KPI aggregations
+    must use normalized_po_status_expr so values like ``Received`` are included.
+    """
+    if isinstance(value, POStatus):
+        return value
+    if value is None:
+        return POStatus.draft
+    text = str(value).strip().lower()
+    if not text:
+        return POStatus.draft
+    try:
+        return POStatus(text)
+    except ValueError:
+        return POStatus.draft
+
+
+def normalized_po_status_expr(field: str = "$status") -> dict:
+    """Mongo expression equivalent to normalize_po_status."""
+    known = [status.value for status in POStatus]
+    return {
+        "$let": {
+            "vars": {
+                "raw": {
+                    "$toLower": {
+                        "$trim": {
+                            "input": {
+                                "$convert": {
+                                    "input": {"$ifNull": [field, ""]},
+                                    "to": "string",
+                                    "onError": "",
+                                    "onNull": "",
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "in": {
+                "$cond": [
+                    {"$in": ["$$raw", known]},
+                    "$$raw",
+                    POStatus.draft.value,
+                ]
+            },
+        }
+    }
+
+
+def committed_po_status_match() -> dict:
+    """Find filter for committed POs, including legacy case like ``Received``."""
+    return {
+        "$expr": {
+            "$in": [
+                normalized_po_status_expr("$status"),
+                list(COMMITTED_PO_STATUSES),
+            ]
+        }
+    }
+
+
+def payable_outstanding_expr() -> dict:
+    """max(0, total_amount - amount_paid), matching dashboard total_payables."""
+    return {
+        "$max": [
+            0,
+            {
+                "$subtract": [
+                    {"$ifNull": ["$total_amount", 0]},
+                    {"$ifNull": ["$amount_paid", 0]},
+                ]
+            },
+        ]
+    }
+
+
 class LineStatus(str, Enum):
     pending = "pending"
     partial = "partial"
@@ -237,14 +324,7 @@ class PurchaseOrder(Document):
     @field_validator("status", mode="before")
     @classmethod
     def _coerce_status(cls, v: Any) -> Any:
-        if v is None or v == "":
-            return POStatus.draft
-        if isinstance(v, POStatus):
-            return v
-        try:
-            return POStatus(str(v).strip().lower())
-        except ValueError:
-            return POStatus.draft
+        return normalize_po_status(v)
 
     @field_validator("amount_paid", mode="before")
     @classmethod
