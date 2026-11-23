@@ -19,11 +19,11 @@ describe('uomDisplay', () => {
   });
 
   it('formatConversion shows pack to pcs', () => {
-    expect(formatConversion('pack', 'pcs', 12, UOM_OPTIONS)).toBe('1 Pack = 12 Pieces (pcs)');
+    expect(formatConversion('pack', 'pcs', 12, UOM_OPTIONS)).toBe('1 Pack = 12 pcs');
   });
 
   it('formatStockQty appends base unit', () => {
-    expect(formatStockQty(60, 'pcs', UOM_OPTIONS)).toBe('60 Pieces (pcs)');
+    expect(formatStockQty(60, 'pcs', UOM_OPTIONS)).toBe('60 pcs');
   });
 
   it('formatStockQty without uom returns qty only', () => {
@@ -31,11 +31,11 @@ describe('uomDisplay', () => {
   });
 
   it('formatSellLineSubtitle for piece sell', () => {
-    expect(formatSellLineSubtitle('pcs', 1, 'pcs', UOM_OPTIONS)).toBe('Sell: Pieces (pcs)');
+    expect(formatSellLineSubtitle('pcs', 1, 'pcs', UOM_OPTIONS)).toBe('Sell: pcs');
   });
 
   it('formatSellLineSubtitle for pack sell', () => {
-    expect(formatSellLineSubtitle('pack', 12, 'pcs', UOM_OPTIONS)).toBe('Sell: Pack · 12 Pieces (pcs) each');
+    expect(formatSellLineSubtitle('pack', 12, 'pcs', UOM_OPTIONS)).toBe('Sell: Pack · 12 pcs each');
   });
 
   it('formatReceiptConversionSubtitle returns empty when no conversion', () => {
@@ -44,8 +44,8 @@ describe('uomDisplay', () => {
   });
 
   it('formatReceiptConversionSubtitle shows conversion note when factor > 1', () => {
-    expect(formatReceiptConversionSubtitle('pack', 12, 'pcs', UOM_OPTIONS)).toBe('12 Pieces (pcs) each');
-    expect(formatReceiptConversionSubtitle('pack', 12, 'pcs')).toBe('12 Pieces (pcs) each');
+    expect(formatReceiptConversionSubtitle('pack', 12, 'pcs', UOM_OPTIONS)).toBe('12 pcs each');
+    expect(formatReceiptConversionSubtitle('pack', 12, 'pcs')).toBe('12 pcs each');
   });
 
   it('formatApproxPackQty calculates exact pack quantity', () => {
@@ -53,14 +53,14 @@ describe('uomDisplay', () => {
     expect(result).not.toBeNull();
     expect(result?.label).toBe('≈ 5 Box');
     expect(result?.packs).toBe(5);
-    expect(result?.tooltip).toBe('5 Box (120 Pieces (pcs) total)');
+    expect(result?.tooltip).toBe('5 Box (120 pcs total)');
   });
 
   it('formatApproxPackQty calculates approximate decimal pack quantity and remainder breakdown', () => {
     const result = formatApproxPackQty(125, 24, 'box', 'pcs', UOM_OPTIONS);
     expect(result).not.toBeNull();
     expect(result?.label).toBe('≈ 5.2 Box');
-    expect(result?.tooltip).toBe('5 Box + 5 Pieces (pcs) (125 Pieces (pcs) total)');
+    expect(result?.tooltip).toBe('5 Box + 5 pcs (125 pcs total)');
   });
 
   it('formatApproxPackQty returns 0 when stock is 0', () => {

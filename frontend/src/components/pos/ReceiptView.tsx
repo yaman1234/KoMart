@@ -32,7 +32,9 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
   const cashChg = cash !== undefined ? cash - txn.total : undefined;
   const storeName = branding?.storeName || APP_NAME;
   const headerLines = branding?.receiptHeader?.split('\n').filter(Boolean) ?? [];
-  const footerLines = branding?.receiptFooter?.split('\n').filter(Boolean) ?? [];
+  const footerLines = branding?.receiptFooter?.trim()
+    ? branding.receiptFooter.split('\n').filter(Boolean)
+    : [];
   const discountBreakdown = getTransactionDiscountBreakdown(txn);
   const discountLines = getTransactionDiscountLines(txn);
 
@@ -78,19 +80,19 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: '1fr 28px 46px 65px 70px',
+          gridTemplateColumns: '18px 1fr 28px 46px 65px 70px',
           gap: '1px 6px',
           alignItems: 'start',
         }}
       >
-        {(['Item', 'Qty', 'UOM', 'Rate', 'Amount'] as const).map((h, i) => (
+        {(['#', 'Item', 'Qty', 'UOM', 'Rate', 'Amount'] as const).map((h, i) => (
           <Typography
             key={h}
             sx={{
               fontWeight: 700,
               fontSize: '0.68rem',
               fontFamily: 'inherit',
-              textAlign: i === 0 ? 'left' : i === 2 ? 'center' : 'right',
+              textAlign: i === 0 || i === 1 ? 'left' : i === 3 ? 'center' : 'right',
               pb: 0.25,
               borderBottom: '1px solid #aaa',
             }}
@@ -99,11 +101,14 @@ export function ReceiptView({ transaction: txn, tenderedAmount, branding }: Rece
           </Typography>
         ))}
 
-        {txn.items.map((item) => {
+        {txn.items.map((item, idx) => {
           const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
           const uom = uomLabel(item.sellUom || item.uom || '') || '—';
           return (
             <React.Fragment key={cartLineKey(item.productId, item.sellUom)}>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', color: 'text.secondary' }}>
+                {idx + 1}
+              </Typography>
               <Typography sx={{ fontSize: '0.7rem', fontFamily: 'inherit', wordBreak: 'break-word' }}>
                 {item.name}
                 {subtitle && (

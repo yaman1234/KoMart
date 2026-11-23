@@ -72,7 +72,7 @@ export const SELL_MODE_OPTIONS = [
 ] as const;
 
 export const UOM_OPTIONS = [
-  { value: 'pcs',    label: 'Pieces (pcs)' },
+  { value: 'pcs',    label: 'pcs' },
   { value: 'pack',   label: 'Pack' },
   { value: 'box',    label: 'Box' },
   { value: 'bag',    label: 'Bag' },
