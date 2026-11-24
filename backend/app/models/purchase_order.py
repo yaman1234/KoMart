@@ -14,6 +14,93 @@ class POStatus(str, Enum):
     cancelled = "cancelled"
 
 
+# Ordered, partially received, and received. Drafts are not liabilities yet.
+# Same set as dashboard payables and Reports Active PO Bills.
+COMMITTED_PO_STATUSES: tuple[str, ...] = (
+    POStatus.ordered.value,
+    POStatus.partial.value,
+    POStatus.received.value,
+)
+
+
+def normalize_po_status(value: Any) -> POStatus:
+    """Trim and lowercase a stored status. Blank or unknown values become draft.
+
+    List and GET apply this through the document validator. KPI aggregations
+    must use normalized_po_status_expr so values like ``Received`` are included.
+    """
+    if isinstance(value, POStatus):
+        return value
+    if value is None:
+        return POStatus.draft
+    text = str(value).strip().lower()
+    if not text:
+        return POStatus.draft
+    try:
+        return POStatus(text)
+    except ValueError:
+        return POStatus.draft
+
+
+def normalized_po_status_expr(field: str = "$status") -> dict:
+    """Mongo expression equivalent to normalize_po_status."""
+    known = [status.value for status in POStatus]
+    return {
+        "$let": {
+            "vars": {
+                "raw": {
+                    "$toLower": {
+                        "$trim": {
+                            "input": {
+                                "$convert": {
+                                    "input": {"$ifNull": [field, ""]},
+                                    "to": "string",
+                                    "onError": "",
+                                    "onNull": "",
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "in": {
+                "$cond": [
+                    {"$in": ["$$raw", known]},
+                    "$$raw",
+                    POStatus.draft.value,
+                ]
+            },
+        }
+    }
+
+
+def committed_po_status_match() -> dict:
+    """Find filter for committed POs, including legacy case like ``Received``."""
+    return {
+        "$expr": {
+            "$in": [
+                normalized_po_status_expr("$status"),
+                list(COMMITTED_PO_STATUSES),
+            ]
+        }
+    }
+
+
+def payable_outstanding_expr() -> dict:
+    """max(0, total_amount - amount_paid), matching dashboard total_payables."""
+    return {
+        "$max": [
+            0,
+            {
+                "$subtract": [
+                    {"$ifNull": ["$total_amount", 0]},
+                    {"$ifNull": ["$amount_paid", 0]},
+                ]
+            },
+        ]
+    }
+
+
 class LineStatus(str, Enum):
     pending = "pending"
     partial = "partial"
@@ -30,6 +117,37 @@ def _coerce_str(value: Any, default: str = "") -> str:
     if value is None:
         return default
     return str(value)
+
+
+# Packs on one PO line, and packs on one receive. Frontend MAX_PO_LINE_QUANTITY must match.
+MAX_PO_LINE_QUANTITY = 100_000
+
+
+def _parse_whole_quantity(value: Any) -> int:
+    """Return a whole number, or raise. Never substitutes a default."""
+    if isinstance(value, bool) or value is None:
+        raise ValueError("Quantity must be a whole number")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError("Quantity must be a whole number")
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            raise ValueError("Quantity is required")
+        body = text[1:] if text[0] in "+-" else text
+        if body.isdigit():
+            return int(text)
+        try:
+            as_float = float(text)
+        except ValueError:
+            raise ValueError("Quantity must be a whole number") from None
+        if not as_float.is_integer():
+            raise ValueError("Quantity must be a whole number")
+        return int(as_float)
+    raise ValueError("Quantity must be a whole number")
 
 
 class PurchaseOrderPayment(BaseModel):
@@ -71,7 +189,7 @@ class PurchaseOrderPayment(BaseModel):
 class PurchaseOrderItem(BaseModel):
     product_id: str
     product_name: str
-    quantity: int = Field(ge=1)
+    quantity: int = Field(ge=1, le=MAX_PO_LINE_QUANTITY)
     unit_cost: float = Field(ge=0)
     received_quantity: int = Field(default=0, ge=0)
     order_uom: str = "pcs"
@@ -86,13 +204,8 @@ class PurchaseOrderItem(BaseModel):
     @field_validator("quantity", mode="before")
     @classmethod
     def _coerce_quantity(cls, v: Any) -> Any:
-        if v is None:
-            return 1
-        try:
-            n = int(float(v))
-        except (TypeError, ValueError):
-            return 1
-        return n if n >= 1 else 1
+        # Reject instead of clamping. Field(ge=1, le=MAX_PO_LINE_QUANTITY) enforces the range.
+        return _parse_whole_quantity(v)
 
     @field_validator("unit_cost", mode="before")
     @classmethod
@@ -135,6 +248,10 @@ class PurchaseOrderItem(BaseModel):
     @property
     def base_quantity_ordered(self) -> int:
         return self.quantity * self.units_per_buy_uom
+
+    @property
+    def line_total(self) -> float:
+        return round((self.quantity or 0) * (self.unit_cost or 0.0), 2)
 
 
 def line_status(item: PurchaseOrderItem) -> LineStatus:
@@ -186,6 +303,10 @@ class PurchaseOrder(Document):
     subtotal: float = Field(default=0.0, ge=0)
     discount: float = Field(default=0.0, ge=0)
     additional_charges: float = Field(default=0.0, ge=0)
+    # Missing on legacy documents → non-VAT. vat_rate is the percent used for this bill.
+    vat_bill: bool = False
+    vat_rate: float = Field(default=0.0, ge=0)
+    vat_amount: float = Field(default=0.0, ge=0)
     total_amount: float = Field(ge=0)
     amount_paid: float = Field(default=0.0, ge=0)
     payment_status: PaymentStatus = PaymentStatus.unpaid
@@ -207,14 +328,7 @@ class PurchaseOrder(Document):
     @field_validator("status", mode="before")
     @classmethod
     def _coerce_status(cls, v: Any) -> Any:
-        if v is None or v == "":
-            return POStatus.draft
-        if isinstance(v, POStatus):
-            return v
-        try:
-            return POStatus(str(v).strip().lower())
-        except ValueError:
-            return POStatus.draft
+        return normalize_po_status(v)
 
     @field_validator("amount_paid", mode="before")
     @classmethod
@@ -227,7 +341,15 @@ class PurchaseOrder(Document):
             return 0.0
         return n if n >= 0 else 0.0
 
-    @field_validator("subtotal", "discount", "additional_charges", "total_amount", mode="before")
+    @field_validator(
+        "subtotal",
+        "discount",
+        "additional_charges",
+        "vat_rate",
+        "vat_amount",
+        "total_amount",
+        mode="before",
+    )
     @classmethod
     def _coerce_money_fields(cls, v: Any) -> Any:
         if v is None:
@@ -237,6 +359,19 @@ class PurchaseOrder(Document):
         except (TypeError, ValueError):
             return 0.0
         return n if n >= 0 else 0.0
+
+    @field_validator("vat_bill", mode="before")
+    @classmethod
+    def _coerce_vat_bill(cls, v: Any) -> bool:
+        if v is None or v == "":
+            return False
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return v != 0
+        if isinstance(v, str):
+            return v.strip().lower() in {"1", "true", "yes", "y"}
+        return False
 
     @field_validator("bill_number", mode="before")
     @classmethod

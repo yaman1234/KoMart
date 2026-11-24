@@ -1,32 +1,32 @@
 import { Box, Button, ButtonGroup } from '@mui/material';
-import dayjs from 'dayjs';
 import { NepaliAwareDatePicker } from '@/components/common/NepaliAwareDatePicker';
+import { addCalendarDays, storeMonthStartIso, storeTodayIso } from '@/utils/storeDate';
 
 const PRESETS = [
   {
     label: 'Today',
-    start: () => dayjs(),
-    end: () => dayjs(),
+    start: () => storeTodayIso(),
+    end: () => storeTodayIso(),
   },
   {
     label: 'Yesterday',
-    start: () => dayjs().subtract(1, 'day'),
-    end: () => dayjs().subtract(1, 'day'),
+    start: () => addCalendarDays(storeTodayIso(), -1),
+    end: () => addCalendarDays(storeTodayIso(), -1),
   },
   {
     label: '7D',
-    start: () => dayjs().subtract(6, 'day'),
-    end: () => dayjs(),
+    start: () => addCalendarDays(storeTodayIso(), -6),
+    end: () => storeTodayIso(),
   },
   {
     label: '30D',
-    start: () => dayjs().subtract(29, 'day'),
-    end: () => dayjs(),
+    start: () => addCalendarDays(storeTodayIso(), -29),
+    end: () => storeTodayIso(),
   },
   {
     label: 'Month',
-    start: () => dayjs().startOf('month'),
-    end: () => dayjs(),
+    start: () => storeMonthStartIso(),
+    end: () => storeTodayIso(),
   },
 ];
 
@@ -38,9 +38,7 @@ interface DateRangePickerProps {
 
 export function DateRangePicker({ startDate, endDate, onChange }: DateRangePickerProps) {
   const activePreset = PRESETS.find(
-    (p) =>
-      p.start().format('YYYY-MM-DD') === startDate &&
-      p.end().format('YYYY-MM-DD') === endDate,
+    (p) => p.start() === startDate && p.end() === endDate,
   )?.label;
 
   return (
@@ -52,8 +50,8 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
             variant={activePreset === p.label ? 'contained' : 'outlined'}
             onClick={() =>
               onChange({
-                startDate: p.start().format('YYYY-MM-DD'),
-                endDate: p.end().format('YYYY-MM-DD'),
+                startDate: p.start(),
+                endDate: p.end(),
               })
             }
           >

@@ -32,6 +32,7 @@ import {
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { computePoTotals } from '@/utils/poTotals';
+import { stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
@@ -42,13 +43,9 @@ import type { Product, PurchaseOrderItem, PurchaseOrderStatus } from '@/types';
 import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsGrid';
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
+import { parsePoQuantity, poQuantityError } from '@/pages/purchase-orders/poQuantity';
 import { useUomOptions } from '@/hooks/useUoms';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
-
-function parseQuantity(input: string): number {
-  const n = parseInt(input, 10);
-  return Number.isNaN(n) || n < 1 ? 1 : n;
-}
 
 function productFromPoItem(item: PurchaseOrderItem, catalogProducts: Product[]): Product {
   const fromCatalog = catalogProducts.find((p) => p.id === item.productId);
@@ -186,6 +183,7 @@ export function PurchaseOrderFormPage() {
     setAdditionalChargesInput(String(existingPo.additionalCharges ?? 0));
     setBillNumber(existingPo.billNumber ?? '');
     setBillImages(existingPo.billImages ?? []);
+    setVatBill(Boolean(existingPo.vatBill));
 
     if (existingPo.items.length > 0) {
       const loaded = existingPo.items.map((item) => {
@@ -201,21 +199,28 @@ export function PurchaseOrderFormPage() {
     setFormLoaded(true);
   }, [isEdit, existingPo, formLoaded, catalogLoading, catalogProducts, currentUser?.name]);
 
-  const validLines = lines.filter(
-    (l) => l.product && parseQuantity(l.quantityInput) > 0 && l.unitCost > 0 && !l.resolveError,
-  );
+  const activeLines = lines.filter((l) => l.product || l.skuInput.trim());
+  const quantityProblem = activeLines.find((l) => poQuantityError(l.quantityInput));
+  const validLines = lines.filter((l) => {
+    const qty = parsePoQuantity(l.quantityInput);
+    return Boolean(l.product) && qty != null && l.unitCost > 0 && !l.resolveError;
+  });
   const unresolvedLines = lines.filter((l) => l.skuInput.trim() && (!l.product || l.resolveError));
-  const lineExtensions = validLines.map(
-    (l) => parseQuantity(l.quantityInput) * l.unitCost,
-  );
+  const lineExtensions = validLines.map((l) => {
+    const qty = parsePoQuantity(l.quantityInput) ?? 0;
+    // VAT bills: subtotal is qty × cost before VAT. Line Amount stays qty × inclusive cost.
+    const unit = vatBill ? stripVatFromUnitCost(l.unitCost, taxRate) : l.unitCost;
+    return qty * unit;
+  });
   const discountParsed = Number.parseFloat(discountInput);
   const chargesParsed = Number.parseFloat(additionalChargesInput);
   const totals = computePoTotals(
     lineExtensions,
     Number.isFinite(discountParsed) ? discountParsed : 0,
     Number.isFinite(chargesParsed) ? chargesParsed : 0,
+    { vatBill, taxRate },
   );
-  const { subtotal, discount, additionalCharges, totalAmount } = totals;
+  const { subtotal, vatAmount, discount, additionalCharges, totalAmount } = totals;
   const lineCount = validLines.length;
 
   const receivedByProduct = new Map(
@@ -231,6 +236,9 @@ export function PurchaseOrderFormPage() {
       discount,
       additionalCharges,
       subtotal,
+      vatBill,
+      vatAmount,
+      vatRate: vatBill ? taxRate : 0,
       totalAmount,
       billNumber: billNumber.trim() || undefined,
       billImages,
@@ -239,7 +247,7 @@ export function PurchaseOrderFormPage() {
       items: validLines.map((l) => ({
         productId: l.product!.id,
         productName: l.product!.name,
-        quantity: parseQuantity(l.quantityInput),
+        quantity: parsePoQuantity(l.quantityInput) ?? 0,
         unitCost: l.unitCost,
         receivedQuantity: receivedByProduct.get(l.product!.id) ?? l.receivedQuantity ?? 0,
         orderUom: l.buyUom,
@@ -261,6 +269,10 @@ export function PurchaseOrderFormPage() {
       setPasteWarning(
         `Unresolved: ${unresolvedLines.map((l) => l.skuInput).join(', ')}`,
       );
+      return false;
+    }
+    if (quantityProblem) {
+      setError(poQuantityError(quantityProblem.quantityInput) ?? 'Enter a valid quantity');
       return false;
     }
     if (expectedDelivery) {
@@ -572,6 +584,12 @@ export function PurchaseOrderFormPage() {
             <Typography variant="body2" color="text.secondary">Subtotal</Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatCurrency(subtotal)}</Typography>
           </Box>
+          {vatBill && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="body2" color="text.secondary">VAT</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatCurrency(vatAmount)}</Typography>
+            </Box>
+          )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75, gap: 2 }}>
             <Typography variant="body2" color="text.secondary">Discount</Typography>
             <TextField

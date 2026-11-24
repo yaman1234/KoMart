@@ -273,6 +273,9 @@ async def record_sale(
         )
     product_map = await _load_products_map([i.product_id for i in body.items])
 
+    # Sum base units per product first so split piece/pack lines cannot oversell.
+    # The check runs before any batch or ledger write.
+    requested_base: dict[str, int] = {}
     for item in body.items:
         product = product_map.get(item.product_id)
         if not product:
@@ -282,7 +285,12 @@ async def record_sale(
                 status.HTTP_400_BAD_REQUEST,
                 detail=billable_rejection_detail(product),
             )
-        await check_stock_available(item.product_id, _base_quantity(item))
+        requested_base[item.product_id] = (
+            requested_base.get(item.product_id, 0) + _base_quantity(item)
+        )
+
+    for product_id, quantity in requested_base.items():
+        await check_stock_available(product_id, quantity)
 
     txn_number = await _next_txn_number()
     all_deductions: list[BatchDeduction] = []

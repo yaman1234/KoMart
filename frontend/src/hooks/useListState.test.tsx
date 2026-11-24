@@ -244,6 +244,157 @@ describe('useListState and Navigation State Preservation', () => {
     cleanup();
   });
 
+  it('Scenario 9: rows-per-page change survives the same-turn page reset', () => {
+    let captured: any;
+    function TestComponent() {
+      const listState = useListState({
+        routePrefix: '/sales',
+        schema: {
+          search: stringParam(''),
+          page: pageParam(0),
+          pageSize: pageSizeParam(25),
+        },
+      });
+      const location = useLocation();
+      captured = { ...listState, location };
+      return <div>Page size: {listState.filters.pageSize}</div>;
+    }
+
+    // Page 3 in the URL is index 2. DataTable changes the page size and then
+    // resets the page with a second setFilters call in the same turn.
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={['/sales?page=3&search=noodles']}>
+          <TestComponent />
+        </MemoryRouter>
+      );
+    });
+
+    expect(captured.filters.page).toBe(2);
+    expect(captured.filters.pageSize).toBe(25);
+    expect(captured.filters.search).toBe('noodles');
+
+    act(() => {
+      captured.setFilters({ pageSize: 50, page: 0 });
+      captured.setFilter('page', 0);
+    });
+
+    expect(captured.filters.pageSize).toBe(50);
+    expect(captured.filters.page).toBe(0);
+    expect(captured.filters.search).toBe('noodles');
+
+    const sized = new URLSearchParams(captured.location.search);
+    expect(sized.get('pageSize')).toBe('50');
+    expect(sized.get('page')).toBeNull();
+    expect(sized.get('search')).toBe('noodles');
+    expect(container.textContent).toContain('Page size: 50');
+
+    act(() => {
+      captured.setFilter('page', 1);
+    });
+
+    expect(captured.filters.page).toBe(1);
+    expect(captured.filters.pageSize).toBe(50);
+    expect(captured.filters.search).toBe('noodles');
+
+    const paged = new URLSearchParams(captured.location.search);
+    expect(paged.get('page')).toBe('2');
+    expect(paged.get('pageSize')).toBe('50');
+    expect(paged.get('search')).toBe('noodles');
+
+    act(() => {
+      captured.setFilters({ pageSize: 25, page: 0 });
+      captured.setFilter('page', 0);
+    });
+
+    expect(captured.filters.pageSize).toBe(25);
+    expect(captured.filters.page).toBe(0);
+    expect(captured.filters.search).toBe('noodles');
+    const reset = new URLSearchParams(captured.location.search);
+    expect(reset.get('pageSize')).toBeNull();
+    expect(reset.get('page')).toBeNull();
+    expect(reset.get('search')).toBe('noodles');
+
+    cleanup();
+  });
+
+  it('Scenario 10: date defaults apply only when the URL has no date filter', () => {
+    const today = '2026-11-16';
+    let captured: any;
+
+    function TestComponent() {
+      const listState = useListState({
+        routePrefix: '/sales',
+        schema: {
+          search: stringParam(''),
+          startDate: stringParam(today),
+          endDate: stringParam(today),
+          page: pageParam(0),
+        },
+      });
+      const location = useLocation();
+      captured = { ...listState, location };
+      return <div>{listState.filters.startDate}:{listState.filters.endDate}</div>;
+    }
+
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={['/sales']}>
+          <TestComponent />
+        </MemoryRouter>
+      );
+    });
+
+    expect(captured.filters.startDate).toBe(today);
+    expect(captured.filters.endDate).toBe(today);
+    expect(new URLSearchParams(captured.location.search).has('startDate')).toBe(false);
+    expect(new URLSearchParams(captured.location.search).has('endDate')).toBe(false);
+
+    act(() => {
+      captured.setFilters({ startDate: '2026-08-01', endDate: '2026-08-15' });
+    });
+    act(() => {
+      captured.setFilter('search', 'bill-12');
+    });
+
+    expect(captured.filters.startDate).toBe('2026-08-01');
+    expect(captured.filters.endDate).toBe('2026-08-15');
+    expect(captured.filters.search).toBe('bill-12');
+    const custom = new URLSearchParams(captured.location.search);
+    expect(custom.get('startDate')).toBe('2026-08-01');
+    expect(custom.get('endDate')).toBe('2026-08-15');
+    expect(custom.get('search')).toBe('bill-12');
+
+    act(() => {
+      captured.setFilters({ startDate: today, endDate: today });
+    });
+
+    expect(captured.filters.startDate).toBe(today);
+    expect(captured.filters.endDate).toBe(today);
+    expect(captured.filters.search).toBe('bill-12');
+    const backToToday = new URLSearchParams(captured.location.search);
+    expect(backToToday.has('startDate')).toBe(false);
+    expect(backToToday.has('endDate')).toBe(false);
+    expect(backToToday.get('search')).toBe('bill-12');
+
+    cleanup();
+
+    act(() => {
+      root = createRoot(container);
+      root.render(
+        <MemoryRouter initialEntries={['/sales?startDate=2026-05-01&endDate=2026-05-02&search=deep']}>
+          <TestComponent />
+        </MemoryRouter>
+      );
+    });
+
+    expect(captured.filters.startDate).toBe('2026-05-01');
+    expect(captured.filters.endDate).toBe('2026-05-02');
+    expect(captured.filters.search).toBe('deep');
+
+    cleanup();
+  });
+
   it('Scenario 8: navigateBack navigation and last list URL tracking', () => {
     const mockNavigate = vi.fn();
 

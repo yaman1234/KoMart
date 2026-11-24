@@ -22,6 +22,12 @@ export const PRODUCT_SEARCH_PAGE_SIZE = 25;
 export const PO_RECEIVE_CHUNK_SIZE = 5;
 export const PO_RECEIVE_TIMEOUT_MS = 120_000;
 
+/**
+ * Max packs on one purchase-order line or one receive.
+ * Keep in sync with backend `MAX_PO_LINE_QUANTITY`.
+ */
+export const MAX_PO_LINE_QUANTITY = 100_000;
+
 /** React Query stale-time tiers (milliseconds). */
 export const STALE_TIME = {
   realtime: 30_000,
@@ -123,6 +129,18 @@ export const PAYMENT_METHODS = [
   { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
 ] as const;
+
+export const SUPPLIER_PAYMENT_METHODS = [
+  { value: 'esewa', label: 'eSewa' },
+  { value: 'fonepay', label: 'Fonepay' },
+  { value: 'khalti', label: 'Khalti' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'other', label: 'Other' },
+] as const;
+
+export function supplierPaymentMethodLabel(method: string): string {
+  return SUPPLIER_PAYMENT_METHODS.find((item) => item.value === method)?.label ?? method;
+}
 
 export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
   { value: 'setup_investment', label: 'Setup / Investment' },

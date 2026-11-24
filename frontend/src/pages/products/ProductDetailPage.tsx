@@ -19,9 +19,11 @@ import EditIcon from '@mui/icons-material/Edit';
 import ImageIcon from '@mui/icons-material/Image';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import PrintIcon from '@mui/icons-material/Print';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { BarcodeLabelPrintDialog } from '@/components/products/BarcodeLabelPrintDialog';
 import { ProductCommerceSummary } from '@/components/products/ProductCommerceSummary';
 import { UomConversionHint } from '@/components/uom/UomUi';
 import { PO_LABELS, sellAsLabel } from '@/pages/purchase-orders/poTerminology';
@@ -37,6 +39,7 @@ import {
 } from '@/utils';
 import { formatConversion, formatStockQty, getProductApproxPackStock } from '@/utils/uomDisplay';
 import { showApiError, showSuccess } from '@/utils/toast';
+import { EntityAuditLog } from '@/components/common/EntityAuditLog';
 
 function displayValue(value: string | number | null | undefined): string {
   if (value == null) return '—';
@@ -89,6 +92,7 @@ export function ProductDetailPage() {
   const user = useAuthStore((s) => s.user);
   const deleteMutation = useDeleteProduct();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   const canSeeCostPrice = isAdminOrManager(user?.role);
@@ -166,7 +170,7 @@ export function ProductDetailPage() {
     },
     {
       label: PO_LABELS.sellAs,
-      value: displayValue(sellAsLabel(product.sellMode)),
+      value: displayValue(sellAsLabel(product.sellMode, product.unitsPerBuyUom ?? 1)),
     },
     {
       label: PO_LABELS.pcsInPack,
@@ -213,9 +217,16 @@ export function ProductDetailPage() {
         title={product.name}
         breadcrumbs={[{ label: 'Products', path: '/products' }, { label: product.name }]}
         action={
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigateBack(navigate, '/products')}>
               Back
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              onClick={() => setPrintOpen(true)}
+            >
+              Print barcode
             </Button>
             {canEdit && (
               <>
@@ -238,6 +249,12 @@ export function ProductDetailPage() {
             )}
           </Box>
         }
+      />
+
+      <BarcodeLabelPrintDialog
+        open={printOpen}
+        product={product}
+        onClose={() => setPrintOpen(false)}
       />
 
       <ConfirmDialog
@@ -569,6 +586,8 @@ export function ProductDetailPage() {
           </Grid>
         </Grid>
       </Paper>
+
+      <EntityAuditLog entityId={product.id} module="products" />
     </Box>
   );
 }

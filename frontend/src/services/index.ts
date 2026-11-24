@@ -726,6 +726,8 @@ export const inventoryService = {
 
   getItem: async (productId: string): Promise<InventoryItem> => {
 
+    if (useMock()) return mockApi.getInventoryItem(productId);
+
     const { data } = await apiClient.get(`/inventory/items/${productId}`);
 
     return data as InventoryItem;
@@ -750,6 +752,26 @@ export const inventoryService = {
 
   getIntegrity: async (params?: { page?: number; pageSize?: number; onlyOutOfSync?: boolean }): Promise<InventoryIntegrityResponse> => {
 
+    if (useMock()) {
+
+      return {
+
+        outOfSyncCount: 0,
+
+        data: [],
+
+        total: 0,
+
+        page: params?.page ?? 1,
+
+        pageSize: params?.pageSize ?? 50,
+
+        totalPages: 1,
+
+      };
+
+    }
+
     const { data } = await apiClient.get('/inventory/integrity', {
 
       params: {
@@ -769,6 +791,8 @@ export const inventoryService = {
   },
 
   alignLedger: async (productId: string, reason: string): Promise<void> => {
+
+    if (useMock()) return;
 
     await apiClient.post('/inventory/integrity/align', { productId, reason });
 
@@ -970,6 +994,8 @@ export const purchaseReturnService = {
 
   getAvailable: async (purchaseOrderId: string): Promise<import('@/types').PurchaseReturnableLine[]> => {
 
+    if (useMock()) return mockApi.getReturnableLines(purchaseOrderId);
+
     const { data } = await apiClient.get('/purchase-returns/available', {
 
       params: { purchaseOrderId },
@@ -981,6 +1007,8 @@ export const purchaseReturnService = {
   },
 
   getAvailableBySupplier: async (supplierId: string): Promise<import('@/types').PurchaseReturnableLine[]> => {
+
+    if (useMock()) return mockApi.getReturnableLinesBySupplier(supplierId);
 
     const { data } = await apiClient.get('/purchase-returns/available-by-supplier', {
 
@@ -1026,6 +1054,8 @@ export const purchaseReturnService = {
 
   }): Promise<import('@/types').PurchaseReturnListResponse> => {
 
+    if (useMock()) return mockApi.getPurchaseReturns(params);
+
     const { data } = await apiClient.get('/purchase-returns', {
 
       params: {
@@ -1064,6 +1094,8 @@ export const purchaseReturnService = {
 
   ): Promise<import('@/types').PurchaseReturn> => {
 
+    if (useMock()) return mockApi.createPurchaseReturn(payload);
+
     const { data } = await apiClient.post('/purchase-returns', payload);
 
     return data;
@@ -1088,6 +1120,8 @@ export const purchaseReturnService = {
 
   ): Promise<import('@/types').PurchaseReturn> => {
 
+    if (useMock()) return mockApi.closePurchaseReturn(id, payload);
+
     const { data } = await apiClient.post(`/purchase-returns/${id}/close`, {
 
       paymentMethod: payload?.paymentMethod,
@@ -1111,6 +1145,8 @@ export const purchaseReturnService = {
     payload: { reason: string },
 
   ): Promise<import('@/types').PurchaseReturn> => {
+
+    if (useMock()) return mockApi.writeOffPurchaseReturn(id, payload);
 
     const { data } = await apiClient.post(`/purchase-returns/${id}/write-off`, payload);
 

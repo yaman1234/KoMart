@@ -11,7 +11,8 @@ export const PO_LABELS = {
   cost: 'Cost',
   costPack: 'Cost / pack',
   costPc: 'Cost / pc',
-  amount: 'Amount',
+  amount: 'Line Total',
+  lineTotal: 'Line Total',
   ordered: 'Ordered',
   received: 'Already in',
   receive: 'Receiving now',
@@ -31,7 +32,14 @@ export const PO_SELL_AS_OPTIONS = [
   { value: 'both' as const, label: 'Pack & piece' },
 ];
 
-export function sellAsLabel(mode: string | undefined): string {
+/**
+ * Display label for sell mode. A product with no pack conversion (1 pc per pack)
+ * is shown as Piece only. Stored sell_mode is unchanged.
+ */
+export function sellAsLabel(mode: string | undefined, unitsPerBuyUom?: number | null): string {
+  if (unitsPerBuyUom != null && Math.floor(Number(unitsPerBuyUom) || 1) <= 1) {
+    return 'Piece only';
+  }
   const found = PO_SELL_AS_OPTIONS.find((o) => o.value === mode);
   return found?.label ?? 'Pack only';
 }

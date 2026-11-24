@@ -9,7 +9,7 @@ from typing import Any
 
 from app.models.inventory import InventoryBatch
 from app.models.product import Product, ProductStatus
-from app.models.purchase_order import POStatus, PurchaseOrder
+from app.models.purchase_order import POStatus, PurchaseOrder, committed_po_status_match
 from app.models.purchase_return import PurchaseReturn, PurchaseReturnStatus
 from app.models.supplier import Supplier
 from app.schemas.reports import (
@@ -96,9 +96,7 @@ async def generate_purchasing_payables_report(
     supplier_map = {str(s.id): s for s in suppliers_list}
 
     # Also fetch all active POs across the store to build global AP aging
-    all_active_pos = await PurchaseOrder.find({
-        "status": {"$in": [POStatus.ordered.value, POStatus.partial.value, POStatus.received.value]}
-    }).to_list()
+    all_active_pos = await PurchaseOrder.find(committed_po_status_match()).to_list()
 
     # Global AP aging across all active POs
     global_ap_aging = APAgingBuckets()

@@ -48,6 +48,7 @@ from app.services.inventory_movements import (
     align_ledger_to_on_hand,
     build_movement_row,
     count_out_of_sync_skus,
+    figures_disagree,
     list_integrity_rows,
     load_batch_lookups,
     load_expense_numbers,
@@ -102,6 +103,27 @@ def _batch_response(batch: InventoryBatch) -> BatchResponse:
         purchase_order_id=batch.purchase_order_id,
         received_at=batch.received_at.isoformat(),
     )
+
+
+def _sum_stock_value(products: list[Product], stock_map: dict[str, int]) -> float:
+    """Stock × catalog cost. Matches the inventory table Value column."""
+    total = 0.0
+    for product in products:
+        total += stock_map.get(str(product.id), 0) * product.cost_price
+    return round(total, 2)
+
+
+async def _match_stock_value(match: dict) -> float:
+    """Stock × catalog cost for every product in `match`, ignoring pagination."""
+    rows = await Product.get_motor_collection().find(match, {"cost_price": 1}).to_list(None)
+    if not rows:
+        return 0.0
+    product_ids = [str(row["_id"]) for row in rows]
+    stock_map = await get_current_stock_batch(product_ids)
+    total = 0.0
+    for row in rows:
+        total += stock_map.get(str(row["_id"]), 0) * float(row.get("cost_price") or 0)
+    return round(total, 2)
 
 
 async def _item_response(product: Product, batches: list[InventoryBatch]) -> InventoryItemResponse:
@@ -194,10 +216,12 @@ async def list_inventory(
             ) == stock_filter
         ]
         total = len(products)
+        total_stock_value = _sum_stock_value(products, stock_map)
         products = products[(page - 1) * page_size: page * page_size]
     else:
         col = Product.get_motor_collection()
         total = await col.count_documents(match)
+        total_stock_value = await _match_stock_value(match)
         products = (
             await Product.find(match)
             .sort("name")
@@ -208,14 +232,6 @@ async def list_inventory(
 
     product_ids = [str(product.id) for product in products]
     batches_by_product = await get_batches_for_products(product_ids)
-    stock_map = await get_current_stock_batch(product_ids)
-
-    total_stock_value = 0.0
-    for pid in product_ids:
-        product = next((p for p in products if str(p.id) == pid), None)
-        if product:
-            total_stock_value += stock_map.get(pid, 0) * product.cost_price
-    total_stock_value = round(total_stock_value, 2)
 
     items = []
     for product in products:
@@ -529,7 +545,10 @@ async def inventory_integrity(
     )
     out_of_sync_count = (
         len(rows) if only_out_of_sync
-        else sum(1 for row in rows if int(row["variance"]) != 0)
+        else sum(
+            1 for row in rows
+            if figures_disagree(int(row["on_hand"]), int(row["ledger_close"]), row.get("last_after"))
+        )
     )
     total = len(rows)
     start = (page - 1) * page_size
@@ -562,10 +581,15 @@ async def align_ledger_endpoint(
         request=request,
         entity_type="product",
         entity_id=body.product_id,
-        previous={"on_hand": result["on_hand"], "ledger_close": result["ledger_close"]},
+        previous={
+            "on_hand": result["previous_on_hand"],
+            "ledger_close": result["previous_ledger_close"],
+            "last_after": result["previous_last_after"],
+        },
         new={
-            "stock": result["on_hand"],
+            "on_hand": result["on_hand"],
             "ledger_close": result["ledger_close"],
+            "last_after": result["last_after"],
             "reason": body.reason,
         },
     )

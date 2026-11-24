@@ -27,6 +27,7 @@ import { receiptBrandingFromSettings } from '@/utils/receiptPrint';
 import { useAuthStore } from '@/store';
 import { isAdminOrManager, navigateBack } from '@/utils';
 import { showSuccess } from '@/utils/toast';
+import { EntityAuditLog } from '@/components/common/EntityAuditLog';
 
 export function SaleDetailPage() {
   const navigate = useNavigate();
@@ -170,6 +171,8 @@ export function SaleDetailPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <EntityAuditLog entityId={txn.id} module="sales" />
     </Box>
   );
 }

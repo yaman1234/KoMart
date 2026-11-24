@@ -8,6 +8,8 @@ import {
   isMockSession,
 } from '@/config/mock';
 import { mockApi } from '@/services/mock/mockApi';
+import { accessTokenNeedsRefresh } from '@/utils/accessToken';
+import { isRequestTimeout, reportApiTimeout } from '@/utils/apiTimeout';
 import { showError } from '@/utils/toast';
 
 // ── Key-case converters ───────────────────────────────────────────────────────
@@ -60,10 +62,16 @@ publicClient.interceptors.request.use((config) => {
   return config;
 });
 
-publicClient.interceptors.response.use((response) => {
-  response.data = camelizeKeys(response.data);
-  return response;
-});
+publicClient.interceptors.response.use(
+  (response) => {
+    response.data = camelizeKeys(response.data);
+    return response;
+  },
+  (error: unknown) => {
+    reportApiTimeout(error);
+    return Promise.reject(error);
+  },
+);
 
 /** Bare client for token refresh — avoids interceptor recursion */
 const refreshClient = axios.create({
@@ -72,21 +80,17 @@ const refreshClient = axios.create({
   timeout: 30000,
 });
 
+refreshClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    reportApiTimeout(error);
+    return Promise.reject(error);
+  },
+);
+
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
-let isRefreshing = false;
-let refreshQueue: Array<{
-  resolve: (token: string) => void;
-  reject: (err: unknown) => void;
-}> = [];
-
-function processRefreshQueue(error: unknown, token: string | null = null) {
-  refreshQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error);
-    else if (token) resolve(token);
-  });
-  refreshQueue = [];
-}
+let refreshInFlight: Promise<string> | null = null;
 
 function isAuthUrl(url?: string): boolean {
   if (!url) return false;
@@ -109,7 +113,7 @@ function notifySessionExpired() {
   }, 5000);
 }
 
-async function refreshAccessToken(): Promise<string> {
+async function performRefresh(): Promise<string> {
   const refreshToken = useAuthStore.getState().refreshToken;
   if (!refreshToken) {
     throw new Error('No refresh token');
@@ -139,10 +143,44 @@ async function refreshAccessToken(): Promise<string> {
   return normalized.accessToken;
 }
 
+/** One refresh for every caller that arrives while it is in flight, including a 401 retry. */
+function refreshAccessToken(): Promise<string> {
+  if (!refreshInFlight) {
+    refreshInFlight = performRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+/**
+ * Refresh before authenticated queries mount when the saved access token is
+ * missing or about to expire. A live token is returned as-is.
+ */
+export async function ensureFreshAccessToken(): Promise<void> {
+  const { isAuthenticated, accessToken, refreshToken } = useAuthStore.getState();
+  if (!isAuthenticated || isMockEnabled()) return;
+  if (!accessTokenNeedsRefresh(accessToken)) return;
+  if (!refreshToken) return;
+  try {
+    await refreshAccessToken();
+  } catch {
+    notifySessionExpired();
+    useAuthStore.getState().logout();
+  }
+}
+
 // Request: attach JWT + convert outgoing camelCase → snake_case
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     useLoadingStore.getState().start();
+    if (refreshInFlight && shouldAttachAuthHeader(config.url)) {
+      try {
+        await refreshInFlight;
+      } catch {
+        // A failed refresh logs the user out. Let this request continue and 401.
+      }
+    }
     const token = useAuthStore.getState().accessToken;
     if (token && shouldAttachAuthHeader(config.url)) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -170,6 +208,7 @@ apiClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     useLoadingStore.getState().stop();
+    reportApiTimeout(error);
 
     const original = error.config as RetryConfig | undefined;
     const status = error.response?.status;
@@ -188,30 +227,17 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (isRefreshing) {
-      return new Promise<string>((resolve, reject) => {
-        refreshQueue.push({ resolve, reject });
-      }).then((token) => {
-        original.headers.Authorization = `Bearer ${token}`;
-        return apiClient(original);
-      });
-    }
-
     original._retry = true;
-    isRefreshing = true;
 
     try {
       const newToken = await refreshAccessToken();
-      processRefreshQueue(null, newToken);
       original.headers.Authorization = `Bearer ${newToken}`;
       return apiClient(original);
     } catch (refreshError) {
-      processRefreshQueue(refreshError, null);
+      reportApiTimeout(refreshError);
       notifySessionExpired();
       useAuthStore.getState().logout();
       return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
     }
   },
 );
@@ -221,7 +247,7 @@ apiClient.interceptors.response.use(
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      if (error.code === 'ECONNABORTED') return 'Request timed out. Please try again.';
+      if (isRequestTimeout(error)) return 'Request timed out. Please try again.';
       return 'Network error. Check your connection and try again.';
     }
 
