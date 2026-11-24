@@ -695,23 +695,46 @@ async def _has_activity_after(wallet: Wallet, cutover: WalletLedgerEntry) -> boo
     return bool(rows)
 
 
+async def find_today_cutover(wallet: Wallet, today: str) -> list[WalletLedgerEntry]:
+    """Return any balance cutover entries posted for this wallet on today's date."""
+    return await WalletLedgerEntry.find({
+        "wallet": wallet.value,
+        "reference_type": BALANCE_CUTOVER_REF,
+        "date": today,
+    }).to_list()
+
+
 async def create_balance_cutover(
     *,
     cash: float | None,
     bank: float | None,
     esewa: float | None,
     replace: bool,
+    statement_ref: str | None = None,
+    remarks: str | None = None,
     created_by: str = "",
 ) -> dict[str, Any]:
     """Align live wallet balances to counted/statement amounts as of today (NPT).
 
     Posts one opening ledger line per wallet for the gap. Cash is the till ledger
     and does not include cash held by staff.
+
+    Replacement is scoped to today's cutovers only — historical cutovers from
+    earlier dates are ignored, so periodic monthly/weekly statement alignments
+    are always allowed on new dates.
     """
     today = today_npt().isoformat()
     targets = {"cash": cash, "bank": bank, "esewa": esewa}
     if all(value is None for value in targets.values()):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Enter at least one balance")
+
+    # Build the entry remark with optional statement ref and reason
+    remark_parts = [f"Balance cutover as of {today}"]
+    if statement_ref:
+        remark_parts.append(f"Ref: {statement_ref}")
+    if remarks:
+        remark_parts.append(remarks)
+    entry_remark = " — ".join(remark_parts)
 
     planned: list[dict[str, Any]] = []
     for key, raw_target in targets.items():
@@ -743,22 +766,28 @@ async def create_balance_cutover(
                 status.HTTP_409_CONFLICT,
                 detail=f"Day-close variance is already posted for {w.value} today. Use one alignment for the day.",
             )
-        existing = await find_by_reference(BALANCE_CUTOVER_REF, w.value)
-        if existing and not replace:
+
+        # Replacement is scoped to TODAY's cutovers only. Prior-date cutovers are
+        # treated as historical baselines and do not block a new periodic alignment.
+        today_existing = await find_today_cutover(w, today)
+        if today_existing and not replace:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail=(
-                    f"A balance cutover already exists for {w.value}. "
-                    "Turn on replace to set a new balance before any later activity."
+                    f"A balance cutover was already posted today for {w.value}. "
+                    "Enable 'Replace today's entry' if you are correcting today's figure."
                 ),
             )
-        if existing and replace:
-            latest = max(existing, key=lambda entry: _stamp(entry.created_at))
+        if today_existing and replace:
+            latest = max(today_existing, key=lambda entry: _stamp(entry.created_at))
             if await _has_activity_after(w, latest):
                 label = {"cash": "Cash", "bank": "Bank", "esewa": "eSewa"}.get(w.value, w.value)
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
-                    detail=f"{label} has ledger activity after the cutover, so it cannot be replaced.",
+                    detail=(
+                        f"{label} has ledger activity after today's cutover, "
+                        "so it cannot be replaced. Post a new cutover instead."
+                    ),
                 )
         item["direction"] = WalletDirection.inflow if delta > 0 else WalletDirection.outflow
         planned.append(item)
@@ -772,12 +801,20 @@ async def create_balance_cutover(
             amount=abs(item["delta"]),
             entry_type=WalletEntryType.opening,
             date=today,
-            remarks=f"Balance cutover as of {today}",
+            remarks=entry_remark,
             reference_type=BALANCE_CUTOVER_REF,
             reference_id=item["wallet"],
             created_by=created_by,
         )
         item["entry_id"] = str(entry.id)
+
+    # Post-execution verification: re-read actual balance and flag any drift
+    for item in planned:
+        if item["skipped"] or item["entry_id"] is None:
+            continue
+        actual = await current_wallet_balance(Wallet(item["wallet"]))
+        item["verified_balance"] = actual
+        item["drift"] = round(actual - item["target"], 2)
 
     lines = [
         {
@@ -787,6 +824,8 @@ async def create_balance_cutover(
             "delta": item["delta"],
             "skipped": item["skipped"],
             "entry_id": item["entry_id"],
+            "verified_balance": item.get("verified_balance"),
+            "drift": item.get("drift", 0.0),
         }
         for item in planned
     ]

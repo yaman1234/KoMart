@@ -278,8 +278,18 @@ def wallet_transfer_snapshot(
     }
 
 
-def wallet_cutover_snapshot(*, date: str, lines: list[dict[str, Any]]) -> dict[str, Any]:
+def wallet_cutover_snapshot(
+    *,
+    date: str,
+    lines: list[dict[str, Any]],
+    statement_ref: str | None = None,
+    remarks: str | None = None,
+) -> dict[str, Any]:
     out: dict[str, Any] = {"date": date}
+    if statement_ref:
+        out["statement_ref"] = statement_ref
+    if remarks:
+        out["remarks"] = remarks
     for line in lines:
         wallet = str(line.get("wallet") or "")
         if not wallet:
@@ -287,6 +297,9 @@ def wallet_cutover_snapshot(*, date: str, lines: list[dict[str, Any]]) -> dict[s
         out[f"{wallet}_previous"] = round(float(line.get("previous") or 0), 2)
         out[f"{wallet}_target"] = round(float(line.get("target") or 0), 2)
         out[f"{wallet}_delta"] = round(float(line.get("delta") or 0), 2)
+        drift = line.get("drift")
+        if drift is not None and abs(float(drift)) >= 0.01:
+            out[f"{wallet}_drift"] = round(float(drift), 2)
     return out
 
 

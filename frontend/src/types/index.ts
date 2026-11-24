@@ -4860,6 +4860,8 @@ export interface WalletCutoverPayload {
   cash?: number;
   bank?: number;
   esewa?: number;
+  statementRef?: string;
+  remarks?: string;
   replace?: boolean;
 }
 
@@ -4870,6 +4872,8 @@ export interface WalletCutoverLine {
   delta: number;
   skipped: boolean;
   entryId?: string | null;
+  verifiedBalance?: number | null;
+  drift?: number | null;
 }
 
 export interface WalletCutoverResult {

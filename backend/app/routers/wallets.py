@@ -146,6 +146,8 @@ async def cutover_wallets(
         bank=body.bank,
         esewa=body.esewa,
         replace=body.replace,
+        statement_ref=body.statement_ref,
+        remarks=body.remarks,
         created_by=current_user.name,
     )
     if any(not line["skipped"] for line in result["lines"]):
@@ -156,7 +158,12 @@ async def cutover_wallets(
             request=request,
             entity_type="wallet_cutover",
             entity_id=result["date"],
-            new=wallet_cutover_snapshot(date=result["date"], lines=result["lines"]),
+            new=wallet_cutover_snapshot(
+                date=result["date"],
+                lines=result["lines"],
+                statement_ref=body.statement_ref,
+                remarks=body.remarks,
+            ),
         )
     return WalletCutoverResponse(**result)
 

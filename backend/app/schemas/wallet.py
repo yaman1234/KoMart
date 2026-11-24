@@ -56,6 +56,8 @@ class WalletCutoverCreate(BaseModel):
     cash: float | None = Field(default=None, ge=0)
     bank: float | None = Field(default=None, ge=0)
     esewa: float | None = Field(default=None, ge=0)
+    statement_ref: str | None = Field(default=None, max_length=100)
+    remarks: str | None = Field(default=None, max_length=500)
     replace: bool = False
 
 

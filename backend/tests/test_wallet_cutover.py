@@ -220,7 +220,7 @@ async def test_second_cutover_rejected_without_replace_and_posts_nothing_else(
             json={"bank": 2000, "esewa": round(esewa_before + 5, 2) if esewa_before >= 0 else 5},
         )
         assert second.status_code == 409
-        assert "already exists" in second.json()["detail"]
+        assert "already posted today" in second.json()["detail"].lower() or "already exists" in second.json()["detail"].lower()
         assert await wl.current_wallet_balance(Wallet.bank) == first_target
         assert await wl.current_wallet_balance(Wallet.esewa) == esewa_before
     finally:
@@ -255,7 +255,7 @@ async def test_replace_blocked_after_later_activity(client: AsyncClient, admin_u
             json={"bank": 2000, "replace": True},
         )
         assert replaced.status_code == 409
-        assert "activity after the cutover" in replaced.json()["detail"]
+        assert "activity after" in replaced.json()["detail"].lower()
         assert await wl.current_wallet_balance(Wallet.bank) == round(first_target + 5, 2)
     finally:
         await _cleanup(name)
@@ -373,5 +373,69 @@ async def test_matching_target_is_skipped(client: AsyncClient, admin_user: User)
             AuditLog.action == "balance_cutover",
         ).to_list()
         assert len(audits) == (0 if target == esewa_before else 1)
+    finally:
+        await _cleanup(name)
+
+
+@pytest.mark.asyncio
+async def test_cutover_with_remarks_and_statement_ref(client: AsyncClient, admin_user: User):
+    token = await _login(client, admin_user.email, "adminpass123")
+    name = admin_user.name
+    try:
+        bank_before = await wl.current_wallet_balance(Wallet.bank)
+        target = 50000.0
+        expected_delta = round(target - bank_before, 2)
+        res = await client.post(
+            "/api/v1/wallets/cutover",
+            headers=_auth(token),
+            json={
+                "bank": target,
+                "statement_ref": "STMT-NOV-2026",
+                "remarks": "Monthly bank reconciliation",
+            },
+        )
+        assert res.status_code == 200, res.text
+        line = res.json()["lines"][0]
+        assert line["delta"] == expected_delta
+        entry = await WalletLedgerEntry.get(line["entry_id"])
+        assert entry is not None
+        assert "STMT-NOV-2026" in entry.remarks
+        assert "Monthly bank reconciliation" in entry.remarks
+
+        audit = await AuditLog.find_one(AuditLog.user_name == name, AuditLog.action == "balance_cutover")
+        assert audit is not None
+        assert audit.new_value.get("statement_ref") == "STMT-NOV-2026"
+        assert audit.new_value.get("remarks") == "Monthly bank reconciliation"
+    finally:
+        await _cleanup(name)
+
+
+@pytest.mark.asyncio
+async def test_periodic_cutover_allowed_on_new_date(client: AsyncClient, admin_user: User):
+    token = await _login(client, admin_user.email, "adminpass123")
+    name = admin_user.name
+    try:
+        # Simulate a past cutover entry from yesterday
+        yesterday = "2026-11-01"
+        await wl.post_entry(
+            wallet=Wallet.bank,
+            direction=WalletDirection.inflow,
+            amount=100,
+            entry_type=WalletEntryType.opening,
+            date=yesterday,
+            remarks=f"Balance cutover as of {yesterday}",
+            reference_type=wl.BALANCE_CUTOVER_REF,
+            reference_id="bank",
+            created_by=name,
+        )
+        # Even though a past cutover exists in history, today's cutover should NOT require replace
+        target = 60000.0
+        res = await client.post(
+            "/api/v1/wallets/cutover",
+            headers=_auth(token),
+            json={"bank": target, "replace": False},
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["lines"][0]["target"] == target
     finally:
         await _cleanup(name)
