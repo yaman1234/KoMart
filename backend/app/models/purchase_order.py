@@ -249,6 +249,10 @@ class PurchaseOrderItem(BaseModel):
     def base_quantity_ordered(self) -> int:
         return self.quantity * self.units_per_buy_uom
 
+    @property
+    def line_total(self) -> float:
+        return round((self.quantity or 0) * (self.unit_cost or 0.0), 2)
+
 
 def line_status(item: PurchaseOrderItem) -> LineStatus:
     if item.received_quantity <= 0:

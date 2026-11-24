@@ -943,6 +943,7 @@ export function PurchaseOrderDetailPage() {
                 <TableCell sx={headerCellSx}>{PO_LABELS.status}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPack}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPc}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
                 <TableCell sx={headerCellSx}>{PO_LABELS.sellAs}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packPrice}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.piecePrice}</TableCell>
@@ -1108,6 +1109,9 @@ export function PurchaseOrderDetailPage() {
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {formatCurrency(costPc)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                      {formatCurrency(item.lineTotal ?? item.quantity * item.unitCost)}
                     </TableCell>
                     <TableCell>
                       {canReceive ? (

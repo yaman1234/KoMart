@@ -1715,7 +1715,11 @@ export const mockApi = {
 
       ...mockPurchaseOrderTotals(data),
 
-      items: data.items.map((item) => ({ ...item, lineStatus: 'pending' as const })),
+      items: data.items.map((item) => ({
+        ...item,
+        lineStatus: 'pending' as const,
+        lineTotal: Math.round(item.quantity * item.unitCost * 100) / 100,
+      })),
 
       id: `po-${generateId().slice(0, 8)}`,
 
@@ -1781,7 +1785,12 @@ export const mockApi = {
 
         : 'partial' as const;
 
-      return { ...item, receivedQuantity: received, lineStatus };
+      return {
+        ...item,
+        receivedQuantity: received,
+        lineStatus,
+        lineTotal: Math.round(item.quantity * item.unitCost * 100) / 100,
+      };
 
     });
 
