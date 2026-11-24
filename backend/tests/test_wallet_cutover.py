@@ -22,6 +22,19 @@ from app.services.time_nepal import today_npt
 @pytest.fixture(autouse=True)
 async def setup_db():
     await init_db()
+    existing = await WalletLedgerEntry.find(
+        WalletLedgerEntry.reference_type == wl.BALANCE_CUTOVER_REF
+    ).to_list()
+    if existing:
+        await WalletLedgerEntry.find(
+            WalletLedgerEntry.reference_type == wl.BALANCE_CUTOVER_REF
+        ).delete()
+    yield
+    await WalletLedgerEntry.find(
+        WalletLedgerEntry.reference_type == wl.BALANCE_CUTOVER_REF
+    ).delete()
+    for entry in existing:
+        await WalletLedgerEntry.insert_one(entry)
 
 
 @pytest.fixture
