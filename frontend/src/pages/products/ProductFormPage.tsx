@@ -55,35 +55,35 @@ function todayAd(): string {
 
 // ── SKU generator (server-backed) ─────────────────────────────────────────────
 const schema = z.object({
-  name:            z.string().min(1, 'Name is required'),
-  sku:             z.string(),
-  barcode:         z.string(),
-  brand:           z.string(),
+  name: z.string().min(1, 'Name is required'),
+  sku: z.string(),
+  barcode: z.string(),
+  brand: z.string(),
   countryOfOrigin: z.string(),
-  category:        z.string(),
-  supplierId:      z.string(),
-  buyUom:          z.string().min(1, 'Buy unit is required'),
-  uom:             z.string(),
-  unitsPerBuyUom:  z.number().int().min(1, 'Must be at least 1'),
-  sellMode:        z.enum(['unit', 'piece', 'both']),
-  description:     z.string(),
-  imageUrl:        z.string().url('Enter a valid URL').or(z.literal('')),
-  costPrice:       z.number().min(0, 'Must be ≥ 0'),
-  sellingPrice:    z.number().min(0, 'Must be ≥ 0'),
+  category: z.string(),
+  supplierId: z.string(),
+  buyUom: z.string().min(1, 'Buy unit is required'),
+  uom: z.string(),
+  unitsPerBuyUom: z.number().int().min(1, 'Must be at least 1'),
+  sellMode: z.enum(['unit', 'piece', 'both']),
+  description: z.string(),
+  imageUrl: z.string().url('Enter a valid URL').or(z.literal('')),
+  costPrice: z.number().min(0, 'Must be ≥ 0'),
+  sellingPrice: z.number().min(0, 'Must be ≥ 0'),
   packSellingPrice: z.number().min(0, 'Must be ≥ 0'),
   discountPercent: z.number().min(0).max(100),
   offeredPrice: z.number().min(0, 'Must be ≥ 0'),
   packDiscountPercent: z.number().min(0).max(100),
   packOfferedPrice: z.number().min(0, 'Must be ≥ 0'),
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
-  status:            z.enum(['active', 'discontinued', 'seasonal']),
-  tags:              z.array(z.string().min(1)),
-  isPopular:         z.boolean(),
-  isTrending:        z.boolean(),
+  status: z.enum(['active', 'discontinued', 'seasonal']),
+  tags: z.array(z.string().min(1)),
+  isPopular: z.boolean(),
+  isTrending: z.boolean(),
   costPriceEffectiveFrom: z.string(),
   sellingPriceEffectiveFrom: z.string(),
-  nutritionInfo:   z.string(),
-  allergenInfo:    z.string(),
+  nutritionInfo: z.string(),
+  allergenInfo: z.string(),
 }).superRefine((data, ctx) => {
   if (!data.sku.trim() && !data.category.trim()) {
     ctx.addIssue({
@@ -213,7 +213,6 @@ export function ProductFormPage({
     watch,
     setValue,
     setError,
-    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -268,35 +267,35 @@ export function ProductFormPage({
       const buy = product.buyUom ?? product.uom ?? '';
       const secondary = hasUomConversion(factor) ? (product.uom ?? '') : buy;
       reset({
-        name:             product.name,
-        sku:              product.sku,
-        barcode:          product.barcode,
-        brand:            product.brand,
-        countryOfOrigin:  product.countryOfOrigin,
-        category:         product.category,
-        supplierId:       product.supplierId,
-        buyUom:           buy,
-        uom:              secondary,
-        unitsPerBuyUom:   factor,
-        sellMode:           product.sellMode ?? 'unit',
-        description:      product.description,
-        imageUrl:         product.images[0] ?? '',
-        costPrice:        product.costPrice,
-        sellingPrice:     product.sellingPrice,
+        name: product.name,
+        sku: product.sku,
+        barcode: product.barcode,
+        brand: product.brand,
+        countryOfOrigin: product.countryOfOrigin,
+        category: product.category,
+        supplierId: product.supplierId,
+        buyUom: buy,
+        uom: secondary,
+        unitsPerBuyUom: factor,
+        sellMode: product.sellMode ?? 'unit',
+        description: product.description,
+        imageUrl: product.images[0] ?? '',
+        costPrice: product.costPrice,
+        sellingPrice: product.sellingPrice,
         packSellingPrice: product.packSellingPrice ?? 0,
         discountPercent: product.discountPercent ?? 0,
         offeredPrice: product.offeredPrice ?? product.sellingPrice,
         packDiscountPercent: product.packDiscountPercent ?? 0,
         packOfferedPrice: product.packOfferedPrice ?? product.packSellingPrice ?? 0,
         lowStockThreshold: product.lowStockThreshold,
-        status:            product.status ?? 'active',
-        tags:              product.tags ?? [],
-        isPopular:         product.isPopular ?? false,
-        isTrending:        product.isTrending ?? false,
+        status: product.status ?? 'active',
+        tags: product.tags ?? [],
+        isPopular: product.isPopular ?? false,
+        isTrending: product.isTrending ?? false,
         costPriceEffectiveFrom: product.costPriceEffectiveFrom || todayAd(),
         sellingPriceEffectiveFrom: product.sellingPriceEffectiveFrom || todayAd(),
-        nutritionInfo:    product.nutritionInfo ?? '',
-        allergenInfo:     product.allergenInfo ?? '',
+        nutritionInfo: product.nutritionInfo ?? '',
+        allergenInfo: product.allergenInfo ?? '',
       });
     }
   }, [product, reset]);
@@ -363,68 +362,68 @@ export function ProductFormPage({
 
   // ── Image file picker ────────────────────────────────────────────────────
   const handleFileChange = async (
-  e: React.ChangeEvent<HTMLInputElement>,
-) => {
-  const file = e.target.files?.[0];
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
 
-  if (!file) return;
+    if (!file) return;
 
-  try {
-    setImageUploading(true);
-const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+    try {
+      setImageUploading(true);
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-    if (!cloudName || !uploadPreset) {
-      throw new Error('Cloudinary configuration is missing.');
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Cloudinary configuration is missing.');
+      }
+
+      // Optional client-side validation
+      if (!file.type.startsWith('image/')) {
+        showWarning('Please select an image file.');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        showWarning('Image must be smaller than 5 MB.');
+        return;
+      }
+
+      const formData = new FormData();
+
+      formData.append('file', file);
+      formData.append('upload_preset', uploadPreset);
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Image upload failed.');
+      }
+
+      // Cloudinary URL
+      const imageUrl = data.secure_url;
+
+      setValue('imageUrl', imageUrl, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+
+      showSuccess('Image uploaded successfully.');
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      showApiError(error, 'Image upload failed.');
+    } finally {
+      setImageUploading(false);
+      e.target.value = '';
     }
-
-    // Optional client-side validation
-    if (!file.type.startsWith('image/')) {
-      showWarning('Please select an image file.');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showWarning('Image must be smaller than 5 MB.');
-      return;
-    }
-
-    const formData = new FormData();
-
-    formData.append('file', file);
-    formData.append('upload_preset', uploadPreset);
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-      {
-        method: 'POST',
-        body: formData,
-      },
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Image upload failed.');
-    }
-
-    // Cloudinary URL
-    const imageUrl = data.secure_url;
-
-    setValue('imageUrl', imageUrl, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
-
-    showSuccess('Image uploaded successfully.');
-  } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    showApiError(error, 'Image upload failed.');
-  } finally {
-    setImageUploading(false);
-    e.target.value = '';
-  }
-};
+  };
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = async (values: FormValues) => {
@@ -584,10 +583,6 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   {...barcodeField}
-                  onChange={(event) => {
-                    barcodeField.onChange(event);
-                    if (errors.barcode) clearErrors('barcode');
-                  }}
                   inputRef={(el: HTMLInputElement | null) => {
                     barcodeRegRef(el);
                     barcodeInputRef.current = el;

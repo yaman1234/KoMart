@@ -43,9 +43,13 @@ import type { Product, PurchaseOrderItem, PurchaseOrderStatus } from '@/types';
 import { PoLineItemsGrid } from '@/pages/purchase-orders/components/PoLineItemsGrid';
 import { emptyPoLineItem, type PoLineItem } from '@/pages/purchase-orders/poFormTypes';
 import { productsToPoLines } from '@/pages/purchase-orders/poProductResolver';
-import { parsePoQuantity, poQuantityError } from '@/pages/purchase-orders/poQuantity';
 import { useUomOptions } from '@/hooks/useUoms';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
+
+function parseQuantity(input: string): number {
+  const n = parseInt(input, 10);
+  return Number.isNaN(n) || n < 1 ? 1 : n;
+}
 
 function productFromPoItem(item: PurchaseOrderItem, catalogProducts: Product[]): Product {
   const fromCatalog = catalogProducts.find((p) => p.id === item.productId);
@@ -199,15 +203,12 @@ export function PurchaseOrderFormPage() {
     setFormLoaded(true);
   }, [isEdit, existingPo, formLoaded, catalogLoading, catalogProducts, currentUser?.name]);
 
-  const activeLines = lines.filter((l) => l.product || l.skuInput.trim());
-  const quantityProblem = activeLines.find((l) => poQuantityError(l.quantityInput));
-  const validLines = lines.filter((l) => {
-    const qty = parsePoQuantity(l.quantityInput);
-    return Boolean(l.product) && qty != null && l.unitCost > 0 && !l.resolveError;
-  });
+  const validLines = lines.filter(
+    (l) => l.product && parseQuantity(l.quantityInput) > 0 && l.unitCost > 0 && !l.resolveError,
+  );
   const unresolvedLines = lines.filter((l) => l.skuInput.trim() && (!l.product || l.resolveError));
   const lineExtensions = validLines.map((l) => {
-    const qty = parsePoQuantity(l.quantityInput) ?? 0;
+    const qty = parseQuantity(l.quantityInput);
     // VAT bills: subtotal is qty × cost before VAT. Line Amount stays qty × inclusive cost.
     const unit = vatBill ? stripVatFromUnitCost(l.unitCost, taxRate) : l.unitCost;
     return qty * unit;
@@ -247,7 +248,7 @@ export function PurchaseOrderFormPage() {
       items: validLines.map((l) => ({
         productId: l.product!.id,
         productName: l.product!.name,
-        quantity: parsePoQuantity(l.quantityInput) ?? 0,
+        quantity: parseQuantity(l.quantityInput),
         unitCost: l.unitCost,
         receivedQuantity: receivedByProduct.get(l.product!.id) ?? l.receivedQuantity ?? 0,
         orderUom: l.buyUom,
@@ -269,10 +270,6 @@ export function PurchaseOrderFormPage() {
       setPasteWarning(
         `Unresolved: ${unresolvedLines.map((l) => l.skuInput).join(', ')}`,
       );
-      return false;
-    }
-    if (quantityProblem) {
-      setError(poQuantityError(quantityProblem.quantityInput) ?? 'Enter a valid quantity');
       return false;
     }
     if (expectedDelivery) {

@@ -23,7 +23,6 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { productService } from '@/services';
-import { MAX_PO_LINE_QUANTITY } from '@/constants';
 import { useUomOptions } from '@/hooks/useUoms';
 import { formatCurrency } from '@/utils';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
@@ -47,7 +46,11 @@ import {
 import { applyVatToUnitCost, stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 import { PO_LABELS, PO_PASTE_HINT } from '@/pages/purchase-orders/poTerminology';
 import { PoProductAutocompleteCell } from '@/pages/purchase-orders/components/PoProductAutocompleteCell';
-import { parsePoQuantity, poQuantityError } from '@/pages/purchase-orders/poQuantity';
+
+function parseQuantity(input: string): number {
+  const n = parseInt(input, 10);
+  return Number.isNaN(n) || n < 1 ? 1 : n;
+}
 
 function lineFromPaste(
   id: number,
@@ -72,7 +75,7 @@ function lineFromPaste(
     skuInput: row.sku,
     product,
     productNameFallback: product?.name ?? '',
-    quantityInput: row.quantityInput,
+    quantityInput: String(row.quantity),
     buyUom,
     unitsPerBuyUom,
     unitCost,
@@ -449,12 +452,11 @@ export function PoLineItemsGrid({
           </TableHead>
           <TableBody>
             {lines.map((line, index) => {
-              const qty = parsePoQuantity(line.quantityInput);
+              const qty = parseQuantity(line.quantityInput);
               const locked = line.receivedQuantity > 0;
               const inactive = lineInactive(line);
-              const quantityError = inactive ? null : poQuantityError(line.quantityInput);
-              const totalUnits = qty == null ? null : qty * (line.unitsPerBuyUom || 1);
-              const amount = line.product && qty != null && line.unitCost > 0 ? qty * line.unitCost : 0;
+              const totalUnits = qty * (line.unitsPerBuyUom || 1);
+              const amount = line.product && line.unitCost > 0 ? qty * line.unitCost : 0;
               const beforeVat = vatBill && line.product
                 ? stripVatFromUnitCost(line.unitCost, taxRate)
                 : 0;
@@ -464,7 +466,7 @@ export function PoLineItemsGrid({
                   key={line.id}
                   hover
                   sx={{
-                    bgcolor: line.resolveError || quantityError ? 'error.50' : undefined,
+                    bgcolor: line.resolveError ? 'error.50' : undefined,
                   }}
                 >
                   <TableCell align="center" sx={{ ...cellPadSx, color: 'text.secondary', fontSize: '0.75rem', fontWeight: 700 }}>
@@ -538,29 +540,16 @@ export function PoLineItemsGrid({
                       type="number"
                       value={line.quantityInput}
                       disabled={locked || inactive}
-                      error={!!quantityError}
-                      helperText={quantityError || undefined}
                       onFocus={() => setFocusedRow(index)}
                       onChange={(e) => updateLine(index, { quantityInput: e.target.value })}
-                      onBlur={(e) => {
-                        const parsed = parsePoQuantity(e.target.value);
-                        if (parsed == null) return;
-                        const normalized = String(parsed);
-                        if (normalized !== e.target.value) {
-                          updateLine(index, { quantityInput: normalized });
-                        }
-                      }}
+                      onBlur={() =>
+                        updateLine(index, { quantityInput: String(parseQuantity(line.quantityInput)) })
+                      }
                       onKeyDown={(e) => onCellKeyDown(e, index, 1)}
-                      sx={{
-                        ...excelCellSx,
-                        ...noNumberSpinnerSx,
-                        '& .MuiFormHelperText-root': { mx: 0, mt: 0.25, lineHeight: 1.2, whiteSpace: 'normal' },
-                      }}
+                      sx={{ ...excelCellSx, ...noNumberSpinnerSx }}
                       slotProps={{
                         htmlInput: {
                           min: 1,
-                          max: MAX_PO_LINE_QUANTITY,
-                          step: 1,
                           style: { textAlign: 'right' },
                           'data-po-row': index,
                           'data-po-col': 1,
@@ -618,7 +607,7 @@ export function PoLineItemsGrid({
                   </TableCell>
                   <TableCell align="right" sx={{ ...cellPadSx, px: 1 }}>
                     <Typography variant="body2" sx={{ fontSize: '0.8125rem', pr: 0.5, color: 'text.secondary' }}>
-                      {!inactive && totalUnits != null ? totalUnits : '—'}
+                      {!inactive ? totalUnits : '—'}
                     </Typography>
                   </TableCell>
                   {vatBill && (

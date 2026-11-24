@@ -571,18 +571,18 @@ const SheetRow = memo(function SheetRow({
               maxWidth: colWidth,
               ...(isStickyIdentity
                 ? {
-                    position: 'sticky',
-                    left: isName ? STICKY_NAME_LEFT : STICKY_SKU_LEFT,
-                    zIndex: 2,
-                    bgcolor: cellFill,
-                    backgroundImage: 'none',
-                    boxShadow: isSku
-                      ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
-                      : 'none',
-                  }
+                  position: 'sticky',
+                  left: isName ? STICKY_NAME_LEFT : STICKY_SKU_LEFT,
+                  zIndex: 2,
+                  bgcolor: cellFill,
+                  backgroundImage: 'none',
+                  boxShadow: isSku
+                    ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
+                    : 'none',
+                }
                 : {
-                    ...(fieldError || showServerError ? { bgcolor: cellFill } : {}),
-                  }),
+                  ...(fieldError || showServerError ? { bgcolor: cellFill } : {}),
+                }),
               color: !hasSku && col.key === 'sku' ? 'error.main' : 'inherit',
             }}
             title={fieldError ?? (showServerError ? serverError : undefined)}
@@ -1103,12 +1103,12 @@ export function ProductSheetView({
                   maxWidth: colWidth,
                   ...((isName || isSku)
                     ? {
-                        left: isName ? STICKY_NAME_LEFT : STICKY_SKU_LEFT,
-                        zIndex: 4,
-                        boxShadow: isSku
-                          ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
-                          : 'none',
-                      }
+                      left: isName ? STICKY_NAME_LEFT : STICKY_SKU_LEFT,
+                      zIndex: 4,
+                      boxShadow: isSku
+                        ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
+                        : 'none',
+                    }
                     : {}),
                 };
                 return (

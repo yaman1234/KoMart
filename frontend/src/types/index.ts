@@ -1298,10 +1298,6 @@ export interface MovementSummary {
 
 
 
-  lastAfter?: number | null;
-
-
-
   outOfSyncCount?: number | null;
 
 
@@ -1331,10 +1327,6 @@ export interface InventoryIntegrityItem {
 
 
   ledgerClose: number;
-
-
-
-  lastAfter?: number | null;
 
 
 

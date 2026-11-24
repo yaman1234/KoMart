@@ -377,12 +377,12 @@ const BulkAddRowView = memo(function BulkAddRowView({
             width: col.width,
             ...(col.sticky
               ? {
-                  position: 'sticky' as const,
-                  left: col.stickyLeft ?? 44,
-                  zIndex: 1,
-                  background: populated ? '#fff' : '#fafafa',
-                  boxShadow: col.key === 'sku' ? '2px 0 0 #e0e0e0' : undefined,
-                }
+                position: 'sticky' as const,
+                left: col.stickyLeft ?? 44,
+                zIndex: 1,
+                background: populated ? '#fff' : '#fafafa',
+                boxShadow: col.key === 'sku' ? '2px 0 0 #e0e0e0' : undefined,
+              }
               : {}),
           }}
         >
@@ -432,7 +432,6 @@ const BulkAddRowView = memo(function BulkAddRowView({
 async function loadExistingProductKeys(): Promise<BulkAddExistingLookup> {
   const names = new Set<string>();
   const skus = new Set<string>();
-  const barcodes = new Set<string>();
   let page = 1;
   let totalPages = 1;
   do {
@@ -440,12 +439,11 @@ async function loadExistingProductKeys(): Promise<BulkAddExistingLookup> {
     for (const p of res.data) {
       if (p.name?.trim()) names.add(p.name.trim().toLowerCase());
       if (p.sku?.trim()) skus.add(p.sku.trim().toLowerCase());
-      if (p.barcode?.trim()) barcodes.add(p.barcode.trim().toLowerCase());
     }
     totalPages = res.totalPages || 1;
     page += 1;
   } while (page <= totalPages && page <= 40);
-  return { names, skus, barcodes };
+  return { names, skus };
 }
 
 export function BulkProductFormPage() {
@@ -971,14 +969,14 @@ export function BulkProductFormPage() {
                     bgcolor: 'grey.100',
                     ...(col.sticky
                       ? {
-                          position: 'sticky',
-                          left: col.stickyLeft ?? 44,
-                          zIndex: 3,
-                          boxShadow:
-                            col.key === 'sku'
-                              ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
-                              : undefined,
-                        }
+                        position: 'sticky',
+                        left: col.stickyLeft ?? 44,
+                        zIndex: 3,
+                        boxShadow:
+                          col.key === 'sku'
+                            ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
+                            : undefined,
+                      }
                       : {}),
                   }}
                 >

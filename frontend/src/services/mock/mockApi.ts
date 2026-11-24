@@ -378,22 +378,6 @@ function paginate<T>(items: T[], params: ListQueryParams): PaginatedResponse<T> 
 
   }
 
-  const exactCode = typeof params.exactCode === 'string' ? params.exactCode.trim().toLowerCase() : '';
-
-  if (exactCode) {
-
-    filtered = filtered.filter((item) => {
-
-      const row = item as { sku?: string; barcode?: string };
-
-      return (row.barcode ?? '').trim().toLowerCase() === exactCode
-
-        || (row.sku ?? '').trim().toLowerCase() === exactCode;
-
-    });
-
-  }
-
   if (params.category) {
 
     filtered = filtered.filter(
@@ -1070,8 +1054,6 @@ export const mockApi = {
 
       sku,
 
-      barcode,
-
       status: data.status ?? 'active',
 
       supplierName: supplier?.name ?? data.supplierName ?? '',
@@ -1196,7 +1178,7 @@ export const mockApi = {
 
       ...products[idx],
 
-      ...next,
+      ...data,
 
       ...(supplier ? { supplierName: supplier.name } : {}),
 
@@ -1781,9 +1763,9 @@ export const mockApi = {
 
         received <= 0 ? 'pending' as const
 
-        : received >= item.quantity ? 'received' as const
+          : received >= item.quantity ? 'received' as const
 
-        : 'partial' as const;
+            : 'partial' as const;
 
       return {
         ...item,
@@ -1940,9 +1922,9 @@ export const mockApi = {
 
         receivedQuantity <= 0 ? 'pending'
 
-        : receivedQuantity >= item.quantity ? 'received'
+          : receivedQuantity >= item.quantity ? 'received'
 
-        : 'partial';
+            : 'partial';
 
       return {
 
@@ -2058,9 +2040,9 @@ export const mockApi = {
 
       nextPaid <= 0 ? 'unpaid' as const
 
-      : nextPaid >= po.totalAmount ? 'paid' as const
+        : nextPaid >= po.totalAmount ? 'paid' as const
 
-      : 'partial' as const;
+          : 'partial' as const;
 
     purchaseOrders[idx] = {
 
@@ -2380,7 +2362,7 @@ export const mockApi = {
 
     data: Omit<Transaction,
 
-'id' | 'transactionNumber' | 'createdAt'>,
+      'id' | 'transactionNumber' | 'createdAt'>,
 
   ): Promise<Transaction> {
 
@@ -3046,9 +3028,9 @@ export const mockApi = {
 
           amountPaid <= 0 ? 'unpaid' as const
 
-          : amountPaid >= po.totalAmount ? 'paid' as const
+            : amountPaid >= po.totalAmount ? 'paid' as const
 
-          : 'partial' as const;
+              : 'partial' as const;
 
         purchaseOrders[poIdx] = {
 
@@ -3630,7 +3612,8 @@ export const mockApi = {
 
     const previousRecord = sorted[0] ?? null;
 
-    return { date, todayBankSalesIn, todayBankExpenses,
+    return {
+      date, todayBankSalesIn, todayBankExpenses,
 
       todayTransfersIn: 0, todayTransfersOut: 0,
 
@@ -3638,7 +3621,8 @@ export const mockApi = {
 
       todayCustodyIn: 0, todayCustodyOut: 0,
 
-      previousRecord };
+      previousRecord
+    };
 
   },
 

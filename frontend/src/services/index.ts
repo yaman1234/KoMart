@@ -752,26 +752,6 @@ export const inventoryService = {
 
   getIntegrity: async (params?: { page?: number; pageSize?: number; onlyOutOfSync?: boolean }): Promise<InventoryIntegrityResponse> => {
 
-    if (useMock()) {
-
-      return {
-
-        outOfSyncCount: 0,
-
-        data: [],
-
-        total: 0,
-
-        page: params?.page ?? 1,
-
-        pageSize: params?.pageSize ?? 50,
-
-        totalPages: 1,
-
-      };
-
-    }
-
     const { data } = await apiClient.get('/inventory/integrity', {
 
       params: {
@@ -791,8 +771,6 @@ export const inventoryService = {
   },
 
   alignLedger: async (productId: string, reason: string): Promise<void> => {
-
-    if (useMock()) return;
 
     await apiClient.post('/inventory/integrity/align', { productId, reason });
 
