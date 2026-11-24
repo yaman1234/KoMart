@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/constants';
 import { purchaseReturnService } from '@/services';
 import type { PurchaseReturnCreatePayload } from '@/types';
@@ -28,11 +28,20 @@ export function useSupplierReturnableLines(supplierId: string, enabled = true) {
   });
 }
 
-export function useSupplierPurchaseReturns(supplierId: string, enabled = true) {
+export function useSupplierPurchaseReturns(
+  supplierId: string,
+  enabled = true,
+  params: { page?: number; pageSize?: number } = {},
+) {
   return useQuery({
-    queryKey: QUERY_KEYS.purchaseReturnsBySupplier(supplierId),
-    queryFn: () => purchaseReturnService.getAll({ supplierId }),
+    queryKey: [...QUERY_KEYS.purchaseReturnsBySupplier(supplierId), params],
+    queryFn: () => purchaseReturnService.getAll({
+      supplierId,
+      page: params.page,
+      pageSize: params.pageSize,
+    }),
     enabled: Boolean(supplierId) && enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

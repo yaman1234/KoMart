@@ -9,10 +9,24 @@ import {
   Alert,
   Button,
   Avatar,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Skeleton,
+  TablePagination,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
+import TagIcon from '@mui/icons-material/Tag';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -27,7 +41,8 @@ import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierRetur
 import { useAuthStore } from '@/store';
 import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { PO_STATUS_LABELS } from '@/constants';
+import { PO_STATUS_LABELS, supplierPaymentMethodLabel } from '@/constants';
+import { StatCard } from '@/components/common/StatCard';
 import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
@@ -86,6 +101,7 @@ const baseProductColumns: Column<Product>[] = [
 function withSnColumn<T extends { id: string }>(
   rows: T[],
   columns: Column<T>[],
+  startIndex = 0,
 ): Column<T>[] {
   return [
     {
@@ -93,7 +109,7 @@ function withSnColumn<T extends { id: string }>(
       label: 'SN',
       align: 'center',
       minWidth: 48,
-      render: (row) => rows.findIndex((r) => r.id === row.id) + 1,
+      render: (row) => startIndex + rows.findIndex((r) => r.id === row.id) + 1,
     },
     ...columns,
   ];
@@ -107,23 +123,42 @@ export function SupplierDetailPage() {
   const canManage = canManageSuppliers(user?.role);
   const canReturn = canManagePurchaseOrders(user?.role);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [qrPreview, setQrPreview] = useState<{ url: string; title: string } | null>(null);
+  const [poPage, setPoPage] = useState(0);
+  const [poPageSize, setPoPageSize] = useState(10);
+  const [productPage, setProductPage] = useState(0);
+  const [productPageSize, setProductPageSize] = useState(10);
+  const [returnPage, setReturnPage] = useState(0);
+  const [returnPageSize, setReturnPageSize] = useState(10);
 
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
-  const { data: poData, isLoading: poLoading } = usePurchaseOrders(
-    { supplierId: id, pageSize: 10, lean: true, includeSummary: false },
+  const { data: poData, isLoading: poLoading, isFetching: poFetching } = usePurchaseOrders(
+    { supplierId: id, page: poPage + 1, pageSize: poPageSize, lean: true, includeSummary: true },
     { enabled: !!id },
   );
-  const { data: productsData, isLoading: productsLoading } = useProducts(
-    { supplierId: id, pageSize: 10 },
+  const { data: productsData, isLoading: productsLoading, isFetching: productsFetching } = useProducts(
+    { supplierId: id, page: productPage + 1, pageSize: productPageSize },
     { enabled: !!id },
   );
-  const { data: returnsData } = useSupplierPurchaseReturns(id ?? '', Boolean(id && canReturn));
+  const { data: returnsData, isLoading: returnsLoading, isFetching: returnsFetching } = useSupplierPurchaseReturns(
+    id ?? '',
+    Boolean(id && canReturn),
+    { page: returnPage + 1, pageSize: returnPageSize },
+  );
   const returns = returnsData?.data ?? [];
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
+      <Box>
+        <Skeleton variant="text" width={280} height={40} />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 3, mt: 2 }}>
+          <Skeleton variant="rounded" height={220} />
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <Skeleton key={index} variant="rounded" height={96} />
+            ))}
+          </Box>
+        </Box>
       </Box>
     );
   }
@@ -134,6 +169,8 @@ export function SupplierDetailPage() {
 
   const purchaseOrders = poData?.data ?? [];
   const catalogProducts = productsData?.data ?? [];
+  const summary = poData?.summary;
+  const paymentDetails = supplier.paymentDetails ?? [];
   const poColumns = withSnColumn(purchaseOrders, [
     ...basePoColumns,
     {
@@ -141,8 +178,8 @@ export function SupplierDetailPage() {
       label: 'Expected Delivery',
       render: (row) => (row.expectedDelivery ? formatDate(row.expectedDelivery) : '—'),
     },
-  ]);
-  const productColumns = withSnColumn(catalogProducts, baseProductColumns);
+  ], poPage * poPageSize);
+  const productColumns = withSnColumn(catalogProducts, baseProductColumns, productPage * productPageSize);
 
   return (
     <Box>
@@ -207,27 +244,185 @@ export function SupplierDetailPage() {
               </Box>
             ))}
           </Paper>
+
+          <Paper sx={{ p: 3, mt: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Payment details</Typography>
+            <Divider sx={{ mb: 2 }} />
+            {paymentDetails.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No payment details on file.
+              </Typography>
+            ) : (
+              paymentDetails.map((detail, index) => {
+                const methodLabel = supplierPaymentMethodLabel(detail.method);
+                const title = detail.label?.trim() || methodLabel;
+                return (
+                  <Box
+                    key={`${detail.method}-${index}`}
+                    sx={{
+                      py: 1.5,
+                      borderBottom: index < paymentDetails.length - 1 ? 1 : 0,
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{title}</Typography>
+                      <Chip label={methodLabel} size="small" variant="outlined" />
+                    </Box>
+                    {[
+                      { label: 'Account name', value: detail.accountName },
+                      { label: 'Account number', value: detail.accountNumber },
+                      { label: 'Bank', value: detail.bankName },
+                    ].filter((row) => row.value).map((row) => (
+                      <Box key={row.label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">{row.label}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'right' }}>{row.value}</Typography>
+                      </Box>
+                    ))}
+                    {detail.qrImageUrl && (
+                      <Box
+                        component="button"
+                        type="button"
+                        aria-label={`View ${title} QR code`}
+                        onClick={() => setQrPreview({ url: detail.qrImageUrl!, title })}
+                        sx={{
+                          mt: 1,
+                          p: 0,
+                          border: 0,
+                          bgcolor: 'transparent',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                        }}
+                      >
+                        <Box
+                          component="img"
+                          src={detail.qrImageUrl}
+                          alt=""
+                          sx={{
+                            width: 72,
+                            height: 72,
+                            objectFit: 'cover',
+                            borderRadius: 1,
+                            border: 1,
+                            borderColor: 'divider',
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })
+            )}
+          </Paper>
         </Grid>
 
         <Grid size={{ xs: 12, md: 8 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+              gap: 1.5,
+              mb: 2.5,
+            }}
+          >
+            <StatCard
+              title="Total PO amount"
+              value={formatCurrency(summary?.committedAmount ?? 0)}
+              subtitle="Committed orders"
+              icon={<ShoppingCartIcon />}
+              color="primary.main"
+              loading={poLoading}
+            />
+            <StatCard
+              title="No. of POs"
+              value={summary?.committedCount ?? 0}
+              subtitle="Excludes draft & cancelled"
+              icon={<TagIcon />}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Received"
+              value={formatCurrency(summary?.receivedAmount ?? 0)}
+              subtitle={`${summary?.receivedCount ?? 0} received`}
+              icon={<Inventory2Icon />}
+              color="#1b5e20"
+              gradient={['rgba(46, 125, 50, 0.12)', 'rgba(46, 125, 50, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Pending"
+              value={formatCurrency(summary?.pendingAmount ?? 0)}
+              subtitle={`${summary?.pendingCount ?? 0} ordered or partial`}
+              icon={<LocalShippingIcon />}
+              color="#0288d1"
+              gradient={['rgba(2, 136, 209, 0.12)', 'rgba(2, 136, 209, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Paid"
+              value={formatCurrency(summary?.paidAmount ?? 0)}
+              subtitle="Paid to supplier"
+              icon={<PaymentsIcon />}
+              color="#1b5e20"
+              gradient={['rgba(46, 125, 50, 0.12)', 'rgba(46, 125, 50, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Remaining to pay"
+              value={formatCurrency(summary?.payableOutstanding ?? 0)}
+              subtitle="Outstanding payable"
+              icon={<AccountBalanceWalletIcon />}
+              color="#b26a00"
+              gradient={['rgba(245, 124, 0, 0.14)', 'rgba(245, 124, 0, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Returned goods"
+              value={formatCurrency(summary?.returnedAmount ?? 0)}
+              subtitle={`${summary?.returnedCount ?? 0} returns`}
+              icon={<AssignmentReturnIcon />}
+              color="#6d28d9"
+              gradient={['rgba(109, 40, 217, 0.12)', 'rgba(109, 40, 217, 0.02)']}
+              loading={poLoading}
+            />
+            <StatCard
+              title="Amount receivable"
+              value={formatCurrency(summary?.receivableAmount ?? 0)}
+              subtitle={`${summary?.receivableCount ?? 0} open refund${(summary?.receivableCount ?? 0) === 1 ? '' : 's'}`}
+              icon={<PaymentsIcon />}
+              color="#0369a1"
+              gradient={['rgba(3, 105, 161, 0.12)', 'rgba(3, 105, 161, 0.02)']}
+              loading={poLoading}
+            />
+          </Box>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Purchase Orders</Typography>
           <DataTable
             columns={poColumns}
             rows={purchaseOrders}
-            loading={poLoading}
+            loading={poLoading && !poData}
+            page={poPage}
+            pageSize={poPageSize}
+            total={poData?.total}
+            onPageChange={setPoPage}
+            onPageSizeChange={(size) => { setPoPageSize(size); setPoPage(0); }}
             getRowId={(r) => r.id}
             onRowClick={(row) => navigate(`/purchase-orders/${row.id}`)}
-            emptyMessage="No purchase orders for this supplier"
+            emptyMessage={poFetching ? 'Loading purchase orders…' : 'No purchase orders for this supplier'}
           />
 
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, mt: 4 }}>Products</Typography>
           <DataTable
             columns={productColumns}
             rows={catalogProducts}
-            loading={productsLoading}
+            loading={productsLoading && !productsData}
+            page={productPage}
+            pageSize={productPageSize}
+            total={productsData?.total}
+            onPageChange={setProductPage}
+            onPageSizeChange={(size) => { setProductPageSize(size); setProductPage(0); }}
             getRowId={(r) => r.id}
             onRowClick={(row) => navigate(`/products/${row.id}`)}
-            emptyMessage="No products linked to this supplier"
+            emptyMessage={productsFetching ? 'Loading products…' : 'No products linked to this supplier'}
           />
 
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, mt: 4 }}>
@@ -236,8 +431,12 @@ export function SupplierDetailPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Aged / expired take-backs (not linked to a PO bill). Use Return goods above when leftover stock exists.
           </Typography>
-          {returns.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">No supplier returns yet.</Typography>
+          {returnsLoading && !returnsData ? (
+            <CircularProgress size={24} />
+          ) : returns.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              {returnsFetching ? 'Loading purchase returns…' : 'No supplier returns yet.'}
+            </Typography>
           ) : (
             <Paper sx={{ p: 2 }}>
               {returns.map((ret, index) => (
@@ -270,6 +469,20 @@ export function SupplierDetailPage() {
               ))}
             </Paper>
           )}
+          {canReturn && (
+            <TablePagination
+              component="div"
+              count={returnsData?.total ?? 0}
+              page={returnPage}
+              onPageChange={(_, nextPage) => setReturnPage(nextPage)}
+              rowsPerPage={returnPageSize}
+              onRowsPerPageChange={(event) => {
+                setReturnPageSize(Number(event.target.value));
+                setReturnPage(0);
+              }}
+              rowsPerPageOptions={[10, 25, 50]}
+            />
+          )}
         </Grid>
       </Grid>
 
@@ -278,6 +491,28 @@ export function SupplierDetailPage() {
         supplierId={supplier.id}
         onClose={() => setReturnOpen(false)}
       />
+
+      <Dialog open={Boolean(qrPreview)} onClose={() => setQrPreview(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {qrPreview?.title ?? 'Payment QR'}
+          <IconButton aria-label="Close QR preview" onClick={() => setQrPreview(null)} size="small">
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {qrPreview && (
+            <Box
+              component="img"
+              src={qrPreview.url}
+              alt={`${qrPreview.title} QR code`}
+              sx={{ width: '100%', height: 'auto', borderRadius: 1 }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQrPreview(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

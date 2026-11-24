@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from math import ceil
 import re
 
+from pymongo.errors import DuplicateKeyError
+
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
@@ -37,7 +39,12 @@ router = APIRouter(prefix="/products", tags=["Products"])
 
 
 async def _resolve_supplier(supplier_id: str) -> Supplier:
-    supplier = await Supplier.get(supplier_id)
+    from pydantic import ValidationError
+
+    try:
+        supplier = await Supplier.get(supplier_id)
+    except (ValidationError, ValueError):
+        supplier = None
     if not supplier:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
     return supplier
@@ -62,6 +69,88 @@ async def _assert_unique_product_name(
             status.HTTP_409_CONFLICT,
             detail=f"Product name '{key}' already exists",
         )
+
+
+def _normalize_barcode(value: str | None) -> str:
+    return (value or "").strip()
+
+
+async def _active_code_owner(
+    field: str,
+    value: str,
+    *,
+    exclude_id: str | None = None,
+) -> Product | None:
+    """Active product whose sku or barcode equals value, case-insensitively."""
+    key = (value or "").strip()
+    if not key or field not in {"sku", "barcode"}:
+        return None
+    existing = await Product.find_one(
+        Product.is_active == True,  # noqa: E712
+        {field: {"$regex": f"^{re.escape(key)}$", "$options": "i"}},
+    )
+    if existing and (not exclude_id or str(existing.id) != str(exclude_id)):
+        return existing
+    return None
+
+
+async def _assert_unique_barcode(
+    barcode: str | None,
+    *,
+    exclude_id: str | None = None,
+) -> None:
+    """Case-insensitive unique barcode among active products. Empty stays allowed."""
+    key = _normalize_barcode(barcode)
+    if not key:
+        return
+    if await _active_code_owner("barcode", key, exclude_id=exclude_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Barcode already exists",
+        )
+    if await _active_code_owner("sku", key, exclude_id=exclude_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Barcode matches another product's SKU",
+        )
+
+
+async def _assert_sku_not_other_barcode(
+    sku: str,
+    *,
+    exclude_id: str | None = None,
+) -> None:
+    """A saved SKU must not equal another active product's barcode."""
+    key = (sku or "").strip()
+    if not key:
+        return
+    if await _active_code_owner("barcode", key, exclude_id=exclude_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="SKU matches another product's barcode",
+        )
+
+
+def _is_barcode_duplicate_key(exc: DuplicateKeyError) -> bool:
+    return "barcode" in str(exc).lower()
+
+
+async def _insert_product(product: Product) -> None:
+    try:
+        await product.insert()
+    except DuplicateKeyError as exc:
+        if _is_barcode_duplicate_key(exc):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Barcode already exists") from exc
+        raise
+
+
+async def _set_product(product: Product, update_data: dict) -> None:
+    try:
+        await product.set(update_data)
+    except DuplicateKeyError as exc:
+        if _is_barcode_duplicate_key(exc):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="Barcode already exists") from exc
+        raise
 
 
 async def _resolve_product_sku(
@@ -344,6 +433,7 @@ async def create_product(
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     if await Product.find_one(Product.sku == sku):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="SKU already exists")
+    await _assert_sku_not_other_barcode(sku)
     await _assert_unique_product_name(body.name)
     supplier_name = ""
     if body.supplier_id:
@@ -446,6 +536,7 @@ async def bulk_create_products(
             if await Product.find_one(Product.sku == sku):
                 errors.append(ProductBulkCreateError(row=item.row, sku=sku, detail="SKU already exists"))
                 continue
+            await _assert_sku_not_other_barcode(sku)
             await _assert_unique_product_name(item.name)
             if name_key:
                 seen_names.add(name_key)

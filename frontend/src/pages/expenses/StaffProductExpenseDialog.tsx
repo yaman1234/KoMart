@@ -89,7 +89,7 @@ export function StaffProductExpenseDialog({
   );
 
   const productOptions = useMemo(() => {
-    return (searchResults?.data ?? []).filter((p) => p.status !== 'discontinued');
+    return (Array.isArray(searchResults?.data) ? searchResults.data : []).filter((p) => p.status !== 'discontinued');
   }, [searchResults]);
 
   const handleAddProduct = (product: Product | null) => {
@@ -350,8 +350,8 @@ export function StaffProductExpenseDialog({
               searchLoading
                 ? 'Searching products…'
                 : debouncedSearch.trim()
-                ? `No products matching "${debouncedSearch.trim()}"`
-                : 'No products available'
+                  ? `No products matching "${debouncedSearch.trim()}"`
+                  : 'No products available'
             }
             renderOption={(props, option) => {
               const { key, ...rest } = props;

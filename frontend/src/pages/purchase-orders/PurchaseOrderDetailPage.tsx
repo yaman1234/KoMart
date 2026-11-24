@@ -82,6 +82,7 @@ import {
   PO_RECEIVE_HINT,
   PO_RECORD_PAYMENT_HINT,
   PO_SELL_AS_OPTIONS,
+  sellAsLabel,
 } from '@/pages/purchase-orders/poTerminology';
 import { PoEntryFlowHelp } from '@/pages/purchase-orders/components/PoEntryFlowHelp';
 import { excelCellSx, noNumberSpinnerSx } from '@/pages/purchase-orders/inputStyles';
@@ -277,7 +278,7 @@ export function PurchaseOrderDetailPage() {
 
   /** Lines that can still receive stock (excludes fully received). */
   const receivableItems = useMemo(
-    () => (po?.items ?? []).filter((item) => !isLineFullyReceived(item)),
+    () => (Array.isArray(po?.items) ? po.items : []).filter((item) => !isLineFullyReceived(item)),
     [po],
   );
 
@@ -909,6 +910,7 @@ export function PurchaseOrderDetailPage() {
                 <TableCell sx={headerCellSx}>{PO_LABELS.status}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPack}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.costPc}</TableCell>
+                <TableCell align="right" sx={headerCellSx}>{PO_LABELS.lineTotal}</TableCell>
                 <TableCell sx={headerCellSx}>{PO_LABELS.sellAs}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.packPrice}</TableCell>
                 <TableCell align="right" sx={headerCellSx}>{PO_LABELS.piecePrice}</TableCell>
@@ -1057,6 +1059,9 @@ export function PurchaseOrderDetailPage() {
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {formatCurrency(costPc)}
                     </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                      {formatCurrency(item.lineTotal ?? item.quantity * item.unitCost)}
+                    </TableCell>
                     <TableCell>
                       {canReceive ? (
                         <TextField
@@ -1070,16 +1075,21 @@ export function PurchaseOrderDetailPage() {
                             })
                           }
                           sx={{ ...excelCellSx, minWidth: 110 }}
+                          slotProps={{
+                            select: {
+                              renderValue: (selected) => sellAsLabel(String(selected ?? ''), unitsPerBuy),
+                            },
+                          }}
                         >
                           {(unitsPerBuy > 1
                             ? PO_SELL_AS_OPTIONS
-                            : PO_SELL_AS_OPTIONS.filter((o) => o.value === 'piece')
+                            : [{ value: sellMode, label: sellAsLabel(sellMode, unitsPerBuy) }]
                           ).map((o) => (
                             <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                           ))}
                         </TextField>
                       ) : (
-                        PO_SELL_AS_OPTIONS.find((o) => o.value === sellMode)?.label ?? sellMode
+                        sellAsLabel(sellMode, unitsPerBuy)
                       )}
                     </TableCell>
                     <TableCell align="right">
@@ -1184,9 +1194,19 @@ export function PurchaseOrderDetailPage() {
                 mb: 1,
               }}
             >
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Supplier bill
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Supplier bill
+                </Typography>
+                {po.vatBill && (
+                  <Chip
+                    label="VAT bill"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, height: 22 }}
+                  />
+                )}
+              </Box>
               {canManage && (
                 <Button
                   size="small"
@@ -1252,6 +1272,12 @@ export function PurchaseOrderDetailPage() {
               <Typography variant="body2" color="text.secondary">Subtotal</Typography>
               <Typography variant="body2">{formatCurrency(po.subtotal ?? po.totalAmount)}</Typography>
             </Box>
+            {po.vatBill && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+                <Typography variant="body2" color="text.secondary">VAT</Typography>
+                <Typography variant="body2">{formatCurrency(po.vatAmount ?? 0)}</Typography>
+              </Box>
+            )}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
               <Typography variant="body2" color="text.secondary">Discount</Typography>
               <Typography variant="body2">{formatCurrency(po.discount ?? 0)}</Typography>

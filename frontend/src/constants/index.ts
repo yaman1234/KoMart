@@ -66,7 +66,7 @@ export const SELL_MODE_OPTIONS = [
 ] as const;
 
 export const UOM_OPTIONS = [
-  { value: 'pcs',    label: 'Pieces (pcs)' },
+  { value: 'pcs',    label: 'pcs' },
   { value: 'pack',   label: 'Pack' },
   { value: 'box',    label: 'Box' },
   { value: 'bag',    label: 'Bag' },
@@ -123,6 +123,18 @@ export const PAYMENT_METHODS = [
   { value: 'bank', label: 'Bank' },
   { value: 'esewa', label: 'eSewa' },
 ] as const;
+
+export const SUPPLIER_PAYMENT_METHODS = [
+  { value: 'esewa', label: 'eSewa' },
+  { value: 'fonepay', label: 'Fonepay' },
+  { value: 'khalti', label: 'Khalti' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'other', label: 'Other' },
+] as const;
+
+export function supplierPaymentMethodLabel(method: string): string {
+  return SUPPLIER_PAYMENT_METHODS.find((item) => item.value === method)?.label ?? method;
+}
 
 export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
   { value: 'setup_investment', label: 'Setup / Investment' },

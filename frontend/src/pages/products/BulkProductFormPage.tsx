@@ -49,6 +49,7 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useUomOptions } from '@/hooks/useUoms';
 import { productService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
+import { productCodeConflictField } from '@/pages/products/productCodeConflict';
 import type { ProductBulkCreateItem, ProductStatus, Supplier } from '@/types';
 import { defaultPrimaryUom, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showInfo, showSuccess } from '@/utils/toast';
@@ -376,12 +377,12 @@ const BulkAddRowView = memo(function BulkAddRowView({
             width: col.width,
             ...(col.sticky
               ? {
-                  position: 'sticky' as const,
-                  left: col.stickyLeft ?? 44,
-                  zIndex: 1,
-                  background: populated ? '#fff' : '#fafafa',
-                  boxShadow: col.key === 'sku' ? '2px 0 0 #e0e0e0' : undefined,
-                }
+                position: 'sticky' as const,
+                left: col.stickyLeft ?? 44,
+                zIndex: 1,
+                background: populated ? '#fff' : '#fafafa',
+                boxShadow: col.key === 'sku' ? '2px 0 0 #e0e0e0' : undefined,
+              }
               : {}),
           }}
         >
@@ -716,6 +717,25 @@ export function BulkProductFormPage() {
         }
       }
       if (result.errors.length) {
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          for (const item of result.errors) {
+            const binding = bindings.find((entry) => entry.rowNum === item.row);
+            if (!binding) continue;
+            const detail = item.detail || 'Could not create product';
+            const field = productCodeConflictField(detail)
+              ?? (/barcode/i.test(detail)
+                ? 'barcode'
+                : /sku/i.test(detail)
+                  ? 'sku'
+                  : /name/i.test(detail)
+                    ? 'name'
+                    : null);
+            if (!field) continue;
+            next[binding.id] = { ...next[binding.id], [field]: detail };
+          }
+          return next;
+        });
         setPageError(
           result.errors
             .map((item) => `Row ${item.row} (${item.sku || 'no SKU'}): ${item.detail}`)
@@ -949,14 +969,14 @@ export function BulkProductFormPage() {
                     bgcolor: 'grey.100',
                     ...(col.sticky
                       ? {
-                          position: 'sticky',
-                          left: col.stickyLeft ?? 44,
-                          zIndex: 3,
-                          boxShadow:
-                            col.key === 'sku'
-                              ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
-                              : undefined,
-                        }
+                        position: 'sticky',
+                        left: col.stickyLeft ?? 44,
+                        zIndex: 3,
+                        boxShadow:
+                          col.key === 'sku'
+                            ? ((t: Theme) => `2px 0 0 ${t.palette.divider}`)
+                            : undefined,
+                      }
                       : {}),
                   }}
                 >

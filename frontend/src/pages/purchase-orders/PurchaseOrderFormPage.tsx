@@ -32,6 +32,7 @@ import {
 } from '@/hooks/usePurchaseOrders';
 import { formatCurrency, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { computePoTotals } from '@/utils/poTotals';
+import { stripVatFromUnitCost } from '@/pages/purchase-orders/poPricing';
 import { uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { defaultPrimaryUom } from '@/utils/uomNormalize';
 import { canEditPurchaseOrder } from '@/utils/canEditPurchaseOrder';
@@ -186,6 +187,7 @@ export function PurchaseOrderFormPage() {
     setAdditionalChargesInput(String(existingPo.additionalCharges ?? 0));
     setBillNumber(existingPo.billNumber ?? '');
     setBillImages(existingPo.billImages ?? []);
+    setVatBill(Boolean(existingPo.vatBill));
 
     if (existingPo.items.length > 0) {
       const loaded = existingPo.items.map((item) => {
@@ -205,17 +207,21 @@ export function PurchaseOrderFormPage() {
     (l) => l.product && parseQuantity(l.quantityInput) > 0 && l.unitCost > 0 && !l.resolveError,
   );
   const unresolvedLines = lines.filter((l) => l.skuInput.trim() && (!l.product || l.resolveError));
-  const lineExtensions = validLines.map(
-    (l) => parseQuantity(l.quantityInput) * l.unitCost,
-  );
+  const lineExtensions = validLines.map((l) => {
+    const qty = parseQuantity(l.quantityInput);
+    // VAT bills: subtotal is qty × cost before VAT. Line Amount stays qty × inclusive cost.
+    const unit = vatBill ? stripVatFromUnitCost(l.unitCost, taxRate) : l.unitCost;
+    return qty * unit;
+  });
   const discountParsed = Number.parseFloat(discountInput);
   const chargesParsed = Number.parseFloat(additionalChargesInput);
   const totals = computePoTotals(
     lineExtensions,
     Number.isFinite(discountParsed) ? discountParsed : 0,
     Number.isFinite(chargesParsed) ? chargesParsed : 0,
+    { vatBill, taxRate },
   );
-  const { subtotal, discount, additionalCharges, totalAmount } = totals;
+  const { subtotal, vatAmount, discount, additionalCharges, totalAmount } = totals;
   const lineCount = validLines.length;
 
   const receivedByProduct = new Map(
@@ -231,6 +237,9 @@ export function PurchaseOrderFormPage() {
       discount,
       additionalCharges,
       subtotal,
+      vatBill,
+      vatAmount,
+      vatRate: vatBill ? taxRate : 0,
       totalAmount,
       billNumber: billNumber.trim() || undefined,
       billImages,
@@ -572,6 +581,12 @@ export function PurchaseOrderFormPage() {
             <Typography variant="body2" color="text.secondary">Subtotal</Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatCurrency(subtotal)}</Typography>
           </Box>
+          {vatBill && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+              <Typography variant="body2" color="text.secondary">VAT</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatCurrency(vatAmount)}</Typography>
+            </Box>
+          )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75, gap: 2 }}>
             <Typography variant="body2" color="text.secondary">Discount</Typography>
             <TextField

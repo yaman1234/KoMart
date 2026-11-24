@@ -147,3 +147,64 @@ async def test_list_kpis_ignore_status_payment_filters(client: AsyncClient, mana
 
     await received.delete()
     await ordered.delete()
+
+@pytest.mark.asyncio
+async def test_list_purchase_orders_include_summary_false(client: AsyncClient, manager_user: User):
+    token = await _login(client, manager_user.email, "managerpass123")
+    suffix = uuid.uuid4().hex[:6].upper()
+    supplier_id = f"sup-sum-{suffix}"
+    mine = PurchaseOrder(
+        order_number=f"PO-SUM-M-{suffix}",
+        supplier_id=supplier_id,
+        supplier_name="Summary Supplier",
+        status=POStatus.received,
+        items=[],
+        total_amount=80,
+        amount_paid=20,
+    )
+    other = PurchaseOrder(
+        order_number=f"PO-SUM-O-{suffix}",
+        supplier_id=f"other-sum-{suffix}",
+        supplier_name="Other Supplier",
+        status=POStatus.ordered,
+        items=[],
+        total_amount=40,
+        amount_paid=0,
+    )
+    await mine.insert()
+    await other.insert()
+
+    res = await client.get(
+        "/api/v1/purchase-orders",
+        headers={"Authorization": f"Bearer {token}"},
+        params={
+            "supplier_id": supplier_id,
+            "page_size": 10,
+            "lean": "true",
+            "include_summary": "false",
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    rows = body["data"]
+    assert body["total"] == 1
+    assert len(rows) == 1
+    assert rows[0]["order_number"] == mine.order_number
+    assert rows[0]["supplier_id"] == supplier_id
+    assert rows[0]["supplier_id"] != other.supplier_id
+
+    summary = body["summary"]
+    assert summary["total_purchases_amount"] == 0.0
+    assert summary["total_purchases_count"] == 0
+    assert summary["total_paid_amount"] == 0.0
+    assert summary["amount_due"] == 0.0
+    assert summary["amount_due_count"] == 0
+    assert summary["pending_delivery_count"] == 0
+    assert summary["pending_delivery_amount"] == 0.0
+    assert summary["cancelled_count"] == 0
+    assert summary["cancelled_amount"] == 0.0
+    assert body["received_total_amount"] == 0.0
+    assert body["outstanding_amount"] == 0.0
+
+    await mine.delete()
+    await other.delete()

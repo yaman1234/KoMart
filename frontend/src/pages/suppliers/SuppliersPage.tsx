@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Box, Button } from '@mui/material';
+import { Box, Button, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -9,7 +9,7 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { useAuthStore } from '@/store';
 import { canManageSuppliers } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { useListState, stringParam, pageParam, pageSizeParam } from '@/hooks/useListState';
+import { useListState, stringParam, pageParam, pageSizeParam, enumParam } from '@/hooks/useListState';
 import type { Supplier } from '@/types';
 
 export function SuppliersPage() {
@@ -23,20 +23,36 @@ export function SuppliersPage() {
       search: stringParam(''),
       page: pageParam(0),
       pageSize: pageSizeParam(10),
+      sortBy: stringParam('name'),
+      sortOrder: enumParam(['asc', 'desc'] as const, 'asc'),
     },
   });
 
-  const { search, page, pageSize } = filters;
+  const { search, page, pageSize, sortBy, sortOrder } = filters;
 
-  const { data, isLoading } = useSuppliers({ search, page: page + 1, pageSize });
+  const { data, isLoading, isFetching } = useSuppliers({
+    search,
+    page: page + 1,
+    pageSize,
+    sortBy,
+    sortOrder,
+  });
   const canManage = canManageSuppliers(user?.role);
 
   useEffect(() => {
     clampPage(data?.total);
   }, [clampPage, data?.total]);
 
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setFilters({ sortOrder: sortOrder === 'asc' ? 'desc' : 'asc', page: 0 });
+    } else {
+      setFilters({ sortBy: key, sortOrder: 'asc', page: 0 });
+    }
+  };
+
   const columns: Column<Supplier>[] = [
-    { id: 'name', label: 'Name', minWidth: 180, accessor: 'name' },
+    { id: 'name', label: 'Name', minWidth: 180, accessor: 'name', sortable: true, sortKey: 'name' },
     { id: 'country', label: 'Country', accessor: 'country' },
     { id: 'contact', label: 'Contact Person', accessor: 'contactPerson' },
     { id: 'phone', label: 'Phone', accessor: 'phone' },
@@ -44,6 +60,8 @@ export function SuppliersPage() {
     {
       id: 'added',
       label: 'Added',
+      sortable: true,
+      sortKey: 'created_at',
       render: (row) => formatDate(row.createdAt),
     },
   ];
@@ -66,23 +84,30 @@ export function SuppliersPage() {
         }
       />
 
-      <Box sx={{ mb: 3 }}>
-        <SearchBar
-          value={search}
-          onChange={(v) => { setFilter('search', v); }}
-          placeholder="Search by supplier name..."
-        />
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ flex: 1 }}>
+          <SearchBar
+            value={search}
+            onChange={(v) => { setFilter('search', v); }}
+            placeholder="Search name, contact, or phone..."
+            debounceMs={300}
+          />
+        </Box>
+        {isFetching && <CircularProgress size={22} sx={{ flexShrink: 0 }} aria-label="Searching suppliers" />}
       </Box>
 
       <DataTable
         columns={columns}
         rows={data?.data ?? []}
-        loading={isLoading}
+        loading={isLoading && !data}
         page={page}
         pageSize={pageSize}
         total={data?.total}
         onPageChange={(p) => setFilter('page', p)}
         onPageSizeChange={(size) => { setFilters({ pageSize: size, page: 0 }); }}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={handleSort}
         getRowId={(r) => r.id}
         onRowClick={(r) => navigate(`/suppliers/${r.id}`)}
       />
