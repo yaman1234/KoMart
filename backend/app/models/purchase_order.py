@@ -14,6 +14,10 @@ class POStatus(str, Enum):
     cancelled = "cancelled"
 
 
+# Packs on one PO line, and packs on one receive. Frontend MAX_PO_LINE_QUANTITY must match.
+MAX_PO_LINE_QUANTITY = 100_000
+
+
 # Ordered, partially received, and received. Drafts are not liabilities yet.
 # Same set as dashboard payables and Reports Active PO Bills.
 COMMITTED_PO_STATUSES: tuple[str, ...] = (

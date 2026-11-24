@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from math import ceil
 import re
 
+from pymongo.errors import DuplicateKeyError
+
 from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.product import Product, ProductStatus, SellMode, product_is_sellable
