@@ -43,7 +43,7 @@ function brandingHeaderHtml(branding?: ReceiptBranding): string {
 }
 
 function brandingFooterHtml(branding?: ReceiptBranding): string {
-  if (branding?.receiptFooter) {
+  if (branding?.receiptFooter?.trim()) {
     return branding.receiptFooter.split('\n').filter(Boolean)
       .map((line) => `<div class="center">${escapeHtml(line)}</div>`).join('');
   }
@@ -69,10 +69,9 @@ const RECEIPT_PRINT_STYLES = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: ${RECEIPT_WIDTH_MM}mm;
-    min-height: 100%;
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
-    line-height: 1.35;
+    line-height: 1.25;
     color: #000 !important;
     background: #fff !important;
     -webkit-print-color-adjust: exact;
@@ -83,20 +82,46 @@ const RECEIPT_PRINT_STYLES = `
   .bold   { font-weight: bold; }
   .lg     { font-size: 14px; }
   .xl     { font-size: 18px; }
-  .sep    { border-top: 1px dashed #000; margin: 6px 0; }
-  .row    { display: flex; justify-content: space-between; gap: 4px; margin: 2px 0; }
+  .sep    { border-top: 1px dashed #000; margin: 4px 0; }
+  .row    { display: flex; justify-content: space-between; gap: 4px; margin: 1px 0; }
   .row span:last-child { text-align: right; flex-shrink: 0; }
-  table   { width: 100%; border-collapse: collapse; margin: 4px 0; table-layout: fixed; }
-  th, td  { padding: 2px 1px; vertical-align: top; font-size: 11px; word-wrap: break-word; }
-  th      { font-weight: bold; border-bottom: 1px solid #000; }
-  .name   { width: 34%; text-align: left; }
-  .qty    { width: 10%; text-align: center; }
-  .uom    { width: 14%; text-align: center; }
-  .rate   { width: 20%; text-align: right; }
-  .amt    { width: 22%; text-align: right; }
+  table   {
+    width: 100%;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    margin: 2px 0;
+    table-layout: fixed;
+    height: auto !important;
+  }
+  thead   { display: table-row-group; }
+  tbody   { height: auto !important; }
+  tr      { height: auto !important; }
+  th, td  {
+    padding: 1px 1px !important;
+    line-height: 1.15 !important;
+    vertical-align: top;
+    font-size: 11px;
+    word-wrap: break-word;
+  }
+  th      { font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 2px !important; }
+  .sn   { width: 7%; text-align: left; }
+  .name { width: 35%; text-align: left; }
+  .qty  { width: 10%; text-align: center; }
+  .uom  { width: 12%; text-align: center; }
+  .rate { width: 18%; text-align: right; }
+  .amt  { width: 18%; text-align: right; }
   @media print {
-    html, body { width: ${RECEIPT_WIDTH_MM}mm; margin: 0; padding: 2mm; }
-    @page { size: ${RECEIPT_WIDTH_MM}mm auto; margin: 2mm; }
+    html, body {
+      width: ${RECEIPT_WIDTH_MM}mm;
+      height: auto !important;
+      min-height: auto !important;
+      margin: 0 !important;
+      padding: 1mm 2mm !important;
+      overflow: visible !important;
+    }
+    @page {
+      margin: 0;
+    }
   }
 `;
 
@@ -124,26 +149,19 @@ export function buildReceiptHtml(txn: Transaction, tendered?: number, branding?:
   const discountBreakdown = getTransactionDiscountBreakdown(txn);
   const discountLines = getTransactionDiscountLines(txn);
 
-  const itemRows = (txn.items ?? []).map((item) => {
+  const itemRows = (txn.items ?? []).map((item, idx) => {
     const price = Number(item.price) || 0;
     const qty = Number(item.quantity) || 0;
     const name = escapeHtml(item.name || 'Item');
     const uom = escapeHtml(uomLabel(item.sellUom || item.uom || '') || '—');
     const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
     const subtitleHtml = subtitle
-      ? `<div style="font-size:10px;color:#555">${escapeHtml(subtitle)}</div>`
+      ? `<div style="font-size:10px;line-height:1.1;margin-top:1px;color:#555">${escapeHtml(subtitle)}</div>`
       : '';
-    return `
-    <tr>
-      <td class="name">${name}${subtitleHtml}</td>
-      <td class="qty">${qty}</td>
-      <td class="uom">${uom}</td>
-      <td class="rate">${price.toFixed(2)}</td>
-      <td class="amt">${(price * qty).toFixed(2)}</td>
-    </tr>`;
+    return `<tr><td class="sn">${idx + 1}</td><td class="name">${name}${subtitleHtml}</td><td class="qty">${qty}</td><td class="uom">${uom}</td><td class="rate">${price.toFixed(2)}</td><td class="amt">${(price * qty).toFixed(2)}</td></tr>`;
   }).join('');
 
-  const tableHead = `<th class="name">Item</th><th class="qty">Qty</th><th class="uom">UOM</th><th class="rate">Rate</th><th class="amt">Amount</th>`;
+  const tableHead = `<th class="sn">#</th><th class="name">Item</th><th class="qty">Qty</th><th class="uom">UOM</th><th class="rate">Rate</th><th class="amt">Amount</th>`;
 
   const customerLabel = escapeHtml(receiptCustomerLabel(txn));
 
@@ -220,9 +238,9 @@ function schedulePrint(targetWindow: Window, onDone?: () => void): void {
   }
 }
 
-function printViaIframe(docHtml: string): PrintResult {
+function printViaIframe(docHtml: string, iframeTitle = 'Receipt print'): PrintResult {
   const iframe = document.createElement('iframe');
-  iframe.setAttribute('title', 'Receipt print');
+  iframe.setAttribute('title', iframeTitle);
   iframe.style.cssText =
     'position:fixed;top:0;left:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
@@ -251,15 +269,20 @@ function printViaIframe(docHtml: string): PrintResult {
 }
 
 /**
- * Open browser print dialog for a thermal receipt.
- * Uses blob URL (fixes blank/white print window) with iframe fallback.
+ * Open the browser print dialog for a full HTML document.
+ * Uses a blob URL (avoids a blank print window) with an iframe fallback.
  */
-export function printReceipt(htmlBody: string): PrintResult {
-  const docHtml = buildPrintDocument(htmlBody);
+export function printHtmlDocument(
+  docHtml: string,
+  options?: { width?: number; height?: number; iframeTitle?: string },
+): PrintResult {
+  const width = options?.width ?? 420;
+  const height = options?.height ?? 720;
+  const iframeTitle = options?.iframeTitle ?? 'Receipt print';
   const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
 
-  const popup = window.open(url, '_blank', 'width=420,height=720,scrollbars=yes');
+  const popup = window.open(url, '_blank', `width=${width},height=${height},scrollbars=yes`);
 
   if (popup) {
     const cleanup = () => {
@@ -276,7 +299,15 @@ export function printReceipt(htmlBody: string): PrintResult {
   }
 
   URL.revokeObjectURL(url);
-  return printViaIframe(docHtml);
+  return printViaIframe(docHtml, iframeTitle);
+}
+
+/**
+ * Open browser print dialog for a thermal receipt.
+ * Uses blob URL (fixes blank/white print window) with iframe fallback.
+ */
+export function printReceipt(htmlBody: string): PrintResult {
+  return printHtmlDocument(buildPrintDocument(htmlBody));
 }
 
 type PdfLine =
@@ -286,6 +317,7 @@ type PdfLine =
   | { kind: 'itemHeader' }
   | {
       kind: 'item';
+      sn?: string;
       name: string;
       qty: string;
       uom: string;
@@ -320,13 +352,14 @@ export function buildPdfLines(txn: Transaction, tendered?: number, branding?: Re
   lines.push({ kind: 'sep' });
   lines.push({ kind: 'itemHeader' });
 
-  for (const item of txn.items ?? []) {
+  (txn.items ?? []).forEach((item, idx) => {
     const price = Number(item.price) || 0;
     const qty = Number(item.quantity) || 0;
     const uom = uomLabel(item.sellUom || item.uom || '') || '—';
     const subtitle = formatReceiptConversionSubtitle(item.sellUom, item.unitFactor, item.uom ?? '');
     lines.push({
       kind: 'item',
+      sn: String(idx + 1),
       name: item.name || 'Item',
       qty: String(qty),
       uom,
@@ -334,7 +367,7 @@ export function buildPdfLines(txn: Transaction, tendered?: number, branding?: Re
       amt: (price * qty).toFixed(2),
       subtitle: subtitle || undefined,
     });
-  }
+  });
 
   lines.push({ kind: 'sep' });
   lines.push({ kind: 'row', left: 'Subtotal', right: formatAmount(txn.subtotal) });
@@ -371,7 +404,7 @@ export function buildPdfLines(txn: Transaction, tendered?: number, branding?: Re
   }
 
   lines.push({ kind: 'sep' });
-  if (branding?.receiptFooter) {
+  if (branding?.receiptFooter?.trim()) {
     for (const line of branding.receiptFooter.split('\n').filter(Boolean)) {
       lines.push({ kind: 'center', text: line });
     }
@@ -408,11 +441,12 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
   const margin = 4;
   const heightMm = estimatePdfHeight(lines, lineHeight, margin);
 
-  // Column anchors for Item | Qty | UOM | Rate | Amt (mirrors print HTML proportions)
-  const nameX = margin;
-  const nameMaxW = 26;
-  const qtyX = margin + 31;
-  const uomX = margin + 40;
+  // Column anchors for # | Item | Qty | UOM | Rate | Amt (mirrors print HTML proportions)
+  const snX = margin;
+  const nameX = margin + 5;
+  const nameMaxW = 23;
+  const qtyX = margin + 32;
+  const uomX = margin + 41;
   const rateX = RECEIPT_WIDTH_MM - margin - 16;
   const amtX = RECEIPT_WIDTH_MM - margin;
 
@@ -462,6 +496,7 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
     if (line.kind === 'itemHeader') {
       doc.setFontSize(8);
       doc.setFont(THERMAL_FONT, 'bold');
+      doc.text('#', snX, y);
       doc.text('Item', nameX, y);
       doc.text('Qty', qtyX, y, { align: 'right' });
       doc.text('UOM', uomX, y, { align: 'center' });
@@ -476,6 +511,9 @@ export function downloadReceiptPdf(txn: Transaction, tendered?: number, branding
       doc.setFont(THERMAL_FONT, 'normal');
       const nameLines = doc.splitTextToSize(line.name, nameMaxW) as string[];
       const first = nameLines[0] ?? '';
+      if (line.sn) {
+        doc.text(line.sn, snX, y);
+      }
       doc.text(first, nameX, y);
       doc.text(line.qty, qtyX, y, { align: 'right' });
       doc.text(line.uom, uomX, y, { align: 'center' });

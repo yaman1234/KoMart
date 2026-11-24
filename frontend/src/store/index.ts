@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { ThemeMode, User, DashboardWidgetLayout, OrderSource } from '@/types';
 import { DEFAULT_DASHBOARD_LAYOUT } from '@/constants';
 import { isMockEnabled, isMockSession } from '@/config/mock';
+import { storeTodayIso } from '@/utils/storeDate';
 
 interface ThemeState {
   mode: ThemeMode;
@@ -134,15 +135,6 @@ export const useDashboardStore = create<DashboardState>()(
 
 import { cartLineKey } from '@/utils/cartLine';
 
-function todayDateString(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kathmandu',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
-
 interface CartState {
   items: import('@/types').CartItem[];
   customerId: string | null;
@@ -170,7 +162,7 @@ export const useCartStore = create<CartState>()((set) => ({
   items: [],
   customerId: null,
   loyaltyPointsRedeemed: 0,
-  saleDate: todayDateString(),
+  saleDate: storeTodayIso(),
   isOnlineOrder: false,
   orderSource: null,
   addItem: (item) =>
@@ -230,7 +222,7 @@ export const useCartStore = create<CartState>()((set) => ({
       items: [],
       customerId: null,
       loyaltyPointsRedeemed: 0,
-      saleDate: todayDateString(),
+      saleDate: storeTodayIso(),
       isOnlineOrder: false,
       orderSource: null,
     }),

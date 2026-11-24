@@ -1410,6 +1410,17 @@ export interface InventoryMovementQueryParams {
 
 
 
+export type SupplierPaymentMethod = 'esewa' | 'fonepay' | 'khalti' | 'bank' | 'other';
+
+export interface SupplierPaymentDetail {
+  method: SupplierPaymentMethod;
+  label?: string;
+  accountName?: string;
+  accountNumber?: string;
+  bankName?: string;
+  qrImageUrl?: string;
+}
+
 export interface Supplier {
 
 
@@ -1439,6 +1450,10 @@ export interface Supplier {
 
 
   address: string;
+
+
+
+  paymentDetails?: SupplierPaymentDetail[];
 
 
 
@@ -1519,6 +1534,8 @@ export interface PurchaseOrderItem {
 
 
   lineStatus?: PurchaseOrderLineStatus;
+
+  lineTotal?: number;
 
 
 
@@ -1690,6 +1707,19 @@ export interface PurchaseOrder {
 
 
 
+  /** True only for VAT-bill purchase orders. Missing means non-VAT. */
+  vatBill?: boolean;
+
+
+
+  vatRate?: number;
+
+
+
+  vatAmount?: number;
+
+
+
   totalAmount: number;
 
 
@@ -1761,6 +1791,31 @@ export interface PurchaseOrderSummary {
   cancelledCount: number;
 
   cancelledAmount: number;
+
+  /** Ordered, partial, and received only. Draft and cancelled are excluded. */
+  committedCount: number;
+
+  committedAmount: number;
+
+  receivedCount: number;
+
+  receivedAmount: number;
+
+  pendingCount: number;
+
+  pendingAmount: number;
+
+  paidAmount: number;
+
+  payableOutstanding: number;
+
+  returnedCount: number;
+
+  returnedAmount: number;
+
+  receivableCount: number;
+
+  receivableAmount: number;
 
 }
 
@@ -2069,6 +2124,10 @@ export interface PurchaseReturnableLine {
 
 
   sku?: string;
+
+
+
+  orderNumber?: string;
 
 
 

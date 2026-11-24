@@ -45,5 +45,5 @@ export function useDeleteCategory() {
 
 export function useCategoryNames(includeInactive = false): string[] {
   const { data } = useCategories(includeInactive);
-  return (data ?? []).filter((c: Category) => c.isActive).map((c: Category) => c.name);
+  return (Array.isArray(data) ? data : []).filter((c: Category) => c.isActive).map((c: Category) => c.name);
 }

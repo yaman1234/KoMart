@@ -2,6 +2,8 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { CircularProgress, Box } from '@mui/material';
 import { useAuthStore } from '@/store';
+import { ensureFreshAccessToken } from '@/services/apiClient';
+import { accessTokenNeedsRefresh } from '@/utils/accessToken';
 import type { UserRole } from '@/types';
 
 function useHydrated(): boolean {
@@ -24,11 +26,41 @@ function HydrationLoader() {
   );
 }
 
+/**
+ * Authenticated pages stay unmounted until hydration finishes and, when the
+ * saved access token is missing or near expiry, one refresh has completed.
+ * That keeps the dashboard from firing a burst of 401s on login or reload.
+ */
+function useSessionReady(hydrated: boolean): boolean {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!isAuthenticated || !accessTokenNeedsRefresh(accessToken)) {
+      setReady(true);
+      return;
+    }
+    let cancelled = false;
+    setReady(false);
+    void ensureFreshAccessToken().finally(() => {
+      if (!cancelled) setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, isAuthenticated, accessToken]);
+
+  return hydrated && ready;
+}
+
 export function ProtectedRoute() {
   const hydrated = useHydrated();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const sessionReady = useSessionReady(hydrated);
 
-  if (!hydrated) return <HydrationLoader />;
+  if (!hydrated || (isAuthenticated && !sessionReady)) return <HydrationLoader />;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

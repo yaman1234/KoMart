@@ -127,7 +127,8 @@ export function SaleDetailPage() {
         <DialogContent>
           <ReceiptView transaction={txn} branding={receiptBranding} />
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+          <ReceiptActions transaction={txn} showReprintLabel branding={receiptBranding} />
           <Button onClick={() => setReceiptOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>

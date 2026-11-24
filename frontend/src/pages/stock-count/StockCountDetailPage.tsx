@@ -126,7 +126,7 @@ export function StockCountDetailPage() {
   });
 
   const filteredItems = useMemo(
-    () => (sc?.items ?? []).filter((i) => applyVarianceFilter(i, vFilter)),
+    () => (Array.isArray(sc?.items) ? sc.items : []).filter((i) => applyVarianceFilter(i, vFilter)),
     [sc, vFilter],
   );
 

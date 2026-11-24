@@ -3,7 +3,12 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import re
 
-from app.auth.dependencies import get_current_user, require_manager_or_above, require_admin_only
+from app.auth.dependencies import (
+    get_current_user,
+    get_optional_user,
+    require_manager_or_above,
+    require_admin_only,
+)
 from app.models.user import User
 from app.models.category import Category
 from app.services.category_sync import propagate_category_rename
@@ -59,9 +64,10 @@ def _to_response(c: Category) -> CategoryResponse:
 @router.get("", response_model=List[CategoryResponse])
 async def list_categories(
     include_inactive: bool = False,
-    _: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
 ):
-    query = Category.find() if include_inactive else Category.find(Category.is_active == True)  # noqa: E712
+    allow_inactive = include_inactive and user is not None and user.role in ("admin", "manager")
+    query = Category.find() if allow_inactive else Category.find(Category.is_active == True)  # noqa: E712
     categories = await query.sort("name").to_list()
     return [_to_response(c) for c in categories]
 

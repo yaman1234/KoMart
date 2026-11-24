@@ -36,13 +36,16 @@ import { useStoreSettings } from '@/hooks/useSettings';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useCategoryNames } from '@/hooks/useCategories';
 import { useUomOptions } from '@/hooks/useUoms';
-import { DROPDOWN_PAGE_SIZE, COUNTRIES, PRODUCT_STATUS_OPTIONS, SELL_MODE_OPTIONS } from '@/constants';
+import { DROPDOWN_PAGE_SIZE, COUNTRIES, PRODUCT_STATUS_OPTIONS } from '@/constants';
 import { PRODUCT_FIELD_LABELS } from '@/constants/productFieldLabels';
+import { PO_LABELS, PO_SELL_AS_OPTIONS } from '@/pages/purchase-orders/poTerminology';
 import { UomConversionHint, UomSectionTitle } from '@/components/uom/UomUi';
 import { formatCurrency, navigateBack } from '@/utils';
 import { computeProductPricing } from '@/utils/productPricing';
 import { defaultPrimaryUom, hasUomConversion, normalizeProductUoms } from '@/utils/uomNormalize';
 import { showApiError, showSuccess, showWarning } from '@/utils/toast';
+import { getErrorMessage } from '@/services/apiClient';
+import { productCodeConflictField } from '@/pages/products/productCodeConflict';
 import { productService } from '@/services';
 import type { Product } from '@/types';
 
@@ -52,35 +55,35 @@ function todayAd(): string {
 
 // ── SKU generator (server-backed) ─────────────────────────────────────────────
 const schema = z.object({
-  name:            z.string().min(1, 'Name is required'),
-  sku:             z.string(),
-  barcode:         z.string(),
-  brand:           z.string(),
+  name: z.string().min(1, 'Name is required'),
+  sku: z.string(),
+  barcode: z.string(),
+  brand: z.string(),
   countryOfOrigin: z.string(),
-  category:        z.string(),
-  supplierId:      z.string(),
-  buyUom:          z.string().min(1, 'Primary Unit is required'),
-  uom:             z.string(),
-  unitsPerBuyUom:  z.number().int().min(1, 'Must be at least 1'),
-  sellMode:        z.enum(['unit', 'piece', 'both']),
-  description:     z.string(),
-  imageUrl:        z.string().url('Enter a valid URL').or(z.literal('')),
-  costPrice:       z.number().min(0, 'Must be ≥ 0'),
-  sellingPrice:    z.number().min(0, 'Must be ≥ 0'),
+  category: z.string(),
+  supplierId: z.string(),
+  buyUom: z.string().min(1, 'Buy unit is required'),
+  uom: z.string(),
+  unitsPerBuyUom: z.number().int().min(1, 'Must be at least 1'),
+  sellMode: z.enum(['unit', 'piece', 'both']),
+  description: z.string(),
+  imageUrl: z.string().url('Enter a valid URL').or(z.literal('')),
+  costPrice: z.number().min(0, 'Must be ≥ 0'),
+  sellingPrice: z.number().min(0, 'Must be ≥ 0'),
   packSellingPrice: z.number().min(0, 'Must be ≥ 0'),
   discountPercent: z.number().min(0).max(100),
   offeredPrice: z.number().min(0, 'Must be ≥ 0'),
   packDiscountPercent: z.number().min(0).max(100),
   packOfferedPrice: z.number().min(0, 'Must be ≥ 0'),
   lowStockThreshold: z.number().int().min(0, 'Must be ≥ 0'),
-  status:            z.enum(['active', 'discontinued', 'seasonal']),
-  tags:              z.array(z.string().min(1)),
-  isPopular:         z.boolean(),
-  isTrending:        z.boolean(),
+  status: z.enum(['active', 'discontinued', 'seasonal']),
+  tags: z.array(z.string().min(1)),
+  isPopular: z.boolean(),
+  isTrending: z.boolean(),
   costPriceEffectiveFrom: z.string(),
   sellingPriceEffectiveFrom: z.string(),
-  nutritionInfo:   z.string(),
-  allergenInfo:    z.string(),
+  nutritionInfo: z.string(),
+  allergenInfo: z.string(),
 }).superRefine((data, ctx) => {
   if (!data.sku.trim() && !data.category.trim()) {
     ctx.addIssue({
@@ -93,7 +96,7 @@ const schema = z.object({
   if (converting && !data.uom.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Secondary Unit is required when conversion is used',
+      message: 'Sell unit is required when conversion is used',
       path: ['uom'],
     });
   }
@@ -102,7 +105,7 @@ const schema = z.object({
   if (packSellEnabled && data.packSellingPrice <= 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Pack price is required when selling whole packs/boxes',
+      message: 'Price / pack is required when selling whole packs/boxes',
       path: ['packSellingPrice'],
     });
   }
@@ -143,6 +146,33 @@ function buildPackPriceHelper(
 
 type FormValues = z.infer<typeof schema>;
 
+/**
+ * Visible labels on this form. Product sheet and Excel import headers stay on
+ * PRODUCT_FIELD_LABELS so alias matching does not change.
+ */
+const FORM_LABELS = {
+  barcode: 'Barcode',
+  brand: 'Brand',
+  country: 'Country',
+  category: 'Category',
+  supplier: 'Supplier',
+  buyUnitSection: 'Buy unit (purchase)',
+  buyUnit: PO_LABELS.buyUom,
+  usesConversion: 'Uses conversion (Sell unit)',
+  pcsInPack: PO_LABELS.pcsInPack,
+  sellUnitSection: 'Sell unit (stock & sell)',
+  sellUnit: PO_LABELS.sellUnit,
+  sellAs: PO_LABELS.sellAs,
+  nutrition: 'Nutrition',
+  allergens: 'Allergens',
+  costPc: PO_LABELS.costPc,
+  pricePc: PO_LABELS.piecePrice,
+  popular: 'Popular',
+  margin: 'Margin',
+  packPrice: PO_LABELS.packPrice,
+  lowStockAlert: 'Low stock alert',
+} as const;
+
 export interface ProductFormPageProps {
   /** When true, render inside a dialog (e.g. Create Product from PO). */
   embedded?: boolean;
@@ -182,6 +212,7 @@ export function ProductFormPage({
     control,
     watch,
     setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -236,35 +267,35 @@ export function ProductFormPage({
       const buy = product.buyUom ?? product.uom ?? '';
       const secondary = hasUomConversion(factor) ? (product.uom ?? '') : buy;
       reset({
-        name:             product.name,
-        sku:              product.sku,
-        barcode:          product.barcode,
-        brand:            product.brand,
-        countryOfOrigin:  product.countryOfOrigin,
-        category:         product.category,
-        supplierId:       product.supplierId,
-        buyUom:           buy,
-        uom:              secondary,
-        unitsPerBuyUom:   factor,
-        sellMode:           product.sellMode ?? 'unit',
-        description:      product.description,
-        imageUrl:         product.images[0] ?? '',
-        costPrice:        product.costPrice,
-        sellingPrice:     product.sellingPrice,
+        name: product.name,
+        sku: product.sku,
+        barcode: product.barcode,
+        brand: product.brand,
+        countryOfOrigin: product.countryOfOrigin,
+        category: product.category,
+        supplierId: product.supplierId,
+        buyUom: buy,
+        uom: secondary,
+        unitsPerBuyUom: factor,
+        sellMode: product.sellMode ?? 'unit',
+        description: product.description,
+        imageUrl: product.images[0] ?? '',
+        costPrice: product.costPrice,
+        sellingPrice: product.sellingPrice,
         packSellingPrice: product.packSellingPrice ?? 0,
         discountPercent: product.discountPercent ?? 0,
         offeredPrice: product.offeredPrice ?? product.sellingPrice,
         packDiscountPercent: product.packDiscountPercent ?? 0,
         packOfferedPrice: product.packOfferedPrice ?? product.packSellingPrice ?? 0,
         lowStockThreshold: product.lowStockThreshold,
-        status:            product.status ?? 'active',
-        tags:              product.tags ?? [],
-        isPopular:         product.isPopular ?? false,
-        isTrending:        product.isTrending ?? false,
+        status: product.status ?? 'active',
+        tags: product.tags ?? [],
+        isPopular: product.isPopular ?? false,
+        isTrending: product.isTrending ?? false,
         costPriceEffectiveFrom: product.costPriceEffectiveFrom || todayAd(),
         sellingPriceEffectiveFrom: product.sellingPriceEffectiveFrom || todayAd(),
-        nutritionInfo:    product.nutritionInfo ?? '',
-        allergenInfo:     product.allergenInfo ?? '',
+        nutritionInfo: product.nutritionInfo ?? '',
+        allergenInfo: product.allergenInfo ?? '',
       });
     }
   }, [product, reset]);
@@ -331,68 +362,68 @@ export function ProductFormPage({
 
   // ── Image file picker ────────────────────────────────────────────────────
   const handleFileChange = async (
-  e: React.ChangeEvent<HTMLInputElement>,
-) => {
-  const file = e.target.files?.[0];
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
 
-  if (!file) return;
+    if (!file) return;
 
-  try {
-    setImageUploading(true);
-const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+    try {
+      setImageUploading(true);
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-    if (!cloudName || !uploadPreset) {
-      throw new Error('Cloudinary configuration is missing.');
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Cloudinary configuration is missing.');
+      }
+
+      // Optional client-side validation
+      if (!file.type.startsWith('image/')) {
+        showWarning('Please select an image file.');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        showWarning('Image must be smaller than 5 MB.');
+        return;
+      }
+
+      const formData = new FormData();
+
+      formData.append('file', file);
+      formData.append('upload_preset', uploadPreset);
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Image upload failed.');
+      }
+
+      // Cloudinary URL
+      const imageUrl = data.secure_url;
+
+      setValue('imageUrl', imageUrl, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+
+      showSuccess('Image uploaded successfully.');
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      showApiError(error, 'Image upload failed.');
+    } finally {
+      setImageUploading(false);
+      e.target.value = '';
     }
-
-    // Optional client-side validation
-    if (!file.type.startsWith('image/')) {
-      showWarning('Please select an image file.');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showWarning('Image must be smaller than 5 MB.');
-      return;
-    }
-
-    const formData = new FormData();
-
-    formData.append('file', file);
-    formData.append('upload_preset', uploadPreset);
-
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-      {
-        method: 'POST',
-        body: formData,
-      },
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Image upload failed.');
-    }
-
-    // Cloudinary URL
-    const imageUrl = data.secure_url;
-
-    setValue('imageUrl', imageUrl, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
-
-    showSuccess('Image uploaded successfully.');
-  } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    showApiError(error, 'Image upload failed.');
-  } finally {
-    setImageUploading(false);
-    e.target.value = '';
-  }
-};
+  };
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = async (values: FormValues) => {
@@ -427,6 +458,11 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
         }
       }
     } catch (err) {
+      const message = getErrorMessage(err);
+      const conflictField = productCodeConflictField(message);
+      if (conflictField) {
+        setError(conflictField, { type: 'server', message });
+      }
       showApiError(err, isEditing ? 'Product could not be saved.' : 'Product could not be created.');
     }
   };
@@ -551,7 +587,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                     barcodeRegRef(el);
                     barcodeInputRef.current = el;
                   }}
-                  label="Barcode (optional)"
+                  label={FORM_LABELS.barcode}
                   fullWidth
                   error={!!errors.barcode}
                   helperText={errors.barcode?.message || 'Click here, then scan — scanner types into this field.'}
@@ -583,7 +619,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   {...register('brand')}
-                  label="Brand (optional)"
+                  label={FORM_LABELS.brand}
                   fullWidth
                   error={!!errors.brand}
                   helperText={errors.brand?.message}
@@ -598,7 +634,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                     <TextField
                       {...field}
                       select
-                      label="Country of Origin (optional)"
+                      label={FORM_LABELS.country}
                       fullWidth
                       error={!!errors.countryOfOrigin}
                       helperText={errors.countryOfOrigin?.message}
@@ -618,7 +654,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                     <TextField
                       {...field}
                       select
-                      label="Category (optional)"
+                      label={FORM_LABELS.category}
                       fullWidth
                       error={!!errors.category}
                       helperText={errors.category?.message}
@@ -667,7 +703,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                     <TextField
                       {...field}
                       select
-                      label="Primary Supplier (optional)"
+                      label={FORM_LABELS.supplier}
                       fullWidth
                       error={!!errors.supplierId}
                       helperText={errors.supplierId?.message}
@@ -683,7 +719,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
               <Grid size={{ xs: 12 }}>
                 <Divider sx={{ my: 1 }} />
-                <UomSectionTitle>Primary Unit (purchase)</UomSectionTitle>
+                <UomSectionTitle>{FORM_LABELS.buyUnitSection}</UomSectionTitle>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 4 }}>
@@ -694,7 +730,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                     <TextField
                       {...field}
                       select
-                      label="Primary Unit"
+                      label={FORM_LABELS.buyUnit}
                       fullWidth
                       error={!!errors.buyUom}
                       helperText={errors.buyUom?.message ?? 'How the supplier bills (pack, box)'}
@@ -728,7 +764,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                       }}
                     />
                   }
-                  label="Uses conversion (Secondary Unit)"
+                  label={FORM_LABELS.usesConversion}
                 />
               </Grid>
 
@@ -737,13 +773,13 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       {...register('unitsPerBuyUom', { valueAsNumber: true })}
-                      label="Units per pack"
+                      label={FORM_LABELS.pcsInPack}
                       type="number"
                       fullWidth
                       error={!!errors.unitsPerBuyUom}
                       helperText={
                         errors.unitsPerBuyUom?.message
-                        ?? 'Secondary units inside one Primary Unit (e.g. 24 pcs per box)'
+                        ?? 'Sell units inside one Buy unit (e.g. 24 pcs per box)'
                       }
                       slotProps={{ htmlInput: { min: 2, step: 1 } }}
                     />
@@ -760,7 +796,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
                   <Grid size={{ xs: 12 }}>
                     <Divider sx={{ my: 1 }} />
-                    <UomSectionTitle>Secondary Unit (stock &amp; sell)</UomSectionTitle>
+                    <UomSectionTitle>{FORM_LABELS.sellUnitSection}</UomSectionTitle>
                   </Grid>
 
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -771,7 +807,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                         <TextField
                           {...field}
                           select
-                          label="Secondary Unit"
+                          label={FORM_LABELS.sellUnit}
                           fullWidth
                           error={!!errors.uom}
                           helperText={errors.uom?.message ?? 'Stock is counted in this unit'}
@@ -792,12 +828,12 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                         <TextField
                           {...field}
                           select
-                          label="Sell mode"
+                          label={FORM_LABELS.sellAs}
                           fullWidth
                           error={!!errors.sellMode}
                           helperText={errors.sellMode?.message ?? 'How cashiers sell at POS'}
                         >
-                          {SELL_MODE_OPTIONS.map((o) => (
+                          {PO_SELL_AS_OPTIONS.map((o) => (
                             <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                           ))}
                         </TextField>
@@ -826,7 +862,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={{ xs: 12 }}>
                 <TextField
                   {...register('nutritionInfo')}
-                  label="Nutrition Information"
+                  label={FORM_LABELS.nutrition}
                   fullWidth
                   multiline
                   rows={3}
@@ -835,7 +871,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={{ xs: 12 }}>
                 <TextField
                   {...register('allergenInfo')}
-                  label="Allergen Information"
+                  label={FORM_LABELS.allergens}
                   fullWidth
                   multiline
                   rows={2}
@@ -908,11 +944,11 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={12}>
                 <TextField
                   {...register('costPrice', { valueAsNumber: true })}
-                  label={PRODUCT_FIELD_LABELS.unitCost}
+                  label={FORM_LABELS.costPc}
                   type="number"
                   fullWidth
                   error={!!errors.costPrice}
-                  helperText={errors.costPrice?.message ?? 'Per secondary unit'}
+                  helperText={errors.costPrice?.message ?? 'Per sell unit'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
                 />
               </Grid>
@@ -934,11 +970,11 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               <Grid size={12}>
                 <TextField
                   {...register('sellingPrice', { valueAsNumber: true })}
-                  label={PRODUCT_FIELD_LABELS.unitPrice}
+                  label={FORM_LABELS.pricePc}
                   type="number"
                   fullWidth
                   error={!!errors.sellingPrice}
-                  helperText={errors.sellingPrice?.message ?? 'Per secondary unit · NPR 0 hides product from POS'}
+                  helperText={errors.sellingPrice?.message ?? 'Per sell unit · NPR 0 hides product from POS'}
                   slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
                 />
               </Grid>
@@ -964,7 +1000,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                   render={({ field }) => (
                     <FormControlLabel
                       control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
-                      label="Most Popular"
+                      label={FORM_LABELS.popular}
                     />
                   )}
                 />
@@ -981,7 +1017,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
               </Grid>
               <Grid size={6}>
                 <TextField
-                  label={PRODUCT_FIELD_LABELS.marginPercent}
+                  label={FORM_LABELS.margin}
                   value={derivedPricing.marginPercent.toFixed(1)}
                   fullWidth
                   disabled
@@ -1022,7 +1058,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                     <TextField
                       {...register('packSellingPrice', { valueAsNumber: true })}
-                      label={PRODUCT_FIELD_LABELS.packPrice}
+                      label={FORM_LABELS.packPrice}
                       type="number"
                       fullWidth
                       error={!!errors.packSellingPrice}
@@ -1086,7 +1122,7 @@ const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
             <Divider sx={{ mb: 3 }} />
             <TextField
               {...register('lowStockThreshold', { valueAsNumber: true })}
-              label={PRODUCT_FIELD_LABELS.lowStock}
+              label={FORM_LABELS.lowStockAlert}
               type="number"
               fullWidth
               error={!!errors.lowStockThreshold}

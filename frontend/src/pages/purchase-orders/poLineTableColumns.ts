@@ -45,6 +45,7 @@ export const PO_DETAIL_FLAT_COLUMNS = {
   status: 88,
   costPack: 88,
   costPc: 80,
+  lineTotal: 96,
   sellAs: 120,
   packPrice: 96,
   piecePrice: 96,
@@ -70,6 +71,7 @@ export function poDetailFlatColWidths(canReceive: boolean): number[] {
     PO_DETAIL_FLAT_COLUMNS.status,
     PO_DETAIL_FLAT_COLUMNS.costPack,
     PO_DETAIL_FLAT_COLUMNS.costPc,
+    PO_DETAIL_FLAT_COLUMNS.lineTotal,
     PO_DETAIL_FLAT_COLUMNS.sellAs,
     PO_DETAIL_FLAT_COLUMNS.packPrice,
     PO_DETAIL_FLAT_COLUMNS.piecePrice,
@@ -82,5 +84,5 @@ export function poDetailFlatColWidths(canReceive: boolean): number[] {
 }
 
 export function poDetailTableMinWidth(canReceive: boolean): number {
-  return canReceive ? 1680 : 1400;
+  return poDetailFlatColWidths(canReceive).reduce((sum, w) => sum + w, 0);
 }
