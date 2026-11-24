@@ -1543,6 +1543,8 @@ export interface PurchaseOrderItem {
 
   lineStatus?: PurchaseOrderLineStatus;
 
+  lineTotal?: number;
+
 
 
 }
