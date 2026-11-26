@@ -3,11 +3,13 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   Grid,
   InputLabel,
   Link,
@@ -30,6 +32,7 @@ import { PAYMENT_METHODS } from '@/constants';
 import {
   useWalletAdjustment,
   useWalletBalances,
+  useWalletCutover,
   useWalletLedger,
   useWalletTransfer,
 } from '@/hooks/useWallets';
@@ -43,11 +46,11 @@ import {
 import { useAssignableUsers } from '@/hooks/useAssignableUsers';
 import { useDailySummary } from '@/hooks/useReports';
 import { useAuthStore } from '@/store';
-import { formatCurrency, formatSignedCurrency, isAdminOrManager } from '@/utils';
+import { formatCurrency, formatSignedCurrency, isAdmin, isAdminOrManager } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
 import { getErrorMessage } from '@/services/apiClient';
 import { showSuccess } from '@/utils/toast';
-import type { CashCustody, WalletCode, WalletLedgerEntry } from '@/types';
+import type { CashCustody, WalletCode, WalletCutoverPayload, WalletLedgerEntry } from '@/types';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -103,6 +106,7 @@ function referencePath(row: WalletLedgerEntry): string | null {
 }
 
 function statementLabel(row: WalletLedgerEntry, transferPeer?: WalletLedgerEntry): string {
+  if (row.referenceType === 'balance_cutover') return 'Balance cutover';
   if (row.entryType === 'transfer' && transferPeer) {
     const from = row.direction === 'out' ? row.wallet : transferPeer.wallet;
     const to = row.direction === 'in' ? row.wallet : transferPeer.wallet;
@@ -116,6 +120,7 @@ export function AccountsPage() {
   const formatDate = useFormatDate();
   const user = useAuthStore((s) => s.user);
   const canAdjust = isAdminOrManager(user?.role);
+  const canSetBalances = isAdmin(user?.role);
 
   const { filters, setFilter, setFilters } = useListState({
     routePrefix: '/accounts',
@@ -145,6 +150,13 @@ export function AccountsPage() {
 
   const [transferOpen, setTransferOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [cutoverOpen, setCutoverOpen] = useState(false);
+  const [cutoverAck, setCutoverAck] = useState(false);
+  const [cutoverReplace, setCutoverReplace] = useState(false);
+  const [cutoverTargets, setCutoverTargets] = useState({ bank: '', esewa: '', cash: '' });
+  const [cutoverStatementRef, setCutoverStatementRef] = useState('');
+  const [cutoverRemarks, setCutoverRemarks] = useState('');
+  const [cutoverLargeAck, setCutoverLargeAck] = useState(false);
   const [takeOpen, setTakeOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState<CashCustody | null>(null);
   const [resolveMode, setResolveMode] = useState<'return' | 'deposit'>('return');
@@ -195,6 +207,7 @@ export function AccountsPage() {
 
   const transferMutation = useWalletTransfer();
   const adjustMutation = useWalletAdjustment();
+  const cutoverMutation = useWalletCutover();
   const takeMutation = useTakeCashCustody();
   const returnMutation = useReturnCashCustody();
   const depositMutation = useDepositCashCustody();
@@ -400,6 +413,63 @@ export function AccountsPage() {
     }
   };
 
+  const openCutover = () => {
+    setCutoverTargets({ bank: '', esewa: '', cash: '' });
+    setCutoverAck(false);
+    setCutoverReplace(false);
+    setCutoverStatementRef('');
+    setCutoverRemarks('');
+    setCutoverLargeAck(false);
+    setFormError('');
+    setCutoverOpen(true);
+  };
+
+  const handleCutover = async () => {
+    setFormError('');
+    const payload: WalletCutoverPayload = { replace: cutoverReplace };
+    const fields = [
+      ['bank', cutoverTargets.bank],
+      ['esewa', cutoverTargets.esewa],
+      ['cash', cutoverTargets.cash],
+    ] as const;
+    for (const [key, raw] of fields) {
+      if (raw.trim() === '') continue;
+      const amount = Number(raw);
+      if (!Number.isFinite(amount) || amount < 0) {
+        setFormError('Enter a zero or positive amount, or leave a row blank.');
+        return;
+      }
+      payload[key] = Math.round(amount * 100) / 100;
+    }
+    if (payload.bank == null && payload.esewa == null && payload.cash == null) {
+      setFormError('Enter at least one balance.');
+      return;
+    }
+    if (cutoverStatementRef.trim()) payload.statementRef = cutoverStatementRef.trim();
+    if (cutoverRemarks.trim()) payload.remarks = cutoverRemarks.trim();
+    try {
+      const result = await cutoverMutation.mutateAsync(payload);
+      const posted = result.lines.filter((line) => !line.skipped);
+      const drifted = result.lines.filter((line) => !line.skipped && Math.abs(line.drift ?? 0) >= 0.01);
+      if (posted.length === 0) {
+        showSuccess('Those balances already match the application.');
+      } else {
+        showSuccess(`Balances set for ${posted.map((line) => walletLabel(line.wallet)).join(', ')}.`);
+      }
+      if (drifted.length > 0) {
+        setFormError(
+          `Warning: concurrent activity shifted ${drifted.map((l) => walletLabel(l.wallet)).join(', ')} by ` +
+          `${drifted.map((l) => formatCurrency(l.drift ?? 0)).join(', ')} after the cutover was posted. ` +
+          `Current balance may differ from your target — please verify.`
+        );
+        return;
+      }
+      setCutoverOpen(false);
+    } catch (err) {
+      setFormError(getErrorMessage(err));
+    }
+  };
+
   const handleTake = async () => {
     setFormError('');
     const amount = parseFloat(takeAmount);
@@ -509,6 +579,11 @@ export function AccountsPage() {
             >
               Transfer
             </Button>
+            {canSetBalances && (
+              <Button variant="contained" onClick={openCutover}>
+                Set balances
+              </Button>
+            )}
             {canAdjust && (
               <>
                 <Button
@@ -853,6 +928,131 @@ export function AccountsPage() {
           <Button onClick={() => setAdjustOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleAdjust()} loading={adjustMutation.isPending}>
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={cutoverOpen} onClose={() => setCutoverOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Set balances</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          {formError && <Alert severity={formError.startsWith('Warning') ? 'warning' : 'error'}>{formError}</Alert>}
+          <Alert severity="info">
+            Enter the real amounts confirmed from your bank statement, eSewa dashboard, or physical till count.
+            Leave a row blank to leave it unchanged.{' '}
+            <strong>For daily cash &amp; bank tracking without modifying balances, use the Reconciliation module.</strong>
+          </Alert>
+          {([
+            {
+              key: 'bank' as const,
+              label: 'Bank',
+              hint: 'Bank statement balance',
+              current: balances?.bank ?? 0,
+            },
+            {
+              key: 'esewa' as const,
+              label: 'eSewa',
+              hint: 'Merchant wallet balance',
+              current: balances?.esewa ?? 0,
+            },
+            {
+              key: 'cash' as const,
+              label: 'Cash',
+              hint: 'Notes and coins in the till',
+              current: Math.round(((balances?.cash ?? 0) - (balances?.cashWithStaff ?? 0)) * 100) / 100,
+            },
+          ]).map((row) => {
+            const raw = cutoverTargets[row.key];
+            const target = raw.trim() === '' ? null : Number(raw);
+            const delta = target != null && Number.isFinite(target) ? Math.round((target - row.current) * 100) / 100 : null;
+            const isLarge = delta != null && (Math.abs(delta) > 50000 || (row.current > 0 && Math.abs(delta) / row.current > 0.5));
+            return (
+              <Box key={row.key} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {row.label} on the application: {formatCurrency(row.current)}
+                  {row.key === 'cash' ? ` · Cash with staff ${formatCurrency(balances?.cashWithStaff ?? 0)} stays as it is` : ''}
+                </Typography>
+                <TextField
+                  label={row.hint}
+                  type="number"
+                  size="small"
+                  value={raw}
+                  onChange={(e) => setCutoverTargets((prev) => ({ ...prev, [row.key]: e.target.value }))}
+                  slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                  helperText={delta == null ? 'Leave blank to skip' : `Difference ${formatCurrency(delta)}`}
+                  color={isLarge ? 'warning' : undefined}
+                />
+                {isLarge && (
+                  <Alert severity="warning" sx={{ py: 0.5 }}>
+                    Large adjustment detected ({formatCurrency(delta!)}). Please double-check your digits.
+                  </Alert>
+                )}
+              </Box>
+            );
+          })}
+          <TextField
+            label="Statement / Batch Reference (optional)"
+            size="small"
+            placeholder="e.g. Nabil Bank Statement Nov-2026, eSewa Settlement #1234"
+            value={cutoverStatementRef}
+            onChange={(e) => setCutoverStatementRef(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: 100 } }}
+          />
+          <TextField
+            label="Reason / Remarks (optional)"
+            size="small"
+            placeholder="e.g. Monthly bank statement alignment, Adjusted for accumulated bank charges"
+            value={cutoverRemarks}
+            onChange={(e) => setCutoverRemarks(e.target.value)}
+            multiline
+            minRows={2}
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+          />
+          <FormControlLabel
+            control={<Checkbox checked={cutoverAck} onChange={(e) => setCutoverAck(e.target.checked)} />}
+            label="Today's sales, expenses, and transfers are already entered."
+          />
+          {(['bank', 'esewa', 'cash'] as const).some((key) => {
+            const raw = cutoverTargets[key];
+            const current = key === 'cash'
+              ? Math.round(((balances?.cash ?? 0) - (balances?.cashWithStaff ?? 0)) * 100) / 100
+              : (balances?.[key] ?? 0);
+            const target = raw.trim() === '' ? null : Number(raw);
+            const delta = target != null && Number.isFinite(target) ? Math.abs(target - current) : 0;
+            return delta > 50000 || (current > 0 && delta / current > 0.5);
+          }) && (
+            <FormControlLabel
+              control={<Checkbox checked={cutoverLargeAck} onChange={(e) => setCutoverLargeAck(e.target.checked)} />}
+              label="I confirm this large balance adjustment is accurate and intentional."
+              sx={{ '& .MuiFormControlLabel-label': { color: 'warning.dark', fontWeight: 600 } }}
+            />
+          )}
+          <FormControlLabel
+            control={<Checkbox checked={cutoverReplace} onChange={(e) => setCutoverReplace(e.target.checked)} />}
+            label="Replace today's earlier entry. Allowed only when no ledger activity has occurred since."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCutoverOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => void handleCutover()}
+            loading={cutoverMutation.isPending}
+            disabled={
+              !cutoverAck
+              || cutoverMutation.isPending
+              || !(['bank', 'esewa', 'cash'].some((key) => cutoverTargets[key as 'bank' | 'esewa' | 'cash'].trim() !== ''))
+              || ((['bank', 'esewa', 'cash'] as const).some((key) => {
+                  const raw = cutoverTargets[key];
+                  const current = key === 'cash'
+                    ? Math.round(((balances?.cash ?? 0) - (balances?.cashWithStaff ?? 0)) * 100) / 100
+                    : (balances?.[key] ?? 0);
+                  const target = raw.trim() === '' ? null : Number(raw);
+                  const delta = target != null && Number.isFinite(target) ? Math.abs(target - current) : 0;
+                  return delta > 50000 || (current > 0 && delta / current > 0.5);
+                }) && !cutoverLargeAck)
+            }
+          >
+            Confirm balances
           </Button>
         </DialogActions>
       </Dialog>
