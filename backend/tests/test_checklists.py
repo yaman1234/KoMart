@@ -243,3 +243,16 @@ async def test_update_and_deactivate_template(client, manager_user, admin_user):
 
     # Cleanup
     await t.delete()
+
+
+@pytest.mark.asyncio
+async def test_generate_daily_checklists(client, manager_user):
+    token = await get_token(client, manager_user.email, "mgrpass123")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = await client.post("/api/v1/checklists/generate-daily", headers=headers)
+    assert res.status_code == 200
+    checklists = res.json()
+    assert isinstance(checklists, list)
+    assert len(checklists) > 0
+

@@ -351,6 +351,18 @@ async def verify_checklist(
     return _to_daily_response(checklist)
 
 
+@router.post("/generate-daily", response_model=List[DailyChecklistResponse])
+async def trigger_generate_daily_checklists(
+    date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    _: User = Depends(require_manager_or_above),
+):
+    """Manually trigger daily checklist generation from active templates."""
+    target_date = date or get_today_npt_date_str()
+    await ensure_daily_checklists_for_date(target_date)
+    checklists = await DailyChecklist.find(DailyChecklist.date == target_date).sort("target_role", "category").to_list()
+    return [_to_daily_response(c) for c in checklists]
+
+
 # ── Templates CRUD ─────────────────────────────────────────────────────────────
 
 @router.get("/templates", response_model=List[ChecklistTemplateResponse])

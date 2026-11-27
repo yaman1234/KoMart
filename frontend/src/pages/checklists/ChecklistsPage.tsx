@@ -46,6 +46,7 @@ import {
   useUpdateChecklistTemplate,
   useDeactivateChecklistTemplate,
   useCreateDailyChecklist,
+  useGenerateDailyChecklists,
 } from '@/hooks/useChecklists';
 import { useAuthStore } from '@/store';
 import { showError, showSuccess } from '@/utils/toast';
@@ -101,6 +102,7 @@ export function ChecklistsPage() {
   const updateTemplateMutation = useUpdateChecklistTemplate();
   const deactivateTemplateMutation = useDeactivateChecklistTemplate();
   const createDailyMutation = useCreateDailyChecklist();
+  const generateDailyMutation = useGenerateDailyChecklists();
 
   // Dialog states
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
@@ -679,6 +681,24 @@ export function ChecklistsPage() {
                 Reset to Today
               </Button>
             )}
+            <Box sx={{ ml: 'auto' }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<FactCheckIcon />}
+                disabled={generateDailyMutation.isPending}
+                onClick={async () => {
+                  try {
+                    await generateDailyMutation.mutateAsync(overviewDate || undefined);
+                    showSuccess('Daily checklists generated successfully from active templates');
+                  } catch {
+                    showError('Failed to generate daily checklists');
+                  }
+                }}
+              >
+                {generateDailyMutation.isPending ? 'Generating...' : 'Spawn Daily Instances'}
+              </Button>
+            </Box>
           </Box>
 
           {/* Overview List */}

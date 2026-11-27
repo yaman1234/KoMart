@@ -81,4 +81,10 @@ export const checklistService = {
     const res = await apiClient.delete<{ message: string }>(`/checklists/templates/${templateId}`);
     return res.data;
   },
+
+  generateDaily: async (date?: string): Promise<DailyChecklist[]> => {
+    const params = date ? { date } : undefined;
+    const res = await apiClient.post<DailyChecklist[]>('/checklists/generate-daily', null, { params });
+    return res.data;
+  },
 };

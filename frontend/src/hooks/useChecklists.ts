@@ -119,3 +119,14 @@ export function useDeactivateChecklistTemplate() {
     },
   });
 }
+
+export function useGenerateDailyChecklists() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (date?: string) => checklistService.generateDaily(date),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['checklists', 'overview'] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.checklistsMyToday });
+    },
+  });
+}
