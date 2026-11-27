@@ -28,6 +28,7 @@ import {
   Switch,
   Alert,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
@@ -36,7 +37,12 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import SpeedIcon from '@mui/icons-material/Speed';
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import PlayCircleFilledWhiteIcon from '@mui/icons-material/PlayCircleFilledWhite';
+import TodayIcon from '@mui/icons-material/Today';
 
 import {
   useMyTodayChecklists,
@@ -64,7 +70,7 @@ const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
   opening: 'Opening Routine',
   mid_day: 'Mid-Day Check',
   closing: 'Closing Routine',
-  hygiene_safety: 'Hygiene & Food Safety',
+  hygiene_safety: 'Hygiene & Safety',
   inventory: 'Inventory & Restock',
   general: 'General Operations',
 };
@@ -89,6 +95,9 @@ export function ChecklistsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [overviewDate, setOverviewDate] = useState<string>('');
 
+  // Inline input state for numeric fields in My Tasks
+  const [taskInputs, setTaskInputs] = useState<Record<string, { numericInput?: number; notes?: string }>>({});
+
   // Queries & Mutations
   const { data: myTodayList = [], isLoading: loadingMyToday } = useMyTodayChecklists();
   const toggleItemMutation = useToggleChecklistItem();
@@ -108,7 +117,7 @@ export function ChecklistsPage() {
 
   // Dialog states
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
-  const [verifyingChecklistId, setVerifyingChecklistId] = useState<string | null>(null);
+  const [verifyingChecklist, setVerifyingChecklist] = useState<DailyChecklist | null>(null);
   const [verifyRemarks, setVerifyRemarks] = useState('');
 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -185,18 +194,19 @@ export function ChecklistsPage() {
     item: DailyChecklistItem,
     checked: boolean
   ) => {
+    const currentInput = taskInputs[item.id] || {};
     try {
       await toggleItemMutation.mutateAsync({
         checklistId: checklist.id,
         itemId: item.id,
         data: {
           isCompleted: checked,
-          numericInput: item.numericInput,
-          notes: item.notes,
+          numericInput: currentInput.numericInput !== undefined ? currentInput.numericInput : item.numericInput,
+          notes: currentInput.notes !== undefined ? currentInput.notes : item.notes,
         },
       });
       if (checked) {
-        showSuccess(`"${item.title}" marked completed`);
+        showSuccess(`"${item.title}" completed`);
       }
     } catch {
       showError('Failed to update task');
@@ -204,23 +214,23 @@ export function ChecklistsPage() {
   };
 
   // Verification
-  const handleOpenVerify = (checklistId: string) => {
-    setVerifyingChecklistId(checklistId);
+  const handleOpenVerify = (checklist: DailyChecklist) => {
+    setVerifyingChecklist(checklist);
     setVerifyRemarks('');
     setVerifyDialogOpen(true);
   };
 
   const handleConfirmVerify = async () => {
-    if (!verifyingChecklistId) return;
+    if (!verifyingChecklist) return;
     try {
       await verifyMutation.mutateAsync({
-        checklistId: verifyingChecklistId,
+        checklistId: verifyingChecklist.id,
         data: { remarks: verifyRemarks.trim() || undefined },
       });
-      showSuccess('Checklist successfully verified and signed off');
+      showSuccess(`Checklist "${verifyingChecklist.title}" signed off`);
       setVerifyDialogOpen(false);
     } catch {
-      showError('Failed to verify checklist');
+      showError('Failed to sign off checklist');
     }
   };
 
@@ -342,10 +352,10 @@ export function ChecklistsPage() {
         targetRole: adHocForm.targetRole,
         items: validItems,
       });
-      showSuccess('Ad-hoc daily checklist assigned successfully');
+      showSuccess('Quick task assigned successfully');
       setAdHocModalOpen(false);
     } catch {
-      showError('Failed to assign ad-hoc checklist');
+      showError('Failed to assign quick task');
     }
   };
 
@@ -354,6 +364,21 @@ export function ChecklistsPage() {
     if (categoryFilter === 'all') return myTodayList;
     return myTodayList.filter((c) => c.category === categoryFilter);
   }, [myTodayList, categoryFilter]);
+
+  // Overall My Today stats
+  const myTodayStats = useMemo(() => {
+    let total = 0;
+    let completed = 0;
+    myTodayList.forEach((c) => {
+      total += c.totalItemsCount || 0;
+      completed += c.completedItemsCount || 0;
+    });
+    return {
+      total,
+      completed,
+      pct: total > 0 ? Math.round((completed / total) * 100) : 0,
+    };
+  }, [myTodayList]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -369,11 +394,21 @@ export function ChecklistsPage() {
         }}
       >
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Daily Operational Checklists
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              Store Checklists
+            </Typography>
+            {myTodayStats.total > 0 && (
+              <Chip
+                size="small"
+                label={`${myTodayStats.completed}/${myTodayStats.total} done today`}
+                color={myTodayStats.completed === myTodayStats.total ? 'success' : 'primary'}
+                sx={{ fontWeight: 600 }}
+              />
+            )}
+          </Box>
           <Typography variant="body2" color="text.secondary">
-            Standard operating procedures, store opening/closing routines, and quality checks.
+            Daily routines, opening & closing procedures, and quality checks.
           </Typography>
         </Box>
 
@@ -394,7 +429,7 @@ export function ChecklistsPage() {
                 setAdHocModalOpen(true);
               }}
             >
-              Assign Ad-Hoc
+              Quick Task
             </Button>
             <Button
               variant="contained"
@@ -402,47 +437,51 @@ export function ChecklistsPage() {
               startIcon={<AddIcon />}
               onClick={handleOpenCreateTemplate}
             >
-              New Routine Template
+              New Template
             </Button>
           </Box>
         )}
       </Box>
 
       {/* Tabs */}
-      <Paper sx={{ mb: 3, borderRadius: 2 }}>
+      <Paper sx={{ mb: 3, borderRadius: 2 }} elevation={0} variant="outlined">
         <Tabs
           value={currentTab}
           onChange={(_, val) => setCurrentTab(val)}
+          sx={{ px: 2, minHeight: 48 }}
         >
           <Tab
             icon={<AssignmentTurnedInIcon fontSize="small" />}
             iconPosition="start"
-            label="Today's Tasks"
+            label="My Tasks"
+            sx={{ fontWeight: 600, textTransform: 'none' }}
           />
           {isManagerOrAdmin && (
             <Tab
               icon={<FactCheckIcon fontSize="small" />}
               iconPosition="start"
-              label="Store Operations Monitor"
+              label="Store Monitor"
+              sx={{ fontWeight: 600, textTransform: 'none' }}
             />
           )}
           {isManagerOrAdmin && (
             <Tab
               icon={<PlaylistAddIcon fontSize="small" />}
               iconPosition="start"
-              label="Routine Templates"
+              label="Templates"
+              sx={{ fontWeight: 600, textTransform: 'none' }}
             />
           )}
         </Tabs>
       </Paper>
 
-      {/* ── TAB 0: TODAY'S TASKS ─────────────────────────────────────────────── */}
+      {/* ── TAB 0: MY TASKS (STAFF & MANAGERS) ─────────────────────────────────── */}
       {currentTab === 0 && (
         <Box>
           {/* Category Filter Pills */}
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
             <Chip
-              label="All Categories"
+              label="All"
               clickable
               color={categoryFilter === 'all' ? 'primary' : 'default'}
               variant={categoryFilter === 'all' ? 'filled' : 'outlined'}
@@ -465,9 +504,9 @@ export function ChecklistsPage() {
           {loadingMyToday ? (
             <LinearProgress />
           ) : filteredTodayChecklists.length === 0 ? (
-            <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-              <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 1 }} />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
+              <CheckCircleIcon sx={{ fontSize: 52, color: 'success.main', mb: 1.5 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 All caught up for today!
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -475,18 +514,30 @@ export function ChecklistsPage() {
               </Typography>
             </Paper>
           ) : (
-            <Grid container spacing={3}>
+            <Grid container spacing={2.5}>
               {filteredTodayChecklists.map((checklist) => (
                 <Grid size={{ xs: 12, md: 6 }} key={checklist.id}>
-                  <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <CardContent sx={{ flex: 1, pb: 1 }}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      borderRadius: 2.5,
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'border-color 0.2s',
+                      borderColor: checklist.status === 'completed' ? 'success.light' : 'divider',
+                    }}
+                  >
+                    <CardContent sx={{ flex: 1, pb: 2 }}>
+                      {/* Header */}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                         <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
                             {checklist.title}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {CATEGORY_LABELS[checklist.category] || checklist.category} • Role: {checklist.targetRole}
+                            {CATEGORY_LABELS[checklist.category] || checklist.category}
+                            {checklist.shiftName ? ` • ${checklist.shiftName}` : ''}
                           </Typography>
                         </Box>
                         <Chip
@@ -505,6 +556,7 @@ export function ChecklistsPage() {
                               : 'default'
                           }
                           size="small"
+                          sx={{ fontWeight: 600 }}
                         />
                       </Box>
 
@@ -514,13 +566,13 @@ export function ChecklistsPage() {
                         </Typography>
                       )}
 
-                      {/* Progress bar */}
-                      <Box sx={{ mb: 2 }}>
+                      {/* Progress Bar */}
+                      <Box sx={{ mb: 2, mt: 1 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                           <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                            Progress: {checklist.completedItemsCount}/{checklist.totalItemsCount}
+                            {checklist.completedItemsCount} of {checklist.totalItemsCount} completed
                           </Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
                             {checklist.completionRate}%
                           </Typography>
                         </Box>
@@ -534,81 +586,130 @@ export function ChecklistsPage() {
 
                       <Divider sx={{ my: 1.5 }} />
 
-                      {/* Items */}
+                      {/* Task Items */}
                       <List dense disablePadding>
-                        {checklist.items.map((item) => (
-                          <ListItem
-                            key={item.id}
-                            disablePadding
-                            sx={{
-                              flexDirection: 'column',
-                              alignItems: 'stretch',
-                              py: 0.75,
-                              borderBottom: '1px solid',
-                              borderColor: 'divider',
-                              '&:last-child': { borderBottom: 'none' },
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-                              <ListItemIcon sx={{ minWidth: 36, mt: -0.25 }}>
-                                <Checkbox
-                                  edge="start"
-                                  size="small"
-                                  checked={item.isCompleted}
-                                  disabled={toggleItemMutation.isPending}
-                                  onChange={(e) => handleToggle(checklist, item, e.target.checked)}
-                                />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      textDecoration: item.isCompleted ? 'line-through' : 'none',
-                                      color: item.isCompleted ? 'text.secondary' : 'text.primary',
-                                      fontWeight: item.isMandatory ? 600 : 400,
-                                    }}
-                                  >
-                                    {item.title}
-                                    {item.isMandatory && (
-                                      <Box component="span" sx={{ color: 'error.main', ml: 0.5 }}>
-                                        *
-                                      </Box>
-                                    )}
-                                  </Typography>
-                                }
-                                secondary={
-                                  item.description ? (
-                                    <Typography variant="caption" color="text.secondary">
-                                      {item.description}
-                                    </Typography>
-                                  ) : null
-                                }
-                              />
-                            </Box>
+                        {checklist.items.map((item) => {
+                          const hasUnit = Boolean(item.numericUnit);
+                          return (
+                            <ListItem
+                              key={item.id}
+                              disablePadding
+                              sx={{
+                                flexDirection: 'column',
+                                alignItems: 'stretch',
+                                py: 0.75,
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                '&:last-child': { borderBottom: 'none' },
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    flex: 1,
+                                    cursor: 'pointer',
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                  }}
+                                  onClick={() => handleToggle(checklist, item, !item.isCompleted)}
+                                >
+                                  <ListItemIcon sx={{ minWidth: 36 }}>
+                                    <Checkbox
+                                      edge="start"
+                                      size="small"
+                                      checked={item.isCompleted}
+                                      disabled={toggleItemMutation.isPending}
+                                      tabIndex={-1}
+                                      disableRipple
+                                    />
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          textDecoration: item.isCompleted ? 'line-through' : 'none',
+                                          color: item.isCompleted ? 'text.secondary' : 'text.primary',
+                                          fontWeight: item.isMandatory ? 600 : 400,
+                                        }}
+                                      >
+                                        {item.title}
+                                        {item.isMandatory && (
+                                          <Box component="span" sx={{ color: 'error.main', ml: 0.5 }}>
+                                            *
+                                          </Box>
+                                        )}
+                                      </Typography>
+                                    }
+                                    secondary={
+                                      item.description ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                          {item.description}
+                                        </Typography>
+                                      ) : null
+                                    }
+                                  />
+                                </Box>
 
-                            {/* Recorded meta if complete */}
-                            {item.isCompleted && (
-                              <Box sx={{ pl: 4.5, pt: 0.5, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-                                {item.completedByName && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    Done by: <strong>{item.completedByName}</strong>
-                                  </Typography>
-                                )}
-                                {item.numericInput !== undefined && item.numericUnit && (
-                                  <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
-                                    Value: {item.numericInput} {item.numericUnit}
-                                  </Typography>
-                                )}
-                                {item.notes && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    Note: {item.notes}
-                                  </Typography>
+                                {/* Inline Numeric Input if item requires numeric value (e.g. Temp or Float) */}
+                                {hasUnit && !item.isCompleted && (
+                                  <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <TextField
+                                      size="small"
+                                      type="number"
+                                      placeholder="Value"
+                                      value={taskInputs[item.id]?.numericInput ?? ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                                        setTaskInputs((prev) => ({
+                                          ...prev,
+                                          [item.id]: { ...prev[item.id], numericInput: val },
+                                        }));
+                                      }}
+                                      slotProps={{
+                                        input: {
+                                          sx: {
+                                            height: 28,
+                                            width: 80,
+                                            fontSize: '0.8rem',
+                                            px: 1,
+                                          },
+                                        },
+                                      }}
+                                    />
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                      {item.numericUnit}
+                                    </Typography>
+                                  </Box>
                                 )}
                               </Box>
-                            )}
-                          </ListItem>
-                        ))}
+
+                              {/* Completed info banner */}
+                              {item.isCompleted && (
+                                <Box sx={{ pl: 4.5, pt: 0.25, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                                  {item.completedByName && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      Done by: <strong>{item.completedByName}</strong>
+                                    </Typography>
+                                  )}
+                                  {item.numericInput !== undefined && item.numericUnit && (
+                                    <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
+                                      Recorded: {item.numericInput} {item.numericUnit}
+                                    </Typography>
+                                  )}
+                                  {item.notes && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      Note: {item.notes}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              )}
+                            </ListItem>
+                          );
+                        })}
                       </List>
 
                       {/* Manager Verification Notice */}
@@ -617,22 +718,23 @@ export function ChecklistsPage() {
                           sx={{
                             mt: 2,
                             p: 1.5,
-                            bgcolor: 'success.light',
-                            color: 'success.contrastText',
+                            bgcolor: 'success.50',
+                            border: '1px solid',
+                            borderColor: 'success.200',
                             borderRadius: 1.5,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 1,
+                            gap: 1.5,
                           }}
                         >
-                          <VerifiedIcon fontSize="small" />
+                          <VerifiedIcon color="success" fontSize="small" />
                           <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block' }}>
-                              Verified by Manager {checklist.verifiedByName}
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.dark', display: 'block' }}>
+                              Signed off by {checklist.verifiedByName}
                             </Typography>
                             {checklist.managerRemarks && (
-                              <Typography variant="caption" sx={{ display: 'block' }}>
-                                Remarks: {checklist.managerRemarks}
+                              <Typography variant="caption" color="text.secondary">
+                                "{checklist.managerRemarks}"
                               </Typography>
                             )}
                           </Box>
@@ -647,147 +749,205 @@ export function ChecklistsPage() {
         </Box>
       )}
 
-      {/* ── TAB 1: STORE OPERATIONS MONITOR (MANAGERS) ───────────────────────── */}
+      {/* ── TAB 1: STORE OPERATIONS MONITOR (SUPERVISORS & MANAGERS) ─────────── */}
       {currentTab === 1 && isManagerOrAdmin && (
         <Box>
           {/* KPI Summary Cards */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Card variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card variant="outlined" sx={{ p: 2, borderRadius: 2.5, textAlign: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+                  <AssignmentTurnedInIcon color="action" fontSize="small" />
+                </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                   Active Routines
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" sx={{ fontWeight: 800, mt: 0.5 }}>
                   {overviewStats.total}
                 </Typography>
               </Card>
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Card variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card variant="outlined" sx={{ p: 2, borderRadius: 2.5, textAlign: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+                  <CheckCircleIcon color="success" fontSize="small" />
+                </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Fully Completed
+                  Fully Done
                 </Typography>
-                <Typography variant="h4" color="success.main" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" color="success.main" sx={{ fontWeight: 800, mt: 0.5 }}>
                   {overviewStats.completed}
                 </Typography>
               </Card>
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Card variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card variant="outlined" sx={{ p: 2, borderRadius: 2.5, textAlign: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+                  <SpeedIcon color="primary" fontSize="small" />
+                </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Store Completion
+                  Store Progress
                 </Typography>
-                <Typography variant="h4" color="primary.main" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" color="primary.main" sx={{ fontWeight: 800, mt: 0.5 }}>
                   {overviewStats.overallRate}%
                 </Typography>
               </Card>
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Card variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card variant="outlined" sx={{ p: 2, borderRadius: 2.5, textAlign: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+                  <PendingActionsIcon color="warning" fontSize="small" />
+                </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Awaiting Sign-off
+                  Awaiting Sign-Off
                 </Typography>
-                <Typography variant="h4" color="warning.main" sx={{ fontWeight: 700 }}>
+                <Typography variant="h5" color="warning.main" sx={{ fontWeight: 800, mt: 0.5 }}>
                   {overviewStats.pendingVerification}
                 </Typography>
               </Card>
             </Grid>
           </Grid>
 
-          {/* Date Filter */}
-          <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
-            <TextField
-              type="date"
-              size="small"
-              label="Audit Date"
-              value={overviewDate}
-              onChange={(e) => setOverviewDate(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ width: 200 }}
-            />
-            {overviewDate && (
-              <Button size="small" onClick={() => setOverviewDate('')}>
-                Reset to Today
-              </Button>
-            )}
-            <Box sx={{ ml: 'auto' }}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FactCheckIcon />}
-                disabled={generateDailyMutation.isPending}
-                onClick={async () => {
-                  try {
-                    await generateDailyMutation.mutateAsync(overviewDate || undefined);
-                    showSuccess('Daily checklists generated successfully from active templates');
-                  } catch {
-                    showError('Failed to generate daily checklists');
-                  }
-                }}
-              >
-                {generateDailyMutation.isPending ? 'Generating...' : 'Spawn Daily Instances'}
-              </Button>
+          {/* Date Filter & Generation Control */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2.5 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between',
+                alignItems: { xs: 'stretch', sm: 'center' },
+                gap: 2,
+              }}
+            >
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                <TextField
+                  type="date"
+                  size="small"
+                  label="Audit Date"
+                  value={overviewDate}
+                  onChange={(e) => setOverviewDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ width: 180 }}
+                />
+                {overviewDate && (
+                  <Button
+                    size="small"
+                    startIcon={<TodayIcon />}
+                    onClick={() => setOverviewDate('')}
+                  >
+                    Reset to Today
+                  </Button>
+                )}
+              </Box>
+
+              <Tooltip title="Auto-generates today's checklist instances from active templates if not already created">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<PlayCircleFilledWhiteIcon />}
+                  disabled={generateDailyMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      await generateDailyMutation.mutateAsync(overviewDate || undefined);
+                      showSuccess('Daily checklists generated successfully');
+                    } catch {
+                      showError('Failed to generate daily checklists');
+                    }
+                  }}
+                >
+                  {generateDailyMutation.isPending ? 'Generating...' : "Generate Today's Checklists"}
+                </Button>
+              </Tooltip>
             </Box>
-          </Box>
+          </Paper>
 
           {/* Overview List */}
           {loadingOverview ? (
             <LinearProgress />
           ) : overviewList.length === 0 ? (
-            <Alert severity="info">No checklist activity found for this date.</Alert>
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              No checklist activity found for this date. Click "Generate Today's Checklists" to load daily tasks from active templates.
+            </Alert>
           ) : (
-            <Grid container spacing={3}>
+            <Grid container spacing={2.5}>
               {overviewList.map((c) => (
                 <Grid size={{ xs: 12, md: 6 }} key={c.id}>
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          {c.title}
-                        </Typography>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      borderRadius: 2.5,
+                      borderLeft: '4px solid',
+                      borderLeftColor:
+                        c.status === 'completed'
+                          ? c.verifiedByName
+                            ? 'success.main'
+                            : 'warning.main'
+                          : 'primary.main',
+                    }}
+                  >
+                    <CardContent sx={{ pb: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            {c.title}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Role: <strong>{c.targetRole}</strong> • Category:{' '}
+                            <strong>{CATEGORY_LABELS[c.category] || c.category}</strong>
+                            {c.assignedToUserName && ` • Assigned to: ${c.assignedToUserName}`}
+                          </Typography>
+                        </Box>
                         <Chip
                           size="small"
                           label={c.status}
                           color={c.status === 'completed' ? 'success' : 'default'}
+                          sx={{ textTransform: 'capitalize', fontWeight: 600 }}
                         />
                       </Box>
 
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                        Role: <strong>{c.targetRole}</strong> • Category:{' '}
-                        <strong>{CATEGORY_LABELS[c.category] || c.category}</strong>
-                        {c.assignedToUserName && ` • Assigned to: ${c.assignedToUserName}`}
-                      </Typography>
-
-                      <LinearProgress
-                        variant="determinate"
-                        value={c.completionRate}
-                        color={c.status === 'completed' ? 'success' : 'primary'}
-                        sx={{ height: 6, borderRadius: 3, mb: 1.5 }}
-                      />
-
-                      <Typography variant="caption" color="text.secondary">
-                        {c.completedItemsCount} / {c.totalItemsCount} items completed ({c.completionRate}%)
-                      </Typography>
+                      <Box sx={{ my: 1.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {c.completedItemsCount} / {c.totalItemsCount} items completed
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                            {c.completionRate}%
+                          </Typography>
+                        </Box>
+                        <LinearProgress
+                          variant="determinate"
+                          value={c.completionRate}
+                          color={c.status === 'completed' ? 'success' : 'primary'}
+                          sx={{ height: 6, borderRadius: 3 }}
+                        />
+                      </Box>
 
                       <Divider sx={{ my: 1.5 }} />
 
-                      {/* Verification status or button */}
+                      {/* Verification section */}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         {c.verifiedByName ? (
-                          <Chip
-                            icon={<VerifiedIcon />}
-                            label={`Signed off by ${c.verifiedByName}`}
-                            color="success"
-                            size="small"
-                            variant="outlined"
-                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip
+                              icon={<VerifiedIcon />}
+                              label={`Signed off by ${c.verifiedByName}`}
+                              color="success"
+                              size="small"
+                              variant="outlined"
+                            />
+                            {c.managerRemarks && (
+                              <Typography variant="caption" color="text.secondary">
+                                "{c.managerRemarks}"
+                              </Typography>
+                            )}
+                          </Box>
                         ) : (
                           <Button
                             size="small"
                             variant="contained"
-                            color="primary"
+                            color="success"
                             startIcon={<VerifiedIcon />}
-                            onClick={() => handleOpenVerify(c.id)}
+                            onClick={() => handleOpenVerify(c)}
                           >
                             Verify & Sign Off
                           </Button>
@@ -807,12 +967,16 @@ export function ChecklistsPage() {
         <Box>
           {loadingTemplates ? (
             <LinearProgress />
+          ) : templates.length === 0 ? (
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              No routine templates configured yet. Click "New Template" above to create your first standard daily checklist.
+            </Alert>
           ) : (
-            <Grid container spacing={3}>
+            <Grid container spacing={2.5}>
               {templates.map((tpl) => (
                 <Grid size={{ xs: 12, md: 6 }} key={tpl.id}>
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                    <CardContent>
+                  <Card variant="outlined" sx={{ borderRadius: 2.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <CardContent sx={{ flex: 1, pb: 2 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                         <Box>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -823,13 +987,19 @@ export function ChecklistsPage() {
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          <Button size="small" onClick={() => handleOpenEditTemplate(tpl)}>
-                            Edit
-                          </Button>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleOpenEditTemplate(tpl)}
+                            title="Edit Template"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
                           <IconButton
                             size="small"
                             color="error"
                             onClick={() => handleDeactivateTemplate(tpl.id, tpl.title)}
+                            title="Deactivate Template"
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -842,7 +1012,8 @@ export function ChecklistsPage() {
                         </Typography>
                       )}
 
-                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1.5 }}>
+                      {/* Active Days */}
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 2 }}>
                         {DAYS_OF_WEEK.map((d) => (
                           <Chip
                             key={d.day}
@@ -850,14 +1021,14 @@ export function ChecklistsPage() {
                             size="small"
                             color={tpl.daysOfWeek.includes(d.day) ? 'primary' : 'default'}
                             variant={tpl.daysOfWeek.includes(d.day) ? 'filled' : 'outlined'}
-                            sx={{ fontSize: '0.7rem', height: 22 }}
+                            sx={{ fontSize: '0.72rem', height: 22 }}
                           />
                         ))}
                       </Box>
 
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {tpl.items.length} tasks configured • Auto-generate daily:{' '}
-                        {tpl.autoGenerateDaily ? 'Yes' : 'No'}
+                        <strong>{tpl.items.length}</strong> tasks • Auto-run daily:{' '}
+                        <strong>{tpl.autoGenerateDaily ? 'Yes' : 'No'}</strong>
                       </Typography>
                     </CardContent>
                   </Card>
@@ -869,31 +1040,40 @@ export function ChecklistsPage() {
       )}
 
       {/* ── VERIFY DIALOG ─────────────────────────────────────────────────────── */}
-      <Dialog open={verifyDialogOpen} onClose={() => setVerifyDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Sign Off & Verify Routine</DialogTitle>
+      <Dialog
+        open={verifyDialogOpen}
+        onClose={() => setVerifyDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Sign Off & Verify</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Your signature stamps this checklist as inspected and audited in the store system.
+            You are signing off on <strong>{verifyingChecklist?.title}</strong>. This adds your digital signature to the store audit log.
           </Typography>
           <TextField
             fullWidth
             label="Manager Inspection Remarks (Optional)"
-            placeholder="e.g. All refrigerated displays verified at 4°C. Cash float counted."
+            placeholder="e.g. Fridge temperatures verified. Cash count matches float."
             multiline
             rows={3}
+            size="small"
             value={verifyRemarks}
             onChange={(e) => setVerifyRemarks(e.target.value)}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setVerifyDialogOpen(false)}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setVerifyDialogOpen(false)} color="inherit">
+            Cancel
+          </Button>
           <Button
             variant="contained"
             color="success"
             onClick={handleConfirmVerify}
             disabled={verifyMutation.isPending}
+            startIcon={verifyMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <VerifiedIcon />}
           >
-            Confirm & Sign Off
+            {verifyMutation.isPending ? 'Signing Off...' : 'Confirm Sign Off'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -905,8 +1085,8 @@ export function ChecklistsPage() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ fontWeight: 600 }}>
-          {editingTemplate ? 'Edit Routine Template' : 'Create Routine Template'}
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {editingTemplate ? 'Edit Template' : 'New Routine Template'}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
@@ -921,7 +1101,7 @@ export function ChecklistsPage() {
 
             <TextField
               label="Description (Optional)"
-              placeholder="Detailed guidelines or instructions"
+              placeholder="Instructions or guidelines for staff"
               fullWidth
               multiline
               rows={2}
@@ -1017,7 +1197,7 @@ export function ChecklistsPage() {
             {/* Checklist Tasks Builder */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Checklist Tasks ({templateForm.items.length})
+                Tasks ({templateForm.items.length})
               </Typography>
               <Button
                 size="small"
@@ -1042,7 +1222,7 @@ export function ChecklistsPage() {
             </Box>
 
             {templateForm.items.map((item, idx) => (
-              <Paper key={item.id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
+              <Paper key={item.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
                   <TextField
                     size="small"
@@ -1121,7 +1301,7 @@ export function ChecklistsPage() {
             ))}
           </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setTemplateModalOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleSaveTemplate}>
             Save Template
@@ -1129,20 +1309,20 @@ export function ChecklistsPage() {
         </DialogActions>
       </Dialog>
 
-      {/* ── AD-HOC MODAL ──────────────────────────────────────────────────────── */}
+      {/* ── AD-HOC QUICK TASK MODAL ───────────────────────────────────────────── */}
       <Dialog
         open={adHocModalOpen}
         onClose={() => setAdHocModalOpen(false)}
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle sx={{ fontWeight: 600 }}>Assign Ad-Hoc Routine</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Assign Quick Task</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               size="small"
-              label="Checklist Title"
-              placeholder="e.g. End-of-Day Sanitization"
+              label="Task Title"
+              placeholder="e.g. End-of-Day Floor Sanitization"
               fullWidth
               value={adHocForm.title}
               onChange={(e) => setAdHocForm((p) => ({ ...p, title: e.target.value }))}
@@ -1163,7 +1343,17 @@ export function ChecklistsPage() {
             </TextField>
             <TextField
               size="small"
-              placeholder="Task #1"
+              label="Task Description or Instructions"
+              placeholder="Details or check instructions"
+              fullWidth
+              multiline
+              rows={2}
+              value={adHocForm.description}
+              onChange={(e) => setAdHocForm((p) => ({ ...p, description: e.target.value }))}
+            />
+            <TextField
+              size="small"
+              placeholder="First checklist item (e.g. Sweep and mop aisle 3)"
               value={adHocForm.items[0]?.title || ''}
               onChange={(e) => {
                 const items = [...adHocForm.items];
@@ -1173,10 +1363,10 @@ export function ChecklistsPage() {
             />
           </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setAdHocModalOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleSaveAdHoc}>
-            Assign Now
+            Assign Task
           </Button>
         </DialogActions>
       </Dialog>
