@@ -36,6 +36,8 @@ import type {
 
   Supplier,
 
+  SupplierListResponse,
+
   PurchaseOrder,
 
   PurchaseOrderListResponse,
@@ -804,7 +806,7 @@ export const inventoryService = {
 
 export const supplierService = {
 
-  getAll: async (params?: ListQueryParams): Promise<PaginatedResponse<Supplier>> => {
+  getAll: async (params?: ListQueryParams): Promise<SupplierListResponse> => {
 
     if (useMock()) return mockApi.getSuppliers(params);
 

@@ -1463,12 +1463,36 @@ export interface Supplier {
 
   paymentDetails?: SupplierPaymentDetail[];
 
-
-
   createdAt: string;
 
+  poCount?: number;
 
+  openPoCount?: number;
 
+  totalSpend?: number;
+
+  totalPaid?: number;
+
+  dueAmount?: number;
+
+  lastOrderDate?: string | null;
+
+}
+
+export type SupplierKpiFilter = '' | 'has_due' | 'open_orders' | 'missing_payment';
+
+export interface SupplierSummary {
+  totalSuppliers: number;
+  suppliersWithDue: number;
+  totalDueAmount: number;
+  suppliersWithOpenOrders: number;
+  totalOpenOrdersAmount: number;
+  totalSpendAmount: number;
+  suppliersMissingPayment: number;
+}
+
+export interface SupplierListResponse extends PaginatedResponse<Supplier> {
+  summary?: SupplierSummary;
 }
 
 
