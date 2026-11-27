@@ -51,6 +51,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAttendanceSummary } from '@/hooks/useAttendance';
 import { useChecklistsOverview } from '@/hooks/useChecklists';
+import { useStoreSettings } from '@/hooks/useSettings';
 import { StatCard } from '@/components/common/StatCard';
 import { DashboardChartCard, type ChartViewMode } from '@/components/charts/DashboardChartCard';
 import {
@@ -587,14 +588,25 @@ export function DashboardPage() {
   const { data: dayWiseTransactions, isLoading: dayWiseTransactionsLoading } = useDayWiseTransactions();
   const { data: cashFlow = [], isLoading: cashFlowLoading } = useDashboardCashFlow(30);
   const { data: opex = [], isLoading: opexLoading } = useOperationalExpenses(30);
-  const { data: attendanceSummary } = useAttendanceSummary(undefined, isAdminOrManager);
-  const { data: checklistsOverview } = useChecklistsOverview(undefined, isAdminOrManager);
+  const { data: storeSettings } = useStoreSettings();
+  const attendanceEnabled = storeSettings?.attendanceConfig?.attendanceEnabled !== false;
+  const { data: attendanceSummary, isLoading: attendanceLoading } = useAttendanceSummary(
+    undefined,
+    isAdminOrManager && attendanceEnabled,
+  );
+  const { data: checklistsOverview, isLoading: checklistsLoading } = useChecklistsOverview(
+    undefined,
+    isAdminOrManager,
+  );
 
-  const checklistCompletionRate = useMemo(() => {
-    if (!checklistsOverview || !Array.isArray(checklistsOverview) || checklistsOverview.length === 0) return 0;
-    const total = checklistsOverview.reduce((acc, c) => acc + (c?.totalItemsCount || 0), 0);
-    const done = checklistsOverview.reduce((acc, c) => acc + (c?.completedItemsCount || 0), 0);
-    return total > 0 ? Math.round((done / total) * 100) : 0;
+  const checklistStats = useMemo(() => {
+    if (!checklistsOverview || !Array.isArray(checklistsOverview) || checklistsOverview.length === 0) {
+      return { rate: 0, totalItems: 0, completedItems: 0, totalChecklists: 0 };
+    }
+    const totalItems = checklistsOverview.reduce((acc, c) => acc + (c?.totalItemsCount || 0), 0);
+    const completedItems = checklistsOverview.reduce((acc, c) => acc + (c?.completedItemsCount || 0), 0);
+    const rate = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+    return { rate, totalItems, completedItems, totalChecklists: checklistsOverview.length };
   }, [checklistsOverview]);
   const { data: topProfit = [], isLoading: profitLoading } = useTopProfitProducts(30, 6);
   const { data: topSold = [], isLoading: soldLoading } = useTopSoldProducts(30, 6);
@@ -615,11 +627,13 @@ export function DashboardPage() {
     { label: 'Purchase Orders', icon: <LocalShippingIcon />, path: '/purchase-orders', adminOnly: true },
     { label: 'Day Cash Book', icon: <AccountBalanceWalletIcon />, path: '/reports/daily', adminOnly: true },
     { label: 'Accounts', icon: <AccountBalanceWalletIcon />, path: '/accounts', adminOnly: true },
-    { label: 'Floor Roster', icon: <PunchClockIcon />, path: '/attendance', adminOnly: false },
+    { label: 'Floor Roster', icon: <PunchClockIcon />, path: '/attendance', adminOnly: false, requiresAttendance: true },
     { label: 'Checklists', icon: <AssignmentTurnedInIcon />, path: '/checklists', adminOnly: false },
     { label: 'View Reports', icon: <AssessmentIcon />, path: '/reports', adminOnly: true },
   ];
-  const quickActions = allQuickActions.filter((a) => !a.adminOnly || isAdminOrManager);
+  const quickActions = allQuickActions.filter(
+    (a) => (!a.adminOnly || isAdminOrManager) && (!('requiresAttendance' in a && a.requiresAttendance) || attendanceEnabled),
+  );
 
   if (!isAdminOrManager) {
     return (
@@ -822,8 +836,8 @@ export function DashboardPage() {
             )}
           </DashboardChartCard>
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ height: '100%', background: 'linear-gradient(135deg, rgba(233,196,106,0.15) 0%, rgba(233,196,106,0.04) 100%)' }}>
+        <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Card sx={{ flex: 1, background: 'linear-gradient(135deg, rgba(233,196,106,0.15) 0%, rgba(233,196,106,0.04) 100%)' }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Quick Links</Typography>
               <List dense disablePadding>
@@ -847,37 +861,54 @@ export function DashboardPage() {
           </Card>
 
           {/* Store Operations Snapshot Card */}
-          <Card sx={{ mt: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
             <CardContent sx={{ pb: '16px !important' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                 <PunchClockIcon fontSize="small" color="primary" /> Store Operations & Staff
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">On Floor</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'success.main' }}>
-                    {attendanceSummary?.onFloorCount ?? 0}
-                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                      / {attendanceSummary?.totalStaff ?? 0} staff
-                    </Typography>
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'right' }}>
+                {attendanceEnabled && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">On Floor</Typography>
+                    {attendanceLoading ? (
+                      <Skeleton width={72} height={32} />
+                    ) : (
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'success.main' }}>
+                        {attendanceSummary?.onFloorCount ?? 0}
+                        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                          / {attendanceSummary?.totalStaff ?? 0} staff
+                        </Typography>
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+                <Box sx={{ textAlign: attendanceEnabled ? 'right' : 'left' }}>
                   <Typography variant="caption" color="text.secondary">Checklist Rate</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {checklistCompletionRate}%
-                  </Typography>
+                  {checklistsLoading ? (
+                    <Skeleton width={64} height={32} sx={{ ml: attendanceEnabled ? 'auto' : 0 }} />
+                  ) : (
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                      {checklistStats.rate}%
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                        {checklistStats.totalChecklists === 0
+                          ? '(no checklists)'
+                          : `(${checklistStats.completedItems}/${checklistStats.totalItems})`}
+                      </Typography>
+                    </Typography>
+                  )}
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
-                <Button
-                  size="small"
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => navigate('/attendance')}
-                >
-                  Floor Roster
-                </Button>
+                {attendanceEnabled && (
+                  <Button
+                    size="small"
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => navigate('/attendance')}
+                  >
+                    Floor Roster
+                  </Button>
+                )}
                 <Button
                   size="small"
                   fullWidth
