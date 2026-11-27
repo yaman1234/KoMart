@@ -171,6 +171,12 @@ async def get_my_today_checklists(
     user_id = str(current_user.id)
     user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
 
+    applicable_roles = {TargetRole.all}
+    if user_role in ("manager", "admin"):
+        applicable_roles.add(TargetRole.manager)
+    if user_role == "cashier":
+        applicable_roles.add(TargetRole.cashier)
+
     # User can see:
     # 1. Direct assignments to user_id
     # 2. Role-based broadcasts matching user_role or 'all'
@@ -183,7 +189,7 @@ async def get_my_today_checklists(
         if r.assigned_to_user_id == user_id:
             relevant.append(r)
         elif r.assigned_to_user_id is None:
-            if r.target_role in (TargetRole.all, TargetRole(user_role)):
+            if r.target_role in applicable_roles:
                 relevant.append(r)
 
     return [_to_daily_response(r) for r in relevant]

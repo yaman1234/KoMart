@@ -27,7 +27,9 @@ import {
   FormControlLabel,
   Switch,
   Alert,
+  CircularProgress,
 } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -145,6 +147,21 @@ export function ChecklistsPage() {
     category: 'general' as ChecklistCategory,
     targetRole: 'cashier' as TargetRole,
     items: [{ id: 'task-1', title: '', isMandatory: true, order: 1 }],
+  });
+
+  // Delete / Deactivate Confirmation Dialog State
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+    loading?: boolean;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: async () => {},
+    loading: false,
   });
 
   // KPI calculations for Manager Overview
@@ -289,15 +306,20 @@ export function ChecklistsPage() {
     }
   };
 
-  const handleDeactivateTemplate = async (templateId: string, title: string) => {
-    if (window.confirm(`Are you sure you want to deactivate template "${title}"?`)) {
-      try {
-        await deactivateTemplateMutation.mutateAsync(templateId);
-        showSuccess(`Template "${title}" deactivated`);
-      } catch {
-        showError('Failed to deactivate template');
-      }
-    }
+  const handleDeactivateTemplate = (templateId: string, title: string) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Deactivate Routine Template',
+      message: `Are you sure you want to deactivate template "${title}"? It will no longer automatically generate daily task instances.`,
+      onConfirm: async () => {
+        try {
+          await deactivateTemplateMutation.mutateAsync(templateId);
+          showSuccess(`Template "${title}" deactivated`);
+        } catch {
+          showError('Failed to deactivate template');
+        }
+      },
+    });
   };
 
   // Ad-hoc create handler
@@ -1148,6 +1170,52 @@ export function ChecklistsPage() {
           <Button onClick={() => setAdHocModalOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleSaveAdHoc}>
             Assign Now
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Proper Alert Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirm.open}
+        onClose={() => !deleteConfirm.loading && setDeleteConfirm((prev) => ({ ...prev, open: false }))}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+          <WarningAmberIcon color="warning" sx={{ fontSize: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            {deleteConfirm.title}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {deleteConfirm.message}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setDeleteConfirm((prev) => ({ ...prev, open: false }))}
+            disabled={deleteConfirm.loading}
+            color="inherit"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={async () => {
+              setDeleteConfirm((prev) => ({ ...prev, loading: true }));
+              try {
+                await deleteConfirm.onConfirm();
+                setDeleteConfirm((prev) => ({ ...prev, open: false, loading: false }));
+              } catch {
+                setDeleteConfirm((prev) => ({ ...prev, loading: false }));
+              }
+            }}
+            disabled={deleteConfirm.loading}
+            startIcon={deleteConfirm.loading ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
+          >
+            {deleteConfirm.loading ? 'Deactivating...' : 'Deactivate'}
           </Button>
         </DialogActions>
       </Dialog>

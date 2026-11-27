@@ -58,7 +58,7 @@ async def list_shifts(
     _: User = Depends(get_current_user),
 ):
     """List store shifts."""
-    query = {} if include_inactive else {Shift.is_active: True}
+    query = {} if include_inactive else {"is_active": True}
     shifts = await Shift.find(query).sort("start_time").to_list()
     return [_to_shift_response(s) for s in shifts]
 
@@ -313,15 +313,9 @@ async def delete_shift(
     if not shift:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Shift not found")
 
-    has_assignments = await ShiftAssignment.find(ShiftAssignment.shift_id == shift_id).count() > 0
-    if has_assignments:
-        shift.is_active = False
-        shift.updated_at = datetime.now(timezone.utc)
-        await shift.save()
-        action_msg = "deactivated"
-    else:
-        await shift.delete()
-        action_msg = "deleted"
+    await ShiftAssignment.find(ShiftAssignment.shift_id == shift_id).delete()
+    await shift.delete()
+    action_msg = "deleted"
 
     await log_audit(
         module=AuditModule.attendance,

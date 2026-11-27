@@ -163,6 +163,21 @@ export function AttendancePage() {
   );
   const [assignEffectiveTo, setAssignEffectiveTo] = useState('');
 
+  // Delete Alert Confirmation Dialog State
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+    loading?: boolean;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: async () => {},
+    loading: false,
+  });
+
   const handleOpenRegularize = (record: AttendanceRecord) => {
     setSelectedRecord(record);
     setRegClockIn(record.clockIn ? toNepalDateTimeInputString(record.clockIn) : '');
@@ -235,13 +250,20 @@ export function AttendancePage() {
     }
   };
 
-  const handleCancelLeave = async (leaveId: string) => {
-    try {
-      await cancelLeaveMutation.mutateAsync(leaveId);
-      showSuccess('Leave request cancelled.');
-    } catch (err: unknown) {
-      showError('Failed to cancel leave request.');
-    }
+  const handleCancelLeave = (leaveId: string) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Cancel Leave Request',
+      message: 'Are you sure you want to cancel this pending leave request?',
+      onConfirm: async () => {
+        try {
+          await cancelLeaveMutation.mutateAsync(leaveId);
+          showSuccess('Leave request cancelled.');
+        } catch {
+          showError('Failed to cancel leave request.');
+        }
+      },
+    });
   };
 
   const handleOpenCreateShift = () => {
@@ -266,18 +288,24 @@ export function AttendancePage() {
     setShiftDialogOpen(true);
   };
 
-  const handleDeleteShift = async (s: Shift) => {
-    if (window.confirm(`Are you sure you want to delete shift "${s.name}" (${s.code})?`)) {
-      try {
-        await deleteShiftMutation.mutateAsync(s.id);
-        showSuccess(`Shift "${s.name}" deleted successfully.`);
-      } catch (err: unknown) {
-        const msg =
-          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-          'Failed to delete shift';
-        showError(msg);
-      }
-    }
+  const handleDeleteShift = (s: Shift) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Delete Shift Definition',
+      message: `Are you sure you want to permanently delete the "${s.name}" (${s.code}) shift? Any staff assigned to this shift will revert to the default store schedule.`,
+      onConfirm: async () => {
+        try {
+          await deleteShiftMutation.mutateAsync(s.id);
+          showSuccess(`Shift "${s.name}" deleted successfully.`);
+        } catch (err: unknown) {
+          const msg =
+            (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+            'Failed to delete shift';
+          showError(msg);
+          throw err;
+        }
+      },
+    });
   };
 
   const handleSaveShift = async () => {
@@ -337,16 +365,20 @@ export function AttendancePage() {
     setAssignDialogOpen(true);
   };
 
-  const handleDeleteAssignment = async (assignment: ShiftAssignment) => {
-    if (!window.confirm(`Are you sure you want to remove the roster assignment for ${assignment.userName}?`)) {
-      return;
-    }
-    try {
-      await deleteAssignmentMutation.mutateAsync(assignment.id);
-      showSuccess(`Roster assignment for ${assignment.userName} deleted.`);
-    } catch {
-      showError('Failed to delete roster assignment');
-    }
+  const handleDeleteAssignment = (assignment: ShiftAssignment) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Delete Roster Assignment',
+      message: `Are you sure you want to remove the roster assignment for ${assignment.userName}? They will no longer be assigned to "${assignment.shiftName}".`,
+      onConfirm: async () => {
+        try {
+          await deleteAssignmentMutation.mutateAsync(assignment.id);
+          showSuccess(`Roster assignment for ${assignment.userName} deleted.`);
+        } catch {
+          showError('Failed to delete roster assignment');
+        }
+      },
+    });
   };
 
   const handleAssignShift = async () => {
@@ -1277,6 +1309,52 @@ export function AttendancePage() {
             disabled={assignShiftMutation.isPending || updateAssignmentMutation.isPending}
           >
             {editingAssignment ? 'Update Assignment' : 'Assign Shift'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Proper Alert Confirmation Dialog for Delete Actions */}
+      <Dialog
+        open={deleteConfirm.open}
+        onClose={() => !deleteConfirm.loading && setDeleteConfirm((prev) => ({ ...prev, open: false }))}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+          <WarningAmberIcon color="warning" sx={{ fontSize: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            {deleteConfirm.title}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {deleteConfirm.message}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setDeleteConfirm((prev) => ({ ...prev, open: false }))}
+            disabled={deleteConfirm.loading}
+            color="inherit"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={async () => {
+              setDeleteConfirm((prev) => ({ ...prev, loading: true }));
+              try {
+                await deleteConfirm.onConfirm();
+                setDeleteConfirm((prev) => ({ ...prev, open: false, loading: false }));
+              } catch {
+                setDeleteConfirm((prev) => ({ ...prev, loading: false }));
+              }
+            }}
+            disabled={deleteConfirm.loading}
+            startIcon={deleteConfirm.loading ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
+          >
+            {deleteConfirm.loading ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

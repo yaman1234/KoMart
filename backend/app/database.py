@@ -245,9 +245,10 @@ DEFAULT_SHIFTS: list[dict] = [
 
 
 async def _seed_default_shifts() -> None:
+    if await Shift.count() > 0:
+        return
     for s in DEFAULT_SHIFTS:
-        if await Shift.find_one(Shift.code == s["code"]) is None:
-            await Shift(**s).insert()
+        await Shift(**s).insert()
 
 
 async def _seed_default_checklist_templates() -> None:

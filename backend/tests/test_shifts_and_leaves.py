@@ -160,10 +160,29 @@ async def test_shifts_crud_and_assignment(
     assert updated_assign["effective_from"] == "2026-11-05"
     assert updated_assign["effective_to"] == "2026-12-31"
 
-    # 6. Delete shift with assignment (should deactivate)
+    # 5c. Delete assignment directly
+    del_assign_res = await client.delete(f"/api/v1/shifts/assignments/{assign_id}", headers=headers)
+    assert del_assign_res.status_code == 200
+
+    # Re-assign for step 6 cascade test
+    res_reassign = await client.post(
+        "/api/v1/shifts/assignments",
+        json={
+            "user_id": str(cashier_user.id),
+            "shift_id": shift_id,
+            "effective_from": "2026-11-01",
+        },
+        headers=headers,
+    )
+    assert res_reassign.status_code == 201
+    new_assign_id = res_reassign.json()["id"]
+
+    # 6. Delete shift with assignment (should cascade delete)
     del_res = await client.delete(f"/api/v1/shifts/{shift_id}", headers=headers)
     assert del_res.status_code == 200
-    assert "deactivated" in del_res.json()["message"]
+    assert "deleted" in del_res.json()["message"]
+    check_assign = await client.get(f"/api/v1/shifts/assignments?user_id={cashier_user.id}", headers=headers)
+    assert not any(a["id"] == new_assign_id for a in check_assign.json())
 
     # 7. Create & delete unassigned shift (should delete permanently)
     temp_code = f"TMP_{int(datetime.now().timestamp())}"
@@ -177,10 +196,6 @@ async def test_shifts_crud_and_assignment(
     del_tmp = await client.delete(f"/api/v1/shifts/{tmp_id}", headers=headers)
     assert del_tmp.status_code == 200
     assert "deleted" in del_tmp.json()["message"]
-
-    # 8. Delete assignment
-    del_assign_res = await client.delete(f"/api/v1/shifts/assignments/{assign_id}", headers=headers)
-    assert del_assign_res.status_code == 200
 
 
 async def test_leave_management_workflow(
