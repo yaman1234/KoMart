@@ -30,6 +30,10 @@ from app.routers import (
     day_closes,
     wallets,
     cash_custody,
+    attendance as attendance_router,
+    shifts as shifts_router,
+    leaves as leaves_router,
+    checklists as checklists_router,
 )
 from app.routers import stock_count as stock_count_router
 from app.routers import reconciliation
@@ -97,6 +101,10 @@ app.include_router(stock_count_router.router, prefix=API_PREFIX)
 app.include_router(reconciliation.router, prefix=API_PREFIX)
 app.include_router(bank_reconciliation_router.router, prefix=API_PREFIX)
 app.include_router(cash_reconciliation_router.router, prefix=API_PREFIX)
+app.include_router(attendance_router.router, prefix=API_PREFIX)
+app.include_router(shifts_router.router, prefix=API_PREFIX)
+app.include_router(leaves_router.router, prefix=API_PREFIX)
+app.include_router(checklists_router.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

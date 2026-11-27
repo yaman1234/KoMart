@@ -58,9 +58,10 @@ import { useCreateCustomer, useCustomer } from '@/hooks/useCustomers';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useCartStore, useAuthStore } from '@/store';
+import { useAttendanceToday, usePunchAttendance } from '@/hooks/useAttendance';
 import { transactionService } from '@/services';
 import { getErrorMessage } from '@/services/apiClient';
-import { showSuccess, showWarning, showApiError } from '@/utils/toast';
+import { showSuccess, showWarning, showApiError, showError } from '@/utils/toast';
 import { formatAmount, formatCurrency } from '@/utils';
 import { DROPDOWN_PAGE_SIZE, POS_PRODUCTS_PAGE_SIZE } from '@/constants';
 import { useCategoryNames } from '@/hooks/useCategories';
@@ -572,6 +573,8 @@ function CollapsedCartRail({ totalUnits, total, hasItems, onExpand, onPay }: Col
 export function POSPage() {
   const isMobile = useIsMobile();
   const categoryOptions = useCategoryNames();
+  const { data: attendanceToday } = useAttendanceToday();
+  const punchMutation = usePunchAttendance();
 
   const { filters, setFilter } = useListState({
     routePrefix: '/pos',
@@ -644,6 +647,14 @@ export function POSPage() {
   const { data: storeSettings } = useStoreSettings();
   const receiptBranding = storeSettings ? receiptBrandingFromSettings(storeSettings) : undefined;
   const createCustomerMutation = useCreateCustomer();
+
+  const attendanceActive = storeSettings?.attendanceConfig?.attendanceEnabled !== false;
+  const isClockInBlocked = Boolean(
+    attendanceActive &&
+    storeSettings?.attendanceConfig?.requireClockInForPos &&
+    attendanceToday &&
+    !attendanceToday.hasClockedIn
+  );
 
   const {
     data: infiniteProductsData,
@@ -761,6 +772,10 @@ export function POSPage() {
 
   const openPaymentModal = useCallback(() => {
     if (items.length === 0) return;
+    if (isClockInBlocked) {
+      showError('Clock-In required: You must clock in before processing sales.');
+      return;
+    }
     cartSnapshotRef.current = {
       items: items.map((i) => ({ ...i })),
       customerId,
@@ -768,7 +783,7 @@ export function POSPage() {
     };
     setPaymentError('');
     setPaymentOpen(true);
-  }, [items, customerId, saleDate]);
+  }, [items, customerId, saleDate, isClockInBlocked]);
 
   const handleCollapsedPay = () => {
     if (items.length === 0) return;
@@ -948,6 +963,36 @@ export function POSPage() {
         }}
       >
         <Paper sx={{ p: 2, mb: 2 }}>
+          {attendanceActive && attendanceToday && !attendanceToday.hasClockedIn && (
+            <Alert
+              severity={storeSettings?.attendanceConfig?.requireClockInForPos ? 'error' : 'warning'}
+              variant="filled"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  variant="outlined"
+                  disabled={punchMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      await punchMutation.mutateAsync({ action: 'clock_in' });
+                      showSuccess('Clocked in successfully for today!');
+                    } catch (err) {
+                      showApiError(err, 'Failed to clock in');
+                    }
+                  }}
+                  sx={{ bgcolor: 'rgba(255,255,255,0.15)', fontWeight: 600 }}
+                >
+                  Clock In Now
+                </Button>
+              }
+              sx={{ mb: 1.5, borderRadius: 1.5, py: 0.5, alignItems: 'center' }}
+            >
+              {storeSettings?.attendanceConfig?.requireClockInForPos
+                ? 'Clock-In Required: Store policy requires clocking in before processing POS sales.'
+                : "You are not clocked in for today's shift yet."}
+            </Alert>
+          )}
           <TextField
             fullWidth
             inputRef={searchInputRef}
@@ -1369,11 +1414,13 @@ export function POSPage() {
           fullWidth
           variant="contained"
           size="large"
-          disabled={items.length === 0}
+          disabled={items.length === 0 || isClockInBlocked}
           onClick={openPaymentModal}
           sx={{ py: 1.5, fontSize: '1rem', fontWeight: 700 }}
         >
-          Pay {formatCurrency(total)}
+          {isClockInBlocked
+            ? 'Clock In Required to Pay'
+            : `Pay ${formatCurrency(total)}`}
         </Button>
         </Box>
           </Box>

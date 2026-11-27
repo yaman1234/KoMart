@@ -38,6 +38,8 @@ import { StockCountFormPage } from '@/pages/stock-count/StockCountFormPage';
 import { StockCountDetailPage } from '@/pages/stock-count/StockCountDetailPage';
 import { StockCountCountPage } from '@/pages/stock-count/StockCountCountPage';
 import { ReconciliationPage } from '@/pages/reconciliation/ReconciliationPage';
+import { AttendancePage } from '@/pages/attendance/AttendancePage';
+import { ChecklistsPage } from '@/pages/checklists/ChecklistsPage';
 import { RouteErrorBoundary } from '@/components/common/RouteErrorBoundary';
 
 export const router = createBrowserRouter([
@@ -83,6 +85,8 @@ export const router = createBrowserRouter([
           { path: '/products', element: <ProductsPage /> },
           { path: '/customers', element: <CustomersPage /> },
           { path: '/customers/:id', element: <CustomerDetailPage /> },
+          { path: '/attendance', element: <AttendancePage /> },
+          { path: '/checklists', element: <ChecklistsPage /> },
           { path: '/notifications', element: <NotificationsPage /> },
 
           // Manager + Admin only routes (placed before /:id catch-all)

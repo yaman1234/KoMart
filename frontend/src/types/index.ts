@@ -3280,6 +3280,14 @@ export interface StoreSettings {
 
 
   openingEsewaBalance: number;
+  attendanceConfig?: {
+    attendanceEnabled: boolean;
+    enforceStoreIp: boolean;
+    allowedIps: string[];
+    defaultShiftId?: string;
+    requireClockInForPos: boolean;
+    autoClockOutHours: number;
+  };
 
 
 
@@ -8317,3 +8325,6 @@ export interface LossAuditReport {
 
 
 
+
+export * from './attendance';
+export * from './checklist';

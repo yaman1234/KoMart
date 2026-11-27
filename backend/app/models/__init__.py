@@ -23,6 +23,16 @@ from app.models.cash_custody import CashCustody
 from app.models.stock_count import StockCount
 from app.models.purchase_return import PurchaseReturn
 from app.models.bank_reconciliation import BankReconciliation
+from app.models.attendance import (
+    AttendanceRecord,
+    Shift,
+    ShiftAssignment,
+    LeaveRequest,
+)
+from app.models.checklist import (
+    ChecklistTemplate,
+    DailyChecklist,
+)
 
 __all__ = [
     "User",
@@ -51,4 +61,10 @@ __all__ = [
     "StockCount",
     "PurchaseReturn",
     "BankReconciliation",
+    "AttendanceRecord",
+    "Shift",
+    "ShiftAssignment",
+    "LeaveRequest",
+    "ChecklistTemplate",
+    "DailyChecklist",
 ]

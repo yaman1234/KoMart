@@ -4,7 +4,15 @@ import { formatDisplayDate, type CalendarSystem } from '@/utils/nepaliDate';
 
 export { formatDisplayDate, formatDualCalendar, adToBs, bsToAd } from '@/utils/nepaliDate';
 export type { CalendarSystem } from '@/utils/nepaliDate';
-export { STORE_TIME_ZONE, storeTodayIso, addCalendarDays, storeMonthStartIso } from '@/utils/storeDate';
+export {
+  STORE_TIME_ZONE,
+  storeTodayIso,
+  addCalendarDays,
+  storeMonthStartIso,
+  formatNepalTime,
+  toNepalDateTimeInputString,
+  nepalDateTimeInputToUtcIso,
+} from '@/utils/storeDate';
 
 export const isAdmin = (role?: UserRole): boolean => role === 'admin';
 export const isAdminOrManager = (role?: UserRole): boolean => role === 'admin' || role === 'manager';
