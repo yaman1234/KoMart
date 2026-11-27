@@ -469,17 +469,62 @@ async def update_template(
     return _to_template_response(template)
 
 
+@router.delete("/{checklist_id}", status_code=status.HTTP_200_OK)
+async def delete_daily_checklist(
+    checklist_id: str,
+    request: Request,
+    manager: User = Depends(require_manager_or_above),
+):
+    """Delete a daily checklist instance."""
+    checklist = await DailyChecklist.get(checklist_id)
+    if not checklist:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Checklist not found")
+
+    title = checklist.title
+    date_val = checklist.date
+    await checklist.delete()
+
+    await log_audit(
+        module=AuditModule.checklists,
+        action="delete_daily_checklist",
+        user=manager,
+        request=request,
+        entity_type="daily_checklist",
+        entity_id=checklist_id,
+        previous={"title": title, "date": date_val},
+    )
+    return {"message": f"Daily checklist '{title}' deleted successfully"}
+
+
 @router.delete("/templates/{template_id}", status_code=status.HTTP_200_OK)
 async def deactivate_template(
     template_id: str,
-    admin: User = Depends(require_admin_only),
+    request: Request,
+    manager: User = Depends(require_manager_or_above),
 ):
-    """Deactivate a template."""
+    """Permanently delete a template and cascade-delete any of today's instances spawned from it."""
     template = await ChecklistTemplate.get(template_id)
     if not template:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Template not found")
 
-    template.is_active = False
-    template.updated_at = datetime.now(timezone.utc)
-    await template.save()
-    return {"message": f"Template '{template.title}' deactivated successfully"}
+    title = template.title
+
+    # Cascade delete any today's daily checklist instance spawned from this template
+    today_date = get_today_npt_date_str()
+    await DailyChecklist.find(
+        DailyChecklist.template_id == template_id,
+        DailyChecklist.date == today_date,
+    ).delete()
+
+    await template.delete()
+
+    await log_audit(
+        module=AuditModule.checklists,
+        action="delete_template",
+        user=manager,
+        request=request,
+        entity_type="checklist_template",
+        entity_id=template_id,
+        previous={"title": title},
+    )
+    return {"message": f"Template '{title}' deleted successfully"}

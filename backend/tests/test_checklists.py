@@ -237,12 +237,38 @@ async def test_update_and_deactivate_template(client, manager_user, admin_user):
     assert res.status_code == 200
     assert res.json()["title"] == "Updated Temp Title"
 
-    # 2. Admin deactivates
-    res = await client.delete(f"/api/v1/checklists/templates/{temp_id}", headers=admin_headers)
+    # 2. Manager deletes template
+    res = await client.delete(f"/api/v1/checklists/templates/{temp_id}", headers=mgr_headers)
     assert res.status_code == 200
 
-    # Cleanup
-    await t.delete()
+
+@pytest.mark.asyncio
+async def test_delete_daily_checklist(client, manager_user):
+    token = await get_token(client, manager_user.email, "mgrpass123")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create daily checklist
+    today_date = get_today_npt_date_str()
+    d = DailyChecklist(
+        title="Checklist to Delete",
+        category=ChecklistCategory.general,
+        date=today_date,
+        target_role=TargetRole.cashier,
+        assigned_by_user_id=str(manager_user.id),
+        assigned_by_user_name=manager_user.name,
+        items=[],
+    )
+    await d.insert()
+    d_id = str(d.id)
+
+    # Delete daily checklist
+    res = await client.delete(f"/api/v1/checklists/{d_id}", headers=headers)
+    assert res.status_code == 200
+    assert "deleted successfully" in res.json()["message"]
+
+    # Verify 404 on subsequent get/delete
+    check_exists = await DailyChecklist.get(d_id)
+    assert check_exists is None
 
 
 @pytest.mark.asyncio

@@ -254,11 +254,14 @@ async def _seed_default_shifts() -> None:
 async def _seed_default_checklist_templates() -> None:
     from app.models.checklist import (
         ChecklistCategory,
+        ChecklistTemplate,
+        DailyChecklist,
         TargetRole,
         TemplateItem,
     )
 
-    if await ChecklistTemplate.count() > 0:
+    # Don't seed if templates already exist or daily checklists have already been generated
+    if await ChecklistTemplate.count() > 0 or await DailyChecklist.count() > 0:
         return
 
     templates = [

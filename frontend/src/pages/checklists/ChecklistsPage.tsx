@@ -53,6 +53,7 @@ import {
   useCreateChecklistTemplate,
   useUpdateChecklistTemplate,
   useDeactivateChecklistTemplate,
+  useDeleteDailyChecklist,
   useCreateDailyChecklist,
   useGenerateDailyChecklists,
 } from '@/hooks/useChecklists';
@@ -112,6 +113,7 @@ export function ChecklistsPage() {
   const createTemplateMutation = useCreateChecklistTemplate();
   const updateTemplateMutation = useUpdateChecklistTemplate();
   const deactivateTemplateMutation = useDeactivateChecklistTemplate();
+  const deleteDailyMutation = useDeleteDailyChecklist();
   const createDailyMutation = useCreateDailyChecklist();
   const generateDailyMutation = useGenerateDailyChecklists();
 
@@ -319,14 +321,30 @@ export function ChecklistsPage() {
   const handleDeactivateTemplate = (templateId: string, title: string) => {
     setDeleteConfirm({
       open: true,
-      title: 'Deactivate Routine Template',
-      message: `Are you sure you want to deactivate template "${title}"? It will no longer automatically generate daily task instances.`,
+      title: 'Delete Routine Template',
+      message: `Are you sure you want to permanently delete template "${title}"? This will also remove any tasks generated from it today.`,
       onConfirm: async () => {
         try {
           await deactivateTemplateMutation.mutateAsync(templateId);
-          showSuccess(`Template "${title}" deactivated`);
+          showSuccess(`Template "${title}" deleted`);
         } catch {
-          showError('Failed to deactivate template');
+          showError('Failed to delete template');
+        }
+      },
+    });
+  };
+
+  const handleDeleteDailyChecklist = (checklistId: string, title: string) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Delete Checklist',
+      message: `Are you sure you want to delete "${title}" for today? This cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await deleteDailyMutation.mutateAsync(checklistId);
+          showSuccess(`Checklist "${title}" deleted`);
+        } catch {
+          showError('Failed to delete checklist');
         }
       },
     });
@@ -540,24 +558,36 @@ export function ChecklistsPage() {
                             {checklist.shiftName ? ` • ${checklist.shiftName}` : ''}
                           </Typography>
                         </Box>
-                        <Chip
-                          label={
-                            checklist.status === 'completed'
-                              ? 'Completed'
-                              : checklist.status === 'in_progress'
-                              ? 'In Progress'
-                              : 'Pending'
-                          }
-                          color={
-                            checklist.status === 'completed'
-                              ? 'success'
-                              : checklist.status === 'in_progress'
-                              ? 'primary'
-                              : 'default'
-                          }
-                          size="small"
-                          sx={{ fontWeight: 600 }}
-                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Chip
+                            label={
+                              checklist.status === 'completed'
+                                ? 'Completed'
+                                : checklist.status === 'in_progress'
+                                ? 'In Progress'
+                                : 'Pending'
+                            }
+                            color={
+                              checklist.status === 'completed'
+                                ? 'success'
+                                : checklist.status === 'in_progress'
+                                ? 'primary'
+                                : 'default'
+                            }
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                          {isManagerOrAdmin && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteDailyChecklist(checklist.id, checklist.title)}
+                              title="Delete this checklist for today"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Box>
                       </Box>
 
                       {checklist.description && (
@@ -897,12 +927,22 @@ export function ChecklistsPage() {
                             {c.assignedToUserName && ` • Assigned to: ${c.assignedToUserName}`}
                           </Typography>
                         </Box>
-                        <Chip
-                          size="small"
-                          label={c.status}
-                          color={c.status === 'completed' ? 'success' : 'default'}
-                          sx={{ textTransform: 'capitalize', fontWeight: 600 }}
-                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Chip
+                            size="small"
+                            label={c.status}
+                            color={c.status === 'completed' ? 'success' : 'default'}
+                            sx={{ textTransform: 'capitalize', fontWeight: 600 }}
+                          />
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteDailyChecklist(c.id, c.title)}
+                            title="Delete this checklist for today"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </Box>
 
                       <Box sx={{ my: 1.5 }}>

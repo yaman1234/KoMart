@@ -116,6 +116,19 @@ export function useDeactivateChecklistTemplate() {
     mutationFn: (templateId: string) => checklistService.deactivateTemplate(templateId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['checklists', 'templates'] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.checklistsMyToday });
+      void queryClient.invalidateQueries({ queryKey: ['checklists', 'overview'] });
+    },
+  });
+}
+
+export function useDeleteDailyChecklist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (checklistId: string) => checklistService.deleteDailyChecklist(checklistId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.checklistsMyToday });
+      void queryClient.invalidateQueries({ queryKey: ['checklists', 'overview'] });
     },
   });
 }

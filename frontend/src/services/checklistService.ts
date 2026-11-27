@@ -77,6 +77,11 @@ export const checklistService = {
     return res.data;
   },
 
+  deleteDailyChecklist: async (checklistId: string): Promise<{ message: string }> => {
+    const res = await apiClient.delete<{ message: string }>(`/checklists/${checklistId}`);
+    return res.data;
+  },
+
   deactivateTemplate: async (templateId: string): Promise<{ message: string }> => {
     const res = await apiClient.delete<{ message: string }>(`/checklists/templates/${templateId}`);
     return res.data;
