@@ -648,6 +648,14 @@ export function POSPage() {
   const receiptBranding = storeSettings ? receiptBrandingFromSettings(storeSettings) : undefined;
   const createCustomerMutation = useCreateCustomer();
 
+  const attendanceActive = storeSettings?.attendanceConfig?.attendanceEnabled !== false;
+  const isClockInBlocked = Boolean(
+    attendanceActive &&
+    storeSettings?.attendanceConfig?.requireClockInForPos &&
+    attendanceToday &&
+    !attendanceToday.hasClockedIn
+  );
+
   const {
     data: infiniteProductsData,
     isLoading: productsLoading,
@@ -764,11 +772,7 @@ export function POSPage() {
 
   const openPaymentModal = useCallback(() => {
     if (items.length === 0) return;
-    if (
-      storeSettings?.attendanceConfig?.requireClockInForPos &&
-      attendanceToday &&
-      !attendanceToday.hasClockedIn
-    ) {
+    if (isClockInBlocked) {
       showError('Clock-In required: You must clock in before processing sales.');
       return;
     }
@@ -779,7 +783,7 @@ export function POSPage() {
     };
     setPaymentError('');
     setPaymentOpen(true);
-  }, [items, customerId, saleDate, storeSettings, attendanceToday]);
+  }, [items, customerId, saleDate, isClockInBlocked]);
 
   const handleCollapsedPay = () => {
     if (items.length === 0) return;
@@ -959,7 +963,7 @@ export function POSPage() {
         }}
       >
         <Paper sx={{ p: 2, mb: 2 }}>
-          {attendanceToday && !attendanceToday.hasClockedIn && (
+          {attendanceActive && attendanceToday && !attendanceToday.hasClockedIn && (
             <Alert
               severity={storeSettings?.attendanceConfig?.requireClockInForPos ? 'error' : 'warning'}
               variant="filled"
@@ -1410,11 +1414,11 @@ export function POSPage() {
           fullWidth
           variant="contained"
           size="large"
-          disabled={items.length === 0 || Boolean(storeSettings?.attendanceConfig?.requireClockInForPos && attendanceToday && !attendanceToday.hasClockedIn)}
+          disabled={items.length === 0 || isClockInBlocked}
           onClick={openPaymentModal}
           sx={{ py: 1.5, fontSize: '1rem', fontWeight: 700 }}
         >
-          {storeSettings?.attendanceConfig?.requireClockInForPos && attendanceToday && !attendanceToday.hasClockedIn
+          {isClockInBlocked
             ? 'Clock In Required to Pay'
             : `Pay ${formatCurrency(total)}`}
         </Button>

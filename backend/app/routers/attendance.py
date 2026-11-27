@@ -58,6 +58,13 @@ async def punch_attendance(
     client_ip = _get_client_ip(request)
 
     settings = await StoreSettings.find_one()
+    if settings and hasattr(settings, "attendance_config") and settings.attendance_config:
+        if not settings.attendance_config.attendance_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Staff attendance module is currently disabled in store settings",
+            )
+
     if not verify_store_network(client_ip, settings):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

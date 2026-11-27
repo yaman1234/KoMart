@@ -27,6 +27,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { useAttendanceToday, usePunchAttendance } from '@/hooks/useAttendance';
 import { useMyTodayChecklists } from '@/hooks/useChecklists';
+import { useStoreSettings } from '@/hooks/useSettings';
 import { showSuccess, showError } from '@/utils/toast';
 import { formatNepalTime } from '@/utils';
 import type { BreakType, PunchAction } from '@/types';
@@ -38,6 +39,7 @@ function formatMins(totalMinutes: number): string {
 }
 
 export function TopBarAttendanceWidget() {
+  const { data: storeSettings } = useStoreSettings();
   const { data: today, isLoading } = useAttendanceToday();
   const { data: checklists = [] } = useMyTodayChecklists();
   const punchMutation = usePunchAttendance();
@@ -48,7 +50,7 @@ export function TopBarAttendanceWidget() {
   const [pendingBreakType, setPendingBreakType] = useState<BreakType | undefined>(undefined);
   const [notes, setNotes] = useState('');
 
-  if (isLoading || !today) {
+  if (storeSettings?.attendanceConfig?.attendanceEnabled === false || isLoading || !today) {
     return null;
   }
 
