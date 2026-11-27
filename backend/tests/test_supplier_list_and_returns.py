@@ -236,3 +236,117 @@ async def test_reverse_supplier_batches_skips_draft_and_cancelled():
             {"supplier_id": supplier_id}
         )
         await product.delete()
+
+
+@pytest.mark.asyncio
+async def test_supplier_list_kpis_filtering_and_sorting(
+    client: AsyncClient,
+    manager_user: User,
+):
+    from app.models.supplier import SupplierPaymentDetail, SupplierPaymentMethod
+
+    token = await _login(client, manager_user.email)
+    headers = {"Authorization": f"Bearer {token}"}
+    tag = uuid.uuid4().hex[:8]
+    sup_due = Supplier(
+        name=f"DueCo {tag}",
+        country="Nepal",
+        contact_person="Asha",
+        phone=f"981{tag[:4]}",
+        address="Kathmandu",
+        payment_details=[SupplierPaymentDetail(method=SupplierPaymentMethod.bank, bank_name="Nabil")],
+    )
+    sup_open = Supplier(
+        name=f"OpenCo {tag}",
+        country="India",
+        contact_person="Bikash",
+        phone=f"982{tag[:4]}",
+        address="Delhi",
+        payment_details=[],
+    )
+    await sup_due.insert()
+    await sup_open.insert()
+
+    po_due = PurchaseOrder(
+        order_number=f"PO-DUE-{tag}",
+        supplier_id=str(sup_due.id),
+        supplier_name=sup_due.name,
+        status=POStatus.received,
+        items=[],
+        total_amount=500.0,
+        amount_paid=200.0,
+    )
+    po_open = PurchaseOrder(
+        order_number=f"PO-OPEN-{tag}",
+        supplier_id=str(sup_open.id),
+        supplier_name=sup_open.name,
+        status=POStatus.ordered,
+        items=[],
+        total_amount=150.0,
+        amount_paid=0.0,
+    )
+    await po_due.insert()
+    await po_open.insert()
+
+    try:
+        res = await client.get(
+            "/api/v1/suppliers",
+            headers=headers,
+            params={"search": tag, "include_summary": "true"},
+        )
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["page_size"] == 25
+        summary = body["summary"]
+        assert summary["total_suppliers"] == 2
+        assert summary["suppliers_with_due"] == 1
+        assert summary["total_due_amount"] == 300.0
+        assert summary["suppliers_with_open_orders"] == 1
+        assert summary["total_open_orders_amount"] == 150.0
+        assert summary["total_spend_amount"] == 650.0
+        assert summary["suppliers_missing_payment"] == 1
+
+        has_due = await client.get(
+            "/api/v1/suppliers",
+            headers=headers,
+            params={"search": tag, "kpi_filter": "has_due"},
+        )
+        assert has_due.status_code == 200, has_due.text
+        assert [r["name"] for r in has_due.json()["data"]] == [sup_due.name]
+
+        open_orders = await client.get(
+            "/api/v1/suppliers",
+            headers=headers,
+            params={"search": tag, "kpi_filter": "open_orders"},
+        )
+        assert open_orders.status_code == 200, open_orders.text
+        assert [r["name"] for r in open_orders.json()["data"]] == [sup_open.name]
+
+        missing_payment = await client.get(
+            "/api/v1/suppliers",
+            headers=headers,
+            params={"search": tag, "kpi_filter": "missing_payment"},
+        )
+        assert missing_payment.status_code == 200, missing_payment.text
+        assert [r["name"] for r in missing_payment.json()["data"]] == [sup_open.name]
+
+        sorted_due = await client.get(
+            "/api/v1/suppliers",
+            headers=headers,
+            params={"search": tag, "sort_by": "due_amount", "sort_order": "desc"},
+        )
+        assert sorted_due.status_code == 200, sorted_due.text
+        assert [r["name"] for r in sorted_due.json()["data"]] == [sup_due.name, sup_open.name]
+
+        sorted_country = await client.get(
+            "/api/v1/suppliers",
+            headers=headers,
+            params={"search": tag, "sort_by": "country", "sort_order": "asc"},
+        )
+        assert sorted_country.status_code == 200, sorted_country.text
+        assert [r["name"] for r in sorted_country.json()["data"]] == [sup_open.name, sup_due.name]
+    finally:
+        await po_due.delete()
+        await po_open.delete()
+        await sup_due.delete()
+        await sup_open.delete()
