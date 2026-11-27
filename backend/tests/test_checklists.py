@@ -9,6 +9,7 @@ from app.models.user import User, UserRole
 from app.models.checklist import (
     ChecklistTemplate,
     DailyChecklist,
+    DailyChecklistItem,
     ChecklistStatus,
     TargetRole,
     ChecklistCategory,
@@ -142,13 +143,33 @@ async def test_my_today_checklists_and_toggle(client, cashier_user):
     token = await get_token(client, cashier_user.email, "cashierpass123")
     headers = {"Authorization": f"Bearer {token}"}
 
-    # 1. Get my today checklists (auto-generates if not already generated)
+    today_date = get_today_npt_date_str()
+    d = DailyChecklist(
+        title="Test Cashier Checklist",
+        category=ChecklistCategory.opening,
+        date=today_date,
+        target_role=TargetRole.cashier,
+        assigned_by_user_id="test",
+        assigned_by_user_name="Test Manager",
+        items=[
+            DailyChecklistItem(
+                id="item-test-1",
+                title="Test Item 1",
+                is_mandatory=True,
+                order=1,
+            )
+        ],
+        total_items_count=1,
+    )
+    await d.insert()
+
+    # 1. Get my today checklists
     res = await client.get("/api/v1/checklists/my-today", headers=headers)
     assert res.status_code == 200
     today_checklists = res.json()
     assert len(today_checklists) > 0
 
-    first_checklist = today_checklists[0]
+    first_checklist = next(c for c in today_checklists if c["id"] == str(d.id))
     checklist_id = first_checklist["id"]
     item_to_toggle = first_checklist["items"][0]
     item_id = item_to_toggle["id"]
@@ -180,11 +201,33 @@ async def test_my_today_checklists_and_toggle(client, cashier_user):
     toggled_item2 = next(it for it in untoggled["items"] if it["id"] == item_id)
     assert toggled_item2["is_completed"] is False
 
+    await d.delete()
+
 
 @pytest.mark.asyncio
 async def test_manager_overview_and_verify(client, manager_user):
     token = await get_token(client, manager_user.email, "mgrpass123")
     headers = {"Authorization": f"Bearer {token}"}
+
+    today_date = get_today_npt_date_str()
+    d = DailyChecklist(
+        title="Test Manager Checklist",
+        category=ChecklistCategory.opening,
+        date=today_date,
+        target_role=TargetRole.manager,
+        assigned_by_user_id="test",
+        assigned_by_user_name="Test Manager",
+        items=[
+            DailyChecklistItem(
+                id="item-m-1",
+                title="Verify Vault",
+                is_mandatory=True,
+                order=1,
+            )
+        ],
+        total_items_count=1,
+    )
+    await d.insert()
 
     # 1. Get overview
     res = await client.get("/api/v1/checklists/overview", headers=headers)
@@ -192,7 +235,7 @@ async def test_manager_overview_and_verify(client, manager_user):
     overview_list = res.json()
     assert len(overview_list) > 0
 
-    target = overview_list[0]
+    target = next(c for c in overview_list if c["id"] == str(d.id))
     target_id = target["id"]
 
     # 2. Verify / sign-off on checklist
@@ -205,6 +248,8 @@ async def test_manager_overview_and_verify(client, manager_user):
     verified = res.json()
     assert verified["verified_by_name"] == "Checklist Manager"
     assert verified["manager_remarks"] == "Verified opening routine by Shift Manager"
+
+    await d.delete()
 
 
 @pytest.mark.asyncio
@@ -276,9 +321,30 @@ async def test_generate_daily_checklists(client, manager_user):
     token = await get_token(client, manager_user.email, "mgrpass123")
     headers = {"Authorization": f"Bearer {token}"}
 
+    # Create active template
+    t = ChecklistTemplate(
+        title="Active Template for Auto Gen",
+        category=ChecklistCategory.opening,
+        target_role=TargetRole.cashier,
+        items=[],
+        is_active=True,
+        auto_generate_daily=True,
+        days_of_week=[0, 1, 2, 3, 4, 5, 6],
+        created_by=str(manager_user.id),
+        created_by_name=manager_user.name,
+    )
+    await t.insert()
+
+    # Clear any daily checklists for date so generation runs
+    today_date = get_today_npt_date_str()
+    await DailyChecklist.find(DailyChecklist.date == today_date).delete()
+
     res = await client.post("/api/v1/checklists/generate-daily", headers=headers)
     assert res.status_code == 200
     checklists = res.json()
     assert isinstance(checklists, list)
     assert len(checklists) > 0
+
+    await t.delete()
+    await DailyChecklist.find(DailyChecklist.date == today_date).delete()
 

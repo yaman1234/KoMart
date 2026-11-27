@@ -171,7 +171,7 @@ export function ChecklistsPage() {
     open: false,
     title: '',
     message: '',
-    onConfirm: async () => {},
+    onConfirm: async () => { },
     loading: false,
   });
 
@@ -564,15 +564,15 @@ export function ChecklistsPage() {
                               checklist.status === 'completed'
                                 ? 'Completed'
                                 : checklist.status === 'in_progress'
-                                ? 'In Progress'
-                                : 'Pending'
+                                  ? 'In Progress'
+                                  : 'Pending'
                             }
                             color={
                               checklist.status === 'completed'
                                 ? 'success'
                                 : checklist.status === 'in_progress'
-                                ? 'primary'
-                                : 'default'
+                                  ? 'primary'
+                                  : 'default'
                             }
                             size="small"
                             sx={{ fontWeight: 600 }}
