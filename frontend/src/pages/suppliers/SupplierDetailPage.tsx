@@ -41,9 +41,9 @@ import { SupplierReturnDialog } from '@/pages/suppliers/components/SupplierRetur
 import { useAuthStore } from '@/store';
 import { formatCurrency, getInitials, canManageSuppliers, canManagePurchaseOrders, navigateBack } from '@/utils';
 import { useFormatDate } from '@/hooks/useFormatDate';
-import { PO_STATUS_LABELS, supplierPaymentMethodLabel } from '@/constants';
+import { PO_PAYMENT_STATUS_LABELS, PO_STATUS_LABELS, supplierPaymentMethodLabel } from '@/constants';
 import { StatCard } from '@/components/common/StatCard';
-import type { PurchaseOrder, PurchaseOrderStatus, Product } from '@/types';
+import type { PurchaseOrder, PurchaseOrderPaymentStatus, PurchaseOrderStatus, Product } from '@/types';
 
 const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
   draft: 'default',
@@ -53,11 +53,29 @@ const STATUS_COLORS: Record<PurchaseOrderStatus, 'default' | 'warning' | 'info' 
   cancelled: 'error',
 };
 
+const PAYMENT_COLORS: Record<PurchaseOrderPaymentStatus, 'default' | 'warning' | 'success'> = {
+  unpaid: 'default',
+  partial: 'warning',
+  paid: 'success',
+};
+
+const PO_SORT_KEY_MAP: Record<string, string> = {
+  orderNumber: 'order_number',
+  status: 'status',
+  paymentStatus: 'payment_status',
+  items: 'items_count',
+  totalAmount: 'total_amount',
+  expectedDelivery: 'expected_delivery',
+  createdAt: 'created_at',
+};
+
 const basePoColumns: Column<PurchaseOrder>[] = [
-  { id: 'orderNumber', label: 'PO Number', minWidth: 140, accessor: 'orderNumber' },
+  { id: 'orderNumber', label: 'PO Number', minWidth: 140, accessor: 'orderNumber', sortable: true, sortKey: 'orderNumber' },
   {
     id: 'status',
     label: 'Status',
+    sortable: true,
+    sortKey: 'status',
     render: (row) => (
       <Chip
         label={PO_STATUS_LABELS[row.status] ?? row.status}
@@ -67,16 +85,67 @@ const basePoColumns: Column<PurchaseOrder>[] = [
     ),
   },
   {
+    id: 'payment',
+    label: 'Payment',
+    sortable: true,
+    sortKey: 'paymentStatus',
+    render: (row) => {
+      const pay = row.paymentStatus ?? 'unpaid';
+      return (
+        <Chip
+          label={PO_PAYMENT_STATUS_LABELS[pay] ?? pay}
+          color={PAYMENT_COLORS[pay]}
+          size="small"
+          variant="outlined"
+        />
+      );
+    },
+  },
+  {
     id: 'items',
     label: 'Items',
     align: 'right',
+    sortable: true,
+    sortKey: 'items',
     render: (row) => row.itemsCount ?? row.items.length,
   },
   {
     id: 'total',
     label: 'Total',
     align: 'right',
+    sortable: true,
+    sortKey: 'totalAmount',
     render: (row) => formatCurrency(row.totalAmount),
+  },
+  {
+    id: 'due',
+    label: 'Due',
+    align: 'right',
+    render: (row) => {
+      if (row.status !== 'received') {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            —
+          </Typography>
+        );
+      }
+      const due = Math.max(
+        0,
+        Math.round((row.totalAmount - (row.amountPaid ?? 0)) * 100) / 100,
+      );
+      if (due <= 0) {
+        return (
+          <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
+            Rs. 0.00
+          </Typography>
+        );
+      }
+      return (
+        <Typography variant="body2" color="error.main" sx={{ fontWeight: 700 }}>
+          {formatCurrency(due)}
+        </Typography>
+      );
+    },
   },
 ];
 
@@ -126,14 +195,34 @@ export function SupplierDetailPage() {
   const [qrPreview, setQrPreview] = useState<{ url: string; title: string } | null>(null);
   const [poPage, setPoPage] = useState(0);
   const [poPageSize, setPoPageSize] = useState(10);
+  const [poSortBy, setPoSortBy] = useState('createdAt');
+  const [poSortOrder, setPoSortOrder] = useState<'asc' | 'desc'>('desc');
   const [productPage, setProductPage] = useState(0);
   const [productPageSize, setProductPageSize] = useState(10);
   const [returnPage, setReturnPage] = useState(0);
   const [returnPageSize, setReturnPageSize] = useState(10);
 
+  const handlePoSort = (key: string) => {
+    if (poSortBy === key) {
+      setPoSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setPoSortBy(key);
+      setPoSortOrder('desc');
+    }
+    setPoPage(0);
+  };
+
   const { data: supplier, isLoading, isError } = useSupplier(id ?? '');
   const { data: poData, isLoading: poLoading, isFetching: poFetching } = usePurchaseOrders(
-    { supplierId: id, page: poPage + 1, pageSize: poPageSize, lean: true, includeSummary: true },
+    {
+      supplierId: id,
+      page: poPage + 1,
+      pageSize: poPageSize,
+      sortBy: PO_SORT_KEY_MAP[poSortBy] ?? 'created_at',
+      sortOrder: poSortOrder,
+      lean: true,
+      includeSummary: true,
+    },
     { enabled: !!id },
   );
   const { data: productsData, isLoading: productsLoading, isFetching: productsFetching } = useProducts(
@@ -176,6 +265,8 @@ export function SupplierDetailPage() {
     {
       id: 'delivery',
       label: 'Expected Delivery',
+      sortable: true,
+      sortKey: 'expectedDelivery',
       render: (row) => (row.expectedDelivery ? formatDate(row.expectedDelivery) : '—'),
     },
   ], poPage * poPageSize);
@@ -405,6 +496,9 @@ export function SupplierDetailPage() {
             total={poData?.total}
             onPageChange={setPoPage}
             onPageSizeChange={(size) => { setPoPageSize(size); setPoPage(0); }}
+            sortBy={poSortBy}
+            sortOrder={poSortOrder}
+            onSort={handlePoSort}
             getRowId={(r) => r.id}
             onRowClick={(row) => navigate(`/purchase-orders/${row.id}`)}
             emptyMessage={poFetching ? 'Loading purchase orders…' : 'No purchase orders for this supplier'}
