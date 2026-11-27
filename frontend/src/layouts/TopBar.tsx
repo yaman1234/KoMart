@@ -24,6 +24,8 @@ import { authService } from '@/services';
 import { showSuccess } from '@/utils/toast';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
 import { NotificationPanel } from '@/components/common/NotificationPanel';
+import { TopBarAttendanceWidget } from '@/components/attendance/TopBarAttendanceWidget';
+import { TopBarChecklistWidget } from '@/components/checklists/TopBarChecklistWidget';
 import { getInitials } from '@/utils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 
@@ -81,6 +83,9 @@ export function TopBar({ title }: TopBarProps) {
           )}
 
           <Box sx={{ flex: 1 }} />
+
+          <TopBarAttendanceWidget />
+          <TopBarChecklistWidget />
 
           <Tooltip title="Go to Home">
             <Button

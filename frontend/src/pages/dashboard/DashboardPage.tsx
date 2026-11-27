@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -30,6 +30,8 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import PunchClockIcon from '@mui/icons-material/PunchClock';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import type { ReactNode } from 'react';
 import {
   ResponsiveContainer,
@@ -47,6 +49,8 @@ import {
   Cell,
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { useAttendanceSummary } from '@/hooks/useAttendance';
+import { useChecklistsOverview } from '@/hooks/useChecklists';
 import { StatCard } from '@/components/common/StatCard';
 import { DashboardChartCard, type ChartViewMode } from '@/components/charts/DashboardChartCard';
 import {
@@ -583,6 +587,15 @@ export function DashboardPage() {
   const { data: dayWiseTransactions, isLoading: dayWiseTransactionsLoading } = useDayWiseTransactions();
   const { data: cashFlow = [], isLoading: cashFlowLoading } = useDashboardCashFlow(30);
   const { data: opex = [], isLoading: opexLoading } = useOperationalExpenses(30);
+  const { data: attendanceSummary } = useAttendanceSummary(undefined, isAdminOrManager);
+  const { data: checklistsOverview } = useChecklistsOverview(undefined, isAdminOrManager);
+
+  const checklistCompletionRate = useMemo(() => {
+    if (!checklistsOverview || !Array.isArray(checklistsOverview) || checklistsOverview.length === 0) return 0;
+    const total = checklistsOverview.reduce((acc, c) => acc + (c?.totalItemsCount || 0), 0);
+    const done = checklistsOverview.reduce((acc, c) => acc + (c?.completedItemsCount || 0), 0);
+    return total > 0 ? Math.round((done / total) * 100) : 0;
+  }, [checklistsOverview]);
   const { data: topProfit = [], isLoading: profitLoading } = useTopProfitProducts(30, 6);
   const { data: topSold = [], isLoading: soldLoading } = useTopSoldProducts(30, 6);
   const { data: salesCollection = [], isLoading: scLoading } = useSalesCollection(30);
@@ -602,6 +615,8 @@ export function DashboardPage() {
     { label: 'Purchase Orders', icon: <LocalShippingIcon />, path: '/purchase-orders', adminOnly: true },
     { label: 'Day Cash Book', icon: <AccountBalanceWalletIcon />, path: '/reports/daily', adminOnly: true },
     { label: 'Accounts', icon: <AccountBalanceWalletIcon />, path: '/accounts', adminOnly: true },
+    { label: 'Floor Roster', icon: <PunchClockIcon />, path: '/attendance', adminOnly: false },
+    { label: 'Checklists', icon: <AssignmentTurnedInIcon />, path: '/checklists', adminOnly: false },
     { label: 'View Reports', icon: <AssessmentIcon />, path: '/reports', adminOnly: true },
   ];
   const quickActions = allQuickActions.filter((a) => !a.adminOnly || isAdminOrManager);
@@ -828,6 +843,50 @@ export function DashboardPage() {
               >
                 Open POS
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Store Operations Snapshot Card */}
+          <Card sx={{ mt: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <CardContent sx={{ pb: '16px !important' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <PunchClockIcon fontSize="small" color="primary" /> Store Operations & Staff
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">On Floor</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'success.main' }}>
+                    {attendanceSummary?.onFloorCount ?? 0}
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                      / {attendanceSummary?.totalStaff ?? 0} staff
+                    </Typography>
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" color="text.secondary">Checklist Rate</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    {checklistCompletionRate}%
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+                <Button
+                  size="small"
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => navigate('/attendance')}
+                >
+                  Floor Roster
+                </Button>
+                <Button
+                  size="small"
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => navigate('/checklists')}
+                >
+                  Checklists
+                </Button>
+              </Box>
             </CardContent>
           </Card>
         </Grid>

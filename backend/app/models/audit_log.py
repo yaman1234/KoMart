@@ -20,6 +20,8 @@ class AuditModule(str, Enum):
     categories = "categories"
     discounts = "discounts"
     accounts = "accounts"
+    attendance = "attendance"
+    checklists = "checklists"
 
 
 class AuditLog(Document):

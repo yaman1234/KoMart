@@ -78,6 +78,14 @@ function emptyForm(): StoreSettings {
     openingCashBalance: 0,
     openingBankBalance: 0,
     openingEsewaBalance: 0,
+    attendanceConfig: {
+      attendanceEnabled: true,
+      enforceStoreIp: false,
+      allowedIps: [],
+      defaultShiftId: undefined,
+      requireClockInForPos: false,
+      autoClockOutHours: 14,
+    },
   };
 }
 
@@ -130,6 +138,26 @@ export function StoreInfoTab() {
         ? Number(e.target.value)
         : e.target.value;
     setForm((f) => ({ ...f, [key]: value }));
+  };
+
+  const changeAttendance = <K extends keyof NonNullable<StoreSettings['attendanceConfig']>>(
+    key: K,
+    val: NonNullable<StoreSettings['attendanceConfig']>[K],
+  ) => {
+    setForm((f) => ({
+      ...f,
+      attendanceConfig: {
+        ...(f.attendanceConfig || {
+          attendanceEnabled: true,
+          enforceStoreIp: false,
+          allowedIps: [],
+          defaultShiftId: undefined,
+          requireClockInForPos: false,
+          autoClockOutHours: 14,
+        }),
+        [key]: val,
+      },
+    }));
   };
 
   if (isLoading) {
@@ -461,6 +489,85 @@ export function StoreInfoTab() {
               <MenuItem value="24h">24-hour</MenuItem>
             </TextField>
           </Grid>
+
+          <SectionTitle>Attendance & Store Workforce Settings</SectionTitle>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.attendanceConfig?.attendanceEnabled ?? true}
+                  onChange={(e) => changeAttendance('attendanceEnabled', e.target.checked)}
+                  disabled={!canEdit}
+                />
+              }
+              label="Enable Staff Attendance Module"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4 }}>
+              Allows cashiers and managers to punch in/out, log breaks, and view live store rosters.
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.attendanceConfig?.requireClockInForPos ?? false}
+                  onChange={(e) => changeAttendance('requireClockInForPos', e.target.checked)}
+                  disabled={!canEdit}
+                />
+              }
+              label="Require Clock-In for POS Checkout"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4 }}>
+              Cashiers must be clocked in today before completing retail transactions on the POS till.
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.attendanceConfig?.enforceStoreIp ?? false}
+                  onChange={(e) => changeAttendance('enforceStoreIp', e.target.checked)}
+                  disabled={!canEdit}
+                />
+              }
+              label="Restrict Punches to Store Network (IP Whitelist)"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4 }}>
+              Rejects punches originating outside the verified store Wi-Fi or router IP addresses.
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="Auto Clock-Out Safeguard (Hours)"
+              type="number"
+              value={form.attendanceConfig?.autoClockOutHours ?? 14}
+              onChange={(e) => changeAttendance('autoClockOutHours', Number(e.target.value) || 14)}
+              fullWidth
+              disabled={!canEdit}
+              helperText="Maximum allowed shift duration before system flags unclosed punches."
+            />
+          </Grid>
+          {form.attendanceConfig?.enforceStoreIp && (
+            <Grid size={12}>
+              <TextField
+                label="Allowed Store IP Addresses / Subnets (comma-separated)"
+                placeholder="e.g. 192.168.1.1, 103.20.10.5"
+                value={(form.attendanceConfig?.allowedIps || []).join(', ')}
+                onChange={(e) =>
+                  changeAttendance(
+                    'allowedIps',
+                    e.target.value
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  )
+                }
+                fullWidth
+                disabled={!canEdit}
+                helperText="Enter public IP or store network gateways allowed to clock in."
+              />
+            </Grid>
+          )}
 
           {canEdit && (
             <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>

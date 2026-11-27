@@ -44,12 +44,14 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 
 import { formatCurrency } from '@/utils';
 import { useExecutiveSummary } from '@/hooks/useReports';
+import { useAttendanceSummary } from '@/hooks/useAttendance';
 import { AsOfChip, ReportErrorState, TeaserTable } from '@/pages/reports/components';
 
 
 export function ExecutiveSummaryTab() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useExecutiveSummary();
+  const { data: attendanceKpi } = useAttendanceSummary();
 
   const [showBridge, setShowBridge] = useState(false);
   const [showExpenseDetails, setShowExpenseDetails] = useState(false);
@@ -1197,10 +1199,105 @@ export function ExecutiveSummaryTab() {
       </Paper>
 
       {/* ========================================================================= */}
-      {/* 5. ACTION TEASERS (hub — full detail on pillar tabs)                       */}
+      {/* 5. ACTION TEASERS & OPERATIONS HUBS (hub — full detail on pillar tabs)     */}
       {/* ========================================================================= */}
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+        {/* Card 1: Store Workforce & Floor Presence */}
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <PeopleAltIcon sx={{ color: '#2563EB', fontSize: 20 }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Store Workforce
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                Live floor presence, staff punctuality, and daily shift status
+              </Typography>
+
+              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                <Grid size={6}>
+                  <Box sx={{ p: 1.25, bgcolor: '#EFF6FF', borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      On Floor Now
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#1D4ED8' }}>
+                      {attendanceKpi?.onFloorCount ?? 0}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid size={6}>
+                  <Box sx={{ p: 1.25, bgcolor: '#F0FDF4', borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Present / Total
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#15803D' }}>
+                      {attendanceKpi?.presentCount ?? 0} / {attendanceKpi?.totalStaff ?? 0}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid size={6}>
+                  <Box sx={{ p: 1.25, bgcolor: '#FFFBEB', borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Late Arrivals
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#B45309' }}>
+                      {attendanceKpi?.lateCount ?? 0}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid size={6}>
+                  <Box sx={{ p: 1.25, bgcolor: '#FFF7ED', borderRadius: 2 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      On Break
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#C2410C' }}>
+                      {attendanceKpi?.onBreakCount ?? 0}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Button
+                size="small"
+                variant="outlined"
+                fullWidth
+                endIcon={<ArrowForwardIcon fontSize="small" />}
+                onClick={() => navigate('/attendance')}
+                sx={{ textTransform: 'none', fontWeight: 600, fontSize: 11 }}
+              >
+                Floor Roster
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                fullWidth
+                endIcon={<ArrowForwardIcon fontSize="small" />}
+                onClick={() => navigate('/checklists')}
+                sx={{ textTransform: 'none', fontWeight: 600, fontSize: 11 }}
+              >
+                Checklists
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Paper
             elevation={0}
             sx={{
@@ -1274,7 +1371,7 @@ export function ExecutiveSummaryTab() {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Paper
             elevation={0}
             sx={{
@@ -1353,7 +1450,7 @@ export function ExecutiveSummaryTab() {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 12, lg: 4 }}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Paper
             elevation={0}
             sx={{

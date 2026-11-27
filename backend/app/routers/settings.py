@@ -1,16 +1,27 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from pydantic import BaseModel, Field
 from pydantic import ConfigDict
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 from app.auth.dependencies import get_current_user, require_admin_only
 from app.models.user import User
-from app.models.settings import StoreSettings
+from app.models.settings import StoreSettings, AttendanceConfig
 from app.models.audit_log import AuditModule
 from app.services.audit import log_audit, settings_snapshot
 from app.services.store_settings import get_store_settings, settings_to_api
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+class AttendanceConfigUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    attendance_enabled: Optional[bool] = Field(None, alias="attendanceEnabled")
+    enforce_store_ip: Optional[bool] = Field(None, alias="enforceStoreIp")
+    allowed_ips: Optional[List[str]] = Field(None, alias="allowedIps")
+    default_shift_id: Optional[str] = Field(None, alias="defaultShiftId")
+    require_clock_in_for_pos: Optional[bool] = Field(None, alias="requireClockInForPos")
+    auto_clock_out_hours: Optional[int] = Field(None, alias="autoClockOutHours", ge=1, le=24)
 
 
 class SettingsUpdate(BaseModel):
@@ -46,6 +57,7 @@ class SettingsUpdate(BaseModel):
     opening_cash_balance: Optional[float] = Field(None, alias="openingCashBalance", ge=0)
     opening_bank_balance: Optional[float] = Field(None, alias="openingBankBalance", ge=0)
     opening_esewa_balance: Optional[float] = Field(None, alias="openingEsewaBalance", ge=0)
+    attendance_config: Optional[AttendanceConfigUpdate] = Field(None, alias="attendanceConfig")
 
 
 @router.get("")
@@ -83,6 +95,14 @@ async def update_settings(
                     detail=f"{label} cannot be negative",
                 )
             update_data[balance_key] = round(val, 2)
+    if "attendance_config" in update_data and update_data["attendance_config"]:
+        att_data = update_data.pop("attendance_config")
+        if not hasattr(settings, "attendance_config") or settings.attendance_config is None:
+            settings.attendance_config = AttendanceConfig()
+        for k, v in att_data.items():
+            if v is not None:
+                setattr(settings.attendance_config, k, v)
+        update_data["attendance_config"] = settings.attendance_config.model_dump()
     if update_data:
         await settings.set(update_data)
         refreshed = await StoreSettings.find_one()

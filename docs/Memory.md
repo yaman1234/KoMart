@@ -1,8 +1,30 @@
-# Memory — Purchase Order Totals / Inventory UX
+# Memory — Purchase Order Totals / Inventory UX / Workforce & Attendance
 
 running log of completed work — updated after each task, newest entries at top, never compress or delete old entries
 
 ## Completed Tasks
+
+### 2026-11-27 — Attendance, Shifts, Rostering & Daily Checklists Full Module Delivery
+- **Attendance & Workforce Engine** ([`attendance.py`](../backend/app/models/attendance.py), [`attendance_engine.py`](../backend/app/services/attendance_engine.py)):
+  - Punch lifecycle: Clock In, Tea/Lunch breaks, Clock Out with automated late arrival, break deduction, half-day threshold, early exit, and overtime calculations.
+  - Store wall-clock timezone: Nepal Standard Time (NPT = `Asia/Kathmandu`, UTC+05:45). Offset-naive timestamps safely parsed as UTC and rendered in local NPT across all screens and Excel exports.
+  - Manager Shift CRUD & Roster Assignments ([`shifts.py`](../backend/app/routers/shifts.py)): Deactivate assigned shifts safely; delete unassigned shifts permanently; manager & admin edit dialog.
+  - Leave & Regularization workflows ([`leaves.py`](../backend/app/routers/leaves.py), [`attendance.py`](../backend/app/routers/attendance.py)): Self-service leave applications with approval flow and audit-logged manual punch regularization.
+  - Store Settings integration ([`settings.py`](../backend/app/models/settings.py), [`StoreInfoTab.tsx`](../frontend/src/pages/settings/tabs/StoreInfoTab.tsx)): Added `attendance_config` with IP whitelist restriction, auto clock-out safeguard, and POS checkout clock-in requirement.
+- **Daily Operational Checklists** ([`checklist.py`](../backend/app/models/checklist.py), [`checklists.py`](../backend/app/routers/checklists.py)):
+  - Role-based delegation hierarchy: Admin → Managers & Cashiers, Store Manager → Duty Managers & Cashiers, Duty Managers → Cashiers.
+  - Pre-seeded supermarket routines for Cashier Opening/Closing and Manager Store Opening/Closing.
+  - Ad-hoc and recurring auto-generation engine with supervisor verification signature (`is_verified`).
+  - TopBar slide-out quick checklist drawer ([`TopBarChecklistWidget.tsx`](../frontend/src/components/checklists/TopBarChecklistWidget.tsx)) with instant item completion and optional notes/numeric float values.
+  - Checklists Management Hub ([`ChecklistsPage.tsx`](../frontend/src/pages/checklists/ChecklistsPage.tsx)) with Today's Tasks, Operations Monitor, and Routine Template Builder.
+- **Ecosystem & POS Integration**:
+  - TopBar Attendance Widget ([`TopBarAttendanceWidget.tsx`](../frontend/src/components/attendance/TopBarAttendanceWidget.tsx)): Displays live Nepal clock-in/out times directly on chip; uncompleted mandatory checklist warning guard upon clock-out.
+  - POS Page ([`POSPage.tsx`](../frontend/src/pages/pos/POSPage.tsx)): 1-click clock-in alert banner and checkout lock when `requireClockInForPos` policy is active.
+  - Executive Financials Dashboard ([`ExecutiveSummaryTab.tsx`](../frontend/src/pages/reports/tabs/ExecutiveSummaryTab.tsx)): Live Store Workforce overview card with headcount, presence, punctuality, and navigation teasers.
+  - Multi-tab Attendance Hub ([`AttendancePage.tsx`](../frontend/src/pages/attendance/AttendancePage.tsx)): Live Floor Roster, My Timesheet with Excel export, Leave Management, and Shift Definitions.
+- **Automated Verification**:
+  - Full pytest suite: 20 passing unit & integration tests (`test_attendance_models.py`, `test_attendance_punch.py`, `test_shifts_and_leaves.py`, `test_checklists.py`).
+  - Frontend build: `npm run build` passing with 0 errors.
 
 ### 2026-10-09 — Docs: full PO UX documentation pass
 - Synced prd / architecture / Rules / Design / Task / Memory for all recent PO work (terminology, eye modal, full Add Product from PO, receive pack+sell prices, list filters/KPIs/sort)
