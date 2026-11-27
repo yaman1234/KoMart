@@ -147,6 +147,18 @@ async def test_shifts_crud_and_assignment(
     assert res.status_code == 200
     assignments = res.json()
     assert len(assignments) >= 1
+    assign_id = assignment["id"]
+
+    # 5b. Update assignment
+    update_assign_res = await client.patch(
+        f"/api/v1/shifts/assignments/{assign_id}",
+        json={"effective_from": "2026-11-05", "effective_to": "2026-12-31"},
+        headers=headers,
+    )
+    assert update_assign_res.status_code == 200
+    updated_assign = update_assign_res.json()
+    assert updated_assign["effective_from"] == "2026-11-05"
+    assert updated_assign["effective_to"] == "2026-12-31"
 
     # 6. Delete shift with assignment (should deactivate)
     del_res = await client.delete(f"/api/v1/shifts/{shift_id}", headers=headers)
@@ -165,6 +177,10 @@ async def test_shifts_crud_and_assignment(
     del_tmp = await client.delete(f"/api/v1/shifts/{tmp_id}", headers=headers)
     assert del_tmp.status_code == 200
     assert "deleted" in del_tmp.json()["message"]
+
+    # 8. Delete assignment
+    del_assign_res = await client.delete(f"/api/v1/shifts/assignments/{assign_id}", headers=headers)
+    assert del_assign_res.status_code == 200
 
 
 async def test_leave_management_workflow(

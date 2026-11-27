@@ -55,6 +55,8 @@ import {
   useDeleteShift,
   useShiftAssignments,
   useAssignShift,
+  useUpdateShiftAssignment,
+  useDeleteShiftAssignment,
   useLeaves,
   useRequestLeave,
   useReviewLeave,
@@ -68,6 +70,7 @@ import type {
   AttendanceStatus,
   LeaveType,
   Shift,
+  ShiftAssignment,
 } from '@/types';
 
 function formatDuration(minutes: number): string {
@@ -121,8 +124,11 @@ export function AttendancePage() {
   const updateShiftMutation = useUpdateShift();
   const deleteShiftMutation = useDeleteShift();
   const assignShiftMutation = useAssignShift();
+  const updateAssignmentMutation = useUpdateShiftAssignment();
+  const deleteAssignmentMutation = useDeleteShiftAssignment();
 
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<ShiftAssignment | null>(null);
 
   // Regularize Dialog State
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
@@ -155,6 +161,7 @@ export function AttendancePage() {
   const [assignEffectiveFrom, setAssignEffectiveFrom] = useState(
     new Date().toISOString().split('T')[0],
   );
+  const [assignEffectiveTo, setAssignEffectiveTo] = useState('');
 
   const handleOpenRegularize = (record: AttendanceRecord) => {
     setSelectedRecord(record);
@@ -312,7 +319,63 @@ export function AttendancePage() {
     }
   };
 
+  const handleOpenCreateAssignment = () => {
+    setEditingAssignment(null);
+    setAssignUser('');
+    setAssignShiftId('');
+    setAssignEffectiveFrom(new Date().toISOString().split('T')[0]);
+    setAssignEffectiveTo('');
+    setAssignDialogOpen(true);
+  };
+
+  const handleOpenEditAssignment = (assignment: ShiftAssignment) => {
+    setEditingAssignment(assignment);
+    setAssignUser(assignment.userId);
+    setAssignShiftId(assignment.shiftId);
+    setAssignEffectiveFrom(assignment.effectiveFrom);
+    setAssignEffectiveTo(assignment.effectiveTo || '');
+    setAssignDialogOpen(true);
+  };
+
+  const handleDeleteAssignment = async (assignment: ShiftAssignment) => {
+    if (!window.confirm(`Are you sure you want to remove the roster assignment for ${assignment.userName}?`)) {
+      return;
+    }
+    try {
+      await deleteAssignmentMutation.mutateAsync(assignment.id);
+      showSuccess(`Roster assignment for ${assignment.userName} deleted.`);
+    } catch {
+      showError('Failed to delete roster assignment');
+    }
+  };
+
   const handleAssignShift = async () => {
+    if (editingAssignment) {
+      if (!assignShiftId || !assignEffectiveFrom) {
+        showError('Please select shift and effective from date.');
+        return;
+      }
+      try {
+        await updateAssignmentMutation.mutateAsync({
+          assignmentId: editingAssignment.id,
+          payload: {
+            shiftId: assignShiftId,
+            effectiveFrom: assignEffectiveFrom,
+            effectiveTo: assignEffectiveTo || undefined,
+          },
+        });
+        showSuccess('Roster assignment updated successfully.');
+        setAssignDialogOpen(false);
+        setEditingAssignment(null);
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          'Failed to update shift assignment';
+        showError(msg);
+      }
+      return;
+    }
+
     if (!assignUser || !assignShiftId || !assignEffectiveFrom) {
       showError('Please select staff member, shift, and effective date.');
       return;
@@ -322,6 +385,7 @@ export function AttendancePage() {
         userId: assignUser,
         shiftId: assignShiftId,
         effectiveFrom: assignEffectiveFrom,
+        effectiveTo: assignEffectiveTo || undefined,
       });
       showSuccess('Shift assigned to staff successfully.');
       setAssignDialogOpen(false);
@@ -487,9 +551,9 @@ export function AttendancePage() {
                   <TableCell sx={{ fontWeight: 600 }}>Employee</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Shift</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Clock In (Nepal Time)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Clock In</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Clock Out (Nepal Time)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Clock Out</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Work Duration</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
                 </TableRow>
@@ -605,8 +669,8 @@ export function AttendancePage() {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Shift</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Clock In (Nepal Time)</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Clock Out (Nepal Time)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Clock In</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Clock Out</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Total Break</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Net Work Time</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -762,7 +826,7 @@ export function AttendancePage() {
             <Button
               variant="outlined"
               startIcon={<PersonAddIcon />}
-              onClick={() => setAssignDialogOpen(true)}
+              onClick={handleOpenCreateAssignment}
               size="small"
             >
               Assign Staff Shift
@@ -836,9 +900,20 @@ export function AttendancePage() {
 
             {/* Shift Assignments Table */}
             <Grid size={{ xs: 12, md: 5 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                Roster Assignments
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Roster Assignments
+                </Typography>
+                {isManagerOrAdmin && (
+                  <Button
+                    size="small"
+                    startIcon={<PersonAddIcon />}
+                    onClick={handleOpenCreateAssignment}
+                  >
+                    Assign Staff
+                  </Button>
+                )}
+              </Box>
               <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: 'action.hover' }}>
@@ -846,12 +921,16 @@ export function AttendancePage() {
                       <TableCell sx={{ fontWeight: 600 }}>Staff</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Assigned Shift</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>From</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>To</TableCell>
+                      {isManagerOrAdmin && (
+                        <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
+                      )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {assignments.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        <TableCell colSpan={isManagerOrAdmin ? 5 : 4} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                           No explicit assignments. Staff default to store schedule.
                         </TableCell>
                       </TableRow>
@@ -861,6 +940,31 @@ export function AttendancePage() {
                           <TableCell sx={{ fontWeight: 600 }}>{a.userName}</TableCell>
                           <TableCell>{a.shiftName}</TableCell>
                           <TableCell>{a.effectiveFrom}</TableCell>
+                          <TableCell>{a.effectiveTo || 'Ongoing'}</TableCell>
+                          {isManagerOrAdmin && (
+                            <TableCell align="right">
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                                <Tooltip title="Edit Roster Assignment">
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleOpenEditAssignment(a)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete Assignment">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleDeleteAssignment(a)}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     )}
@@ -882,24 +986,24 @@ export function AttendancePage() {
                 Employee: <strong>{selectedRecord.userName}</strong> ({selectedRecord.date})
               </Alert>
               <TextField
-                label="Clock In Time (Nepal Time)"
+                label="Clock In Time"
                 type="datetime-local"
                 fullWidth
                 size="small"
                 value={regClockIn}
                 onChange={(e) => setRegClockIn(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
-                helperText="Store wall-clock time (Asia/Kathmandu, UTC+05:45)"
+                helperText="Store wall-clock time"
               />
               <TextField
-                label="Clock Out Time (Nepal Time)"
+                label="Clock Out Time"
                 type="datetime-local"
                 fullWidth
                 size="small"
                 value={regClockOut}
                 onChange={(e) => setRegClockOut(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
-                helperText="Store wall-clock time (Asia/Kathmandu, UTC+05:45)"
+                helperText="Store wall-clock time"
               />
               <TextField
                 label="Status Override"
@@ -1092,8 +1196,18 @@ export function AttendancePage() {
       </Dialog>
 
       {/* Assign Shift Dialog */}
-      <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Assign Shift to Staff</DialogTitle>
+      <Dialog
+        open={assignDialogOpen}
+        onClose={() => {
+          setAssignDialogOpen(false);
+          setEditingAssignment(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>
+          {editingAssignment ? `Edit Roster Assignment — ${editingAssignment.userName}` : 'Assign Shift to Staff'}
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
@@ -1103,6 +1217,7 @@ export function AttendancePage() {
               size="small"
               value={assignUser}
               onChange={(e) => setAssignUser(e.target.value)}
+              disabled={Boolean(editingAssignment)}
             >
               {users.map((u) => (
                 <MenuItem key={u.id} value={u.id}>
@@ -1133,19 +1248,35 @@ export function AttendancePage() {
               onChange={(e) => setAssignEffectiveFrom(e.target.value)}
               slotProps={{ inputLabel: { shrink: true } }}
             />
+            <TextField
+              label="Effective To (Optional)"
+              type="date"
+              fullWidth
+              size="small"
+              value={assignEffectiveTo}
+              onChange={(e) => setAssignEffectiveTo(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="Leave blank for ongoing assignment"
+            />
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setAssignDialogOpen(false)} color="inherit">
+          <Button
+            onClick={() => {
+              setAssignDialogOpen(false);
+              setEditingAssignment(null);
+            }}
+            color="inherit"
+          >
             Cancel
           </Button>
           <Button
             variant="contained"
             color="primary"
             onClick={handleAssignShift}
-            disabled={assignShiftMutation.isPending}
+            disabled={assignShiftMutation.isPending || updateAssignmentMutation.isPending}
           >
-            Assign Shift
+            {editingAssignment ? 'Update Assignment' : 'Assign Shift'}
           </Button>
         </DialogActions>
       </Dialog>

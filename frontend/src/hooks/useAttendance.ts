@@ -5,6 +5,7 @@ import type {
   PunchPayload,
   ShiftPayload,
   ShiftAssignmentPayload,
+  ShiftAssignmentUpdatePayload,
   LeavePayload,
   LeaveReviewPayload,
   RegularizePayload,
@@ -135,6 +136,32 @@ export function useAssignShift() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: ShiftAssignmentPayload) => attendanceService.assignShift(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['shifts', 'assignments'] });
+    },
+  });
+}
+
+export function useUpdateShiftAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      assignmentId,
+      payload,
+    }: {
+      assignmentId: string;
+      payload: ShiftAssignmentUpdatePayload;
+    }) => attendanceService.updateShiftAssignment(assignmentId, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['shifts', 'assignments'] });
+    },
+  });
+}
+
+export function useDeleteShiftAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assignmentId: string) => attendanceService.deleteShiftAssignment(assignmentId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['shifts', 'assignments'] });
     },

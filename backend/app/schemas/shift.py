@@ -54,6 +54,12 @@ class ShiftAssignmentCreate(BaseModel):
     effective_to: Optional[str] = None
 
 
+class ShiftAssignmentUpdate(BaseModel):
+    shift_id: Optional[str] = None
+    effective_from: Optional[str] = None
+    effective_to: Optional[str] = None
+
+
 class ShiftAssignmentResponse(BaseModel):
     id: str
     user_id: str

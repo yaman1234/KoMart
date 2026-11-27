@@ -110,10 +110,10 @@ export function TopBarAttendanceWidget() {
           <DialogContent>
             <Box sx={{ mb: 2, p: 1.5, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Clock In Time: {formatNepalTime(new Date().toISOString())} (Nepal Time)
+                Clock In Time: {formatNepalTime(new Date().toISOString())}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Punches are recorded in Nepal Standard Time (UTC+05:45)
+                Punches are recorded in store standard time
               </Typography>
             </Box>
             {today.shift && (
@@ -160,7 +160,7 @@ export function TopBarAttendanceWidget() {
     const inTime = formatNepalTime(today.record?.clockIn);
     const outTime = formatNepalTime(today.record?.clockOut);
     return (
-      <Tooltip title={`Clock In: ${inTime} · Clock Out: ${outTime} (Nepal Standard Time, UTC+05:45)`}>
+      <Tooltip title={`Clock In: ${inTime} · Clock Out: ${outTime}`}>
         <Chip
           icon={<CheckCircleIcon color="success" />}
           label={`In: ${inTime} · Out: ${outTime} (${formatMins(today.record?.effectiveWorkMinutes || 0)})`}
@@ -177,7 +177,7 @@ export function TopBarAttendanceWidget() {
     const breakStart = formatNepalTime(today.activeBreakStart || today.record?.breaks?.slice(-1)[0]?.startTime);
     return (
       <>
-        <Tooltip title={`Break started at ${breakStart} (Nepal Time)`}>
+        <Tooltip title={`Break started at ${breakStart}`}>
           <Chip
             icon={<FreeBreakfastIcon sx={{ color: '#EA580C !important' }} />}
             label={`On ${today.currentBreakType || 'Tea'} Break (${breakStart})`}
@@ -225,7 +225,7 @@ export function TopBarAttendanceWidget() {
   const inTime = formatNepalTime(today.record?.clockIn);
   return (
     <>
-      <Tooltip title={`Clocked in at ${inTime} (Nepal Standard Time, UTC+05:45)`}>
+      <Tooltip title={`Clocked in at ${inTime}`}>
         <Chip
           icon={<AccessTimeIcon sx={{ color: '#16A34A !important' }} />}
           label={`In: ${inTime} · Working (${formatMins(today.elapsedWorkMinutes)})`}
@@ -294,10 +294,10 @@ export function TopBarAttendanceWidget() {
           {pendingAction === 'clock_out' && (
             <Box sx={{ mb: 2, p: 1.5, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
               <Typography variant="body2">
-                Clock In: <strong>{formatNepalTime(today.record?.clockIn)}</strong> (Nepal Time)
+                Clock In: <strong>{formatNepalTime(today.record?.clockIn)}</strong>
               </Typography>
               <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600, color: 'error.main' }}>
-                Clock Out Time: <strong>{formatNepalTime(new Date().toISOString())}</strong> (Nepal Time)
+                Clock Out Time: <strong>{formatNepalTime(new Date().toISOString())}</strong>
               </Typography>
             </Box>
           )}

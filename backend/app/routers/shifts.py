@@ -12,6 +12,7 @@ from app.schemas.shift import (
     ShiftUpdate,
     ShiftResponse,
     ShiftAssignmentCreate,
+    ShiftAssignmentUpdate,
     ShiftAssignmentResponse,
 )
 
@@ -162,6 +163,96 @@ async def assign_shift(
         },
     )
     return _to_assignment_response(assignment)
+
+
+@router.patch("/assignments/{assignment_id}", response_model=ShiftAssignmentResponse)
+async def update_shift_assignment(
+    assignment_id: str,
+    body: ShiftAssignmentUpdate,
+    request: Request,
+    manager: User = Depends(require_manager_or_above),
+):
+    """Update a staff shift assignment."""
+    assignment = await ShiftAssignment.get(assignment_id)
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shift assignment not found",
+        )
+
+    prev_snapshot = {
+        "shift_id": assignment.shift_id,
+        "shift_name": assignment.shift_name,
+        "effective_from": assignment.effective_from,
+        "effective_to": assignment.effective_to,
+    }
+
+    if body.shift_id is not None and body.shift_id != assignment.shift_id:
+        shift = await Shift.get(body.shift_id)
+        if not shift or not shift.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target shift not found or inactive",
+            )
+        assignment.shift_id = str(shift.id)
+        assignment.shift_name = shift.name
+
+    if body.effective_from is not None:
+        assignment.effective_from = body.effective_from
+    if body.effective_to is not None:
+        assignment.effective_to = body.effective_to
+
+    await assignment.save()
+
+    await log_audit(
+        module=AuditModule.attendance,
+        action="update_shift_assignment",
+        user=manager,
+        request=request,
+        entity_type="shift_assignment",
+        entity_id=str(assignment.id),
+        previous=prev_snapshot,
+        new={
+            "shift_id": assignment.shift_id,
+            "shift_name": assignment.shift_name,
+            "effective_from": assignment.effective_from,
+            "effective_to": assignment.effective_to,
+        },
+    )
+    return _to_assignment_response(assignment)
+
+
+@router.delete("/assignments/{assignment_id}", status_code=status.HTTP_200_OK)
+async def delete_shift_assignment(
+    assignment_id: str,
+    request: Request,
+    manager: User = Depends(require_manager_or_above),
+):
+    """Delete a staff shift assignment."""
+    assignment = await ShiftAssignment.get(assignment_id)
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shift assignment not found",
+        )
+
+    await assignment.delete()
+
+    await log_audit(
+        module=AuditModule.attendance,
+        action="delete_shift_assignment",
+        user=manager,
+        request=request,
+        entity_type="shift_assignment",
+        entity_id=assignment_id,
+        previous={
+            "user_id": assignment.user_id,
+            "user_name": assignment.user_name,
+            "shift_name": assignment.shift_name,
+        },
+        new={"action": "deleted"},
+    )
+    return {"message": "Shift assignment deleted successfully"}
 
 
 @router.get("/{shift_id}", response_model=ShiftResponse)

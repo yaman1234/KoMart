@@ -138,6 +138,12 @@ export interface ShiftAssignmentPayload {
   effectiveTo?: string;
 }
 
+export interface ShiftAssignmentUpdatePayload {
+  shiftId?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
+
 export type LeaveType = 'casual' | 'sick' | 'annual' | 'unpaid' | 'maternity_paternity';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 

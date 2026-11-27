@@ -8,6 +8,7 @@ import type {
   ShiftPayload,
   ShiftAssignment,
   ShiftAssignmentPayload,
+  ShiftAssignmentUpdatePayload,
   LeaveRequest,
   LeavePayload,
   LeaveReviewPayload,
@@ -92,6 +93,19 @@ export const attendanceService = {
 
   async assignShift(payload: ShiftAssignmentPayload): Promise<ShiftAssignment> {
     const res = await apiClient.post<ShiftAssignment>('/shifts/assignments', payload);
+    return res.data;
+  },
+
+  async updateShiftAssignment(
+    assignmentId: string,
+    payload: ShiftAssignmentUpdatePayload
+  ): Promise<ShiftAssignment> {
+    const res = await apiClient.patch<ShiftAssignment>(`/shifts/assignments/${assignmentId}`, payload);
+    return res.data;
+  },
+
+  async deleteShiftAssignment(assignmentId: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<{ message: string }>(`/shifts/assignments/${assignmentId}`);
     return res.data;
   },
 
