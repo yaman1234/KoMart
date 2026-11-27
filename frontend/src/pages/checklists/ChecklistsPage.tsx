@@ -356,7 +356,7 @@ export function ChecklistsPage() {
   }, [myTodayList, categoryFilter]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
       {/* Page Header */}
       <Box
         sx={{
@@ -378,9 +378,10 @@ export function ChecklistsPage() {
         </Box>
 
         {isManagerOrAdmin && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
             <Button
               variant="outlined"
+              size="small"
               startIcon={<PlaylistAddIcon />}
               onClick={() => {
                 setAdHocForm({
@@ -397,6 +398,7 @@ export function ChecklistsPage() {
             </Button>
             <Button
               variant="contained"
+              size="small"
               startIcon={<AddIcon />}
               onClick={handleOpenCreateTemplate}
             >
@@ -407,31 +409,32 @@ export function ChecklistsPage() {
       </Box>
 
       {/* Tabs */}
-      <Tabs
-        value={currentTab}
-        onChange={(_, val) => setCurrentTab(val)}
-        sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
-      >
-        <Tab
-          icon={<AssignmentTurnedInIcon fontSize="small" />}
-          iconPosition="start"
-          label="Today's Tasks"
-        />
-        {isManagerOrAdmin && (
+      <Paper sx={{ mb: 3, borderRadius: 2 }}>
+        <Tabs
+          value={currentTab}
+          onChange={(_, val) => setCurrentTab(val)}
+        >
           <Tab
-            icon={<FactCheckIcon fontSize="small" />}
+            icon={<AssignmentTurnedInIcon fontSize="small" />}
             iconPosition="start"
-            label="Store Operations Monitor"
+            label="Today's Tasks"
           />
-        )}
-        {isManagerOrAdmin && (
-          <Tab
-            icon={<PlaylistAddIcon fontSize="small" />}
-            iconPosition="start"
-            label="Routine Templates"
-          />
-        )}
-      </Tabs>
+          {isManagerOrAdmin && (
+            <Tab
+              icon={<FactCheckIcon fontSize="small" />}
+              iconPosition="start"
+              label="Store Operations Monitor"
+            />
+          )}
+          {isManagerOrAdmin && (
+            <Tab
+              icon={<PlaylistAddIcon fontSize="small" />}
+              iconPosition="start"
+              label="Routine Templates"
+            />
+          )}
+        </Tabs>
+      </Paper>
 
       {/* ── TAB 0: TODAY'S TASKS ─────────────────────────────────────────────── */}
       {currentTab === 0 && (
@@ -442,7 +445,9 @@ export function ChecklistsPage() {
               label="All Categories"
               clickable
               color={categoryFilter === 'all' ? 'primary' : 'default'}
+              variant={categoryFilter === 'all' ? 'filled' : 'outlined'}
               onClick={() => setCategoryFilter('all')}
+              sx={{ fontWeight: 600 }}
             />
             {Object.entries(CATEGORY_LABELS).map(([catKey, catLabel]) => (
               <Chip
@@ -450,7 +455,9 @@ export function ChecklistsPage() {
                 label={catLabel}
                 clickable
                 color={categoryFilter === catKey ? 'primary' : 'default'}
+                variant={categoryFilter === catKey ? 'filled' : 'outlined'}
                 onClick={() => setCategoryFilter(catKey)}
+                sx={{ fontWeight: 600 }}
               />
             ))}
           </Box>
