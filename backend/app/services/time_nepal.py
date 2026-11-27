@@ -10,6 +10,11 @@ from fastapi import HTTPException, status
 NPT = ZoneInfo("Asia/Kathmandu")
 
 
+def today_npt() -> date:
+    """Calendar date in Asia/Kathmandu."""
+    return datetime.now(NPT).date()
+
+
 def ensure_utc(dt: datetime) -> datetime:
     """Normalize to an aware UTC instant. Naive values are treated as UTC (Mongo BSON)."""
     if dt.tzinfo is None:

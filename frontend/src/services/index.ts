@@ -2677,5 +2677,20 @@ export const walletService = {
 
   },
 
+  cutover: async (
+
+    payload: import('@/types').WalletCutoverPayload,
+
+  ): Promise<import('@/types').WalletCutoverResult> => {
+
+    const { data } = await apiClient.post('/wallets/cutover', payload);
+
+    return data as import('@/types').WalletCutoverResult;
+
+  },
+
 };
 
+
+export * from './attendanceService';
+export * from './checklistService';

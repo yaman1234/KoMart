@@ -45,4 +45,12 @@ def settings_to_api(settings: StoreSettings) -> dict:
         "openingCashBalance": float(getattr(settings, "opening_cash_balance", 0) or 0),
         "openingBankBalance": float(getattr(settings, "opening_bank_balance", 0) or 0),
         "openingEsewaBalance": float(getattr(settings, "opening_esewa_balance", 0) or 0),
+        "attendanceConfig": {
+            "attendanceEnabled": getattr(settings.attendance_config, "attendance_enabled", True) if hasattr(settings, "attendance_config") and settings.attendance_config else True,
+            "enforceStoreIp": getattr(settings.attendance_config, "enforce_store_ip", False) if hasattr(settings, "attendance_config") and settings.attendance_config else False,
+            "allowedIps": getattr(settings.attendance_config, "allowed_ips", []) if hasattr(settings, "attendance_config") and settings.attendance_config else [],
+            "defaultShiftId": getattr(settings.attendance_config, "default_shift_id", None) if hasattr(settings, "attendance_config") and settings.attendance_config else None,
+            "requireClockInForPos": getattr(settings.attendance_config, "require_clock_in_for_pos", False) if hasattr(settings, "attendance_config") and settings.attendance_config else False,
+            "autoClockOutHours": getattr(settings.attendance_config, "auto_clock_out_hours", 14) if hasattr(settings, "attendance_config") and settings.attendance_config else 14,
+        },
     }

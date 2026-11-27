@@ -3280,6 +3280,14 @@ export interface StoreSettings {
 
 
   openingEsewaBalance: number;
+  attendanceConfig?: {
+    attendanceEnabled: boolean;
+    enforceStoreIp: boolean;
+    allowedIps: string[];
+    defaultShiftId?: string;
+    requireClockInForPos: boolean;
+    autoClockOutHours: number;
+  };
 
 
 
@@ -4459,6 +4467,14 @@ export interface WalletDayBookBlock {
 
 
 
+  cutoverIn?: number;
+
+
+
+  cutoverOut?: number;
+
+
+
   expected: number;
 
 
@@ -4903,6 +4919,34 @@ export interface WalletAdjustmentPayload {
 
 
 
+}
+
+
+
+export interface WalletCutoverPayload {
+  cash?: number;
+  bank?: number;
+  esewa?: number;
+  statementRef?: string;
+  remarks?: string;
+  replace?: boolean;
+}
+
+export interface WalletCutoverLine {
+  wallet: string;
+  previous: number;
+  target: number;
+  delta: number;
+  skipped: boolean;
+  entryId?: string | null;
+  verifiedBalance?: number | null;
+  drift?: number | null;
+}
+
+export interface WalletCutoverResult {
+  date: string;
+  lines: WalletCutoverLine[];
+  balances: WalletBalances;
 }
 
 
@@ -8281,3 +8325,6 @@ export interface LossAuditReport {
 
 
 
+
+export * from './attendance';
+export * from './checklist';

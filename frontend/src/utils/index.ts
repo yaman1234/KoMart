@@ -4,7 +4,15 @@ import { formatDisplayDate, type CalendarSystem } from '@/utils/nepaliDate';
 
 export { formatDisplayDate, formatDualCalendar, adToBs, bsToAd } from '@/utils/nepaliDate';
 export type { CalendarSystem } from '@/utils/nepaliDate';
-export { STORE_TIME_ZONE, storeTodayIso, addCalendarDays, storeMonthStartIso } from '@/utils/storeDate';
+export {
+  STORE_TIME_ZONE,
+  storeTodayIso,
+  addCalendarDays,
+  storeMonthStartIso,
+  formatNepalTime,
+  toNepalDateTimeInputString,
+  nepalDateTimeInputToUtcIso,
+} from '@/utils/storeDate';
 
 export const isAdmin = (role?: UserRole): boolean => role === 'admin';
 export const isAdminOrManager = (role?: UserRole): boolean => role === 'admin' || role === 'manager';
@@ -96,6 +104,7 @@ export function formatAuditAction(action: string): string {
     day_close_post_variance: 'Variance posted to ledger',
     wallet_transfer: 'Wallet transfer',
     wallet_adjustment: 'Wallet adjustment',
+    balance_cutover: 'Balances set',
     cash_custody_take: 'Cash taken — staff custody',
     cash_custody_return: 'Cash returned to till',
     cash_custody_deposit: 'Cash deposited from custody',

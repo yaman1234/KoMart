@@ -30,6 +30,12 @@ from app.models import (
     StockCount,
     PurchasePriceHistory,
     PurchaseReturn,
+    AttendanceRecord,
+    Shift,
+    ShiftAssignment,
+    LeaveRequest,
+    ChecklistTemplate,
+    DailyChecklist,
 )
 from app.models.bank_reconciliation import BankReconciliation
 from app.models.cash_reconciliation import CashReconciliation
@@ -99,6 +105,8 @@ async def _run_startup_migrations() -> None:
     # Seed wallet ledger from historical sales/expenses once (idempotent).
     from app.services.wallet_ledger import ensure_backfill
     await ensure_backfill(created_by="system")
+    await _seed_default_shifts()
+    await _cleanup_system_default_checklists()
 
 
 async def init_db() -> None:
@@ -153,6 +161,12 @@ async def init_db() -> None:
             PurchaseReturn,
             BankReconciliation,
             CashReconciliation,
+            AttendanceRecord,
+            Shift,
+            ShiftAssignment,
+            LeaveRequest,
+            ChecklistTemplate,
+            DailyChecklist,
         ],
     )
 
@@ -191,3 +205,55 @@ async def _seed_default_expense_categories() -> None:
         if code in existing:
             continue
         await ExpenseCategoryDoc(code=code, label=label).insert()
+
+
+DEFAULT_SHIFTS: list[dict] = [
+    {
+        "name": "Morning Cashier Shift",
+        "code": "MORN",
+        "start_time": "08:00",
+        "end_time": "16:00",
+        "grace_period_minutes": 15,
+        "half_day_threshold_minutes": 240,
+        "full_day_threshold_minutes": 420,
+        "break_allowance_minutes": 60,
+        "color_code": "#2563EB",
+    },
+    {
+        "name": "Evening Cashier Shift",
+        "code": "EVE",
+        "start_time": "14:00",
+        "end_time": "21:30",
+        "grace_period_minutes": 15,
+        "half_day_threshold_minutes": 240,
+        "full_day_threshold_minutes": 420,
+        "break_allowance_minutes": 45,
+        "color_code": "#7C3AED",
+    },
+    {
+        "name": "General Store Shift",
+        "code": "GEN",
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "grace_period_minutes": 15,
+        "half_day_threshold_minutes": 240,
+        "full_day_threshold_minutes": 480,
+        "break_allowance_minutes": 60,
+        "color_code": "#059669",
+    },
+]
+
+
+async def _seed_default_shifts() -> None:
+    if await Shift.count() > 0:
+        return
+    for s in DEFAULT_SHIFTS:
+        await Shift(**s).insert()
+
+
+async def _cleanup_system_default_checklists() -> None:
+    """Purge legacy system-seeded checklist templates and daily checklists to ensure a clean slate."""
+    from app.models.checklist import ChecklistTemplate, DailyChecklist
+
+    await ChecklistTemplate.find(ChecklistTemplate.created_by == "system").delete()
+    await DailyChecklist.find(DailyChecklist.assigned_by_user_id == "system").delete()
