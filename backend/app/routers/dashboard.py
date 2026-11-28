@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from datetime import datetime, timezone, timedelta
 from typing import Literal
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.customer import Customer
 from app.models.transaction import Transaction
@@ -47,14 +47,14 @@ async def get_day_wise_transactions(_: User = Depends(get_current_user)):
 
 
 @router.get("/kpi-summary")
-async def get_kpi_summary(_: User = Depends(get_current_user)):
+async def get_kpi_summary(_: User = Depends(require_manager_or_above)):
     return await build_kpi_summary()
 
 
 @router.get("/cash-flow")
 async def get_cash_flow(
     days: int = Query(30, ge=1, le=366),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_manager_or_above),
 ):
     return await build_cash_flow(days)
 
@@ -62,7 +62,7 @@ async def get_cash_flow(
 @router.get("/payment-method-flow")
 async def get_payment_method_flow(
     method: Literal["cash", "bank", "esewa"] = Query(...),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_manager_or_above),
 ):
     try:
         return await build_payment_method_flow(method)
@@ -75,7 +75,7 @@ async def get_kpi_flow(
     metric: Literal[
         "sales", "purchase", "receivables", "payables", "cash", "bank", "esewa"
     ] = Query(...),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_manager_or_above),
 ):
     try:
         return await build_kpi_flow(metric)
@@ -86,7 +86,7 @@ async def get_kpi_flow(
 @router.get("/operational-expenses")
 async def get_operational_expenses(
     days: int = Query(30, ge=1, le=366),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_manager_or_above),
 ):
     return await build_operational_expenses(days)
 
@@ -95,7 +95,7 @@ async def get_operational_expenses(
 async def get_top_profit_products(
     days: int = Query(30, ge=1, le=366),
     limit: int = Query(6, ge=1, le=50),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_manager_or_above),
 ):
     return await build_top_profit_products(days, limit)
 
@@ -112,7 +112,7 @@ async def get_top_sold_products(
 @router.get("/sales-collection")
 async def get_sales_collection(
     days: int = Query(30, ge=1, le=366),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_manager_or_above),
 ):
     return await build_sales_collection(days)
 

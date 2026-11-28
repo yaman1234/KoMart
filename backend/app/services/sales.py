@@ -30,8 +30,9 @@ from app.services.stock import (
     restock_from_deductions,
 )
 from app.services.store_settings import get_store_settings
-from app.services.time_nepal import ensure_utc, resolve_sale_created_at, to_utc_iso
+from app.services.time_nepal import ensure_utc, resolve_sale_created_at, to_npt, to_utc_iso
 from beanie import PydanticObjectId
+from pymongo import ReturnDocument
 
 
 def _base_quantity(item: TransactionItem) -> int:
@@ -104,8 +105,24 @@ async def _next_txn_number() -> str:
     settings = await get_store_settings()
     prefix_base = (settings.transaction_prefix or "TXN").strip().upper()
     prefix = f"{prefix_base}-"
-    count = await Transaction.find({"transaction_number": {"$regex": f"^{prefix}"}}).count()
-    return f"{prefix}{str(count + 1).zfill(4)}"
+    counters = Transaction.get_motor_collection().database["counters"]
+    counter_id = f"txn_seq:{prefix}"
+    existing_doc = await counters.find_one({"_id": counter_id})
+    if existing_doc is None:
+        existing_count = await Transaction.find({"transaction_number": {"$regex": f"^{prefix}"}}).count()
+        await counters.update_one(
+            {"_id": counter_id},
+            {"$setOnInsert": {"seq": existing_count}},
+            upsert=True,
+        )
+    updated = await counters.find_one_and_update(
+        {"_id": counter_id},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    seq = int(updated["seq"])
+    return f"{prefix}{str(seq).zfill(4)}"
 
 
 from app.schemas.discount import EvaluateCartItem
@@ -187,13 +204,18 @@ async def prepare_sale_body(body: TransactionCreate) -> TransactionCreate:
                 detail=f"Insufficient loyalty points. Available: {customer.loyalty_points}",
             )
 
+    settings = await get_store_settings()
+    redeem_rate = max(1, int(getattr(settings, "loyalty_redeem_rate", 1) or 1))
+    loyalty_value = round(loyalty * redeem_rate, 2)
+
     manual = max(0.0, body.manual_discount)
     if manual == 0 and body.discount > 0 and not body.applied_promotions:
-        manual = max(0.0, body.discount - evaluated.cart_discount - loyalty)
+        manual = max(0.0, body.discount - evaluated.cart_discount - loyalty_value)
 
-    txn_discount = round(evaluated.cart_discount + manual + loyalty, 2)
-    round_off = round(float(getattr(body, "round_off", 0.0) or 0.0), 2)
-    tax = round(float(body.tax or 0), 2)
+    txn_discount = round(evaluated.cart_discount + manual + loyalty_value, 2)
+    raw_round_off = round(float(getattr(body, "round_off", 0.0) or 0.0), 2)
+    round_off = max(-5.0, min(5.0, raw_round_off))
+    tax = max(0.0, round(float(body.tax or 0), 2))
     total = round(subtotal - line_discount_total - txn_discount + tax + round_off, 2)
     if total < 0:
         total = 0.0
@@ -324,6 +346,7 @@ async def record_sale(
                 stock_before,
                 -base_qty,
                 running_stock,
+                check_on_hand=False,
             )
 
             total_line_cost = sum(d.quantity * d.unit_cost for d in deductions)
@@ -370,8 +393,9 @@ async def record_sale(
         await txn.insert()
         txn_id = str(txn.id)
 
-        from app.services.wallet_ledger import post_sale
-        await post_sale(txn, created_by=txn.created_by or "")
+        if float(txn.total or 0) > 0:
+            from app.services.wallet_ledger import post_sale
+            await post_sale(txn, created_by=txn.created_by or "")
 
         for adj_id in adjustment_ids:
             adj = await StockAdjustment.get(adj_id)
@@ -383,17 +407,27 @@ async def record_sale(
                 })
 
         if apply_loyalty and body.customer_id:
-            customer = await Customer.get(body.customer_id)
-            if customer:
-                points_earned = int(body.total / 100)
-                new_points = customer.loyalty_points + points_earned - body.loyalty_points_redeemed
-                new_spent = customer.total_spent + body.total
-                new_tier = _compute_tier(new_spent)
-                await customer.set({
-                    "loyalty_points": max(0, new_points),
-                    "total_spent": new_spent,
-                    "membership_tier": new_tier,
-                })
+            settings = await get_store_settings()
+            pts_per_currency = max(1, int(getattr(settings, "loyalty_points_per_currency", 100) or 100))
+            points_earned = int(body.total / pts_per_currency)
+            net_points_delta = points_earned - int(body.loyalty_points_redeemed or 0)
+            cust_col = Customer.get_motor_collection()
+            updated_cust = await cust_col.find_one_and_update(
+                {"_id": PydanticObjectId(body.customer_id)},
+                {"$inc": {"loyalty_points": net_points_delta, "total_spent": float(body.total)}},
+                return_document=ReturnDocument.AFTER,
+            )
+            if updated_cust:
+                new_pts = max(0, int(updated_cust.get("loyalty_points", 0) or 0))
+                new_spent = max(0.0, float(updated_cust.get("total_spent", 0.0) or 0.0))
+                await cust_col.update_one(
+                    {"_id": updated_cust["_id"]},
+                    {"$set": {
+                        "loyalty_points": new_pts,
+                        "total_spent": new_spent,
+                        "membership_tier": _compute_tier(new_spent).value,
+                    }},
+                )
 
         from app.services.response_cache import bump_commerce_caches
         await bump_commerce_caches()
@@ -604,6 +638,8 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
     txn = await Transaction.get(txn_id)
     if not txn:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    if txn.status == TransactionStatus.voided:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot edit a voided transaction")
 
     updates: dict = {}
     data = body.model_dump(exclude_unset=True) if isinstance(body, TxnUpdate) else body
@@ -659,7 +695,8 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
         updates["loyalty_points_redeemed"] = new_loyalty
 
     if "round_off" in data and data["round_off"] is not None:
-        updates["round_off"] = float(data["round_off"])
+        raw_ro = round(float(data["round_off"]), 2)
+        updates["round_off"] = max(-5.0, min(5.0, raw_ro))
 
     effective_items = txn.items
     if "items" in data and data["items"] is not None:
@@ -668,26 +705,50 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Items list cannot be empty")
 
         old_by_pid = {i.product_id: i for i in txn.items}
+        missing_pids = [
+            raw.get("product_id")
+            for raw in new_items_raw
+            if raw.get("product_id") and raw.get("product_id") not in old_by_pid
+        ]
+        added_products = await _load_products_map(missing_pids) if missing_pids else {}
         validated: list[TransactionItem] = []
         for raw in new_items_raw:
             pid = raw.get("product_id")
             qty = int(raw.get("quantity", 0))
             if not pid or qty < 1:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid item in update")
-            price = float(raw.get("unit_price", 0) or 0)
-            line_disc = float(raw.get("line_discount", 0) or 0)
             old = old_by_pid.get(pid)
-            factor = max(1, getattr(old, "unit_factor", None) or 1) if old else 1
+            if old is not None:
+                price = float(raw.get("unit_price", old.price) or old.price)
+                line_disc = float(raw.get("line_discount", 0) or 0)
+                factor = max(1, getattr(old, "unit_factor", None) or 1)
+                item_name = old.name
+                item_sku = old.sku
+                item_sell_uom = getattr(old, "sell_uom", "")
+                item_cat = getattr(old, "category", "")
+            else:
+                prod = added_products.get(pid)
+                if not prod:
+                    raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
+                srv_price, factor, item_sell_uom = _resolve_server_line_pricing(
+                    prod, raw.get("sell_uom", "") or ""
+                )
+                raw_price = float(raw.get("unit_price", 0) or 0)
+                price = raw_price if raw_price > 0 else srv_price
+                line_disc = float(raw.get("line_discount", 0) or 0)
+                item_name = prod.name
+                item_sku = prod.sku
+                item_cat = prod.category
             validated.append(TransactionItem(
                 product_id=pid,
-                name=(old.name if old else pid),
-                sku=(old.sku if old else ""),
+                name=item_name,
+                sku=item_sku,
                 price=max(0.0, price),
                 quantity=max(1, qty),
                 discount=max(0.0, line_disc),
                 unit_factor=factor,
-                sell_uom=getattr(old, "sell_uom", "") if old else "",
-                category=getattr(old, "category", "") if old else "",
+                sell_uom=item_sell_uom,
+                category=item_cat,
             ))
 
         realloc_payload = [
@@ -714,40 +775,57 @@ async def update_transaction(txn_id: str, body: "TransactionUpdate") -> Transact
             2,
         )
 
-    if "discount" in data and data["discount"] is not None:
-        discount = float(data["discount"])
+    recalc_keys = {"items", "discount", "manual_discount", "tax", "round_off", "loyalty_points_redeemed"}
+    if any(k in data for k in recalc_keys):
         line_discount = sum(i.discount * i.quantity for i in effective_items)
         current_subtotal = updates.get("subtotal", txn.subtotal)
-        max_discount = current_subtotal - line_discount
-        if discount > max_discount:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail="Discount cannot exceed subtotal",
-            )
+        max_discount = max(0.0, current_subtotal - line_discount)
 
         settings = await get_store_settings()
-        redeem_rate = getattr(settings, "loyalty_redeem_rate", 1) or 1
-        loyalty_value = float(txn.loyalty_points_redeemed or 0) * float(redeem_rate)
+        redeem_rate = max(1, int(getattr(settings, "loyalty_redeem_rate", 1) or 1))
+        current_loyalty = updates.get("loyalty_points_redeemed", txn.loyalty_points_redeemed or 0)
+        loyalty_value = round(float(current_loyalty) * float(redeem_rate), 2)
 
-        if "manual_discount" in data and data["manual_discount"] is not None:
-            manual = max(0.0, min(float(data["manual_discount"]), max_discount))
-            updates["manual_discount"] = manual
-        else:
-            manual = float(txn.manual_discount or 0.0)
-            if manual > max_discount:
-                manual = max_discount
+        if "discount" in data and data["discount"] is not None:
+            discount = float(data["discount"])
+            if discount > max_discount:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail="Discount cannot exceed subtotal",
+                )
+            if "manual_discount" in data and data["manual_discount"] is not None:
+                manual = max(0.0, min(float(data["manual_discount"]), max_discount))
                 updates["manual_discount"] = manual
+            else:
+                manual = min(float(txn.manual_discount or 0.0), max_discount)
+                updates["manual_discount"] = manual
+            promotion = max(0.0, round(discount - manual - loyalty_value, 2))
+            updates["promotion_discount"] = promotion
+            updates["discount"] = discount
+        else:
+            manual = (
+                max(0.0, float(data["manual_discount"]))
+                if "manual_discount" in data and data["manual_discount"] is not None
+                else float(txn.manual_discount or 0.0)
+            )
+            manual = min(manual, max_discount)
+            updates["manual_discount"] = manual
+            promotion = float(txn.promotion_discount or 0.0)
+            discount = min(max_discount, round(promotion + manual + loyalty_value, 2))
+            updates["discount"] = discount
 
-        promotion = max(0.0, round(discount - manual - loyalty_value, 2))
-        updates["promotion_discount"] = promotion
-        updates["discount"] = discount
         current_tax = updates.get("tax", txn.tax)
         current_round_off = updates.get("round_off", txn.round_off)
-        updates["total"] = round(current_subtotal - line_discount - discount + float(current_tax or 0) + float(current_round_off or 0), 2)
+        updates["total"] = max(
+            0.0,
+            round(current_subtotal - line_discount - discount + float(current_tax or 0) + float(current_round_off or 0), 2),
+        )
 
     if not updates:
         return _to_response(txn)
 
+    updates["version"] = int(getattr(txn, "version", 1) or 1) + 1
+    updates["updated_at"] = datetime.now(timezone.utc)
     await txn.set(updates)
     refreshed = await Transaction.get(txn_id)
     if not refreshed:
@@ -776,6 +854,8 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
     txn = await Transaction.get(txn_id)
     if not txn:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    if txn.status == TransactionStatus.voided:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot edit a voided transaction")
 
     if not reason.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Void reason is required")
@@ -820,7 +900,20 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
             pid: await get_current_stock(pid) for pid in by_product
         }
         products = await _load_products_map(list(by_product))
-        await restock_from_deductions(deductions)
+        try:
+            await restock_from_deductions(deductions)
+        except Exception:
+            await col.update_one(
+                {"_id": PydanticObjectId(txn_id)},
+                {"$set": {
+                    "status": txn.status.value,
+                    "void_reason": txn.void_reason,
+                    "voided_at": txn.voided_at,
+                    "voided_by": txn.voided_by,
+                    "updated_at": txn.updated_at,
+                }},
+            )
+            raise
         for pid, product_deds in by_product.items():
             product = products.get(pid)
             if not product:
@@ -846,16 +939,27 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
             )
 
     if txn.customer_id:
-        customer = await Customer.get(txn.customer_id)
-        if customer:
-            points_earned = int(txn.total / 100)
-            new_points = customer.loyalty_points - points_earned + txn.loyalty_points_redeemed
-            new_spent = max(0.0, customer.total_spent - txn.total)
-            await customer.set({
-                "loyalty_points": max(0, new_points),
-                "total_spent": new_spent,
-                "membership_tier": _compute_tier(new_spent),
-            })
+        settings = await get_store_settings()
+        pts_per_currency = max(1, int(getattr(settings, "loyalty_points_per_currency", 100) or 100))
+        points_earned = int(txn.total / pts_per_currency)
+        points_delta = int(txn.loyalty_points_redeemed or 0) - points_earned
+        cust_col = Customer.get_motor_collection()
+        updated_cust = await cust_col.find_one_and_update(
+            {"_id": PydanticObjectId(txn.customer_id)},
+            {"$inc": {"loyalty_points": points_delta, "total_spent": -float(txn.total)}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if updated_cust:
+            new_pts = max(0, int(updated_cust.get("loyalty_points", 0) or 0))
+            new_spent = max(0.0, float(updated_cust.get("total_spent", 0.0) or 0.0))
+            await cust_col.update_one(
+                {"_id": updated_cust["_id"]},
+                {"$set": {
+                    "loyalty_points": new_pts,
+                    "total_spent": new_spent,
+                    "membership_tier": _compute_tier(new_spent).value,
+                }},
+            )
 
     from app.services.wallet_ledger import reverse_reference
     await reverse_reference(
@@ -863,7 +967,7 @@ async def void_sale(txn_id: str, reason: str, voided_by: str) -> TransactionResp
         reference_id=txn_id,
         reason=reason.strip(),
         created_by=voided_by,
-        date=now.date().isoformat(),
+        date=to_npt(now).date().isoformat(),
     )
 
     refreshed = await Transaction.get(txn_id)

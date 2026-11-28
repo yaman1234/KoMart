@@ -123,10 +123,11 @@ export function useDeleteShift() {
   });
 }
 
-export function useShiftAssignments(userId?: string) {
+export function useShiftAssignments(userId?: string, enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.shiftAssignments(userId),
     queryFn: () => attendanceService.listShiftAssignments(userId),
+    enabled,
     staleTime: STALE_TIME.standard,
   });
 }

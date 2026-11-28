@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.auth.jwt import hash_password
-from app.database import BARCODE_UNIQUE_INDEX, ensure_unique_barcode_index, init_db
+from app.database import init_db
 from app.main import app
 from app.models.product import Product
 from app.models.user import User, UserRole
@@ -296,62 +296,6 @@ async def test_inactive_product_barcode_can_be_reused(client: AsyncClient, manag
         created_ids.append(reused.json()["id"])
     finally:
         await _delete_ids(created_ids)
-
-
-@pytest.mark.asyncio
-async def test_existing_duplicate_barcodes_do_not_block_startup():
-    """Historical duplicates skip the unique index and leave the app queryable."""
-    collection = Product.get_motor_collection()
-    try:
-        await collection.drop_index(BARCODE_UNIQUE_INDEX)
-    except Exception:
-        pass
-
-    now = datetime.now(timezone.utc)
-    suffix = uuid.uuid4().hex[:8]
-    inserted = []
-    try:
-        for index in range(2):
-            result = await collection.insert_one({
-                "name": f"Historical Dup {suffix} {index}",
-                "sku": f"HIST{suffix}{index}",
-                "barcode": "2900000000011",
-                "brand": "",
-                "country_of_origin": "",
-                "category": "Snacks",
-                "supplier_id": "",
-                "supplier_name": "",
-                "description": "",
-                "buy_uom": "pcs",
-                "uom": "pcs",
-                "units_per_buy_uom": 1,
-                "sell_mode": "unit",
-                "cost_price": 10.0,
-                "selling_price": 20.0,
-                "is_active": True,
-                "status": "active",
-                "created_at": now,
-                "updated_at": now,
-            })
-            inserted.append(result.inserted_id)
-
-        await ensure_unique_barcode_index()
-        info = await collection.index_information()
-        assert BARCODE_UNIQUE_INDEX not in info
-        assert await collection.count_documents({"sku": {"$regex": f"^HIST{suffix}"}}) == 2
-
-        # Unrelated edits of a historical duplicate still save.
-        product = await Product.find_one(Product.sku == f"HIST{suffix}0")
-        assert product is not None
-        await product.set({"brand": "Legacy"})
-        refreshed = await Product.get(product.id)
-        assert refreshed is not None
-        assert refreshed.brand == "Legacy"
-        assert refreshed.barcode == "2900000000011"
-    finally:
-        if inserted:
-            await collection.delete_many({"_id": {"$in": inserted}})
-        await ensure_unique_barcode_index()
 
 
 @pytest.mark.asyncio

@@ -90,11 +90,11 @@ def _matches_line(rule: DiscountRule, item: EvaluateCartItem) -> bool:
         item_sell_uom = (item.sell_uom or "").strip().lower()
         if item_sell_uom != rule_sell_uom:
             return False
-    if rule.rule_type == DiscountRuleType.product_bogo:
-        return bool(rule.product_ids) and item.product_id in rule.product_ids
     min_qty = getattr(rule, "min_line_qty", 0) or 0
     if min_qty > 0 and item.quantity < min_qty:
         return False
+    if rule.rule_type == DiscountRuleType.product_bogo:
+        return bool(rule.product_ids) and item.product_id in rule.product_ids
     if rule.rule_type in (DiscountRuleType.product_percent, DiscountRuleType.product_flat):
         return bool(rule.product_ids) and item.product_id in rule.product_ids
     if rule.rule_type in (DiscountRuleType.category_percent, DiscountRuleType.category_flat):
@@ -207,7 +207,13 @@ async def evaluate_discounts(
                 best_amount = amount
                 best_rule = rule
 
-        per_unit = round(best_amount / item.quantity, 2) if item.quantity else 0.0
+        if best_rule and best_amount > 0 and item.quantity:
+            import math
+            per_unit = round(best_amount / item.quantity, 2)
+            if best_rule.max_discount and best_rule.max_discount > 0 and per_unit * item.quantity > best_rule.max_discount:
+                per_unit = math.floor((best_amount / item.quantity) * 100) / 100.0
+        else:
+            per_unit = 0.0
         evaluated_lines.append(
             EvaluatedLineItem(
                 product_id=item.product_id,

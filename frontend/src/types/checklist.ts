@@ -8,7 +8,7 @@ export type ChecklistCategory =
 
 export type TargetRole = 'cashier' | 'manager' | 'all';
 
-export type ChecklistStatus = 'pending' | 'in_progress' | 'completed';
+export type ChecklistStatus = 'pending' | 'in_progress' | 'completed' | 'overdue';
 
 export interface TemplateItem {
   id: string;

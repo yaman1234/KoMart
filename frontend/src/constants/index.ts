@@ -184,6 +184,8 @@ export const AUDIT_MODULE_LABELS: Record<string, string> = {
   customers: 'Customers',
   categories: 'Categories',
   discounts: 'Discounts',
+  attendance: 'Attendance',
+  checklists: 'Checklists',
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {

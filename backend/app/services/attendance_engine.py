@@ -156,24 +156,10 @@ def calculate_durations_and_status(
             record.early_exit_minutes = max(0, end_mins - actual_out_mins)
         else:
             record.early_exit_minutes = 0
-            scheduled_mins += 24 * 60  # Shift crossing midnight
-
-        if record.effective_work_minutes > scheduled_mins:
-            record.overtime_minutes = record.effective_work_minutes - scheduled_mins
-        else:
-            record.overtime_minutes = 0
-
-        # Early exit check
-        local_out = record.clock_out.astimezone(NPT_TIMEZONE)
-        actual_out_mins = local_out.hour * 60 + local_out.minute
-        if actual_out_mins < end_mins:
-            record.early_exit_minutes = max(0, end_mins - actual_out_mins)
-        else:
-            record.early_exit_minutes = 0
 
 
 def verify_store_network(client_ip: Optional[str], settings: Optional[StoreSettings]) -> bool:
-    """Verify IP address if geofencing/network lock is enabled in store settings."""
+    """Verify IP address / CIDR subnet if network lock is enabled in store settings."""
     if not settings:
         return True
     config = settings.attendance_config
@@ -181,7 +167,25 @@ def verify_store_network(client_ip: Optional[str], settings: Optional[StoreSetti
         return True
     if not client_ip:
         return False
-    return client_ip in config.allowed_ips
+    import ipaddress
+
+    try:
+        addr = ipaddress.ip_address(client_ip.strip())
+    except ValueError:
+        return client_ip in config.allowed_ips
+
+    for allowed in config.allowed_ips:
+        entry = (allowed or "").strip()
+        if not entry:
+            continue
+        if entry == client_ip.strip():
+            return True
+        try:
+            if addr in ipaddress.ip_network(entry, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def to_attendance_record_response(record: AttendanceRecord) -> AttendanceRecordResponse:

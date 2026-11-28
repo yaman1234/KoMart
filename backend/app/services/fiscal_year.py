@@ -5,14 +5,15 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from app.models.settings import StoreSettings
+from app.services.time_nepal import npt_day_end_utc, npt_day_start_utc, today_npt
 
 
 def current_fiscal_year_start(
     settings: StoreSettings,
     today: date | None = None,
 ) -> date:
-    """Return the AD start date of the fiscal year containing `today`."""
-    today = today or date.today()
+    """Return the AD start date of the fiscal year containing `today` (NPT)."""
+    today = today or today_npt()
     month = int(getattr(settings, "fiscal_year_start_month", 7) or 7)
     day = int(getattr(settings, "fiscal_year_start_day", 16) or 16)
     # Clamp day for short months
@@ -43,15 +44,13 @@ def current_fiscal_year_start(
 
 def fiscal_year_start_datetime(settings: StoreSettings, today: date | None = None) -> datetime:
     start = current_fiscal_year_start(settings, today)
-    return datetime(start.year, start.month, start.day, tzinfo=timezone.utc)
+    return npt_day_start_utc(start)
 
 
 def month_start_date(today: date | None = None) -> date:
-    today = today or date.today()
+    today = today or today_npt()
     return date(today.year, today.month, 1)
 
 
 def day_bounds(d: date) -> tuple[datetime, datetime]:
-    start = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-    end = datetime(d.year, d.month, d.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
-    return start, end
+    return npt_day_start_utc(d), npt_day_end_utc(d)

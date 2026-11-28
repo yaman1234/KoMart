@@ -9,8 +9,10 @@ from app.models.wallet_ledger import WalletLedgerEntry, WalletDirection, WalletE
 
 
 async def _get_day_cash_figures(date: str) -> dict:
-    start_dt = datetime.fromisoformat(f"{date}T00:00:00+00:00")
-    end_dt = datetime.fromisoformat(f"{date}T23:59:59.999999+00:00")
+    from app.services.time_nepal import npt_day_end_utc, npt_day_start_utc
+
+    start_dt = npt_day_start_utc(date)
+    end_dt = npt_day_end_utc(date)
 
     sales_rows = await Transaction.aggregate([
         {"$match": {

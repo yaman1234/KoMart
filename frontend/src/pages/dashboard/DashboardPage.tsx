@@ -584,10 +584,10 @@ export function DashboardPage() {
   const [kpiMetric, setKpiMetric] = useState<KpiFlowMetric | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
-  const { data: kpi, isLoading: kpiLoading } = useDashboardKpi();
+  const { data: kpi, isLoading: kpiLoading } = useDashboardKpi(isAdminOrManager);
   const { data: dayWiseTransactions, isLoading: dayWiseTransactionsLoading } = useDayWiseTransactions();
-  const { data: cashFlow = [], isLoading: cashFlowLoading } = useDashboardCashFlow(30);
-  const { data: opex = [], isLoading: opexLoading } = useOperationalExpenses(30);
+  const { data: cashFlow = [], isLoading: cashFlowLoading } = useDashboardCashFlow(30, isAdminOrManager);
+  const { data: opex = [], isLoading: opexLoading } = useOperationalExpenses(30, isAdminOrManager);
   const { data: storeSettings } = useStoreSettings();
   const attendanceEnabled = storeSettings?.attendanceConfig?.attendanceEnabled !== false;
   const { data: attendanceSummary, isLoading: attendanceLoading } = useAttendanceSummary(
@@ -608,9 +608,9 @@ export function DashboardPage() {
     const rate = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
     return { rate, totalItems, completedItems, totalChecklists: checklistsOverview.length };
   }, [checklistsOverview]);
-  const { data: topProfit = [], isLoading: profitLoading } = useTopProfitProducts(30, 6);
+  const { data: topProfit = [], isLoading: profitLoading } = useTopProfitProducts(30, 6, isAdminOrManager);
   const { data: topSold = [], isLoading: soldLoading } = useTopSoldProducts(30, 6);
-  const { data: salesCollection = [], isLoading: scLoading } = useSalesCollection(30);
+  const { data: salesCollection = [], isLoading: scLoading } = useSalesCollection(30, isAdminOrManager);
   const { data: kpiFlow = [], isLoading: kpiFlowLoading } = useKpiFlow(kpiMetric);
   const { data: openReceivables } = useAllPurchaseReturns({
     status: 'requested',

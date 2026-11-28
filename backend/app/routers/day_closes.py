@@ -265,6 +265,9 @@ async def post_variance(
     if not _ISO_DATE_RE.match(day):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="date must be YYYY-MM-DD")
 
+    existing_close = await DayClose.find_one(DayClose.date == day)
+    _assert_editable(existing_close)
+
     await wl.ensure_backfill()
     entry = await wl.post_day_close_variance(
         day=day,

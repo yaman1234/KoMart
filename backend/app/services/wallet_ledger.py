@@ -139,7 +139,9 @@ async def reverse_reference(
     existing = await find_by_reference(reference_type, reference_id)
     if not existing or not _has_active_post(existing):
         return []
-    day = date or datetime.now(timezone.utc).date().isoformat()
+    from app.services.time_nepal import today_npt
+
+    day = date or today_npt().isoformat()
     created: list[WalletLedgerEntry] = []
     primary = [
         e for e in existing
@@ -183,7 +185,9 @@ async def post_sale(txn: Transaction, *, created_by: str = "") -> WalletLedgerEn
     txn_id = str(txn.id)
     if _has_active_post(await find_by_reference("transaction", txn_id)):
         return None
-    day = (txn.created_at.astimezone(timezone.utc) if txn.created_at.tzinfo else txn.created_at.replace(tzinfo=timezone.utc)).date().isoformat()
+    from app.services.time_nepal import to_npt
+
+    day = to_npt(txn.created_at).date().isoformat()
     return await post_entry(
         wallet=method,
         direction=WalletDirection.inflow,
@@ -204,9 +208,11 @@ async def post_expense(expense: Expense, *, created_by: str = "", entry_type: Wa
     exp_id = str(expense.id)
     if _has_active_post(await find_by_reference("expense", exp_id)):
         return None
+    from app.services.expense_helpers import is_purchase_order_payment
+
     et = entry_type or (
         WalletEntryType.po_payment
-        if (getattr(expense, "category", None) and str(expense.category) == "purchase_order")
+        if is_purchase_order_payment(expense)
         else WalletEntryType.expense
     )
     return await post_entry(

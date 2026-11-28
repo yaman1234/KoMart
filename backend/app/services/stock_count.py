@@ -22,45 +22,49 @@ from app.services.stock import adjust_stock, get_current_stock_batch
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-async def _units_sold_in_window(product_id: str, since: datetime, until: datetime) -> int:
-    """Sum of sale quantities for a product between snapshot time and counted_at."""
+async def _net_movements_in_window(product_id: str, since: datetime, until: datetime) -> int:
+    """Net signed stock movements for a product between snapshot time and counted_at."""
     col = StockAdjustment.get_motor_collection()
     pipeline = [
         {"$match": {
             "product_id": product_id,
-            "type": "sale",
             "created_at": {"$gte": since, "$lte": until},
         }},
-        {"$group": {"_id": None, "total": {"$sum": {"$abs": "$quantity"}}}},
+        {"$group": {"_id": None, "total": {"$sum": "$quantity"}}},
     ]
     result = await col.aggregate(pipeline).to_list(1)
     return int(result[0]["total"]) if result else 0
 
 
-def _apply_adjusted_variance(item: StockCountItem, physical_qty: int, units_sold: int) -> None:
+def _apply_adjusted_variance(item: StockCountItem, physical_qty: int, net_movement: int) -> None:
     """Set adjusted_snapshot_qty, units_sold_in_window, variance_qty, variance_value."""
-    item.units_sold_in_window = units_sold
-    item.adjusted_snapshot_qty = item.snapshot_qty - units_sold
+    item.units_sold_in_window = max(0, -net_movement)
+    item.adjusted_snapshot_qty = item.snapshot_qty + net_movement
     item.physical_qty = physical_qty
     item.variance_qty = physical_qty - item.adjusted_snapshot_qty
     item.variance_value = round(item.variance_qty * item.unit_cost, 2)
 
 async def _next_count_number() -> str:
+    from pymongo import ReturnDocument
+
     year = datetime.now(timezone.utc).year
     prefix = f"SC-{year}-"
-    col = StockCount.get_motor_collection()
-    last = await col.find_one(
-        {"count_number": {"$regex": f"^{prefix}"}},
-        sort=[("count_number", -1)],
+    counters = StockCount.get_motor_collection().database["counters"]
+    counter_id = f"sc_seq:{prefix}"
+    if await counters.find_one({"_id": counter_id}) is None:
+        existing_count = await StockCount.find({"count_number": {"$regex": f"^{prefix}"}}).count()
+        await counters.update_one(
+            {"_id": counter_id},
+            {"$setOnInsert": {"seq": existing_count}},
+            upsert=True,
+        )
+    updated = await counters.find_one_and_update(
+        {"_id": counter_id},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
     )
-    if last:
-        try:
-            seq = int(last["count_number"].split("-")[-1]) + 1
-        except (ValueError, IndexError):
-            seq = 1
-    else:
-        seq = 1
-    return f"{prefix}{seq:04d}"
+    return f"{prefix}{int(updated['seq']):04d}"
 
 
 def _audit(sc: StockCount, action: str, user: User, note: str = "") -> None:
@@ -170,7 +174,7 @@ async def record_count(
     physical_qty: int,
     user: User,
 ) -> StockCount:
-    if sc.status not in (StockCountStatus.counting, StockCountStatus.recount_required):
+    if sc.status != StockCountStatus.counting:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Count is not in counting state.")
 
     item = next((i for i in sc.items if i.product_id == product_id), None)
@@ -178,8 +182,8 @@ async def record_count(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not in this count.")
 
     counted_at = datetime.now(timezone.utc)
-    units_sold = await _units_sold_in_window(product_id, sc.snapshot_taken_at or sc.created_at, counted_at)
-    _apply_adjusted_variance(item, physical_qty, units_sold)
+    net_move = await _net_movements_in_window(product_id, sc.snapshot_taken_at or sc.created_at, counted_at)
+    _apply_adjusted_variance(item, physical_qty, net_move)
     item.counted_by = user.name
     item.counted_at = counted_at
 
@@ -196,7 +200,7 @@ async def bulk_record_count(
     updates: list[dict],  # [{product_id, physical_qty}]
     user: User,
 ) -> StockCount:
-    if sc.status not in (StockCountStatus.counting, StockCountStatus.recount_required):
+    if sc.status != StockCountStatus.counting:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Count is not in counting state.")
 
     item_map = {i.product_id: i for i in sc.items}
@@ -207,8 +211,8 @@ async def bulk_record_count(
         if not item:
             continue
         qty = int(upd["physical_qty"])
-        units_sold = await _units_sold_in_window(upd["product_id"], snapshot_time, counted_at)
-        _apply_adjusted_variance(item, qty, units_sold)
+        net_move = await _net_movements_in_window(upd["product_id"], snapshot_time, counted_at)
+        _apply_adjusted_variance(item, qty, net_move)
         item.counted_by = user.name
         item.counted_at = counted_at
 
@@ -259,12 +263,12 @@ async def record_recount(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not in this count.")
 
     recounted_at = datetime.now(timezone.utc)
-    units_sold = await _units_sold_in_window(product_id, sc.snapshot_taken_at or sc.created_at, recounted_at)
+    net_move = await _net_movements_in_window(product_id, sc.snapshot_taken_at or sc.created_at, recounted_at)
     item.recount_qty = recount_qty
     item.recounted_by = user.name
     item.recounted_at = recounted_at
     # recount becomes the physical qty; recalculate with fresh window
-    _apply_adjusted_variance(item, recount_qty, units_sold)
+    _apply_adjusted_variance(item, recount_qty, net_move)
     item.counted_at = recounted_at  # update window end for display
 
     _recompute_summary(sc)
@@ -319,9 +323,18 @@ async def approve_count(sc: StockCount, user: User, notes: str = "") -> StockCou
     if sc.status not in (StockCountStatus.submitted, StockCountStatus.under_review):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Count must be submitted or under review to approve.")
 
-    # Idempotency guard — prevent double approval
-    if sc.adjustment_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Stock adjustments already created for this count.")
+    # Atomic claim — prevent concurrent double approval
+    col = StockCount.get_motor_collection()
+    claim = await col.update_one(
+        {
+            "_id": sc.id,
+            "status": {"$in": [StockCountStatus.submitted.value, StockCountStatus.under_review.value]},
+            "$or": [{"adjustment_id": None}, {"adjustment_id": ""}],
+        },
+        {"$set": {"status": StockCountStatus.approved.value, "updated_at": datetime.now(timezone.utc)}},
+    )
+    if claim.matched_count != 1:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Stock count is already approved or in progress.")
 
     _recompute_summary(sc)
     sc.status = StockCountStatus.approved
@@ -331,6 +344,7 @@ async def approve_count(sc: StockCount, user: User, notes: str = "") -> StockCou
 
     # Create stock adjustments for all variance items
     adj_ids: list[str] = []
+    failed_items: list[str] = []
     for item in sc.items:
         if item.variance_qty is None or item.variance_qty == 0:
             continue
@@ -351,8 +365,17 @@ async def approve_count(sc: StockCount, user: User, notes: str = "") -> StockCou
             )
             adj_ids.append(item.product_id)
         except HTTPException:
-            # Log but don't abort — partial adjustments are better than none
+            failed_items.append(item.product_name)
             _audit(sc, "adjustment_failed", user, f"Failed for {item.product_name}")
+
+    if failed_items:
+        sc.status = StockCountStatus.under_review
+        sc.updated_at = datetime.now(timezone.utc)
+        await sc.save()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Stock count partially failed for: {', '.join(failed_items)}. Review and retry.",
+        )
 
     sc.adjustment_id = sc.count_number  # use count number as reference
     sc.status = StockCountStatus.completed

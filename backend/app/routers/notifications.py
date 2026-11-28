@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_manager_or_above
 from app.models.user import User
 from app.models.notification import Notification, NotificationType
 from app.schemas.common import MessageResponse
@@ -48,22 +48,26 @@ async def list_notifications(
 
 
 @router.post("/sync", response_model=MessageResponse)
-async def refresh_notifications(_: User = Depends(get_current_user)):
+async def refresh_notifications(_: User = Depends(require_manager_or_above)):
     await sync_notifications()
     return MessageResponse(message="Notifications synced")
 
 
 @router.patch("/read-all", response_model=MessageResponse)
-async def mark_all_read(_: User = Depends(get_current_user)):
-    unread = await Notification.find(Notification.read == False).to_list()
-    for notification in unread:
-        await notification.set({"read": True})
+async def mark_all_read(_: User = Depends(require_manager_or_above)):
+    await Notification.get_motor_collection().update_many(
+        {"read": False},
+        {"$set": {"read": True}},
+    )
     return MessageResponse(message="All notifications marked as read")
 
 
 @router.patch("/{notification_id}/read", response_model=MessageResponse)
-async def mark_read(notification_id: str, _: User = Depends(get_current_user)):
-    notification = await Notification.get(notification_id)
+async def mark_read(notification_id: str, _: User = Depends(require_manager_or_above)):
+    try:
+        notification = await Notification.get(notification_id)
+    except Exception:
+        notification = None
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
     if not notification.read:

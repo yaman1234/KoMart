@@ -136,9 +136,25 @@ async def _to_response(doc: PurchaseReturn, *, include_payments: bool = False) -
 
 
 async def _next_return_number() -> str:
+    from pymongo import ReturnDocument
+
     prefix = "PR-"
-    count = await PurchaseReturn.find({"return_number": {"$regex": f"^{prefix}"}}).count()
-    return f"{prefix}{str(count + 1).zfill(4)}"
+    counters = PurchaseReturn.get_motor_collection().database["counters"]
+    counter_id = f"pr_seq:{prefix}"
+    if await counters.find_one({"_id": counter_id}) is None:
+        existing_count = await PurchaseReturn.find({"return_number": {"$regex": f"^{prefix}"}}).count()
+        await counters.update_one(
+            {"_id": counter_id},
+            {"$setOnInsert": {"seq": existing_count}},
+            upsert=True,
+        )
+    updated = await counters.find_one_and_update(
+        {"_id": counter_id},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return f"{prefix}{str(int(updated['seq'])).zfill(4)}"
 
 
 def _units(item) -> int:
@@ -385,9 +401,11 @@ async def _apply_po_linked_settlement(
             created_by=current_user.name,
         )
         new_paid = round(max(0.0, amount_paid - total_amount), 2)
-        new_status = compute_payment_status(new_paid, float(po.total_amount or 0))
+        new_total = round(max(0.0, float(po.total_amount or 0) - total_amount), 2)
+        new_status = compute_payment_status(new_paid, new_total)
         await po.set({
             "amount_paid": new_paid,
+            "total_amount": new_total,
             "payment_status": new_status,
             "updated_at": datetime.now(timezone.utc),
         })

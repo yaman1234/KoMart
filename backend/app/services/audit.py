@@ -193,6 +193,11 @@ def settings_snapshot(settings: Any) -> dict[str, Any]:
         "opening_cash_balance": float(getattr(settings, "opening_cash_balance", 0) or 0),
         "opening_bank_balance": float(getattr(settings, "opening_bank_balance", 0) or 0),
         "opening_esewa_balance": float(getattr(settings, "opening_esewa_balance", 0) or 0),
+        "attendance_config": (
+            settings.attendance_config.model_dump()
+            if getattr(settings, "attendance_config", None) is not None
+            else None
+        ),
     }
 
 

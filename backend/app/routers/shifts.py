@@ -136,6 +136,24 @@ async def assign_shift(
             detail="Shift not found or inactive",
         )
 
+    if body.effective_to and body.effective_from > body.effective_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="effective_from cannot be after effective_to",
+        )
+
+    existing_assignments = await ShiftAssignment.find(
+        ShiftAssignment.user_id == str(target_user.id),
+    ).to_list()
+    for ex in existing_assignments:
+        ex_end = ex.effective_to or "9999-12-31"
+        new_end = body.effective_to or "9999-12-31"
+        if ex.effective_from <= new_end and ex_end >= body.effective_from:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"User already has an overlapping shift assignment ({ex.shift_name})",
+            )
+
     assignment = ShiftAssignment(
         user_id=str(target_user.id),
         user_name=target_user.name,

@@ -202,7 +202,7 @@ export function PurchaseReturnsPage() {
       label: 'SN',
       align: 'center',
       minWidth: 48,
-      render: (row) => rows.findIndex((r) => r.id === row.id) + 1 + page * 10,
+      render: (row) => rows.findIndex((r) => r.id === row.id) + 1 + page * pageSize,
     },
     { id: 'returnNumber', label: 'Return #', minWidth: 120, accessor: 'returnNumber' },
     { id: 'returnDate', label: 'Date', minWidth: 110, accessor: 'returnDate' },

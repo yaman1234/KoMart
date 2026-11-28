@@ -209,8 +209,12 @@ async def daily_summary_report(
         cash_sales = cash_block_data["sales_in"]
         cash_expenses = cash_block_data["expenses_out"]
         expected = cash_block_data["expected"]
-        closing = float(cash_block_data["closing"] or 0)
-        variance = float(cash_block_data["variance"] or 0) if cash_block_data["variance"] is not None else round(closing - expected, 2)
+        raw_closing = cash_block_data["closing"]
+        closing = float(raw_closing or 0)
+        if raw_closing is None:
+            variance = 0.0
+        else:
+            variance = float(cash_block_data["variance"] or 0) if cash_block_data["variance"] is not None else round(closing - expected, 2)
         transfers_in = cash_block_data["transfers_in"]
         transfers_out = cash_block_data["transfers_out"]
         adjustments_in = cash_block_data["adjustments_in"]
@@ -395,8 +399,11 @@ async def expiring_products_report(
     within_days: int = Query(30, ge=1, le=365),
     _: User = Depends(require_manager_or_above),
 ):
-    today = date.today().isoformat()
-    cutoff = (date.today() + timedelta(days=within_days)).isoformat()
+    from app.services.time_nepal import today_npt
+
+    today_d = today_npt()
+    today = today_d.isoformat()
+    cutoff = (today_d + timedelta(days=within_days)).isoformat()
     batch_query = InventoryBatch.find(
         InventoryBatch.quantity > 0,
         {"expiry_date": {"$gte": today, "$lte": cutoff}},
@@ -509,7 +516,10 @@ async def profit_summary_report(
 
     total_revenue = 0.0
     total_cogs = 0.0
-    total_discount = sum(t.discount for t in txns)
+    total_discount = sum(
+        float(t.discount or 0) + sum(float(i.discount or 0) * int(i.quantity or 0) for i in t.items)
+        for t in txns
+    )
     daily: dict[str, dict] = defaultdict(lambda: {"revenue": 0.0, "cogs": 0.0})
 
     current = to_npt(start).date()
@@ -525,7 +535,7 @@ async def profit_summary_report(
             txn_cogs = sum(
                 line_cogs(item, product_cache.get(item.product_id)) for item in txn.items
             )
-        rev = txn.total
+        rev = max(0.0, float(txn.total or 0) - float(getattr(txn, "tax", 0) or 0))
         total_revenue += rev
         total_cogs += txn_cogs
         if day in daily:

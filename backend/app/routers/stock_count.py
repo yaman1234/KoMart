@@ -68,6 +68,9 @@ def _sc_response(sc: StockCount, current_user: User | None = None) -> StockCount
         d = _item_resp(item)
         if sc.count_mode.value == "blind" and not is_manager and sc.status.value in ("counting", "recount_required"):
             d["snapshot_qty"] = -1  # sentinel: hidden
+            d["adjusted_snapshot_qty"] = None
+            d["variance_qty"] = None
+            d["variance_value"] = None
         items.append(d)
 
     return StockCountResponse(
