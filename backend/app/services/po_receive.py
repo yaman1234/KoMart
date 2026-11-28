@@ -102,11 +102,11 @@ async def _commit_writes(ctx: _ReceiveWriteContext, *, session: Any | None) -> N
     for plan in ctx.plans:
         pid = plan.item.product_id
         if pid not in pid_to_initial_stock:
-            batches = await InventoryBatch.find(
-                InventoryBatch.product_id == pid,
-                InventoryBatch.quantity > 0,
-            ).to_list()
-            pid_to_initial_stock[pid] = sum(b.quantity for b in batches)
+            batches = await batch_col.find(
+                {"product_id": pid, "quantity": {"$gt": 0}},
+                **kwargs,
+            ).to_list(None)
+            pid_to_initial_stock[pid] = sum(int(b.get("quantity", 0) or 0) for b in batches)
 
     batch_result = await batch_col.insert_many(ctx.batch_docs, **kwargs)
     ctx.inserted_batch_ids = list(batch_result.inserted_ids)

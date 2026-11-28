@@ -109,7 +109,7 @@ export function ChecklistsPage() {
   );
   const verifyMutation = useVerifyChecklist();
 
-  const { data: templates = [], isLoading: loadingTemplates } = useChecklistTemplates(false);
+  const { data: templates = [], isLoading: loadingTemplates } = useChecklistTemplates(false, isManagerOrAdmin);
   const createTemplateMutation = useCreateChecklistTemplate();
   const updateTemplateMutation = useUpdateChecklistTemplate();
   const deactivateTemplateMutation = useDeactivateChecklistTemplate();

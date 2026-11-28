@@ -474,12 +474,16 @@ async def adjust_stock(
                     f"requested: {abs(quantity)}"
                 ),
             )
-        new_qty = batch.quantity + quantity
         col = InventoryBatch.get_motor_collection()
-        await col.update_one(
-            {"_id": batch.id},
-            {"$set": {"quantity": new_qty}},
-        )
+        flt: dict = {"_id": batch.id}
+        if quantity < 0:
+            flt["quantity"] = {"$gte": abs(quantity)}
+        res = await col.update_one(flt, {"$inc": {"quantity": quantity}})
+        if res.matched_count != 1:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail="Batch quantity changed concurrently; please retry.",
+            )
     elif quantity < 0:
         await deduct_stock_fefo(product_id, abs(quantity))
     else:
@@ -527,8 +531,11 @@ async def adjust_stock(
 
 async def expiring_product_ids(within_days: int = 30) -> set[str]:
     """Active catalog SKUs with at least one on-hand batch expiring in the window."""
-    today = date.today().isoformat()
-    cutoff = (date.today() + timedelta(days=within_days)).isoformat()
+    from app.services.time_nepal import today_npt
+
+    today_d = today_npt()
+    today = today_d.isoformat()
+    cutoff = (today_d + timedelta(days=within_days)).isoformat()
     batches = await InventoryBatch.find(
         InventoryBatch.quantity > 0,
         {"expiry_date": {"$gte": today, "$lte": cutoff}},

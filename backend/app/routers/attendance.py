@@ -429,7 +429,10 @@ async def regularize_attendance_record(
     manager: User = Depends(require_manager_or_above),
 ):
     """Regularize / manually adjust an attendance record with audit trail."""
-    record = await AttendanceRecord.get(record_id)
+    try:
+        record = await AttendanceRecord.get(record_id)
+    except Exception:
+        record = None
     if not record:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Attendance record not found")
 
@@ -450,6 +453,19 @@ async def regularize_attendance_record(
         record.status = body.status
 
     shift = await get_user_shift_for_date(record.user_id, record.date)
+    if body.clock_in is not None and record.clock_in is not None:
+        eval_status, late_mins = evaluate_punch_in(record.clock_in, shift)
+        record.late_minutes = late_mins
+        if body.status is None and record.clock_out is None:
+            record.status = eval_status
+    if body.clock_out is not None and record.clock_out is not None:
+        record.is_on_break = False
+        record.current_break_type = None
+        for b in record.breaks:
+            if b.end_time is None and b.start_time is not None:
+                b.end_time = record.clock_out
+                diff = int((ensure_utc(b.end_time) - ensure_utc(b.start_time)).total_seconds() // 60)
+                b.duration_minutes = max(0, diff)
     calculate_durations_and_status(record, shift)
 
     # If manager explicitly set status, prioritize manager's override

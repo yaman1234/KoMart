@@ -65,13 +65,31 @@ async def request_leave(
             detail="Start date cannot be after end date",
         )
 
+    overlap = await LeaveRequest.find_one(
+        LeaveRequest.user_id == str(current_user.id),
+        LeaveRequest.status != LeaveStatus.rejected,
+        LeaveRequest.status != LeaveStatus.cancelled,
+        LeaveRequest.start_date <= body.end_date,
+        LeaveRequest.end_date >= body.start_date,
+    )
+    if overlap:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a pending or approved leave overlapping these dates",
+        )
+
+    from datetime import date as _date
+    s_d = _date.fromisoformat(body.start_date)
+    e_d = _date.fromisoformat(body.end_date)
+    computed_days = 0.5 if body.is_half_day else float((e_d - s_d).days + 1)
+
     leave = LeaveRequest(
         user_id=str(current_user.id),
         user_name=current_user.name,
         leave_type=body.leave_type,
         start_date=body.start_date,
         end_date=body.end_date,
-        days_count=body.days_count,
+        days_count=computed_days,
         is_half_day=body.is_half_day,
         reason=body.reason,
         status=LeaveStatus.pending,

@@ -48,12 +48,10 @@ async def issue_refresh_token(
 
 async def revoke_token_family(family_id: str) -> None:
     now = datetime.now(timezone.utc)
-    tokens = await RefreshToken.find(
-        RefreshToken.family_id == family_id,
-        RefreshToken.revoked_at == None,  # noqa: E711
-    ).to_list()
-    for token in tokens:
-        await token.set({"revoked_at": now})
+    await RefreshToken.get_motor_collection().update_many(
+        {"family_id": family_id, "revoked_at": None},
+        {"$set": {"revoked_at": now}},
+    )
 
 
 async def revoke_token_by_plain(plain_token: str) -> bool:
@@ -67,13 +65,11 @@ async def revoke_token_by_plain(plain_token: str) -> bool:
 
 async def revoke_all_user_tokens(user_id: str) -> int:
     now = datetime.now(timezone.utc)
-    tokens = await RefreshToken.find(
-        RefreshToken.user_id == user_id,
-        RefreshToken.revoked_at == None,  # noqa: E711
-    ).to_list()
-    for token in tokens:
-        await token.set({"revoked_at": now})
-    return len(tokens)
+    result = await RefreshToken.get_motor_collection().update_many(
+        {"user_id": user_id, "revoked_at": None},
+        {"$set": {"revoked_at": now}},
+    )
+    return int(result.modified_count)
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -99,13 +95,6 @@ async def rotate_refresh_token(
     if not doc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
-    if doc.revoked_at:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
-
-    if _ensure_utc(doc.expires_at) < now:
-        await doc.set({"revoked_at": now})
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
-
     # Token reuse detection (rotation already consumed this token)
     if doc.replaced_by_hash:
         await revoke_token_family(doc.family_id)
@@ -113,6 +102,13 @@ async def rotate_refresh_token(
             status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token reuse detected; session revoked",
         )
+
+    if doc.revoked_at:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
+
+    if _ensure_utc(doc.expires_at) < now:
+        await doc.set({"revoked_at": now})
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
 
     new_plain, new_doc = await issue_refresh_token(
         doc.user_id,

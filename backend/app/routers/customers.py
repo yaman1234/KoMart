@@ -102,28 +102,15 @@ async def get_customer(customer_id: str, _: User = Depends(get_current_user)):
 
 
 @router.get("/{customer_id}/transactions", response_model=list[TransactionResponse])
-async def get_customer_transactions(customer_id: str, _: User = Depends(get_current_user)):
-    txns = await Transaction.find(
-        Transaction.customer_id == customer_id
-    ).sort("-created_at").to_list()
-    return [
-        TransactionResponse(
-            id=str(t.id),
-            transaction_number=t.transaction_number,
-            customer_id=t.customer_id,
-            customer_name=t.customer_name,
-            items=t.items,
-            subtotal=t.subtotal,
-            discount=t.discount,
-            tax=t.tax,
-            loyalty_points_redeemed=t.loyalty_points_redeemed,
-            total=t.total,
-            payment_method=t.payment_method,
-            created_by=t.created_by,
-            created_at=t.created_at.isoformat(),
-        )
-        for t in txns
-    ]
+async def get_customer_transactions(customer_id: str, current_user: User = Depends(get_current_user)):
+    from app.models.user import UserRole
+    from app.services.sales import _to_response as _txn_to_response
+
+    filters: list = [Transaction.customer_id == customer_id]
+    if current_user.role == UserRole.cashier:
+        filters.append(Transaction.cashier_id == str(current_user.id))
+    txns = await Transaction.find(*filters).sort("-created_at").to_list()
+    return [_txn_to_response(t) for t in txns]
 
 
 @router.patch("/{customer_id}", response_model=CustomerResponse)

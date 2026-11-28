@@ -64,15 +64,21 @@ async def list_audit_logs(
 
     date_filters: dict = {}
     if start_date:
-        start = datetime.fromisoformat(start_date)
+        try:
+            start = datetime.fromisoformat(start_date)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid start_date format") from exc
         if start.tzinfo is None:
             start = start.replace(tzinfo=timezone.utc)
         date_filters["$gte"] = start
     if end_date:
-        end = datetime.fromisoformat(end_date)
+        try:
+            end = datetime.fromisoformat(end_date)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid end_date format") from exc
         if end.tzinfo is None:
             end = end.replace(tzinfo=timezone.utc)
-        end = end.replace(hour=23, minute=59, second=59)
+        end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
         date_filters["$lte"] = end
     if date_filters:
         query = query.find({"created_at": date_filters})
@@ -96,7 +102,10 @@ async def list_audit_logs(
 
 @router.get("/{log_id}", response_model=AuditLogResponse)
 async def get_audit_log(log_id: str, _: User = Depends(require_manager_or_above)):
-    entry = await AuditLog.get(log_id)
+    try:
+        entry = await AuditLog.get(log_id)
+    except Exception:
+        entry = None
     if not entry:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Audit log not found")
     return _to_response(entry)

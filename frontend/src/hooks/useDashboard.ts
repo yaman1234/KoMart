@@ -14,10 +14,11 @@ export function useDashboardStats() {
   });
 }
 
-export function useDashboardKpi() {
+export function useDashboardKpi(enabled = true) {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'kpi'],
     queryFn: () => dashboardService.getKpiSummary(),
+    enabled,
     staleTime: STALE_TIME.standard,
   });
 }
@@ -30,10 +31,11 @@ export function useDayWiseTransactions() {
   });
 }
 
-export function useDashboardCashFlow(days = 30) {
+export function useDashboardCashFlow(days = 30, enabled = true) {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'cashFlow', days],
     queryFn: () => dashboardService.getCashFlow(days),
+    enabled,
     staleTime: STALE_TIME.reports,
   });
 }
@@ -65,18 +67,20 @@ export function useKpiFlow(metric: KpiFlowMetric | null) {
   });
 }
 
-export function useOperationalExpenses(days = 30) {
+export function useOperationalExpenses(days = 30, enabled = true) {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'opex', days],
     queryFn: () => dashboardService.getOperationalExpenses(days),
+    enabled,
     staleTime: STALE_TIME.reports,
   });
 }
 
-export function useTopProfitProducts(days = 30, limit = 6) {
+export function useTopProfitProducts(days = 30, limit = 6, enabled = true) {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'topProfit', days, limit],
     queryFn: () => dashboardService.getTopProfitProducts(days, limit),
+    enabled,
     staleTime: STALE_TIME.reports,
   });
 }
@@ -89,10 +93,11 @@ export function useTopSoldProducts(days = 30, limit = 6) {
   });
 }
 
-export function useSalesCollection(days = 30) {
+export function useSalesCollection(days = 30, enabled = true) {
   return useQuery({
     queryKey: [...QUERY_KEYS.dashboard, 'salesCollection', days],
     queryFn: () => dashboardService.getSalesCollection(days),
+    enabled,
     staleTime: STALE_TIME.reports,
   });
 }

@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.auth.dependencies import require_admin_only
+from app.models.user import User
 
 from app.config import settings
 from app.database import init_db
@@ -113,5 +116,7 @@ async def health():
 
 
 @app.get("/debug/cors")
-async def debug_cors():
+async def debug_cors(_: User = Depends(require_admin_only)):
+    if settings.app_env != "development":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return {"cors_origins": settings.cors_origins_list}

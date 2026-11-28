@@ -100,6 +100,7 @@ async def calculate_trading_pnl(
     gross_sales = 0.0
     item_markdowns = 0.0
     bill_discounts = 0.0
+    total_round_off = 0.0
     total_cogs = 0.0
     zero_cost_line_count = 0
 
@@ -107,6 +108,7 @@ async def calculate_trading_pnl(
         txn_gross = sum(line_gross(item) for item in txn.items)
         txn_item_disc = sum(line_discount(item) for item in txn.items)
         txn_bill_disc = float(getattr(txn, "discount", 0.0) or 0.0)
+        txn_round_off = float(getattr(txn, "round_off", 0.0) or 0.0)
 
         txn_cogs = float(getattr(txn, "total_cost", 0.0) or 0.0)
         if txn_cogs <= 0:
@@ -134,10 +136,11 @@ async def calculate_trading_pnl(
         gross_sales += txn_gross
         item_markdowns += txn_item_disc
         bill_discounts += txn_bill_disc
+        total_round_off += txn_round_off
         total_cogs += txn_cogs
 
     total_discounts = item_markdowns + bill_discounts
-    net_sales = max(0.0, gross_sales - total_discounts)
+    net_sales = max(0.0, gross_sales - total_discounts + total_round_off)
     gross_profit = net_sales - total_cogs
     gross_margin_pct = (gross_profit / net_sales * 100) if net_sales else 0.0
 
@@ -159,7 +162,8 @@ async def calculate_trading_pnl(
     # Shrinkage is a trading deduction before EBIT (plan §4)
     operating_profit = gross_profit - operating_expenses - inventory_shrinkage
     operating_margin_pct = (operating_profit / net_sales * 100) if net_sales else 0.0
-    net_profit = operating_profit - setup_investment
+    # CapEx (setup_investment) is a Balance Sheet asset, never a P&L expense.
+    net_profit = operating_profit
 
     waterfall = TradingPnLWaterfall(
         gross_sales=round(gross_sales, 2),
@@ -182,17 +186,22 @@ async def calculate_trading_pnl(
 
 
 async def calculate_tax_vat_summary(txns: list[Transaction]) -> TaxVatSummary:
-    """Calculate 13% Output VAT, Taxable vs Exempt sales, and Round-Offs."""
+    """Calculate Output VAT, Taxable vs Exempt sales, and Round-Offs using StoreSettings.tax_rate."""
+    from app.services.store_settings import get_store_settings
+
+    settings = await get_store_settings()
+    rate_pct = float(getattr(settings, "tax_rate", 13.0) or 13.0)
+    rate = rate_pct / 100.0 if rate_pct > 0 else 0.13
+
     total_tax = 0.0
     total_round_off = 0.0
     for txn in txns:
         total_tax += float(getattr(txn, "tax", 0.0) or 0.0)
         total_round_off += float(getattr(txn, "round_off", 0.0) or 0.0)
 
-    # In Nepal, standard VAT is 13%. Taxable sales base = VAT / 0.13
-    taxable_sales = round(total_tax / 0.13, 2) if total_tax > 0 else 0.0
+    taxable_sales = round(total_tax / rate, 2) if total_tax > 0 else 0.0
     total_net = sum(
-        sum(line_revenue(i) for i in t.items) - float(getattr(t, "discount", 0) or 0)
+        max(0.0, float(getattr(t, "total", 0.0) or 0.0) - float(getattr(t, "tax", 0.0) or 0.0))
         for t in txns
     )
     exempt_sales = max(0.0, round(total_net - taxable_sales, 2))
@@ -378,6 +387,9 @@ async def calculate_cash_flow_statement(
     movements: list[CashFlowMovementRow] = []
     MOVEMENTS_CAP = 2000
 
+    setup_expense_ids = {str(e.id) for e in expenses if is_setup_investment(e)}
+    setup_paid_in_ledger = 0.0
+
     has_ledger_sales = False
     for entry in entries:
         w_key = str(getattr(entry.wallet, "value", entry.wallet))
@@ -385,6 +397,10 @@ async def calculate_cash_flow_statement(
         et = str(getattr(entry.entry_type, "value", entry.entry_type))
         d = str(getattr(entry.direction, "value", entry.direction))
         day = str(entry.date or "")[:10]
+
+        if et == WalletEntryType.custody.value:
+            # Staff cash custody is an internal cash movement, not an external flow.
+            continue
 
         if day in daily_stats:
             if d == WalletDirection.inflow.value:
@@ -424,7 +440,10 @@ async def calculate_cash_flow_statement(
         else:
             wallet_outflows[w_key] += amt
             if et == WalletEntryType.expense.value:
-                opex_paid += amt
+                if getattr(entry, "reference_type", "") == "expense" and str(getattr(entry, "reference_id", "")) in setup_expense_ids:
+                    setup_paid_in_ledger += amt
+                else:
+                    opex_paid += amt
             elif et == WalletEntryType.po_payment.value:
                 supplier_po_payments += amt
             elif et == WalletEntryType.transfer.value:
@@ -449,9 +468,20 @@ async def calculate_cash_flow_statement(
 
     # Also ensure OpEx and PO payments match expense records if ledger entries were empty
     if opex_paid == 0.0 and pnl.operating_expenses > 0:
-        opex_paid = pnl.operating_expenses
+        cash_opex = sum(
+            e.amount
+            for e in expenses
+            if not is_setup_investment(e)
+            and not is_purchase_order_payment(e)
+            and getattr(e, "payment_method", None) != "inventory"
+        )
+        opex_paid = round(cash_opex, 2)
         for exp in expenses:
-            if is_setup_investment(exp) or is_purchase_order_payment(exp):
+            if (
+                is_setup_investment(exp)
+                or is_purchase_order_payment(exp)
+                or getattr(exp, "payment_method", None) == "inventory"
+            ):
                 continue
             day = str(getattr(exp, "date", "") or "")[:10]
             if day in daily_stats:
@@ -470,7 +500,7 @@ async def calculate_cash_flow_statement(
                 day = str(getattr(exp, "date", "") or "")[:10]
                 if day in daily_stats:
                     daily_stats[day]["outflows"] += float(exp.amount or 0.0)
-    setup_investment = pnl.setup_investment
+    setup_investment = setup_paid_in_ledger if setup_paid_in_ledger > 0 else pnl.setup_investment
 
     total_sales_collections = sum(sales_by_wallet.values())
     total_inflows = (
@@ -491,10 +521,14 @@ async def calculate_cash_flow_statement(
     net_cash_flow = total_inflows - total_outflows
 
     # Wallet breakdown
+    from app.services.store_settings import get_store_settings
+    from app.services.wallet_ledger import opening_baseline
+
+    store_settings = await get_store_settings()
     wallet_summaries: list[WalletMovementSummary] = []
     for w in (Wallet.cash, Wallet.bank, Wallet.esewa):
         w_val = w.value
-        opening = await ledger_net(w, date_lt=start_str)
+        opening = await opening_baseline(w, store_settings) + await ledger_net(w, date_lt=start_str)
         w_in = wallet_inflows.get(w_val, 0.0)
         w_out = wallet_outflows.get(w_val, 0.0)
         w_net = w_in - w_out
@@ -522,7 +556,7 @@ async def calculate_cash_flow_statement(
 
     # Cash-to-Profit Bridge:
     # Operating EBIT
-    # (+) Non-cash consumption
+    # (+) Non-cash consumption + Inventory shrinkage
     # (+) Inventory sold (COGS)
     # (-) Supplier PO payments
     # (+) Supplier refunds collected
@@ -530,6 +564,7 @@ async def calculate_cash_flow_statement(
     # = Net Cash Flow
     bridge_subtotal = (
         pnl.operating_profit
+        + pnl.inventory_shrinkage
         + non_cash_consumption
         + pnl.total_cogs
         - supplier_po_payments

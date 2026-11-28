@@ -67,7 +67,10 @@ async def _build_token_response(user: User, request: Request) -> TokenResponse:
 
 
 async def _authenticate(email: str, password: str, request: Request) -> TokenResponse:
-    user = await User.find_one(User.email == email)
+    normalized_email = email.strip().lower()
+    user = await User.find_one(User.email == normalized_email)
+    if not user:
+        user = await User.find_one(User.email == email.strip())
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -147,16 +150,18 @@ async def logout(
         )
         return MessageResponse(message=f"Logged out from {count} device(s)")
 
+    revoked = False
     if body.refresh_token:
-        await revoke_token_by_plain(body.refresh_token)
+        revoked = await revoke_token_by_plain(body.refresh_token)
 
-    await log_audit(
-        module=AuditModule.auth,
-        action="logout",
-        user=current_user,
-        request=request,
-        entity_type="user",
-        entity_id=str(current_user.id) if current_user else "",
-        new={"all_devices": False},
-    )
+    if current_user or revoked:
+        await log_audit(
+            module=AuditModule.auth,
+            action="logout",
+            user=current_user,
+            request=request,
+            entity_type="user",
+            entity_id=str(current_user.id) if current_user else "",
+            new={"all_devices": False},
+        )
     return MessageResponse(message="Logged out")

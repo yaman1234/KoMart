@@ -39,18 +39,6 @@ async def take_custody(
     if not holder or not holder.is_active:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Holder user not found or inactive")
 
-    entry = await wl.post_entry(
-        wallet=Wallet.cash,
-        direction=WalletDirection.outflow,
-        amount=amount,
-        entry_type=WalletEntryType.custody,
-        date=day,
-        remarks=f"Cash with {holder.name}: {remarks}",
-        reference_type="cash_custody",
-        reference_id="pending",
-        created_by=created_by,
-    )
-
     doc = CashCustody(
         amount=amount,
         held_by_user_id=str(holder.id),
@@ -58,12 +46,27 @@ async def take_custody(
         status=CashCustodyStatus.held,
         taken_date=day,
         remarks=remarks,
-        taken_ledger_id=str(entry.id),
+        taken_ledger_id="",
         created_by=created_by,
         updated_by=created_by,
     )
     await doc.insert()
-    await entry.set({"reference_id": str(doc.id)})
+    try:
+        entry = await wl.post_entry(
+            wallet=Wallet.cash,
+            direction=WalletDirection.outflow,
+            amount=amount,
+            entry_type=WalletEntryType.custody,
+            date=day,
+            remarks=f"Cash with {holder.name}: {remarks}",
+            reference_type="cash_custody",
+            reference_id=str(doc.id),
+            created_by=created_by,
+        )
+    except Exception:
+        await doc.delete()
+        raise
+    await doc.set({"taken_ledger_id": str(entry.id)})
     return doc
 
 

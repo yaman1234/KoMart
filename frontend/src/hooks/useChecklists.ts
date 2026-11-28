@@ -75,10 +75,11 @@ export function useCreateDailyChecklist() {
   });
 }
 
-export function useChecklistTemplates(includeInactive = false) {
+export function useChecklistTemplates(includeInactive = false, enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.checklistTemplates(includeInactive),
     queryFn: () => checklistService.listTemplates(includeInactive),
+    enabled,
     staleTime: STALE_TIME.static,
   });
 }

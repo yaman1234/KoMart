@@ -41,6 +41,7 @@ from app.models.bank_reconciliation import BankReconciliation
 from app.models.cash_reconciliation import CashReconciliation
 
 _motor_client: AsyncIOMotorClient | None = None
+_migrations_ran: bool = False
 
 
 def get_motor_client() -> AsyncIOMotorClient:
@@ -111,7 +112,7 @@ async def _run_startup_migrations() -> None:
 
 async def init_db() -> None:
     """Connect Motor + Beanie. Heavy migrations are skipped on Vercel cold starts."""
-    global _motor_client
+    global _motor_client, _migrations_ran
     on_vercel = bool(os.getenv("VERCEL"))
     motor_kwargs: dict = {
         "serverSelectionTimeoutMS": 5_000,
@@ -123,11 +124,13 @@ async def init_db() -> None:
     }
     if on_vercel:
         motor_kwargs["maxIdleTimeMS"] = 30_000
+    if _motor_client is not None:
+        _motor_client.close()
     _motor_client = AsyncIOMotorClient(settings.mongo_url, **motor_kwargs)
     client = _motor_client
     db = client[settings.mongo_db_name]
 
-    run_migrations = not settings.skip_startup_migrations
+    run_migrations = (not settings.skip_startup_migrations) and (not _migrations_ran)
     if run_migrations:
         await _drop_conflicting_indexes(db)
 
@@ -172,6 +175,7 @@ async def init_db() -> None:
 
     if run_migrations:
         await _run_startup_migrations()
+        _migrations_ran = True
 
 
 DEFAULT_UOMS: list[tuple[str, str]] = [

@@ -181,9 +181,9 @@ const ProductCard = memo(function ProductCard({ product, qtyInCart, discountLabe
         display: 'flex',
         flexDirection: 'column',
         opacity: cardDisabled ? 0.45 : 1,
-        border: inCart ? 2 : 0,
-        borderColor: 'primary.main',
-        background: 'linear-gradient(160deg, #fafafa 0%, #ffffff 60%, #f5f5f5 100%)',
+        border: inCart ? 2 : 1,
+        borderColor: inCart ? 'primary.main' : 'divider',
+        bgcolor: 'background.paper',
       }}
     >
       <CardActionArea
@@ -744,7 +744,9 @@ export function POSPage() {
 
   const cartQuantities = useMemo(() => {
     const map = new Map<string, number>();
-    for (const item of items) map.set(item.productId, item.quantity);
+    for (const item of items) {
+      map.set(item.productId, (map.get(item.productId) ?? 0) + item.quantity);
+    }
     return map;
   }, [items]);
 

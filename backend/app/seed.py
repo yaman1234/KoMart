@@ -403,9 +403,37 @@ async def seed():
     print("Connected to MongoDB.")
 
     # Clear all collections
-    for model in [User, Product, InventoryBatch, StockAdjustment, Supplier, PurchaseOrder,
-                  Customer, Transaction, Notification, StoreSettings, Expense, Category,
-                  RefreshToken, AuditLog]:
+    from app.models import (
+        Uom,
+        ExpenseCategoryDoc,
+        DiscountRule,
+        DayClose,
+        PriceHistory,
+        WalletLedgerEntry,
+        CacheEntry,
+        CashCustody,
+        StockCount,
+        PurchasePriceHistory,
+        PurchaseReturn,
+        AttendanceRecord,
+        Shift,
+        ShiftAssignment,
+        LeaveRequest,
+        ChecklistTemplate,
+        DailyChecklist,
+    )
+    from app.models.bank_reconciliation import BankReconciliation
+    from app.models.cash_reconciliation import CashReconciliation
+
+    for model in [
+        User, Product, InventoryBatch, StockAdjustment, Supplier, PurchaseOrder,
+        Customer, Transaction, Notification, StoreSettings, Expense, Category,
+        RefreshToken, AuditLog, Uom, ExpenseCategoryDoc, DiscountRule, DayClose,
+        PriceHistory, WalletLedgerEntry, CacheEntry, CashCustody, StockCount,
+        PurchasePriceHistory, PurchaseReturn, BankReconciliation, CashReconciliation,
+        AttendanceRecord, Shift, ShiftAssignment, LeaveRequest,
+        ChecklistTemplate, DailyChecklist,
+    ]:
         await model.find_all().delete()
     print("Cleared existing collections.")
 

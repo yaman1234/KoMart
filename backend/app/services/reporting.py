@@ -180,24 +180,43 @@ async def build_last_purchase_cost_cache(product_ids: set[str]) -> dict[str, flo
 
 
 async def aggregate_inventory_shrinkage(start: datetime, end: datetime) -> float:
-    """Period damaged/write-off stock at cost from stock adjustments."""
+    """Period damaged/write-off/count-variance stock loss at cost (positive = net loss)."""
     from app.models.inventory import AdjustmentType, StockAdjustment
+    from app.models.purchase_return import (
+        PurchaseReturn,
+        PurchaseReturnStatus,
+        ReturnSettlementType,
+    )
 
     rows = await StockAdjustment.find(
         {
-            "type": AdjustmentType.damaged.value,
+            "type": {"$in": [AdjustmentType.damaged.value, AdjustmentType.correction.value]},
             "created_at": {"$gte": start, "$lte": end},
         }
     ).to_list()
     total = 0.0
     for row in rows:
+        qty = int(getattr(row, "quantity", 0) or 0)
         ext = float(getattr(row, "extended_cost", 0.0) or 0.0)
-        if ext != 0:
+        if ext == 0:
+            unit = float(getattr(row, "unit_cost", 0.0) or 0.0)
+            ext = abs(qty) * unit
+        if row.type == AdjustmentType.damaged:
             total += abs(ext)
-            continue
-        qty = abs(int(getattr(row, "quantity", 0) or 0))
-        unit = float(getattr(row, "unit_cost", 0.0) or 0.0)
-        total += qty * unit
+        else:
+            # Stock count correction: negative qty = shortage (loss), positive qty = surplus (gain)
+            total += abs(ext) if qty < 0 else -abs(ext)
+
+    stock_only_returns = await PurchaseReturn.find(
+        {
+            "status": PurchaseReturnStatus.closed.value,
+            "settlement_type": ReturnSettlementType.stock_only.value,
+            "created_at": {"$gte": start, "$lte": end},
+        }
+    ).to_list()
+    for ret in stock_only_returns:
+        total += float(getattr(ret, "total_amount", 0.0) or 0.0)
+
     return round(total, 2)
 
 
@@ -348,7 +367,7 @@ async def aggregate_operating_expense_total_since(date_gte: str) -> float:
 
 async def aggregate_sold_product_ids(since: datetime) -> set[str]:
     pipeline = [
-        {"$match": {"created_at": {"$gte": since}}},
+        {"$match": {"created_at": {"$gte": since}, "status": {"$ne": TransactionStatus.voided.value}}},
         {"$unwind": "$items"},
         {"$group": {"_id": "$items.product_id"}},
     ]
@@ -363,7 +382,7 @@ async def aggregate_last_sale_before(
     if not product_ids:
         return {}
     pipeline = [
-        {"$match": {"created_at": {"$lt": before}}},
+        {"$match": {"created_at": {"$lt": before}, "status": {"$ne": TransactionStatus.voided.value}}},
         {"$unwind": "$items"},
         {"$match": {"items.product_id": {"$in": product_ids}}},
         {"$group": {"_id": "$items.product_id", "last_sale": {"$max": "$created_at"}}},
@@ -381,8 +400,10 @@ def collect_product_ids(txns: list[Transaction]) -> set[str]:
 
 
 def days_until(expiry: str) -> int:
+    from app.services.time_nepal import today_npt
+
     expiry_date = date.fromisoformat(expiry)
-    return (expiry_date - date.today()).days
+    return (expiry_date - today_npt()).days
 
 
 async def aggregate_inventory_by_category() -> list[dict[str, Any]]:

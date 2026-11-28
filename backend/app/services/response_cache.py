@@ -55,13 +55,11 @@ async def set_cached(
     _mem_cache[key] = (time.monotonic() + ttl_seconds, copy.deepcopy(payload))
 
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
-    existing = await CacheEntry.find_one(CacheEntry.key == key)
-    if existing:
-        existing.payload = payload
-        existing.expires_at = expires_at
-        await existing.save()
-        return
-    await CacheEntry(key=key, payload=payload, expires_at=expires_at).insert()
+    await CacheEntry.get_motor_collection().update_one(
+        {"key": key},
+        {"$set": {"key": key, "payload": payload, "expires_at": expires_at}},
+        upsert=True,
+    )
 
 
 async def bump_cache(*prefixes: str) -> None:

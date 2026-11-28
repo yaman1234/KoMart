@@ -62,7 +62,7 @@ import {
   useReviewLeave,
   useCancelLeave,
 } from '@/hooks/useAttendance';
-import { useUsers } from '@/hooks/useUsers';
+import { useAssignableUsers } from '@/hooks/useAssignableUsers';
 import { showSuccess, showError, showWarning } from '@/utils/toast';
 import { formatNepalTime, toNepalDateTimeInputString, nepalDateTimeInputToUtcIso } from '@/utils';
 import type {
@@ -104,16 +104,16 @@ export function AttendancePage() {
   const user = useAuthStore((s) => s.user);
   const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'manager';
 
-  const [activeTab, setActiveTab] = useState(isManagerOrAdmin ? 0 : 1);
+  const [activeTab, setActiveTab] = useState(0);
 
   // Queries
   const { data: roster = [], isLoading: rosterLoading } = useAttendanceLiveRoster(undefined, isManagerOrAdmin);
   const { data: summary } = useAttendanceSummary(undefined, isManagerOrAdmin);
   const { data: myHistory = [], isLoading: historyLoading } = useAttendanceMyHistory();
   const { data: shifts = [] } = useShifts();
-  const { data: assignments = [] } = useShiftAssignments();
+  const { data: assignments = [] } = useShiftAssignments(undefined, isManagerOrAdmin);
   const { data: leaves = [], isLoading: leavesLoading } = useLeaves();
-  const { data: users = [] } = useUsers();
+  const { data: users = [] } = useAssignableUsers({ enabled: isManagerOrAdmin });
 
   // Mutations
   const regularizeMutation = useRegularizeAttendance();

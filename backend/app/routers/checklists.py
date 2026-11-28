@@ -111,10 +111,9 @@ def _to_daily_response(d: DailyChecklist) -> DailyChecklistResponse:
 
 
 async def ensure_daily_checklists_for_date(date_str: str) -> None:
-    """If no daily checklists exist for date_str, auto-generate instances from active ChecklistTemplates."""
-    count = await DailyChecklist.find(DailyChecklist.date == date_str).count()
-    if count > 0:
-        return
+    """Auto-generate missing daily checklist instances from active ChecklistTemplates for date_str."""
+    existing = await DailyChecklist.find(DailyChecklist.date == date_str).to_list()
+    existing_template_ids = {d.template_id for d in existing if d.template_id}
 
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -128,6 +127,8 @@ async def ensure_daily_checklists_for_date(date_str: str) -> None:
     ).to_list()
 
     for t in templates:
+        if str(t.id) in existing_template_ids:
+            continue
         if weekday in t.days_of_week:
             daily_items = [
                 DailyChecklistItem(
@@ -203,9 +204,20 @@ async def toggle_checklist_item(
     current_user: User = Depends(get_current_user),
 ):
     """Toggle a checklist item completed or incomplete with optional numeric/notes data."""
-    checklist = await DailyChecklist.get(checklist_id)
+    try:
+        checklist = await DailyChecklist.get(checklist_id)
+    except Exception:
+        checklist = None
     if not checklist:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Daily checklist not found")
+
+    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    is_mgr = user_role in ("admin", "manager")
+    if not is_mgr:
+        if checklist.assigned_to_user_id and checklist.assigned_to_user_id != str(current_user.id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not authorized to update this checklist")
+        if checklist.target_role == TargetRole.manager:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Manager role required for this checklist")
 
     target_item = None
     for item in checklist.items:
