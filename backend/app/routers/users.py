@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import List
 
-from app.auth.dependencies import get_current_user, require_admin_only, require_manager_or_above
+from app.auth.dependencies import (
+    get_current_user,
+    invalidate_user_cache,
+    require_admin_only,
+    require_manager_or_above,
+)
 from app.auth.jwt import hash_password
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserUpdate, UserMeUpdate, UserListItem, AssignableUserItem
@@ -126,6 +131,7 @@ async def update_user(
 
     if update_data:
         await user.set(update_data)
+        invalidate_user_cache(user_id)
         refreshed = await User.get(user_id)
         after = user_snapshot(refreshed)  # type: ignore[arg-type]
         await log_audit(
@@ -155,6 +161,7 @@ async def deactivate_user(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate yourself")
     before = user_snapshot(user)
     await user.set({"is_active": False})
+    invalidate_user_cache(user_id)
     await log_audit(
         module=AuditModule.users,
         action="deactivate",

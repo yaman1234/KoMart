@@ -1,3 +1,5 @@
+import time
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
@@ -7,6 +9,18 @@ from app.models.user import User, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
+
+_USER_CACHE_TTL_SECONDS = 30.0
+_MAX_USER_CACHE_ENTRIES = 500
+_user_cache: dict[str, tuple[float, User]] = {}
+
+
+def invalidate_user_cache(user_id: str | None = None) -> None:
+    """Clear cached active user(s) after role, status, or profile updates."""
+    if user_id is None:
+        _user_cache.clear()
+    else:
+        _user_cache.pop(user_id, None)
 
 
 async def _user_from_token(token: str) -> User | None:
@@ -18,9 +32,21 @@ async def _user_from_token(token: str) -> User | None:
     except JWTError:
         return None
 
+    now = time.monotonic()
+    cached = _user_cache.get(user_id)
+    if cached is not None:
+        expires_at, cached_user = cached
+        if expires_at > now:
+            return cached_user
+        _user_cache.pop(user_id, None)
+
     user = await User.get(user_id)
     if user is None or not user.is_active:
         return None
+
+    if len(_user_cache) >= _MAX_USER_CACHE_ENTRIES:
+        _user_cache.clear()
+    _user_cache[user_id] = (now + _USER_CACHE_TTL_SECONDS, user)
     return user
 
 

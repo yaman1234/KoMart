@@ -283,17 +283,21 @@ async def aggregate_batch_inventory_value() -> float:
 
 
 async def aggregate_product_inventory_stats() -> dict[str, float | int]:
-    products = await Product.find(Product.is_active == True).to_list()  # noqa: E712
-    product_ids = [str(p.id) for p in products]
+    products = await Product.get_motor_collection().find(
+        {"is_active": True},
+        {"_id": 1, "low_stock_threshold": 1},
+    ).to_list(None)
+    product_ids = [str(p["_id"]) for p in products]
     stock_map = await get_current_stock_batch(product_ids)
 
     total_products = len(products)
     low_stock = 0
     out_of_stock = 0
     for product in products:
+        threshold = product.get("low_stock_threshold")
         status = classify_on_hand_stock(
-            stock_map.get(str(product.id), 0),
-            product.low_stock_threshold,
+            stock_map.get(str(product["_id"]), 0),
+            5 if threshold is None else int(threshold),
         )
         if status == "out":
             out_of_stock += 1
