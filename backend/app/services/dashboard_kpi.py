@@ -62,27 +62,21 @@ async def _expense_sum(
             aliases.add("khalti")
         match["payment_method"] = {"$in": list(aliases)}
 
-    # Prefer aggregation when we don't need Python-side exclude filters.
-    if not exclude_setup and not exclude_purchase_order:
-        col = Expense.get_motor_collection()
-        pipeline = [
-            {"$match": match},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
-        ]
-        rows = await col.aggregate(pipeline).to_list(1)
-        return float(rows[0]["total"]) if rows else 0.0
+    extra_filters: list[dict[str, Any]] = []
+    if exclude_setup:
+        extra_filters.append({"$nor": [{"is_setup_cost": True}, {"category": "setup_investment"}]})
+    if exclude_purchase_order:
+        extra_filters.append({"category": {"$ne": ExpenseCategory.purchase_order.value}})
+    if extra_filters:
+        match["$and"] = extra_filters
 
-    expenses = await Expense.find(match).to_list()
-    total = 0.0
-    for e in expenses:
-        if exclude_setup and is_setup_investment(e):
-            continue
-        if exclude_purchase_order and e.category == ExpenseCategory.purchase_order:
-            continue
-        if payment_method and normalize_payment_method(e.payment_method) != payment_method:
-            continue
-        total += float(e.amount or 0)
-    return total
+    col = Expense.get_motor_collection()
+    pipeline = [
+        {"$match": match},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+    ]
+    rows = await col.aggregate(pipeline).to_list(1)
+    return float(rows[0]["total"]) if rows else 0.0
 
 
 async def _sales_by_payment(

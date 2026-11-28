@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -49,6 +49,18 @@ export function TopBarAttendanceWidget() {
   const [pendingAction, setPendingAction] = useState<PunchAction | null>(null);
   const [pendingBreakType, setPendingBreakType] = useState<BreakType | undefined>(undefined);
   const [notes, setNotes] = useState('');
+  const [extraWorkedMins, setExtraWorkedMins] = useState(0);
+
+  const isActivelyWorking = Boolean(today?.hasClockedIn && !today?.hasClockedOut && !today?.isOnBreak);
+
+  useEffect(() => {
+    setExtraWorkedMins(0);
+    if (!isActivelyWorking) return;
+    const id = setInterval(() => {
+      setExtraWorkedMins((m) => m + 1);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [isActivelyWorking, today?.elapsedWorkMinutes]);
 
   if (storeSettings?.attendanceConfig?.attendanceEnabled === false || isLoading || !today) {
     return null;
@@ -230,7 +242,7 @@ export function TopBarAttendanceWidget() {
       <Tooltip title={`Clocked in at ${inTime}`}>
         <Chip
           icon={<AccessTimeIcon sx={{ color: '#16A34A !important' }} />}
-          label={`In: ${inTime} · Working (${formatMins(today.elapsedWorkMinutes)})`}
+          label={`In: ${inTime} · Working (${formatMins(today.elapsedWorkMinutes + extraWorkedMins)})`}
           color="success"
           variant="outlined"
           size="small"

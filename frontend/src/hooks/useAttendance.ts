@@ -17,7 +17,6 @@ export function useAttendanceToday(enabled = true) {
     queryFn: () => attendanceService.getTodayStatus(),
     enabled,
     staleTime: STALE_TIME.realtime,
-    refetchInterval: 30000,
   });
 }
 
@@ -49,7 +48,7 @@ export function useAttendanceLiveRoster(date?: string, enabled = true) {
     queryFn: () => attendanceService.getLiveRoster(date),
     enabled,
     staleTime: STALE_TIME.realtime,
-    refetchInterval: 30000,
+    refetchInterval: 120000,
   });
 }
 
