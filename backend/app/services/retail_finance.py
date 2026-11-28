@@ -206,16 +206,58 @@ async def calculate_tax_vat_summary(txns: list[Transaction]) -> TaxVatSummary:
 
 
 async def _ap_ar_live() -> tuple[float, float]:
-    active_pos = await PurchaseOrder.find(committed_po_status_match()).to_list()
-    accounts_payable = sum(max(0.0, po.total_amount - po.amount_paid) for po in active_pos)
+    po_pipeline = [
+        {"$match": committed_po_status_match()},
+        {
+            "$group": {
+                "_id": None,
+                "ap": {
+                    "$sum": {
+                        "$max": [
+                            0.0,
+                            {
+                                "$subtract": [
+                                    {"$ifNull": ["$total_amount", 0.0]},
+                                    {"$ifNull": ["$amount_paid", 0.0]},
+                                ]
+                            },
+                        ]
+                    }
+                },
+            }
+        },
+    ]
+    po_rows = await PurchaseOrder.get_motor_collection().aggregate(po_pipeline).to_list(1)
+    accounts_payable = float(po_rows[0]["ap"]) if po_rows else 0.0
 
-    open_returns = await PurchaseReturn.find(
-        {"status": PurchaseReturnStatus.requested.value}
-    ).to_list()
-    accounts_receivable = sum(
-        max(0.0, r.total_amount - (r.amount_received + r.write_off_amount))
-        for r in open_returns
-    )
+    pr_pipeline = [
+        {"$match": {"status": PurchaseReturnStatus.requested.value}},
+        {
+            "$group": {
+                "_id": None,
+                "ar": {
+                    "$sum": {
+                        "$max": [
+                            0.0,
+                            {
+                                "$subtract": [
+                                    {"$ifNull": ["$total_amount", 0.0]},
+                                    {
+                                        "$add": [
+                                            {"$ifNull": ["$amount_received", 0.0]},
+                                            {"$ifNull": ["$write_off_amount", 0.0]},
+                                        ]
+                                    },
+                                ]
+                            },
+                        ]
+                    }
+                },
+            }
+        },
+    ]
+    pr_rows = await PurchaseReturn.get_motor_collection().aggregate(pr_pipeline).to_list(1)
+    accounts_receivable = float(pr_rows[0]["ar"]) if pr_rows else 0.0
     return round(accounts_payable, 2), round(accounts_receivable, 2)
 
 

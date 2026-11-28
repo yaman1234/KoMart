@@ -13,8 +13,8 @@ export function useMyTodayChecklists(enabled = true) {
     queryKey: QUERY_KEYS.checklistsMyToday,
     queryFn: () => checklistService.getMyTodayChecklists(),
     enabled,
-    staleTime: STALE_TIME.realtime,
-    refetchInterval: 60000,
+    staleTime: STALE_TIME.standard,
+    refetchInterval: 300000,
   });
 }
 
